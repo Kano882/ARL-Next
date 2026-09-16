@@ -80,14 +80,9 @@ class Config(object, metaclass=ConfigMeta):
     if not os.path.exists(TMP_PATH):
         os.mkdir(TMP_PATH)
     _system_massdns = shutil.which("massdns")
-    if _system_massdns:
-        MASSDNS_BIN = _system_massdns
-    else:
-        MASSDNS_BIN = os.path.join(basedir, 'tools/massdns')
-    SCREENSHOT_JS = os.path.join(basedir, 'tools/screenshot.js')
+    MASSDNS_BIN = _system_massdns or "massdns"
     SCREENSHOT_DIR = os.path.join(basedir, 'tmp_screenshot')
     SCREENSHOT_FAIL_IMG = os.path.join(basedir, 'dicts/noscreenshot.jpg')
-    DRIVER_JS = os.path.join(basedir, 'tools/driver.js')
 
 
     _DOMAIN_DICT_2W = os.path.join(basedir, 'dicts/domain_2w.txt')

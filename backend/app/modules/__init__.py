@@ -1,7 +1,6 @@
 from .ipInfo import PortInfo, IPInfo
 from .baseInfo import BaseInfo
 from .domainInfo import DomainInfo
-from .pageInfo import PageInfo
 from .wihRecord import WihRecord
 from app.config import Config
 

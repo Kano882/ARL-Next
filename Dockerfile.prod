@@ -126,6 +126,3 @@ RUN cp /code/backend/wait-for-it.sh /usr/bin/wait-for-it.sh && \
     chmod +x /usr/bin/wait-for-it.sh && \
     mkdir -p /opt/built && \
     ln -s /code/backend/.venv-docker /opt/built/venv
-
-# 5. 赋予 ARL 自带工具执行权限
-RUN chmod +x /code/backend/app/tools/massdns || true
