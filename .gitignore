@@ -70,3 +70,5 @@ ARL_auth.md
 
 AGENTS.md
 CLAUDE.md
+# Node 依赖目录不入库：镜像构建已在 .dockerignore 排除，本地如需还原执行 npm ci
+**/node_modules/
