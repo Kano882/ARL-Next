@@ -9129,6 +9129,19 @@
         "website": "",
         "fofa_rule": "title=\"Kubernetes Dashboard\" || body=\"kubernetes-dashboard\" || (body=\"\\\"apiVersion\\\":\\\"v1\\\"\" && body=\"\\\"kind\\\":\\\"Status\\\"\" && (body=\"system:anonymous\" || body=\"k8s\" || body=\"kubernetes\"))"
     },
+    "Kubernetes-Konnectivity": {
+        "cats": [
+            1111
+        ],
+        "headers": [],
+        "html": [
+            "this proxy only supports CONNECT passthrough"
+        ],
+        "title": [],
+        "icon": "default.png",
+        "website": "https://github.com/kubernetes-sigs/apiserver-network-proxy",
+        "fofa_rule": "body=\"this proxy only supports CONNECT passthrough\" || cert=\"konnectivity-server\""
+    },
     "Kubelet": {
         "cats": [
             1111
@@ -81690,12 +81703,15 @@
         ],
         "headers": [],
         "html": [
-            "\\.api\\.milvus\\.com"
+            "\\.api\\.milvus\\.com",
+            "/api/v1/credential/users",
+            "/api/v1/collections",
+            "\"status\":\\s*\"ok\""
         ],
         "title": [],
         "icon": "default.png",
-        "website": "",
-        "fofa_rule": "body=\"\\.api\\.milvus\\.com\""
+        "website": "https://milvus.io",
+        "fofa_rule": "body=\"\\.api\\.milvus\\.com\" || body=\"/api/v1/credential/users\" || (body=\"status\" && body=\"milvus\")"
     },
     "Mimiran": {
         "cats": [

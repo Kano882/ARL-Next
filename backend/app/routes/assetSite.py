@@ -225,7 +225,9 @@ class AddAssetSiteTagARL(ARLResource):
         """
         args = self.parse_args(add_asset_site_tag_fields)
         site_id = args.pop("_id")
-        tag = args.pop("tag")
+        tag = (args.pop("tag") or "").strip()
+        if not tag or len(tag) > 64:
+            return utils.build_ret("标签不能为空且长度需在1-64字符之间", {})
 
         query = {"_id": ObjectId(site_id)}
         data = utils.conn_db('asset_site').find_one(query)
@@ -268,7 +270,7 @@ class DeleteAssetSiteTagARL(ARLResource):
         """
         args = self.parse_args(delete_asset_site_tag_fields)
         site_id = args.pop("_id")
-        tag = args.pop("tag")
+        tag = (args.pop("tag") or "").strip()
 
         query = {"_id": ObjectId(site_id)}
         data = utils.conn_db('asset_site').find_one(query)
@@ -287,7 +289,7 @@ class DeleteAssetSiteTagARL(ARLResource):
         if tag not in tag_list:
             return utils.build_ret(ErrorMsg.SiteTagNotExist, {"tag": tag})
 
-        tag_list.remove(tag)
+        tag_list = [t for t in tag_list if t != tag]
 
         utils.conn_db('asset_site').update_one(query, {"$set": {"tag": tag_list}})
 

@@ -130,9 +130,9 @@
 
               <a-tag v-if="record.is_entry || record.isEntry" style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);">入口</a-tag>
 
-              <template v-for="(t, idx) in (record.tags || record.tag || [])" :key="idx">
+              <template v-for="(t, idx) in (record.tags || record.tag || []).filter(Boolean)" :key="idx">
                 <a-tag style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);">
-                  {{ typeof t === 'string' ? t : (t.name || t.tag_name || t) }}
+                  {{ typeof t === 'string' ? t : (t?.name || t?.tag_name || t) }}
                 </a-tag>
               </template>
             </div>
@@ -613,6 +613,8 @@ const tabConfig = reactive({
   // 💡 重新构建：1:1 对齐截图的 SSL证书 配置
   cert: {
     url: '/cert/',
+    exportUrl: '/cert/export/',
+    exportName: 'SSL证书',
     searchFields: [
       { label: 'IP字段', key: 'ip', operator: '=' },
       { label: '签发者名称', key: 'cert.issuer_dn', operator: '=' },
@@ -922,11 +924,15 @@ const handleExport = async () => {
       }
     }
     const res = await request.get(config.exportUrl, { params, responseType: 'blob' });
-    const blob = new Blob([res], { type: 'text/plain;charset=utf-8' });
+    const isCert = activeTab.value === 'cert';
+    const mimeType = isCert ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
+    const ext = isCert ? 'json' : 'txt';
+
+    const blob = new Blob([res], { type: mimeType });
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `ARL_Global_${activeTab.value}_Export.txt`;
+    link.download = `ARL_Global_${activeTab.value}_Export.${ext}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

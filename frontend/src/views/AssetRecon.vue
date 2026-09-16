@@ -571,6 +571,7 @@ const viewTask = (record) => {
     query: {
       task_id: record._id,
       name: record.name,
+      target: record.target,
       task_type: record.task_type || 'icp',
       web_cnt: stats.web_cnt || 0,
       app_cnt: stats.app_cnt || 0,

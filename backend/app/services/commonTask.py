@@ -1,4 +1,6 @@
 import time
+import socket
+from collections import defaultdict
 from urllib.parse import urlparse
 from bson import ObjectId
 from app import utils
@@ -147,6 +149,7 @@ class WebSiteFetch(object):
         self.domain_black_list = domain_black_list
         self.page_url_set = set()
         self.search_engines_result = dict()
+        self.catch_all_sites = set()  # 独立持久化集合，保存泛解析/默认后端站点（防止内存清空后状态丢失）
         self._poc_sites = None  # 用于PoC 执行， 文件目录爆破 的目标
         self._task_domain_set = None  # 用于保存任务中的域名
 
@@ -268,9 +271,86 @@ class WebSiteFetch(object):
                 item["task_id"] = self.task_id
                 utils.safe_insert_asset('url', ['task_id', 'url'], item)
 
+    def filter_catch_all_vhost(self):
+        """
+        对抓取到的站点结果进行默认后端/泛解析反代去噪与聚类。
+        针对状态码 {400, 403, 404, 500, 502, 503, 504}，按 (ip, status, length_bin, title) 聚类。
+        当聚类数量 >= 10 时，保留第 1 个作为代表站点打标，其余剔除，并在下游扫描中全面阻断。
+        """
+        if not self.site_info_list:
+            return
+
+        target_status_codes = {400, 403, 404, 500, 502, 503, 504}
+        clusters = defaultdict(list)
+
+        for item in self.site_info_list:
+            status = item.get("status")
+            if status not in target_status_codes:
+                continue
+
+            ip = item.get("ip")
+            if not ip:
+                hostname = item.get("hostname")
+                if not hostname and item.get("site"):
+                    try:
+                        hostname = urlparse(item["site"]).hostname
+                    except Exception:
+                        hostname = None
+                if hostname:
+                    try:
+                        ip = socket.gethostbyname(hostname)
+                        item["ip"] = ip
+                    except Exception:
+                        ip = None
+
+            if not ip:
+                continue
+
+            body_len = item.get("body_length")
+            if body_len is None:
+                body_len = len(item.get("content", b"")) if "content" in item else 0
+
+            length_bin = int(body_len / 100) * 100
+            title = item.get("title") or ""
+            cluster_key = (ip, status, length_bin, title)
+            clusters[cluster_key].append(item)
+
+        discarded_sites_set = set()
+        for cluster_key, site_items in clusters.items():
+            if len(site_items) >= 10:
+                rep = site_items[0]
+                if "tag" not in rep or not isinstance(rep.get("tag"), list):
+                    rep["tag"] = []
+                if "catch_all_vhost" not in rep["tag"]:
+                    rep["tag"].append("catch_all_vhost")
+                rep["is_catch_all"] = True
+
+                rep_site = rep.get("site")
+                if rep_site:
+                    self.catch_all_sites.add(rep_site)
+                    cut_rep = utils.url.cut_filename(rep_site)
+                    if cut_rep:
+                        self.catch_all_sites.add(cut_rep)
+
+                for d_item in site_items[1:]:
+                    d_site = d_item.get("site")
+                    if d_site:
+                        discarded_sites_set.add(d_site)
+                        self.catch_all_sites.add(d_site)
+                        cut_d = utils.url.cut_filename(d_site)
+                        if cut_d:
+                            self.catch_all_sites.add(cut_d)
+
+        if discarded_sites_set:
+            self.site_info_list = [s for s in self.site_info_list if s.get("site") not in discarded_sites_set]
+            if self.available_sites:
+                self.available_sites = [s for s in self.available_sites if s not in discarded_sites_set]
+            logger.info("filter_catch_all_vhost: filtered {} redundant default vhost sites, retained representative sites".format(len(discarded_sites_set)))
+
     def fetch_site(self):
         # ***站点信息获取***
         self.site_info_list = services.fetch_site(self.sites)
+        self.filter_catch_all_vhost()
         for site_info in self.site_info_list:
             curr_site = site_info["site"]
             self.available_sites.append(curr_site)
@@ -304,6 +384,8 @@ class WebSiteFetch(object):
             self._poc_sites = set()
             for x in self.available_sites:
                 cut_target = utils.url.cut_filename(x)
+                if cut_target in self.catch_all_sites or x in self.catch_all_sites:
+                    continue
                 if cut_target:
                     self._poc_sites.add(cut_target)
 

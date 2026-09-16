@@ -312,24 +312,57 @@ class DomainExecutor(DomainTask):
 
     def set_wildcard_ip_set(self):
         """
-        针对每个可能存在泛解析的父级域名进行独立探测，建立 (parent_domain -> wildcard_ips) 映射
-        采用双随机探测交叉验证，避免 CDN Anycast 节点 IP 污染全局并误杀合法业务
+        针对每个可能存在泛解析的父级域名进行独立探测，建立 (parent_domain -> wildcard_metadata) 映射
+        采用 3 次探活交叉验证与公共 CDN 排除，避免 Anycast/轮询 IP 污染与误杀合法业务
         """
         self.wildcard_map = {}
         parent_domains = set()
+        base = (getattr(self, "base_domain", None) or "").lower().strip()
         for domain in self.new_domain_set:
-            cut_name = utils.domain.cut_first_name(domain)
-            if cut_name:
-                parent_domains.add(cut_name)
+            if not domain:
+                continue
+            curr = domain.lower().strip()
+            if base:
+                while curr.endswith("." + base):
+                    curr = curr.split(".", 1)[1]
+                    parent_domains.add(curr)
+                parent_domains.add(base)
+
+        public_cdn_roots = {
+            "kunlunsl.com", "alicdn.com", "cloudflare.net",
+            "akamaiedge.net", "azureedge.net", "w.kunlungr.com",
+            "cloudflaressl.com"
+        }
 
         for parent in parent_domains:
-            rand1 = "wf" + utils.random_choices(6) + "." + parent
-            rand2 = "wf" + utils.random_choices(6) + "." + parent
-            ips1 = set(utils.get_ip(rand1, log_flag=False) or [])
-            ips2 = set(utils.get_ip(rand2, log_flag=False) or [])
-            if ips1 and ips2 and ips1 == ips2:
-                self.wildcard_map[parent] = ips1
-                logger.info(f"detected wildcard zone: *.{parent} -> {ips1}")
+            samples_ip = []
+            samples_cname = []
+            for _ in range(3):
+                rand = "wf" + utils.random_choices(6) + "." + parent
+                ips = set(utils.get_ip(rand, log_flag=False) or [])
+                cnames = {c.lower().strip().rstrip(".") for c in (utils.get_cname(rand, log_flag=False) or []) if c}
+                if ips:
+                    samples_ip.append(ips)
+                if cnames:
+                    samples_cname.append(cnames)
+
+            if len(samples_ip) >= 2:
+                all_ips = set.union(*samples_ip)
+                is_rotating = not (len(samples_ip) == 3 and samples_ip[0] == samples_ip[1] == samples_ip[2])
+                static_cnames = set()
+                if len(samples_cname) >= 2:
+                    common_cnames = set.intersection(*samples_cname)
+                    for cname in common_cnames:
+                        cname_norm = cname.lower().strip().rstrip(".")
+                        if not any(cname_norm == cdn or cname_norm.endswith("." + cdn) for cdn in public_cdn_roots):
+                            static_cnames.add(cname_norm)
+
+                self.wildcard_map[parent] = {
+                    "ips": all_ips,
+                    "is_rotating": is_rotating,
+                    "static_cnames": static_cnames
+                }
+                logger.info(f"detected wildcard zone: *.{parent} -> ips:{len(all_ips)}, rotating:{is_rotating}, static_cnames:{static_cnames}")
 
         logger.info("start get wildcard_map with {} wildcard zones".format(len(self.wildcard_map)))
 
@@ -338,20 +371,80 @@ class DomainExecutor(DomainTask):
             return info_list
         cnt = 0
         new = []
+        scope_domains = set()
+        if getattr(self, 'scope_domain_set', None):
+            scope_domains.update(d.lower().strip() for d in self.scope_domain_set if d)
+        if getattr(self, 'scope_domains', None):
+            scope_domains.update(d.lower().strip() for d in self.scope_domains if d)
+
         for info in info_list:
-            domain = info.domain
+            if isinstance(info, dict):
+                domain = (info.get("domain") or "").lower().strip()
+                record_list = info.get("record") or info.get("record_list") or []
+                rec_type = info.get("type") or ""
+                ip_list = info.get("ips") or info.get("ip_list") or []
+                cname_val = info.get("cname")
+            else:
+                domain = (getattr(info, "domain", "") or "").lower().strip()
+                record_list = getattr(info, "record_list", []) or []
+                rec_type = getattr(info, "type", "") or ""
+                ip_list = getattr(info, "ip_list", []) or []
+                cname_val = getattr(info, "cname", None)
+
+            if not domain:
+                new.append(info)
+                continue
+
+            # 存量白名单豁免
+            if domain in scope_domains:
+                new.append(info)
+                continue
+
+            info_ips = set(ip_list)
+            info_cnames = set()
+            if rec_type == "CNAME" and record_list:
+                info_cnames.update(c.lower().strip().rstrip(".") for c in record_list if isinstance(c, str))
+            if cname_val:
+                if isinstance(cname_val, (list, set)):
+                    info_cnames.update(c.lower().strip().rstrip(".") for c in cname_val if isinstance(c, str))
+                elif isinstance(cname_val, str):
+                    info_cnames.add(cname_val.lower().strip().rstrip("."))
+
             is_wildcard = False
             # 仅对其直接父级或上层域名的泛解析规则进行校验
-            for parent, wc_ips in self.wildcard_map.items():
+            for parent, wc_info in self.wildcard_map.items():
                 if domain.endswith("." + parent) and domain != parent:
-                    info_ips = set(info.ip_list)
-                    if info_ips and info_ips.issubset(wc_ips):
+                    if isinstance(wc_info, dict):
+                        wc_ips = wc_info.get("ips", set())
+                        is_rotating = wc_info.get("is_rotating", False)
+                        static_cnames = wc_info.get("static_cnames", set())
+                    else:
+                        wc_ips = set(wc_info)
+                        is_rotating = False
+                        static_cnames = set()
+
+                    # CNAME 规则优先：若子域 CNAME 命中 wc_info["static_cnames"]，判定为泛解析拦截
+                    if info_cnames and static_cnames and (info_cnames & static_cnames):
                         is_wildcard = True
                         break
+
+                    # IP 规则判定
+                    if info_ips and wc_ips:
+                        if is_rotating:
+                            common = info_ips & wc_ips
+                            if len(common) / len(info_ips) >= 0.5:
+                                is_wildcard = True
+                                break
+                        else:
+                            if info_ips.issubset(wc_ips):
+                                is_wildcard = True
+                                break
+
             if is_wildcard:
                 cnt += 1
                 continue
             new.append(info)
+
         logger.info("clear_wildcard_domain_info filtered: {}".format(cnt))
         return new
 

@@ -207,6 +207,24 @@ DANGEROUS_STOPWORDS = {
 }
 
 
+GENERIC_HEADER_EXACT = {
+    # 通用 Content-Type，不具备独立 CMS / 产品辨识度
+    "content-type: text/plain", "content-type: text/html",
+    "content-type: application/octet-stream", "content-type: text/css",
+    "content-type: application/javascript", "content-type: text/javascript",
+    "content-type: application/json", "content-type: text/xml",
+    "content-type: application/xml",
+    # 通用传输与连接头
+    "connection: keep-alive", "connection: close",
+    "transfer-encoding: chunked", "accept-ranges: bytes",
+    # 基础缓存与安全防嗅探头
+    "pragma: no-cache", "cache-control: no-cache", "cache-control: private",
+    "cache-control: no-store", "cache-control: max-age=0",
+    "vary: accept-encoding", "vary: user-agent",
+    "x-content-type-options: nosniff"
+}
+
+
 def is_bad_clause_content(var: str, val: str) -> bool:
     var_lower = str(var).lower()
     val_clean = unquote_string(val) if isinstance(val, str) and val.startswith('"') and val.endswith('"') else str(val)
@@ -218,6 +236,22 @@ def is_bad_clause_content(var: str, val: str) -> bool:
         return True
     if var_lower == "body" and val_clean.strip().isdigit() and len(val_clean.strip()) <= 4:
         return True
+    if var_lower == "header":
+        # 规范化 Header 空格（抹平冒号前后多余空格及连续空白，规避类似 content-length : 19 或 content-type:   text/plain 的空格绕过）
+        val_norm = re.sub(r'\s*:\s*', ': ', val_lower)
+        val_norm = re.sub(r'\s+', ' ', val_norm).strip()
+
+        # 1. 拦截完全通用的协议头
+        if val_norm in GENERIC_HEADER_EXACT:
+            return True
+        # 2. 拦截单独以 Content-Length 长度作为独立条件的泛化规则（如 content-length: 19）
+        if val_norm.startswith("content-length:") and val_norm[15:].strip().isdigit():
+            return True
+        # 3. 拦截仅有 Header Key 无实际 Value 的极短/泛化原子条件
+        if val_norm.rstrip(":") in ("content-type", "content-length", "connection", "server", "host", "date", "accept", "cookie"):
+            return True
+        if len(val_clean.strip()) <= 2:
+            return True
     return False
 
 

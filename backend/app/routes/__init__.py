@@ -1,4 +1,5 @@
 import re
+import json
 from flask_restx import Resource, reqparse, fields
 from bson.objectid import ObjectId
 from datetime import datetime
@@ -410,6 +411,48 @@ class ARLResource(Resource):
         ret['order'] = orderby_list
         return ret
 
+    def send_export_cert_json(self, args, _type):
+        """
+        SSL证书专有导出逻辑: 导出标准结构化 JSON 格式，保留完整证书画像元数据。
+        突破原有分页 10 条的截断限制，支持最多 50,000 条安全上限。
+        """
+        # 1. 清洗控制参数并提取业务查询条件
+        self.get_default_field(args)
+        query = self.build_db_query(args)
+
+        # 强制拦截过滤: 如果是监控子任务，默认只显示增量 (new/update)
+        if _type.startswith("asset_") and "task_id" in query:
+            task_id = query["task_id"]
+            if isinstance(task_id, str) and len(task_id) == 24:
+                from app.utils.monitor_diff import _get_task_scope_id
+                if _get_task_scope_id(task_id):
+                    query["change_status"] = {"$in": ["new", "update"]}
+
+        # 2. 游标查询，排除 Mongo 内部 _id，避免分页截断与内存暴涨
+        cursor = conn(_type).find(query, {"_id": 0}).sort([("_id", -1)]).limit(50000)
+
+        items = []
+        for doc in cursor:
+            item = {
+                "ip": doc.get("ip", ""),
+                "port": doc.get("port") or 443,
+            }
+            if "task_id" in doc:
+                item["task_id"] = str(doc["task_id"])
+            if "scope_id" in doc:
+                item["scope_id"] = str(doc["scope_id"])
+            if "cert" in doc and isinstance(doc["cert"], dict):
+                item["cert"] = doc["cert"]
+            items.append(item)
+
+        json_content = json.dumps(items, ensure_ascii=False, default=str)
+        filename = "{}_{}_{}.json".format(_type, len(items), int(time.time()))
+        response = make_response(json_content)
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
+        response.headers["Content-Disposition"] = "attachment; filename={}".format(quote(filename))
+        return response
+
     def send_export_file(self, args, _type):
         """
         通用数据导出核心逻辑:根据不同的数据类型,提取出关键字段,并打包成文件发给前端.
@@ -418,6 +461,10 @@ class ARLResource(Resource):
         :param _type: 导出的表名/类型，比如 "site"（站点）, "domain"（域名）, "ip"（IP地址）
         :return: 调用发送文件的方法，返回给前端一个文件流
         """
+
+        # 0. 证书专属结构化导出分流 (保留完整元数据，规避文本单列丢失与分页10条截断)
+        if _type in ("cert", "asset_cert"):
+            return self.send_export_cert_json(args, _type)
 
         # 1. 定义一张“提取说明书”（字典映射）
         # 告诉程序：如果要导出 site 表，就提取里面叫做 "site" 的字段；
@@ -433,8 +480,6 @@ class ARLResource(Resource):
             "url": "url",
             "cip": "cidr_ip",
             "wih": "content",
-            "cert": "ip",
-            "asset_cert": "ip",
         }
 
         # 2. 复用之前讲过的总调度室 build_data，去数据库里把符合条件的数据全捞出来
@@ -452,15 +497,8 @@ class ARLResource(Resource):
             # 如果找到了需要提取的字段名，并且这条数据里刚好有这个字段
             if filed_name and filed_name in item:
 
-                # 5. 【特殊处理】如果当前导出的是证书类型 (cert / asset_cert)
-                if _type in ("cert", "asset_cert"):
-                    curr_ip = item.get("ip")
-                    if curr_ip:
-                        port = item.get("port") or 443
-                        items_set.add(f"{curr_ip}:{port}")
-
                 # 【特殊处理】如果当前导出的是 ip 类型的数据
-                elif filed_name == "ip":
+                if filed_name == "ip":
                     curr_ip = item[filed_name]  # 先拿到基础 IP (比如 192.168.1.1)
 
                     # 因为一个 IP 可能开了多个端口，所以要遍历它的 port_info 列表

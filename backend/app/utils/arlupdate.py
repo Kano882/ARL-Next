@@ -22,7 +22,7 @@ def create_index():
         "fileleak": "task_id",
         "ip": "task_id",
         "npoc_service": "task_id",
-        "site": ["task_id", "status", "title", "hostname", "site", "http_server"],
+        "site": ["task_id", "status", "title", "hostname", "site", "http_server", "tag"],
         "service": "task_id",
         "url": "task_id",
         "task": ["status", "start_time"],
@@ -30,7 +30,7 @@ def create_index():
         "vuln": ["task_id", "save_date"],
         "nuclei_result": ["task_id", "vuln_severity", "save_date"],
         "asset_ip": "scope_id",
-        "asset_site": "scope_id",
+        "asset_site": ["scope_id", "tag"],
         "asset_domain": ["scope_id", "domain"],
         "github_result": "github_task_id",
         "github_monitor_result": "github_scheduler_id",
@@ -306,6 +306,172 @@ def migrate_asset_site_pending_test_tag():
         )
     except Exception as e:
         logger.error(f"migrate_asset_site_pending_test_tag error: {e}")
+
+
+def heal_historical_invalid_sites():
+    """
+    🛡️【第一性原理：历史存量无效站点情报自愈与防误杀迁移】
+    扫描存量被误打上 '无效' 标签的资产组站点：
+    1. 若已有指纹（如 Volcengine-DCDN、Spring 等），直接剔除 '无效'；
+    2. 若关联 asset_fileleak 存在 200 敏感端点（/pods, /metrics, /healthz 等）、
+       或关联 asset_vuln 存在漏洞、或 asset_cert 存在 k8s 证书：
+       自动反哺指纹并剔除 '无效'，补齐 '待测试' 标签。
+    单次幂等迁移，通过 sentinel 记录完成态，不影响系统后续运行。
+    """
+    import logging
+    import time
+    from urllib.parse import urlparse
+    from pymongo import UpdateOne
+    logger = logging.getLogger()
+    sys_db = conn_db("system_config")
+
+    sentinel_id = "migration_heal_invalid_sites_v1"
+    record = sys_db.find_one({"_id": sentinel_id})
+    if record and record.get("status") == "completed":
+        return
+
+    try:
+        coll = conn_db("asset_site")
+        cursor = coll.find({"tag": "无效"}, batch_size=200)
+        bulk_ops = []
+        healed_count = 0
+
+        fileleak_coll = conn_db("asset_fileleak")
+        vuln_coll = conn_db("asset_vuln")
+        cert_coll = conn_db("asset_cert")
+
+        for doc in cursor:
+            site_url = doc.get("site") or ""
+            scope_id = doc.get("scope_id")
+            ip = doc.get("ip") or ""
+
+            try:
+                parsed = urlparse(site_url)
+                site_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            except Exception:
+                site_port = 80
+
+            existing_fingers = doc.get("finger") or []
+            if not isinstance(existing_fingers, list):
+                existing_fingers = []
+
+            current_names = set()
+            for f in existing_fingers:
+                if isinstance(f, dict) and f.get("name"):
+                    current_names.add(f["name"])
+                elif isinstance(f, str):
+                    current_names.add(f)
+
+            # 1. 检查 asset_fileleak
+            if site_url:
+                query_leak = {"site": site_url, "status_code": {"$in": [200, 301, 302]}}
+                if scope_id:
+                    query_leak["scope_id"] = scope_id
+                leaks = list(fileleak_coll.find(query_leak))
+                for lk in leaks:
+                    u = lk.get("url", "")
+                    st = lk.get("status_code")
+                    if st == 200:
+                        if u.endswith("/pods") or "/pods?" in u:
+                            current_names.add("Kubernetes-Kubelet")
+                        elif u.endswith("/healthz") or "/healthz?" in u:
+                            if site_port == 10256:
+                                current_names.add("Kubernetes-Kube-Proxy")
+                            elif site_port in (10255, 10250):
+                                current_names.add("Kubernetes-Kubelet")
+                            elif site_port == 9091:
+                                current_names.add("Milvus")
+                            elif site_port == 8093:
+                                current_names.add("Kubernetes-Edge")
+                        elif u.endswith("/metrics") or "/metrics?" in u:
+                            current_names.add("Prometheus-Metrics")
+                        elif u.endswith("/readyz") or "/readyz?" in u or u.endswith("/livez") or "/livez?" in u:
+                            current_names.add("Kubernetes-Probe")
+                        elif "/actuator" in u:
+                            current_names.add("Spring-Boot-Actuator")
+                        elif "/swagger" in u or "/api-docs" in u or "/openapi.json" in u:
+                            current_names.add("Swagger-UI")
+                        elif "/api/v1/credential/users" in u or "/api/v1/collections" in u:
+                            current_names.add("Milvus")
+                    elif st in (301, 302):
+                        if u.endswith("/pms") or "/pms/" in u:
+                            current_names.add("HP-System-Management")
+
+            # 2. 检查 asset_vuln
+            if site_url:
+                query_vuln = {"$or": [{"target": site_url}, {"vuln_url": site_url}]}
+                if scope_id:
+                    query_vuln["scope_id"] = scope_id
+                vulns = list(vuln_coll.find(query_vuln))
+                for v in vulns:
+                    app_name = v.get("app_name") or v.get("plugin_name") or "Vulnerability"
+                    current_names.add(f"Vuln:{app_name}")
+
+            # 3. 检查 asset_cert
+            if ip:
+                query_cert = {"ip": ip, "port": site_port}
+                if scope_id:
+                    query_cert["scope_id"] = scope_id
+                certs = list(cert_coll.find(query_cert))
+                for c in certs:
+                    cert_dict = c.get("cert") or {}
+                    subject_dn = (cert_dict.get("subject_dn") or "").lower()
+                    issuer_dn = (cert_dict.get("issuer_dn") or "").lower()
+                    if "konnectivity" in subject_dn or "konnectivity" in issuer_dn:
+                        current_names.add("Kubernetes-Konnectivity")
+                    elif "kubernetes" in subject_dn or "k8s" in subject_dn or "kubernetes" in issuer_dn:
+                        current_names.add("Kubernetes")
+
+            # 若具备任何指纹（原有或新反哺），或者命中以上任何事实：必须移除 "无效"
+            if current_names:
+                raw_tags = doc.get("tag") or []
+                if isinstance(raw_tags, str):
+                    raw_tags = [raw_tags]
+                elif not isinstance(raw_tags, list):
+                    raw_tags = []
+
+                clean_tags = [t for t in raw_tags if t != "无效"]
+                if "待测试" not in clean_tags:
+                    clean_tags.append("待测试")
+
+                updated_finger_list = []
+                seen = set()
+                for f in existing_fingers:
+                    name = f.get("name") if isinstance(f, dict) else f
+                    if name and name not in seen:
+                        updated_finger_list.append(f if isinstance(f, dict) else {
+                            "icon": "default.png", "name": name, "confidence": "100", "version": "", "website": "", "categories": []
+                        })
+                        seen.add(name)
+                for name in sorted(current_names):
+                    if name not in seen:
+                        updated_finger_list.append({
+                            "icon": "default.png", "name": name, "confidence": "100", "version": "", "website": "", "categories": []
+                        })
+                        seen.add(name)
+
+                bulk_ops.append(UpdateOne(
+                    {"_id": doc["_id"]},
+                    {"$set": {"finger": updated_finger_list, "tag": clean_tags}}
+                ))
+                healed_count += 1
+
+                if len(bulk_ops) >= 200:
+                    coll.bulk_write(bulk_ops, ordered=False)
+                    bulk_ops = []
+
+        if bulk_ops:
+            coll.bulk_write(bulk_ops, ordered=False)
+
+        sys_db.update_one(
+            {"_id": sentinel_id},
+            {"$set": {"status": "completed", "completed_at": time.time(), "healed_count": healed_count}},
+            upsert=True
+        )
+        if healed_count:
+            logger.info(f"heal_historical_invalid_sites: successfully healed {healed_count} invalid sites.")
+    except Exception as e:
+        logger.error(f"heal_historical_invalid_sites error: {e}", exc_info=True)
 
 
 def ensure_builtin_dicts():
@@ -654,6 +820,114 @@ def migrate_geo_ip_data():
     t.start()
 
 
+def heal_polluted_site_fingers():
+    """
+    🛡️【第一性原理：存量站点指纹雪崩异常数据平滑重估自愈】
+    针对历史早期缺陷（如正则入参反转）导致指纹数组膨胀（> 30个）的脏数据，
+    基于持久化的 headers、title、favicon 及加固后的指纹引擎在后台异步平滑自愈清洗。
+    自动剔除上千条虚假 Body 正则指纹，保留合法的 Server/Title/Favicon 组件特征。
+    """
+    import logging
+    import time
+    import threading
+    from pymongo import UpdateOne
+    from app.services.fetchSite import finger_identify
+    from app.services import finger_db_cache
+
+    logger = logging.getLogger()
+    sys_coll = conn_db('system_config')
+    mig_record = sys_coll.find_one({"_id": "finger_heal_migrated_v1"})
+    if mig_record and mig_record.get("status") == "completed":
+        return
+
+    def _worker():
+        try:
+            sys_coll.update_one(
+                {"_id": "finger_heal_migrated_v1"},
+                {"$set": {"status": "processing", "start_time": time.time()}},
+                upsert=True
+            )
+            # 确保规则库缓存为最新
+            finger_db_cache.update_cache()
+
+            polluted_query = {
+                "$expr": {"$gt": [{"$size": {"$ifNull": ["$finger", []]}}, 30]}
+            }
+
+            total_healed = 0
+            for coll_name in ("asset_site", "site"):
+                coll = conn_db(coll_name)
+                total_need = coll.count_documents(polluted_query)
+                if total_need == 0:
+                    continue
+
+                logger.info(f"Start background healing {total_need} polluted finger records in '{coll_name}'...")
+                cursor = coll.find(polluted_query, {
+                    "_id": 1, "site": 1, "headers": 1, "title": 1, "favicon": 1, "finger": 1
+                }, batch_size=200, no_cursor_timeout=True)
+
+                operations = []
+                healed_count = 0
+
+                try:
+                    for doc in cursor:
+                        headers = doc.get("headers") or ""
+                        title = doc.get("title") or ""
+                        favicon_hash = str(doc.get("favicon", {}).get("hash", 0)) if isinstance(doc.get("favicon"), dict) else "0"
+
+                        try:
+                            matched_names = finger_identify(content=b"", header=headers, title=title, favicon_hash=favicon_hash)
+                        except Exception as e:
+                            logger.warning(f"Failed to re-identify finger for {doc.get('site')}: {e}")
+                            matched_names = []
+
+                        cleaned_fingers = []
+                        for name in set(matched_names):
+                            cleaned_fingers.append({
+                                "icon": "default.png",
+                                "name": name,
+                                "confidence": "80",
+                                "version": "",
+                                "website": "https://www.riskivy.com",
+                                "categories": []
+                            })
+
+                        operations.append(UpdateOne(
+                            {"_id": doc["_id"]},
+                            {"$set": {"finger": cleaned_fingers}}
+                        ))
+
+                        if len(operations) >= 200:
+                            coll.bulk_write(operations, ordered=False)
+                            healed_count += len(operations)
+                            operations = []
+
+                    if operations:
+                        coll.bulk_write(operations, ordered=False)
+                        healed_count += len(operations)
+                finally:
+                    if cursor is not None:
+                        try:
+                            cursor.close()
+                        except Exception:
+                            pass
+
+                total_healed += healed_count
+                logger.info(f"Successfully healed {healed_count} polluted records in '{coll_name}'.")
+
+            sys_coll.update_one(
+                {"_id": "finger_heal_migrated_v1"},
+                {"$set": {"status": "completed", "completed_at": time.time(), "total_healed": total_healed}},
+                upsert=True
+            )
+            logger.info("heal_polluted_site_fingers fully completed and marked in system_config.")
+        except Exception as e:
+            logger.error(f"heal_polluted_site_fingers background worker error: {e}", exc_info=True)
+
+    t = threading.Thread(target=_worker, name="arl-finger-heal", daemon=True)
+    t.start()
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -716,8 +990,10 @@ def arl_update():
         _run_step("cleanup_asset_scope_dead_fields", cleanup_asset_scope_dead_fields)
         _run_step("migrate_asset_scope_domain_status", migrate_asset_scope_domain_status)
         _run_step("migrate_asset_site_pending_test_tag", migrate_asset_site_pending_test_tag)
+        _run_step("heal_historical_invalid_sites", heal_historical_invalid_sites)
         _run_step("migrate_asset_cip_merge", migrate_asset_cip_merge)
         _run_step("migrate_geo_ip_data", migrate_geo_ip_data)
+        _run_step("heal_polluted_site_fingers", heal_polluted_site_fingers)
         _run_step("cleanup_zombie_tasks", cleanup_zombie_tasks)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:

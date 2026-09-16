@@ -4,6 +4,34 @@
 
 ---
 
+## [v1.3.5] - 2026-09-16
+
+### 🚀 新增功能
+- **云原生基础设施深度探测与反哺闭环**：ARL-NPoC 引擎新增 Kubelet 未授权深度情报提取（`/pods`、`/runningpods` 资产画像，敏感环境变量掩码脱敏与 Pod 数量阈值截断防 OOM）、Konnectivity Proxy（TCP 隧道双向探测与 TLS 证书提取，防 FD 泄漏）以及 Milvus 向量数据库（未授权 REST/gRPC 指纹探测）安全插件；支持在资产发现与漏洞验证阶段将云原生特征实时反哺至站点资产画像。
+- **SSL 证书标准结构化 JSON 导出引擎**：重构证书导出架构，突破原生 10 条分页截断限制，支持最多 50,000 条证书资产全字段元数据结构化 JSON 导出；优化前端导出契约与 MIME 类型自适应映射（`.json` / `application/json`），端到端适配资产搜索、资产分组与任务详情全场景。
+- **CI 构建链路 Nuclei 规则动态穿透更新**：GitHub Actions 自动构建工作流引入动态 Run ID 穿透机制（`NUCLEI_CACHEBUST`），破坏 Docker 构建缓存强制拉取最新社区 Nuclei 模板与规则库，并内置 3 次重试防抖与自愈机制，确保护网发版时漏洞规则集绝对最新。
+
+### 🛠️ 性能与重构
+- **泛解析动态抗轮转过滤与 Web 反代聚类降权**：重构泛解析识别算法，通过多级动态随机探针识别泛解析轮转 IP 集合；引入 Web 默认反向代理（Default Proxy）特征聚类与动态降权机制，显著收敛虚假子域名与默认页脏数据对资产全景的干扰。
+- **资产反哺消除 N+1 查询风暴与内存级哈希匹配**：重构 `syncAsset.py` 中的 `enrich_and_heal_site_assets` 链路，将 `fileleak`、`vuln`、`cert` 等关联表的逐条数据库查询全面升级为批量预加载，在内存中构建 O(1) 哈希索引，彻底消除资产同步阶段的 N+1 数据库读写风暴。
+- **调度器防重入消费与孤儿任务自愈**：Celery 调度器增加二次防重消费校验（`running_tasks > 0`），隔离积压队列引发的并发竞态写冲突；OSINT 微服务启动时引入看门狗与孤儿任务自愈管线（`reconcile_orphan_tasks`），将历史僵尸任务优雅置为 `stop` 并重新入队 `waiting` 任务。
+- **版本库极致瘦身与构建隔离**：彻底将 `backend/app/tools/node_modules` 移出版本库，精简 `.gitignore` 规则，利用 Dockerfile.prod 纯净 Python 多阶段运行时隔离编译依赖；清理 Final 镜像中无用的 `NODE_PATH` 环境变量。
+
+### 🐛 问题修复与加固
+- **前端标签交互防冒泡与空值解构崩溃防护**：
+  - 修复 `GroupAssetsDetail.vue` 与 `TaskDetail.vue` 中点击标签移除按钮时的事件冒泡缺陷，追加 `@click.stop` 规避误触父级表格行或卡片展开；
+  - 修复 `AssetSearch.vue` 与 `TaskDetail.vue` 在处理异常 `null` 标签数据时 `typeof null === 'object'` 导致 `t.name` 抛出 `TypeError` 引发的页面白屏风险，补充可选链与 `filter(Boolean)` 防御；
+  - 修复 `TaskDetail.vue` 业务标签渲染 `closable` 却缺失 `@close` 拦截及后端 `/site/delete_tag/` 同步的假删除缺陷，补充 `handleDeleteTag` 与 Popconfirm 二次确认，彻底对齐前后端标签操作契约。
+- **指纹求值引擎泛化风暴拦截**：`expr.py` 引入 `DANGEROUS_STOPWORDS` 与通用 Header（如 `content-length`）黑名单过滤，结合自动修复嵌套双引号与 AST 预处理，防御短路泛化条件导致的 MongoDB COLLSCAN 全表扫描风暴。
+- **资产侦察详情页吸顶布局与跨 Tab 状态同步**：优化资产侦察详情页操作栏悬浮吸附样式，完善全链路画像与常规列表之间的标签就地同步（`syncTagState`）与失效缓存即时清理。
+
+### 🛡️ 安全与配置
+- **动态去重降级与 E11000 启动防崩保护**：`arlupdate.py` 增设 16 项核心集合唯一约束并内置基于 MongoDB 聚合管道（`allowDiskUse=True`）的动态去重降级处理，从根本上杜绝重复键冲突引发的服务启动中断。
+- **存量指纹雪崩平滑自愈与防泛化 Header 加固**：`arlupdate.py` 优化存量指纹更新策略，尊重用户已删除标记（`fingerprint_deleted`）防止系统升级意外复活；更新 `webapp.json` 规则，采用精准 Key-Value 与严格正则取代模糊匹配，收敛通用 Header 误报。
+- **敏感端点与集群信息合规脱敏**：Kubelet 插件解析 Pod Spec 时强制截断前 60 项并对环境变量密钥执行掩码脱敏，网络探测全面配置 `try...finally` 与安全连接超时，杜绝文件描述符（FD）泄漏与敏感数据暴露。
+
+---
+
 ## [v1.3.4] - 2026-09-12
 
 ### 🚀 新增功能

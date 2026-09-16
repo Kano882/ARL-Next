@@ -22,8 +22,12 @@ try:
 
         return Config(**data)
 
-    config = load_config('config.yml')
-except:
-    print("加载配置文件失败")
+    import os
+    config_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yml')
+    if not os.path.exists(config_file):
+        config_file = 'config.yml'
+    config = load_config(config_file)
+except Exception as e:
     import sys
-    sys.exit()
+    sys.stderr.write(f"CRITICAL: 加载配置文件失败: {e}\n")
+    sys.exit(1)

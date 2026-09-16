@@ -150,11 +150,35 @@
 
             <div class="mt5" style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
 
-              <a-tag v-if="record.is_entry || record.isEntry" closable style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);">入口</a-tag>
+              <!-- 1. 入口标签 -->
+              <a-tag v-if="record.is_entry || record.isEntry" style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);">
+                入口
+                <a-popconfirm
+                  title="确定移除「入口」标签吗？"
+                  ok-text="确认"
+                  cancel-text="取消"
+                  @confirm="handleDeleteTag(record, '入口')"
+                >
+                  <span class="ant-tag-close-icon" @click.stop>
+                    <close-outlined />
+                  </span>
+                </a-popconfirm>
+              </a-tag>
 
-              <template v-for="(t, idx) in (record.tags || record.tag || [])" :key="idx">
-                <a-tag closable style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);">
-                  {{ typeof t === 'string' ? t : (t.name || t.tag_name || t) }}
+              <!-- 2. 其余业务自定义标签 -->
+              <template v-for="(t, idx) in (record.tags || record.tag || []).filter(Boolean)" :key="idx">
+                <a-tag style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);">
+                  {{ typeof t === 'string' ? t : (t?.name || t?.tag_name || t) }}
+                  <a-popconfirm
+                    :title="`确定移除「${typeof t === 'string' ? t : (t?.name || t?.tag_name || t)}」标签吗？`"
+                    ok-text="确认"
+                    cancel-text="取消"
+                    @confirm="handleDeleteTag(record, typeof t === 'string' ? t : (t?.name || t?.tag_name || t))"
+                  >
+                    <span class="ant-tag-close-icon" @click.stop>
+                      <close-outlined />
+                    </span>
+                  </a-popconfirm>
                 </a-tag>
               </template>
 
@@ -586,7 +610,8 @@ import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
 import {
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  CloseOutlined
 } from '@ant-design/icons-vue';
 import CidrDetailModal from '../components/CidrDetailModal.vue';
 import ServiceDetailModal from '../components/ServiceDetailModal.vue';
@@ -751,6 +776,34 @@ const submitTag = async () => {
     message.error('请求异常');
   } finally {
     tagSubmitLoading.value = false;
+  }
+};
+
+const handleDeleteTag = async (record, tag) => {
+  const targetId = record._id || record.id;
+  if (!targetId || !tag) return;
+  try {
+    const res = await request.post('/site/delete_tag/', {
+      _id: targetId,
+      tag: tag
+    });
+    if (res.code === 200) {
+      message.success(`已移除标签「${tag}」`);
+      const currentTags = Array.isArray(record.tag) ? record.tag : (record.tag ? [record.tag] : (record.tags || []));
+      record.tag = currentTags.filter(t => (typeof t === 'string' ? t : (t?.name || t?.tag_name)) !== tag);
+      if (record.tags) {
+        record.tags = record.tag;
+      }
+      if (tag === '入口') {
+        record.is_entry = false;
+        record.isEntry = false;
+      }
+      tabCache.invalidateMemoryCache(activeTab.value);
+    } else {
+      message.error(res.message || '删除标签失败');
+    }
+  } catch (error) {
+    message.error('请求异常');
   }
 };
 
@@ -1232,12 +1285,16 @@ const handleExport = async () => {
       responseType: 'blob'
     });
 
-    const blob = new Blob([res], { type: 'text/plain;charset=utf-8' });
+    const isCert = activeTab.value === 'cert';
+    const mimeType = isCert ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
+    const ext = isCert ? 'json' : 'txt';
+
+    const blob = new Blob([res], { type: mimeType });
     const downloadUrl = window.URL.createObjectURL(blob);
 
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `ARL_${activeTab.value}_Export_${query.task_id ? query.task_id.substring(0, 8) : 'Global'}.txt`;
+    link.download = `ARL_${activeTab.value}_Export_${query.task_id ? query.task_id.substring(0, 8) : 'Global'}.${ext}`;
     document.body.appendChild(link);
     link.click();
 

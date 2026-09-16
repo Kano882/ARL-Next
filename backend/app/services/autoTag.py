@@ -12,9 +12,23 @@ class AutoTag:
 
     def run(self):
         body_length = self.site_info.get("body_length", 0)
+        finger = self.site_info.get("finger") or []
+
+        # 🛡️【第一性原理：指纹防误杀护盾】
+        # 若站点已识别出任何有效指纹，说明有具体运行组件/云设施承载，严禁标记为无效！
+        if finger:
+            return
 
         if self.is_invalid_title():
             return self._set_invalid_tag()
+
+        # 🛡️【现代 API / 云原生 / 微服务 404 保护】
+        # 很多微服务、K8s 组件、REST API 根路径仅返回 404 (如 nosniff, text/plain 或 application/json)
+        # 这类端点具有极高渗透与探测价值，保留默认待测试状态，豁免打上“无效”标签
+        if self.is_40x():
+            headers_lower = self.headers.lower() if isinstance(self.headers, str) else ""
+            if "nosniff" in headers_lower or "application/json" in headers_lower:
+                return
 
         if not self.title and "/html" in self.headers:
             if body_length >= 200 and self.status == 200:
@@ -75,13 +89,31 @@ class AutoTag:
         """
         打标签为入口
         """
-        self.site_info["tag"] = [SiteAutoTag.ENTRY]
+        raw_tags = self.site_info.get("tag") or []
+        if isinstance(raw_tags, str):
+            raw_tags = [raw_tags]
+        elif not isinstance(raw_tags, list):
+            raw_tags = []
+        tags = [t for t in raw_tags if t != SiteAutoTag.INVALID]
+        if SiteAutoTag.ENTRY not in tags:
+            tags.append(SiteAutoTag.ENTRY)
+        self.site_info["tag"] = tags
 
     def _set_invalid_tag(self):
         """
-        打标签为无效
+        打标签为无效（具备指纹豁免）
         """
-        self.site_info["tag"] = [SiteAutoTag.INVALID]
+        if self.site_info.get("finger"):
+            return
+        raw_tags = self.site_info.get("tag") or []
+        if isinstance(raw_tags, str):
+            raw_tags = [raw_tags]
+        elif not isinstance(raw_tags, list):
+            raw_tags = []
+        tags = [t for t in raw_tags if t != SiteAutoTag.ENTRY]
+        if SiteAutoTag.INVALID not in tags:
+            tags.append(SiteAutoTag.INVALID)
+        self.site_info["tag"] = tags
 
     def is_invalid_title(self):
         """

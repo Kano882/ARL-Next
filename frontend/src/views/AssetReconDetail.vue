@@ -1,46 +1,71 @@
 <template>
   <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <a-page-header
-      :title="`任务名: ${taskName || taskId}`"
-      @back="() => router.back()"
-      style="padding: 0 0 24px 0;"
-    />
-
-    <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" @change="onTabChange">
-      <a-tab-pane key="web" :tab="`网站备案 - ${queryCounts.web}`"></a-tab-pane>
-      <a-tab-pane key="app" :tab="`APP - ${queryCounts.app}`"></a-tab-pane>
-      <a-tab-pane key="mapp" :tab="`小程序 - ${queryCounts.mapp}`"></a-tab-pane>
-      <a-tab-pane key="wechat" :tab="`公众号 - ${queryCounts.wechat}`"></a-tab-pane>
-      <a-tab-pane key="weibo" :tab="`微博 - ${queryCounts.weibo}`"></a-tab-pane>
-      <a-tab-pane key="kapp" :tab="`快应用 - ${queryCounts.kapp}`"></a-tab-pane>
-      <a-tab-pane key="trademark" :tab="`商标信息 - ${queryCounts.trademark}`"></a-tab-pane>
-      <a-tab-pane key="invest" :tab="`对外投资 - ${queryCounts.invest}`"></a-tab-pane>
-      <a-tab-pane key="log" tab="运行日志"></a-tab-pane>
-    </a-tabs>
-
-    <div v-show="activeTab !== 'log'">
-      <div style="margin-bottom: 16px;">
-      <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
-        <template v-for="col in dynamicColumns" :key="col.key">
-          <a-form-item v-if="col.key !== 'raw' && col.key !== 'icon' && col.key !== 'examineDate' && col.key !== 'updateRecordTime'" :label="col.title + ':'">
-            <a-input-group compact v-if="['amount', 'percent'].includes(col.dataIndex)">
-              <a-select v-model:value="searchFormOp[col.dataIndex]" style="width: 70px" :options="[{value:'eq',label:'='},{value:'gt',label:'>'},{value:'lt',label:'<'}]" />
-              <a-input v-model:value="searchForm[col.dataIndex]" style="width: 130px" :placeholder="'输入' + col.title" @pressEnter="onSearch">
-                <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-              </a-input>
-            </a-input-group>
-            <a-input v-else v-model:value="searchForm[col.dataIndex]" :placeholder="'请输入' + col.title" style="width: 180px;" allowClear @pressEnter="onSearch">
-              <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-            </a-input>
-          </a-form-item>
+    <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+      <a-page-header
+        @back="() => router.back()"
+        style="padding: 0 0 24px 0;"
+      >
+        <template #title>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <a-tooltip placement="bottomLeft">
+              <template #title>
+                <div style="word-break: break-all; max-height: 300px; overflow-y: auto; font-weight: normal; font-size: 14px;">
+                  <div v-for="(item, index) in targetList" :key="index">
+                    {{ item }}
+                  </div>
+                </div>
+              </template>
+              <span style="cursor: default;">{{ displayTitle }}</span>
+            </a-tooltip>
+            <a-tag v-if="taskTypeLabel" color="blue">{{ taskTypeLabel }}</a-tag>
+            <a-tag v-if="taskStatusLabel" :color="taskStatusColor">{{ taskStatusLabel }}</a-tag>
+          </div>
         </template>
-      </a-form>
-      <div style="margin-top: 16px;">
-        <a-button @click="resetSearch">清 除</a-button>
+      </a-page-header>
+
+      <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" :style="activeTab === 'log' ? 'margin-bottom: 0;' : 'margin-bottom: 16px;'" @change="onTabChange">
+        <a-tab-pane key="web" :tab="`网站备案 - ${queryCounts.web}`"></a-tab-pane>
+        <a-tab-pane key="app" :tab="`APP - ${queryCounts.app}`"></a-tab-pane>
+        <a-tab-pane key="mapp" :tab="`小程序 - ${queryCounts.mapp}`"></a-tab-pane>
+        <a-tab-pane key="wechat" :tab="`公众号 - ${queryCounts.wechat}`"></a-tab-pane>
+        <a-tab-pane key="weibo" :tab="`微博 - ${queryCounts.weibo}`"></a-tab-pane>
+        <a-tab-pane key="kapp" :tab="`快应用 - ${queryCounts.kapp}`"></a-tab-pane>
+        <a-tab-pane key="trademark" :tab="`商标信息 - ${queryCounts.trademark}`"></a-tab-pane>
+        <a-tab-pane key="invest" :tab="`对外投资 - ${queryCounts.invest}`"></a-tab-pane>
+        <a-tab-pane key="log" tab="运行日志"></a-tab-pane>
+      </a-tabs>
+
+      <div v-show="activeTab !== 'log'">
+        <div style="margin-bottom: 16px;">
+          <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
+            <template v-for="col in dynamicColumns" :key="col.key">
+              <a-form-item v-if="col.key !== 'index' && col.key !== 'raw' && col.key !== 'icon' && col.key !== 'examineDate' && col.key !== 'updateRecordTime'" :label="col.title + ':'">
+                <a-input-group compact v-if="['amount', 'percent'].includes(col.dataIndex)">
+                  <a-select v-model:value="searchFormOp[col.dataIndex]" style="width: 70px" :options="[{value:'eq',label:'='},{value:'gt',label:'>'},{value:'lt',label:'<'}]" />
+                  <a-input v-model:value="searchForm[col.dataIndex]" style="width: 130px" :placeholder="'输入' + col.title" @pressEnter="onSearch">
+                    <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+                  </a-input>
+                </a-input-group>
+                <a-input v-else v-model:value="searchForm[col.dataIndex]" :placeholder="'请输入' + col.title" style="width: 180px;" allowClear @pressEnter="onSearch">
+                  <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+                </a-input>
+              </a-form-item>
+            </template>
+          </a-form>
+        </div>
+        <div>
+          <a-button style="margin-right: 16px;" @click="resetSearch">清 除</a-button>
+          <a-button type="primary" :loading="exportLoading" @click="handleExport">
+            <template #icon><download-outlined /></template>
+            导出数据
+          </a-button>
+        </div>
       </div>
     </div>
 
-    <a-table
+    <div v-show="activeTab !== 'log'">
+      <a-table
+        :sticky="stickyConfig"
         :dataSource="assetList"
         :columns="dynamicColumns"
         :loading="loading"
@@ -48,12 +73,15 @@
         :scroll="pagination.pageSize >= 100 ? { y: 'calc(100vh - 380px)', x: 'max-content' } : { x: 'max-content' }"
         :virtual="pagination.pageSize >= 100"
         :rowKey="(record) => record._id || record.id || Math.random()"
-        bordered
+        size="middle"
         style="margin-bottom: 16px;"
         @change="handleTableChange"
-    >
-        <template #bodyCell="{ column, record, text }">
-          <template v-if="column.key === 'icon'">
+      >
+        <template #bodyCell="{ column, record, text, index }">
+          <template v-if="column.key === 'index'">
+            {{ (pagination.current - 1) * pagination.pageSize + index + 1 }}
+          </template>
+          <template v-else-if="column.key === 'icon'">
             <img v-if="text" :src="text" style="width:32px;height:32px;border-radius:4px;" />
           </template>
           <template v-else-if="column.key === 'brief' || column.key === 'recommend'">
@@ -78,7 +106,7 @@
             {{ text || '-' }}
           </template>
         </template>
-    </a-table>
+      </a-table>
 
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
         <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
@@ -88,7 +116,7 @@
 
     <div v-show="activeTab === 'log'">
       <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 8px; background-color: var(--arl-bg-light);">
-        <div ref="terminalContainer" style="background-color: #001529; color: #e6f7ff; font-family: 'Fira Code', Consolas, 'Courier New', monospace; padding: 16px; border-radius: 4px; height: calc(100vh - 220px); overflow-y: auto; font-size: 13px; line-height: 1.6; box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);">
+        <div ref="terminalContainer" style="background-color: #001529; color: #e6f7ff; font-family: 'Fira Code', Consolas, 'Courier New', monospace; padding: 16px; border-radius: 4px; height: calc(100vh - 240px); overflow-y: auto; font-size: 13px; line-height: 1.6; box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);">
           <div v-for="(log, idx) in syslogList" :key="idx" style="margin-bottom: 6px; word-break: break-all; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 4px;">
             <a style="margin-right: 8px;">[{{ log.create_time }}]</a>
             <span :style="{ color: log.level === 'error' ? '#ff4d4f' : log.level === 'warning' ? '#faad14' : '#52c41a', fontWeight: 'bold', marginRight: '8px' }">[{{ (log.level || 'info').toUpperCase() }}]</span>
@@ -105,16 +133,65 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { SearchOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue';
 import request from '../utils/request';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
+import { useSticky } from '../utils/useSticky';
 
 const route = useRoute();
 const router = useRouter();
 const query = route.query || {};
 
 const taskId = query.task_id;
-const taskName = query.name;
+const taskName = ref(query.name || '');
+const taskTarget = ref(query.target || '');
+const taskType = ref(query.task_type || '');
+const taskStatus = ref('');
+
+const targetList = computed(() => {
+  const t = taskTarget.value || taskName.value || taskId || '未知目标';
+  return String(t).split(/[,\s]+/).filter(Boolean);
+});
+
+const displayTitle = computed(() => {
+  const list = targetList.value;
+  if (list.length <= 1) {
+    return `${list[0] || '目标'} 相关资产`;
+  }
+  return `${list[0]} 等 ${list.length} 个目标相关资产`;
+});
+
+const taskTypeLabel = computed(() => {
+  if (taskType.value === 'tyc') return '天眼查';
+  if (taskType.value === 'icp') return 'ICP备案';
+  return '';
+});
+
+const taskStatusLabel = computed(() => {
+  const map = {
+    waiting: '等待中',
+    running: '运行中',
+    done: '已完成',
+    error: '失败',
+    stop: '已停止'
+  };
+  return map[taskStatus.value] || '';
+});
+
+const taskStatusColor = computed(() => {
+  const map = {
+    waiting: 'blue',
+    running: 'processing',
+    done: 'success',
+    error: 'error',
+    stop: 'default'
+  };
+  return map[taskStatus.value] || 'default';
+});
+
+const actionBarRef = ref(null);
+const { stickyConfig } = useSticky(actionBarRef);
 
 const activeTab = ref('web');
 const queryCounts = reactive({
@@ -151,7 +228,7 @@ const sortState = reactive({
 });
 
 const getDefaultSortForTab = (tab) => {
-  const isTyc = query.task_type === 'tyc';
+  const isTyc = taskType.value === 'tyc';
   if (isTyc) {
     if (tab === 'web' || tab === 'mapp') {
       return { field: 'examineDate', order: 'descend' };
@@ -253,7 +330,7 @@ const genericColumns = [
 ];
 
 const dynamicColumns = computed(() => {
-  const isTyc = query.task_type === 'tyc';
+  const isTyc = taskType.value === 'tyc';
   let cols = [];
   if (activeTab.value === 'invest') cols = investColumns;
   else if (activeTab.value === 'trademark') cols = trademarkColumns;
@@ -270,7 +347,7 @@ const dynamicColumns = computed(() => {
     else cols = genericColumns;
   }
 
-  return cols.map((col) => {
+  const processedCols = cols.map((col) => {
     if (col.key === 'examineDate' || col.key === 'updateRecordTime') {
       return {
         ...col,
@@ -280,7 +357,42 @@ const dynamicColumns = computed(() => {
     }
     return col;
   });
+
+  return [
+    { title: '序号', key: 'index', width: 70, align: 'center' },
+    ...processedCols
+  ];
 });
+
+const exportLoading = ref(false);
+const handleExport = async () => {
+  if (!taskId) return;
+  try {
+    exportLoading.value = true;
+    message.loading({ content: '正在导出...', key: 'export', duration: 0 });
+    const res = await request.get(`/icp/export/${taskId}`, { responseType: 'blob' });
+    const resData = res.data || res;
+    if (resData.type === 'application/json' || (res.headers && res.headers['content-type']?.includes('application/json'))) {
+      message.error({ content: '导出失败，接口返回异常', key: 'export', duration: 2 });
+      return;
+    }
+    const blob = new Blob([resData]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${taskName.value || taskTarget.value || 'icp_export'}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    message.success({ content: '导出成功', key: 'export', duration: 2 });
+  } catch (error) {
+    console.error('导出失败:', error);
+    message.error({ content: '导出失败', key: 'export', duration: 2 });
+  } finally {
+    exportLoading.value = false;
+  }
+};
 
 const searchForm = reactive({});
 const searchFormOp = reactive({ amount: 'eq', percent: 'eq' });
@@ -424,6 +536,11 @@ const fetchTaskStatistic = async () => {
     const res = await request.get('/icp/task', { params: { _id: taskId, _t: Date.now() } });
     if (res.code === 200 && res.items && res.items.length > 0) {
       const taskData = res.items[0];
+      if (taskData.name) taskName.value = taskData.name;
+      if (taskData.target) taskTarget.value = taskData.target;
+      if (taskData.task_type) taskType.value = taskData.task_type;
+      taskStatus.value = taskData.status || '';
+
       const stat = taskData.statistic || {};
       queryCounts.web = stat.web_cnt !== undefined ? stat.web_cnt : queryCounts.web;
       queryCounts.app = stat.app_cnt !== undefined ? stat.app_cnt : queryCounts.app;

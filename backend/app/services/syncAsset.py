@@ -295,6 +295,13 @@ class SyncAsset(object):
 
             self.sync_by_category(category)
 
+        # 🛡️【第一性原理：零新增探针·多源情报反哺闭环】
+        # 任务结算与资产入库后，利用已探明的 fileleak(200)/cert/vuln 数据原子反哺 site 指纹并清洗误杀标签
+        try:
+            self.enrich_and_heal_site_assets()
+        except Exception as e:
+            logger.error(f"SyncAsset enrich_and_heal_site_assets error: {e}", exc_info=True)
+
         logger.info("end sync {} -> {}, result: {}, update: {}".format(self.task_id, self.scope_id, self.new_asset_counter, self.update_asset_counter))
 
         if self.scope_id and self.task_id:
@@ -313,11 +320,235 @@ class SyncAsset(object):
 
         return self.new_asset_map, self.new_asset_counter, self.update_asset_map, self.update_asset_counter
 
+    def enrich_and_heal_site_assets(self):
+        """
+        [第一性原理：零新增探针·多源情报反哺闭环]
+        利用本任务已采集的 fileleak(200)、cert、vuln 等情报，原子反哺站点指纹，
+        并智能清洗误判的「无效」标签，确保云原生高危资产（如 K8s 节点）不再被遗漏。
+        """
+        if not self.task_id and not self.scope_id:
+            return
+
+        task_site_coll = conn('site')
+        asset_site_coll = conn('asset_site')
+        fileleak_coll = conn('fileleak')
+        vuln_coll = conn('vuln')
+        cert_coll = conn('cert')
+
+        site_query = {"task_id": self.task_id} if self.task_id else {"scope_id": self.scope_id}
+        sites = list(task_site_coll.find(site_query))
+        if not sites and self.scope_id:
+            sites = list(asset_site_coll.find({"scope_id": self.scope_id}))
+
+        if not sites:
+            return
+
+        scope_or_task = []
+        if self.scope_id:
+            scope_or_task.append({"scope_id": self.scope_id})
+        if self.task_id:
+            scope_or_task.append({"task_id": self.task_id})
+        base_scope_filter = {"$or": scope_or_task} if len(scope_or_task) > 1 else (scope_or_task[0] if scope_or_task else {})
+
+        from collections import defaultdict
+        from urllib.parse import urlparse
+        from pymongo import UpdateOne
+
+        # 🚀【性能优化：彻底消除 N+1 查询风暴】预先批量拉取情报并构建内存哈希索引，替代循环内多次网络 I/O
+        # 1. 批量预载 fileleak (status_code 200, 301, 302)
+        leaks_by_site = defaultdict(list)
+        leak_base_filter = dict(base_scope_filter)
+        leak_base_filter["status_code"] = {"$in": [200, 301, 302]}
+        raw_leaks = list(fileleak_coll.find(leak_base_filter, {"site": 1, "url": 1, "status_code": 1}))
+        if self.scope_id:
+            raw_leaks.extend(list(conn('asset_fileleak').find(
+                {"scope_id": self.scope_id, "status_code": {"$in": [200, 301, 302]}},
+                {"site": 1, "url": 1, "status_code": 1}
+            )))
+        for lk in raw_leaks:
+            s_key = lk.get("site")
+            if s_key:
+                leaks_by_site[s_key].append(lk)
+
+        # 2. 批量预载 vuln
+        vulns_by_target = defaultdict(list)
+        raw_vulns = list(vuln_coll.find(base_scope_filter, {"target": 1, "vuln_url": 1, "app_name": 1, "plugin_name": 1}))
+        if self.scope_id:
+            raw_vulns.extend(list(conn('asset_vuln').find(
+                {"scope_id": self.scope_id},
+                {"target": 1, "vuln_url": 1, "app_name": 1, "plugin_name": 1}
+            )))
+        for v in raw_vulns:
+            tgt = v.get("target")
+            v_url = v.get("vuln_url")
+            if tgt:
+                vulns_by_target[tgt].append(v)
+            if v_url and v_url != tgt:
+                vulns_by_target[v_url].append(v)
+
+        # 3. 批量预载 cert (按 ip:port 索引)
+        certs_by_ip_port = defaultdict(list)
+        raw_certs = list(cert_coll.find(base_scope_filter, {"ip": 1, "port": 1, "cert": 1}))
+        if self.scope_id:
+            raw_certs.extend(list(conn('asset_cert').find(
+                {"scope_id": self.scope_id},
+                {"ip": 1, "port": 1, "cert": 1}
+            )))
+        for c in raw_certs:
+            c_ip = c.get("ip")
+            c_port = c.get("port")
+            if c_ip and c_port is not None:
+                certs_by_ip_port[f"{c_ip}:{c_port}"].append(c)
+
+        task_bulk_ops = []
+        asset_bulk_ops = []
+
+        for s in sites:
+            site_url = s.get("site")
+            if not site_url:
+                continue
+
+            ip = s.get("ip") or ""
+            try:
+                parsed = urlparse(site_url)
+                if parsed.port:
+                    site_port = parsed.port
+                elif parsed.scheme == "https":
+                    site_port = 443
+                elif parsed.scheme == "http":
+                    site_port = 80
+                elif ":" in site_url.split("/")[0]:
+                    site_port = int(site_url.split("/")[0].split(":")[1])
+                else:
+                    site_port = 80
+            except Exception:
+                site_port = 80
+
+            existing_fingers = s.get("finger") or []
+            if not isinstance(existing_fingers, list):
+                existing_fingers = []
+
+            orig_names = set()
+            for f in existing_fingers:
+                if isinstance(f, dict) and f.get("name"):
+                    orig_names.add(f["name"])
+                elif isinstance(f, str):
+                    orig_names.add(f)
+
+            current_names = set(orig_names)
+
+            # 1. 关联反哺 fileleak 成果 (兼顾当前任务与存量资产库，内存 O(1) 匹配)
+            leaks = leaks_by_site.get(site_url, [])
+            for lk in leaks:
+                u = lk.get("url", "")
+                st = lk.get("status_code")
+                if st == 200:
+                    if u.endswith("/pods") or "/pods?" in u:
+                        current_names.add("Kubernetes-Kubelet")
+                    elif u.endswith("/healthz") or "/healthz?" in u:
+                        if site_port == 10256:
+                            current_names.add("Kubernetes-Kube-Proxy")
+                        elif site_port in (10255, 10250):
+                            current_names.add("Kubernetes-Kubelet")
+                        elif site_port == 9091:
+                            current_names.add("Milvus")
+                        elif site_port == 8093:
+                            current_names.add("Kubernetes-Edge")
+                    elif u.endswith("/metrics") or "/metrics?" in u:
+                        current_names.add("Prometheus-Metrics")
+                    elif u.endswith("/readyz") or "/readyz?" in u or u.endswith("/livez") or "/livez?" in u:
+                        current_names.add("Kubernetes-Probe")
+                    elif "/actuator" in u:
+                        current_names.add("Spring-Boot-Actuator")
+                    elif "/swagger" in u or "/api-docs" in u or "/openapi.json" in u:
+                        current_names.add("Swagger-UI")
+                    elif "/api/v1/credential/users" in u or "/api/v1/collections" in u:
+                        current_names.add("Milvus")
+                elif st in (301, 302):
+                    if u.endswith("/pms") or "/pms/" in u:
+                        current_names.add("HP-System-Management")
+
+            # 2. 关联反哺 vuln 成果 (内存 O(1) 匹配)
+            vulns = vulns_by_target.get(site_url, [])
+            for v in vulns:
+                app_name = v.get("app_name") or v.get("plugin_name") or "Vulnerability"
+                current_names.add(f"Vuln:{app_name}")
+
+            # 3. 关联反哺 cert 成果 (按 IP 与端口精准对齐，内存 O(1) 匹配)
+            if ip:
+                certs = certs_by_ip_port.get(f"{ip}:{site_port}", [])
+                for c in certs:
+                    cert_dict = c.get("cert") or {}
+                    subject_dn = (cert_dict.get("subject_dn") or "").lower()
+                    issuer_dn = (cert_dict.get("issuer_dn") or "").lower()
+                    if "konnectivity" in subject_dn or "konnectivity" in issuer_dn:
+                        current_names.add("Kubernetes-Konnectivity")
+                    elif "kubernetes" in subject_dn or "k8s" in subject_dn or "kubernetes" in issuer_dn:
+                        current_names.add("Kubernetes")
+
+            # 4. 判断是否有新增指纹或需自愈标签
+            raw_tags = s.get("tag") or []
+            if isinstance(raw_tags, str):
+                raw_tags = [raw_tags]
+            elif not isinstance(raw_tags, list):
+                raw_tags = []
+
+            has_invalid_tag = "无效" in raw_tags
+            new_finger_names = current_names - orig_names
+
+            if new_finger_names or (current_names and has_invalid_tag):
+                updated_finger_list = []
+                seen = set()
+                for f in existing_fingers:
+                    name = f.get("name") if isinstance(f, dict) else f
+                    if name and name not in seen:
+                        updated_finger_list.append(f if isinstance(f, dict) else {
+                            "icon": "default.png", "name": name, "confidence": "100", "version": "", "website": "", "categories": []
+                        })
+                        seen.add(name)
+                for name in sorted(current_names):
+                    if name not in seen:
+                        updated_finger_list.append({
+                            "icon": "default.png", "name": name, "confidence": "100", "version": "", "website": "", "categories": []
+                        })
+                        seen.add(name)
+
+                clean_tags = [t for t in raw_tags if t != "无效"]
+                if "待测试" not in clean_tags:
+                    clean_tags.append("待测试")
+
+                task_bulk_ops.append(UpdateOne(
+                    {"_id": s["_id"]},
+                    {"$set": {"finger": updated_finger_list, "tag": clean_tags}}
+                ))
+
+                if self.scope_id:
+                    asset_bulk_ops.append(UpdateOne(
+                        {"scope_id": self.scope_id, "site": site_url},
+                        {"$set": {"finger": updated_finger_list, "tag": clean_tags}}
+                    ))
+
+                if len(task_bulk_ops) >= 200:
+                    task_site_coll.bulk_write(task_bulk_ops, ordered=False)
+                    task_bulk_ops = []
+                if len(asset_bulk_ops) >= 200:
+                    asset_site_coll.bulk_write(asset_bulk_ops, ordered=False)
+                    asset_bulk_ops = []
+
+        if task_bulk_ops:
+            task_site_coll.bulk_write(task_bulk_ops, ordered=False)
+        if asset_bulk_ops:
+            asset_site_coll.bulk_write(asset_bulk_ops, ordered=False)
 
 def sync_asset(task_id, scope_id, update_flag=False,  category=None, push_flag=False, task_name=""):
     sync = SyncAsset(task_id=task_id, scope_id=scope_id,
                      update_flag=update_flag, category=category, task_name=task_name)
-    new_asset_map, new_asset_counter, update_asset_map, update_asset_counter = sync.run()
+    ret = sync.run()
+    if not ret or not isinstance(ret, tuple) or len(ret) != 4:
+        return {}, {}, {}, {}
+    new_asset_map, new_asset_counter, update_asset_map, update_asset_counter = ret
 
     if push_flag:
         utils.message_push(asset_map=new_asset_map, asset_counter=new_asset_counter, update_map=update_asset_map, update_counter=update_asset_counter)
+
+    return new_asset_map, new_asset_counter, update_asset_map, update_asset_counter

@@ -1024,6 +1024,7 @@ class DomainTask(CommonTask):
                                       scope_domain=[self.base_domain])
         web_site_fetch.run()
 
+        self.site_list = list(web_site_fetch.available_sites)
         self.wih_domain_set = web_site_fetch.wih_domain_set
 
         self.web_site_fetch = web_site_fetch

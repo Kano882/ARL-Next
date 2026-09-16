@@ -169,51 +169,60 @@
               </a-button>
             </div>
             <div class="mt5" style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
-              <!-- 1. 置顶渲染「待测试」标签，主题色自适应柔和质感 + Popconfirm 防误触删除 -->
-              <a-popconfirm
+              <!-- 1. 置顶渲染「待测试」标签 -->
+              <a-tag
                 v-if="getTags(record).includes('待测试')"
-                title="确定移除「待测试」标签吗？"
-                ok-text="确认"
-                cancel-text="取消"
-                @confirm="handleDeleteTag(record, '待测试')"
+                class="tag-pending-test"
               >
-                <a-tag
-                  closable
-                  class="tag-pending-test"
-                  @close.prevent
-                >待测试</a-tag>
-              </a-popconfirm>
-
-              <!-- 2. 渲染「入口」标签 -->
-              <a-popconfirm
-                v-if="getTags(record).includes('入口')"
-                title="确定移除「入口」标签吗？"
-                ok-text="确认"
-                cancel-text="取消"
-                @confirm="handleDeleteTag(record, '入口')"
-              >
-                <a-tag
-                  closable
-                  style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);"
-                  @close.prevent
-                >入口</a-tag>
-              </a-popconfirm>
-
-              <!-- 3. 渲染其余业务自定义标签 -->
-              <template v-for="(t, idx) in getTags(record)" :key="idx">
+                待测试
                 <a-popconfirm
-                  v-if="t !== '待测试' && t !== '入口'"
-                  :title="`确定移除「${t}」标签吗？`"
+                  title="确定移除「待测试」标签吗？"
                   ok-text="确认"
                   cancel-text="取消"
-                  @confirm="handleDeleteTag(record, t)"
+                  @confirm="handleDeleteTag(record, '待测试')"
                 >
-                  <a-tag
-                    closable
-                    style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);"
-                    @close.prevent
-                  >{{ t }}</a-tag>
+                  <span class="ant-tag-close-icon" @click.stop>
+                    <close-outlined />
+                  </span>
                 </a-popconfirm>
+              </a-tag>
+
+              <!-- 2. 渲染「入口」标签 -->
+              <a-tag
+                v-if="getTags(record).includes('入口')"
+                style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);"
+              >
+                入口
+                <a-popconfirm
+                  title="确定移除「入口」标签吗？"
+                  ok-text="确认"
+                  cancel-text="取消"
+                  @confirm="handleDeleteTag(record, '入口')"
+                >
+                  <span class="ant-tag-close-icon" @click.stop>
+                    <close-outlined />
+                  </span>
+                </a-popconfirm>
+              </a-tag>
+
+              <!-- 3. 渲染其余业务自定义标签 -->
+              <template v-for="t in getTags(record)" :key="t">
+                <a-tag
+                  v-if="t !== '待测试' && t !== '入口'"
+                  style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);"
+                >
+                  {{ t }}
+                  <a-popconfirm
+                    :title="`确定移除「${t}」标签吗？`"
+                    ok-text="确认"
+                    cancel-text="取消"
+                    @confirm="handleDeleteTag(record, t)"
+                  >
+                    <span class="ant-tag-close-icon" @click.stop>
+                      <close-outlined />
+                    </span>
+                  </a-popconfirm>
+                </a-tag>
               </template>
               <span class="add-tag" @click="openTagModal(record)" style="cursor: pointer;">添加标签</span>
             </div>
@@ -478,11 +487,63 @@
                       </div>
                       <div class="chain-info-row">
                         <span class="chain-info-label">业务标签：</span>
-                        <div class="chain-info-value" style="display: flex; flex-wrap: wrap; gap: 4px;">
-                          <template v-if="getTags(siteItem) && getTags(siteItem).length > 0">
-                            <a-tag v-for="t in getTags(siteItem)" :key="t" color="orange">{{ t }}</a-tag>
+                        <div class="chain-info-value" style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+                          <!-- 1. 置顶渲染「待测试」标签 -->
+                          <a-tag
+                            v-if="getTags(siteItem).includes('待测试')"
+                            class="tag-pending-test"
+                          >
+                            待测试
+                            <a-popconfirm
+                              title="确定移除「待测试」标签吗？"
+                              ok-text="确认"
+                              cancel-text="取消"
+                              @confirm="handleDeleteTag(siteItem, '待测试')"
+                            >
+                              <span class="ant-tag-close-icon" @click.stop>
+                                <close-outlined />
+                              </span>
+                            </a-popconfirm>
+                          </a-tag>
+
+                          <!-- 2. 渲染「入口」标签 -->
+                          <a-tag
+                            v-if="getTags(siteItem).includes('入口')"
+                            style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);"
+                          >
+                            入口
+                            <a-popconfirm
+                              title="确定移除「入口」标签吗？"
+                              ok-text="确认"
+                              cancel-text="取消"
+                              @confirm="handleDeleteTag(siteItem, '入口')"
+                            >
+                              <span class="ant-tag-close-icon" @click.stop>
+                                <close-outlined />
+                              </span>
+                            </a-popconfirm>
+                          </a-tag>
+
+                          <!-- 3. 渲染其余业务自定义标签 -->
+                          <template v-for="t in getTags(siteItem)" :key="t">
+                            <a-tag
+                              v-if="t !== '待测试' && t !== '入口'"
+                              style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);"
+                            >
+                              {{ t }}
+                              <a-popconfirm
+                                :title="`确定移除「${t}」标签吗？`"
+                                ok-text="确认"
+                                cancel-text="取消"
+                                @confirm="handleDeleteTag(siteItem, t)"
+                              >
+                                <span class="ant-tag-close-icon" @click.stop>
+                                  <close-outlined />
+                                </span>
+                              </a-popconfirm>
+                            </a-tag>
                           </template>
-                          <span v-else>-</span>
+                          <span class="add-tag" @click="openTagModal(siteItem)" style="cursor: pointer;">添加标签</span>
                         </div>
                       </div>
                       <div v-if="siteItem.headers" class="chain-info-row">
@@ -1040,7 +1101,8 @@ import {
   CompassOutlined,
   ClusterOutlined,
   LinkOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  CloseOutlined
 } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { createTabStateCache } from '../utils/useTabStateCache';
@@ -1364,6 +1426,24 @@ const getTags = (record) => {
   return Array.isArray(record.tag) ? record.tag : [record.tag];
 };
 
+const syncTagState = (targetId, newTags) => {
+  if (!targetId) return;
+  // 1. 同步全链路画像 chainData.site 中的对应项
+  if (chainData.value && Array.isArray(chainData.value.site)) {
+    const chainSite = chainData.value.site.find(s => (s._id || s.id) === targetId);
+    if (chainSite) {
+      chainSite.tag = [...newTags];
+    }
+  }
+  // 2. 同步常规列表 dataSource 中的对应项
+  if (Array.isArray(dataSource.value)) {
+    const tableSite = dataSource.value.find(s => (s._id || s.id) === targetId);
+    if (tableSite) {
+      tableSite.tag = [...newTags];
+    }
+  }
+};
+
 const submitTag = async () => {
   if (!newTagValue.value.trim()) {
     message.warning('标签内容不能为空');
@@ -1387,9 +1467,13 @@ const submitTag = async () => {
         if (!currentTagRecord.value.tag.includes(tag)) {
           currentTagRecord.value.tag.push(tag);
         }
+        syncTagState(targetId, currentTagRecord.value.tag);
       }
       tabCache.invalidateMemoryCache(activeTab.value);
-      fetchData(); // 重新加载数据
+      tabCache.invalidateMemoryCache('site');
+      if (activeTab.value !== 'site_chain') {
+        fetchData(); // 重新加载数据
+      }
     } else {
       message.error(res.message || '添加标签失败');
     }
@@ -1412,6 +1496,9 @@ const handleDeleteTag = async (record, tag) => {
       message.success(`已移除标签「${tag}」`);
       const currentTags = Array.isArray(record.tag) ? record.tag : (record.tag ? [record.tag] : []);
       record.tag = currentTags.filter(t => t !== tag);
+      syncTagState(targetId, record.tag);
+      tabCache.invalidateMemoryCache(activeTab.value);
+      tabCache.invalidateMemoryCache('site');
     } else {
       message.error(res.message || '删除标签失败');
     }
@@ -2027,11 +2114,15 @@ const handleExport = async () => {
 
     const res = await request.get(config.exportUrl, { params, responseType: 'blob' });
 
-    const blob = new Blob([res], { type: 'text/plain;charset=utf-8' });
+    const isCert = activeTab.value === 'cert';
+    const mimeType = isCert ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
+    const ext = isCert ? 'json' : 'txt';
+
+    const blob = new Blob([res], { type: mimeType });
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `ARL_Group_Export_${activeTab.value}_${new Date().getTime()}.txt`;
+    link.download = `ARL_Group_Export_${activeTab.value}_${new Date().getTime()}.${ext}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

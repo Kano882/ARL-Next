@@ -24,7 +24,7 @@ RUN cd /tmp && \
 # 3. 编译 Nmap 7.95 (黄金 LTS 版本：补齐 2500+ 服务指纹与 336 种现代 OS 指纹，修复核心内存泄漏)
 # 针对 ARM64 / QEMU 交叉编译进行极致工程裁剪：
 # - 剥离无用的 zenmap, ndiff, nping (重型 C++ 模板), ncat
-# - 严格限制 make 并发数 (max 2)，彻底杜绝 QEMU 内存溢出与多线程竞态段错误
+# - 严格限制 make 并发数 (max 2)，有效规避 QEMU 内存溢出与多线程竞态段错误
 # - 官方源与开源镜像双重兜底下载
 RUN cd /tmp && \
     (wget -t 5 https://nmap.org/dist/nmap-7.95.tar.bz2 || \
@@ -38,12 +38,30 @@ RUN cd /tmp && \
     strip -s /usr/local/bin/nmap || true && \
     cd /tmp && rm -rf nmap*
 
-# 4. 下载 Nuclei 并预热模板
+# 4. 下载并安装 Nuclei 二进制 (受 Docker 缓存保护，避免重复拉取)
 RUN ARCH=$(dpkg --print-architecture) && \
+    cd /tmp && \
     if [ "$ARCH" = "amd64" ]; then NUCLEI_ZIP="nuclei_3.11.0_linux_amd64.zip"; else NUCLEI_ZIP="nuclei_3.11.0_linux_arm64.zip"; fi && \
-    wget -t 10 "https://github.com/projectdiscovery/nuclei/releases/download/v3.11.0/$NUCLEI_ZIP" -O $NUCLEI_ZIP || wget -t 10 "https://gh-proxy.com/https://github.com/projectdiscovery/nuclei/releases/download/v3.11.0/$NUCLEI_ZIP" -O $NUCLEI_ZIP && \
-    unzip $NUCLEI_ZIP && mv nuclei /usr/local/bin/ && \
-    /usr/local/bin/nuclei -update-templates || true
+    (wget -t 10 "https://github.com/projectdiscovery/nuclei/releases/download/v3.11.0/$NUCLEI_ZIP" -O $NUCLEI_ZIP || wget -t 10 "https://gh-proxy.com/https://github.com/projectdiscovery/nuclei/releases/download/v3.11.0/$NUCLEI_ZIP" -O $NUCLEI_ZIP) && \
+    unzip $NUCLEI_ZIP && mv nuclei /usr/local/bin/ && chmod +x /usr/local/bin/nuclei && rm -rf nuclei*
+
+# 5. 动态穿透缓存拉取最新 Nuclei 模板 (由 GHA 传入动态 run_id 驱动，发版必拉最新，内置3次重试防抖)
+ARG NUCLEI_CACHEBUST=0
+RUN echo "Triggering Nuclei templates update (cachebust: ${NUCLEI_CACHEBUST})..." && \
+    success=0; \
+    for i in 1 2 3; do \
+        echo "Attempt $i to update Nuclei templates..."; \
+        rm -rf /root/nuclei-templates /root/.config/nuclei && \
+        if /usr/local/bin/nuclei -update-templates; then \
+            success=1; break; \
+        fi; \
+        echo "Attempt $i failed, waiting 5s before retrying..."; \
+        sleep 5; \
+    done; \
+    if [ $success -ne 1 ]; then \
+        echo "Error: Failed to update Nuclei templates after 3 attempts!" && exit 1; \
+    fi && \
+    echo "Nuclei templates updated successfully: $(find /root/nuclei-templates -name '*.yaml' 2>/dev/null | wc -l) YAML templates ready."
 
 # 阶段二：Python生态编译环境 (彻底剥离 C 编译，专精 pip 安装)
 FROM python:3.13-bookworm AS builder-py
@@ -67,7 +85,6 @@ FROM python:3.13-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
-ENV NODE_PATH=/usr/local/lib/node_modules
 ENV NMAPDIR=/usr/share/nmap
 
 # 1. 仅安装生产运行所需的必要库 (移除臃肿的 apt nmap，仅保留纯净动态链接库)
@@ -88,6 +105,7 @@ COPY --from=builder-c /usr/local/share/nmap /usr/share/nmap
 RUN mkdir -p /usr/local/share && ln -s /usr/share/nmap /usr/local/share/nmap
 COPY --from=builder-py /code/backend/.venv-docker /code/backend/.venv-docker
 COPY --from=builder-c /root/nuclei-templates /root/nuclei-templates
+COPY --from=builder-c /root/.config/nuclei /root/.config/nuclei
 
 # 3. 拷贝源码
 WORKDIR /code
