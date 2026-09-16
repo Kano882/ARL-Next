@@ -51,6 +51,11 @@ function triggerUnauthorizedRedirect() {
 // 响应拦截器：统一处理状态码
 request.interceptors.response.use(
     (response) => {
+        // 若已处于登出跳转中，直接挂起后续所有并发响应，彻底消除组件层 catch 弹窗风暴
+        if (isRedirecting) {
+            return new Promise(() => {});
+        }
+
         const res = response.data; // 剥离最外层，直接拿核心数据
 
         // 核心逻辑：精准捕获 ARL 的 401 状态
@@ -63,28 +68,34 @@ request.interceptors.response.use(
 
             triggerUnauthorizedRedirect();
 
-            // 拦截掉这个请求，不要让它抛到业务组件里去报错
-            return Promise.reject(new Error('未登录或 Token 失效'));
+            // 返回挂起 Promise 阻断后续调用链，实现平滑静默跳转
+            return new Promise(() => {});
         }
 
         return res;
     },
     (error) => {
-        // blob 类请求（如下载）的错误体由业务组件自行解析并提示精确信息，避免双重弹窗
-        if (error.config && error.config.responseType === 'blob') {
-            return Promise.reject(error);
+        // 若已处于登出跳转中，直接挂起后续所有并发错误
+        if (isRedirecting) {
+            return new Promise(() => {});
         }
 
-        // 捕获真实 HTTP 401 状态码 (网关/代理层异常或标准 RESTful 鉴权失败)
+        // 1. 优先捕获真实 HTTP 401 状态码 (网关/代理层异常或标准 RESTful 鉴权失败)
+        // 必须优先于 blob 判断，防止导出文件时 401 绕过全局登出重定向
         if (error.response && error.response.status === 401) {
             if (error.config && error.config.url && error.config.url.includes('/user/login')) {
                 return Promise.reject(error);
             }
             triggerUnauthorizedRedirect();
-            return Promise.reject(new Error('未登录或 Token 失效'));
+            return new Promise(() => {});
         }
 
-        // 处理真正的 HTTP 级别报错 (如 500, 502)
+        // 2. blob 类请求（如下载）的错误体由业务组件自行解析并提示精确信息，避免双重弹窗
+        if (error.config && error.config.responseType === 'blob') {
+            return Promise.reject(error);
+        }
+
+        // 3. 处理真正的 HTTP 级别报错 (如 500, 502)
         message.error('网络请求异常，请检查后端服务！');
         return Promise.reject(error);
     }
