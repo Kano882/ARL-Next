@@ -448,3 +448,72 @@ class MCPAssetProfile(Resource):
 
         data = build_asset_profile(target, task_id)
         return data
+
+
+@ns.route('/export_server')
+class MCPExportServer(Resource):
+    @auth
+    def get(self):
+        """
+        动态导出预置当前用户专属凭据的独立 MCP 客户端脚本 (arl_mcp.py)
+        """
+        from pathlib import Path
+        candidate_paths = [
+            Path(__file__).resolve().parent.parent.parent.parent / "mcp-server" / "server.py",
+            Path("/code/mcp-server/server.py"),
+            Path("/code/frontend/public/mcp/server.py"),
+            Path("/code/frontend/dist/mcp/server.py"),
+            Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "public" / "mcp" / "server.py",
+        ]
+        server_path = None
+        for p in candidate_paths:
+            if p.exists() and p.is_file():
+                server_path = p
+                break
+
+        if not server_path:
+            return {"code": 404, "message": "server.py template not found on server"}, 404
+
+        try:
+            content = server_path.read_text(encoding="utf-8")
+        except Exception as e:
+            return {"code": 500, "message": f"Failed to read template: {str(e)}"}, 500
+
+        # 获取当前用户 Token 与访问 Host
+        user_token = (request.headers.get("Token") or request.args.get("token") or "").strip()
+
+        # 探测 Host 优先级：
+        # 1. 显式 query 参数 ?host=
+        # 2. 浏览器 Origin / Referer 请求头
+        # 3. 反向代理头 X-Forwarded-Host / Host 与 X-Forwarded-Proto
+        # 4. request.host_url
+        req_host = request.args.get("host", "").strip()
+        if req_host:
+            host = req_host.rstrip("/")
+        else:
+            origin = request.headers.get("Origin", "").strip()
+            referer = request.headers.get("Referer", "").strip()
+            if origin:
+                host = origin.rstrip("/")
+            elif referer:
+                import urllib.parse
+                p = urllib.parse.urlparse(referer)
+                host = f"{p.scheme}://{p.netloc}".rstrip("/")
+            else:
+                forwarded_proto = request.headers.get("X-Forwarded-Proto", "").strip() or ("https" if request.is_secure else "http")
+                forwarded_host = request.headers.get("X-Forwarded-Host", "").strip() or request.headers.get("Host", "").strip()
+                if forwarded_host:
+                    host = f"{forwarded_proto}://{forwarded_host}"
+                else:
+                    host = request.host_url.rstrip("/")
+
+        # 动态注入凭据
+        if user_token:
+            content = content.replace('DEFAULT_TOKEN = ""', f'DEFAULT_TOKEN = "{user_token}"')
+        if host:
+            content = content.replace('DEFAULT_HOST = ""', f'DEFAULT_HOST = "{host}"')
+
+        response = make_response(content)
+        response.headers['Content-Type'] = 'text/x-python; charset=utf-8'
+        response.headers['Content-Disposition'] = 'attachment; filename="arl_mcp.py"'
+        return response

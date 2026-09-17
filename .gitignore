@@ -33,7 +33,7 @@ reference/
 # Celery Beat persistent db
 backend/celerybeat-schedule.db
 backend/.venv-docker/
-
+**/.tmp_venv/
 
 #系统临时生成文件
 backend/app/tmp/
@@ -47,7 +47,10 @@ apikey.txt
 test/
 backend/ARL-NPoC/build/
 backend/ARL-NPoC/xing.egg-info/
-tmp.txt
+/tmp.txt
+/logs/
+dist/
+frontend/dist/
 
 # Nginx Basic Auth
 frontend/.htpasswd

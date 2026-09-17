@@ -40,6 +40,12 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # MCP 客户端脚本直链下载与静态分发 (不受 Basic Auth 拦截)
+    location ^~ /mcp/ {
+        auth_basic off;
+        root   /usr/share/nginx/html;
+    }
+
     # 针对静态资源添加长期不可变缓存 (带 Hash 的 Chunk)
     location ^~ /assets/ {
         root   /usr/share/nginx/html;
@@ -68,10 +74,12 @@ server {
         proxy_pass http://arl-web:5000/api/;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Port $server_port;
 
         # 优化大文件(如截图)传输缓冲，防止写入临时文件增加磁盘 IO 消耗
         proxy_buffer_size 128k;

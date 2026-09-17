@@ -503,11 +503,7 @@ import {
   DownOutlined, 
   ExclamationCircleOutlined, 
   QuestionCircleOutlined, 
-  EditOutlined, 
   PlusOutlined, 
-  GlobalOutlined, 
-  ScheduleOutlined, 
-  FileSearchOutlined, 
   DeleteOutlined,
   CopyOutlined,
   FileTextOutlined,
@@ -648,9 +644,6 @@ const processScopeItems = (items) => {
   });
 };
 
-const getSortedScopeArray = (record) => {
-  return record?._sorted_scopes || record?.scope_array || [];
-};
 
 // 轮询调度管理：如果有正在扫描中的资产组，则每 5 秒静默轮询一次
 let pollTimer = null;

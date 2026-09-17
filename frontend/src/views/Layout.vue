@@ -109,27 +109,49 @@
   </a-layout>
   <a-modal
       v-model:visible="showMcpModal"
-      title="🚀 AI 助手 (MCP) 一键接入"
+      title="AI 助手 MCP 客户端配置"
       @cancel="showMcpModal = false"
       :footer="null"
-      width="600px"
+      width="640px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
   >
     <div style="margin-bottom: 16px;">
-      <p>想要使用 Cursor、Claude Desktop 或其他 AI 工具自动分析平台资产与漏洞？</p>
-      <p>请复制以下配置，粘贴到您的 AI 客户端配置文件的 <code>"mcpServers"</code> 节点内部：</p>
+      <p style="margin-bottom: 10px;">支持接入 CC-Switch、Claude Code、Cursor、Windsurf 或 Antigravity 等 AI 助手：</p>
+      <div :style="{ background: hasBgImage ? 'rgba(0,0,0,0.15)' : 'var(--arl-bg-light)', border: hasBgImage ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--arl-border-color)', borderRadius: '6px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }">
+        <div>
+          <div style="font-weight: 600; font-size: 13px; margin-bottom: 2px;">📥 第一步：导出专属客户端脚本</div>
+          <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.75;">已预置当前账号 Token 与服务端地址，零三方依赖，开箱即用。</div>
+        </div>
+        <a-button type="primary" :loading="isDownloadingScript" @click="downloadMcpScript">
+          下载 arl_mcp.py
+        </a-button>
+      </div>
     </div>
+
+    <div style="margin-bottom: 8px; font-size: 13px; font-weight: 500;">
+      📋 第二步：复制配置并粘贴至客户端 <code>"mcpServers"</code> 节点下：
+    </div>
+
     <div style="position: relative;">
-      <pre :style="{ background: hasBgImage ? 'rgba(0,0,0,0.2)' : 'var(--arl-bg-light)', padding: '16px', borderRadius: '4px', overflowX: 'auto', fontSize: '13px', border: hasBgImage ? '1px solid rgba(255,255,255,0.1)' : 'none' }"><code :style="{ color: hasBgImage ? 'var(--arl-text-color)' : 'inherit' }">{{ mcpConfigJson }}</code></pre>
+      <pre :style="{ background: hasBgImage ? 'rgba(0,0,0,0.2)' : 'var(--arl-bg-light)', padding: '16px', borderRadius: '6px', overflowX: 'auto', fontSize: '13px', border: hasBgImage ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--arl-border-color)', margin: 0 }"><code :style="{ color: hasBgImage ? 'var(--arl-text-color)' : 'inherit' }">{{ mcpConfigJson }}</code></pre>
       <div style="position: absolute; top: 12px; right: 12px; display: flex; gap: 8px;">
-        <a-button type="default" size="small" :loading="isRefreshingToken" @click="refreshMcpToken">刷新 Token</a-button>
+        <a-popconfirm
+          title="刷新将立即作废当前 Token，导致已导出的脚本与已接入客户端失效，确认刷新？"
+          okText="确认刷新"
+          cancelText="取消"
+          @confirm="refreshMcpToken"
+        >
+          <a-button type="default" size="small" :loading="isRefreshingToken">刷新 Token</a-button>
+        </a-popconfirm>
         <a-button type="primary" size="small" @click="copyMcpConfig">复制配置</a-button>
       </div>
     </div>
-    <p style="margin-top: 16px; font-size: 12px; color: var(--arl-text-color); opacity: 0.45;">
-      注：该配置包含您的专属 API Token，请妥善保管。底层采用 <code>docker</code> 运行，请确保本地已安装并启动 Docker。
-    </p>
+
+    <div style="margin-top: 14px; font-size: 12px; color: var(--arl-text-color); opacity: 0.75; line-height: 1.6;">
+      💡 <b>免环境配置</b>：脚本已内嵌访问凭据，默认假定下载至 <code>~/Downloads/arl_mcp.py</code>。若存放于其他路径，请将 <code>args</code> 调整为实际绝对路径；Windows 环境请使用 <code>python</code> 命令。<br/>
+      🔒 <b>凭据安全</b>：导出的脚本包含当前账号的高权限 API Token，请妥善保管勿公开提交；若发生泄露可点击“刷新 Token”一键作废。
+    </div>
   </a-modal>
 
   <a-modal
@@ -213,9 +235,10 @@ import { extractDominantColor, processImageToBase64, dbHelper } from '@/utils/th
 // 引入 Ant Design 的消息提示与模态框
 import { message, Modal } from 'ant-design-vue';
 import SupportAuthorPopover from '@/components/SupportAuthorPopover.vue';
+import { copyText } from '@/utils/clipboard';
 
 // 补全所有需要的图标
-import { DashboardOutlined, MenuUnfoldOutlined, MenuFoldOutlined, UserOutlined, LogoutOutlined, GlobalOutlined, SearchOutlined, DesktopOutlined, AppstoreOutlined, SettingOutlined, TagsOutlined, BugOutlined, ClockCircleOutlined, GithubOutlined, EyeOutlined, DeploymentUnitOutlined, RobotOutlined, BgColorsOutlined, PictureOutlined, UploadOutlined, DeleteOutlined, SafetyCertificateOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
+import { DashboardOutlined, MenuUnfoldOutlined, MenuFoldOutlined, UserOutlined, LogoutOutlined, GlobalOutlined, SearchOutlined, DesktopOutlined, AppstoreOutlined, SettingOutlined, TagsOutlined, BugOutlined, ClockCircleOutlined, GithubOutlined, DeploymentUnitOutlined, RobotOutlined, BgColorsOutlined, PictureOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -459,27 +482,15 @@ const handleCancelChangePass = () => {
 /* ---------- 新增：MCP 接入逻辑 ---------- */
 const showMcpModal = ref(false);
 const mcpConfigJson = ref('');
+const isDownloadingScript = ref(false);
 
 const handleShowMcpModal = () => {
-  const token = localStorage.getItem('token') || 'YOUR_API_TOKEN';
-  const host = window.location.origin;
   const config = {
-    "ARL-Next": {
-      "command": "docker",
+    "arl-next": {
+      "command": "python3",
       "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "ARL_HOST",
-        "-e",
-        "ARL_TOKEN",
-        "arl-next-mcp:latest"
-      ],
-      "env": {
-        "ARL_HOST": host,
-        "ARL_TOKEN": token
-      }
+        "~/Downloads/arl_mcp.py"
+      ]
     }
   };
   // 去除最外层的 {} 使其更容易直接粘贴到已有的 mcpServers 对象内部
@@ -488,15 +499,70 @@ const handleShowMcpModal = () => {
   showMcpModal.value = true;
 };
 
-const copyMcpConfig = () => {
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(mcpConfigJson.value).then(() => {
-      message.success('MCP 配置已复制到剪贴板！');
-    }).catch(() => {
-      message.error('复制失败，请手动选择复制');
-    });
+const copyMcpConfig = async () => {
+  const ok = await copyText(mcpConfigJson.value);
+  if (ok) {
+    message.success('MCP 配置已复制到剪贴板！');
   } else {
-    message.error('当前环境不支持一键复制，请手动选择复制');
+    message.error('复制失败，请手动选择复制');
+  }
+};
+
+const downloadMcpScript = async () => {
+  try {
+    isDownloadingScript.value = true;
+    const token = localStorage.getItem('token') || '';
+    let scriptText = '';
+
+    const host = window.location.origin;
+
+    // 优先从后端动态注入导出接口获取
+    try {
+      const res = await fetch(`/api/mcp/export_server?host=${encodeURIComponent(host)}`, {
+        method: 'GET',
+        headers: {
+          'Token': token
+        }
+      });
+      if (res.ok) {
+        scriptText = await res.text();
+      }
+    } catch (e) {
+      console.warn('后端导出接口调用失败，尝试静态降级生成:', e);
+    }
+
+    // 降级保护：若后端接口未就绪，直接拉取静态模版并在前端完成凭据注入
+    if (!scriptText || scriptText.startsWith('{"code":')) {
+      const staticRes = await fetch('/mcp/server.py');
+      if (!staticRes.ok) {
+        throw new Error('获取客户端模板失败');
+      }
+      let content = await staticRes.text();
+      const host = window.location.origin;
+      if (token) {
+        content = content.replace('DEFAULT_TOKEN = ""', `DEFAULT_TOKEN = "${token}"`);
+      }
+      if (host) {
+        content = content.replace('DEFAULT_HOST = ""', `DEFAULT_HOST = "${host}"`);
+      }
+      scriptText = content;
+    }
+
+    const blob = new Blob([scriptText], { type: 'text/x-python;charset=utf-8' });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = 'arl_mcp.py';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+    message.success('arl_mcp.py 已成功导出并开始下载！');
+  } catch (error) {
+    console.error('下载 MCP 客户端脚本失败:', error);
+    message.error('下载脚本失败，请检查网络');
+  } finally {
+    isDownloadingScript.value = false;
   }
 };
 
@@ -507,7 +573,7 @@ const refreshMcpToken = async () => {
     const res = await request.post('/user/refresh_token');
     if (res.code === 200 && res.data && res.data.token) {
       localStorage.setItem('token', res.data.token);
-      message.success('Token 已作废并刷新成功，配置已自动更新！');
+      message.success('Token 已作废并刷新成功！请重新下载客户端脚本。');
       handleShowMcpModal(); // 重新生成配置展示
     } else {
       message.error(res.message || '刷新 Token 失败');

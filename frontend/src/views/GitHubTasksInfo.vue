@@ -112,7 +112,7 @@ const { stickyConfig } = useSticky(actionBarRef);
 import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
 import { message } from 'ant-design-vue';
-import { SearchOutlined, InboxOutlined, SyncOutlined, LeftOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, InboxOutlined, LeftOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 
 const route = useRoute();

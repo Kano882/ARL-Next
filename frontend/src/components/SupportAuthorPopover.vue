@@ -143,6 +143,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { message } from 'ant-design-vue';
+import { copyText } from '@/utils/clipboard';
 import {
   CoffeeOutlined,
   NotificationOutlined,
@@ -182,33 +183,20 @@ const rewardQrcode = computed(() => resolveImage('reward'));
 const mpQrcode = computed(() => resolveImage('mp'));
 const wechatQrcode = computed(() => resolveImage('wechat'));
 
-// 一键复制微信号（含 fallback 降级兼容）
+// 一键复制微信号（复用全站统一剪贴板工具）
 const handleCopyWechat = async () => {
   const text = SUPPORT_CONFIG.wechat.wechatId;
   if (!text) return;
 
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
+  const ok = await copyText(text);
+  if (ok) {
     copied.value = true;
     message.success(`作者微信号「${text}」已复制到剪贴板！`);
     setTimeout(() => {
       copied.value = false;
     }, 2500);
-  } catch (err) {
-    console.error('复制失败:', err);
-    message.error('复制失败，请长按手动选择复制');
+  } else {
+    message.error('复制失败，请手动选择复制');
   }
 };
 </script>

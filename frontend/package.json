@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node -e \"const fs=require('fs'); if(fs.existsSync('../mcp-server/server.py')){fs.mkdirSync('public/mcp', {recursive:true}); fs.copyFileSync('../mcp-server/server.py', 'public/mcp/server.py');}\"",
     "build": "vite build",
     "preview": "vite preview"
   },

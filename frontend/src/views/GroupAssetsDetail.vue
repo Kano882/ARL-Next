@@ -1091,7 +1091,6 @@ import ServiceDetailModal from '../components/ServiceDetailModal.vue';
 import {
   SearchOutlined,
   ExclamationCircleOutlined,
-  LeftOutlined,
   GlobalOutlined,
   CloudServerOutlined,
   SafetyCertificateOutlined,
@@ -1971,7 +1970,6 @@ const handleBatchDelete = () => {
     }
   });
 };
-const openAction = (action) => { message.info(`准备开发弹窗: ${action}`); };
 
 watch(activeTab, (newVal, oldVal) => {
   if (oldVal && tabConfig[oldVal] && !isScopeSwitching.value) {

@@ -113,19 +113,6 @@ def exec_system(cmd, **kwargs):
     return completed
 
 
-def check_output(cmd, **kwargs):
-    cmd = " ".join(cmd)
-    timeout = 4 * 60 * 60
-
-    if kwargs.get('timeout'):
-        timeout = kwargs.pop('timeout')
-
-    if 'stdout' in kwargs:
-        raise ValueError('stdout argument not allowed, it will be overridden.')
-
-    output = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE, timeout=timeout, check=False,
-               **kwargs).stdout
-    return output
 
 
 def random_choices(k=6):

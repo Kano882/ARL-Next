@@ -591,7 +591,7 @@ import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
-import { SearchOutlined, InboxOutlined, SyncOutlined, LinkOutlined, AlertOutlined, ToolOutlined, TeamOutlined, InfoCircleOutlined, ClockCircleOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, InboxOutlined, SyncOutlined, LinkOutlined, ClockCircleOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 
 const router = useRouter();

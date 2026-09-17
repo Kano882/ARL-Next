@@ -1118,7 +1118,7 @@ admin123
 </template>
 
 <script setup>
-import { InfoCircleOutlined, ThunderboltOutlined } from '@ant-design/icons-vue';
+import { InfoCircleOutlined } from '@ant-design/icons-vue';
 import { ref, reactive, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
@@ -1641,9 +1641,6 @@ watch(treeData, (newVal) => {
   }
 }, { immediate: true });
 
-const handleUnifiedMenuSelect = ({ key }) => {
-  handleUnifiedSelect([key]);
-};
 
 const handleAppendAndClose = async () => {
   const ok = await handleAppend();
@@ -1905,15 +1902,6 @@ const handleAppend = async () => {
   }
 };
 
-// 批量删除
-const handleDeleteBatch = async () => {
-  if (!newEntries.value.trim()) return false;
-  const ok = await deleteEntries(newEntries.value);
-  if (ok) {
-    newEntries.value = '';
-  }
-  return ok;
-};
 
 // 单条删除
 const handleDeleteSingle = async (item) => {

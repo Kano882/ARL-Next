@@ -43,11 +43,15 @@ TOOL_GET_ASSET_PROFILE = {
 }
 
 
+# 默认预置凭据占位符（支持从 Web 端导出单文件客户端时动态预填充；优先级低于环境变量与 ARL_auth.md）
+DEFAULT_HOST = ""
+DEFAULT_TOKEN = ""
+
 _EXECUTOR = ThreadPoolExecutor(max_workers=5)
 
 
 def _get_auth():
-    """获取 ARL 凭据，优先环境变量，其次遍历动态搜索 ARL_auth.md（彻底消除硬编码用户目录）"""
+    """获取 ARL 凭据，优先级：1. 环境变量 > 2. 本地 ARL_auth.md > 3. 预置静态凭据 DEFAULT_HOST/DEFAULT_TOKEN"""
     host = os.environ.get("ARL_HOST", "").strip()
     token = os.environ.get("ARL_TOKEN", "").strip()
 
@@ -81,6 +85,12 @@ def _get_auth():
                                 token = parts[3].strip()
                 except Exception:
                     pass
+
+    # 优先级 3：若环境变量与本地 ARL_auth.md 均未提供，则读取导出时预置的默认凭据
+    if not host and DEFAULT_HOST:
+        host = DEFAULT_HOST.strip()
+    if not token and DEFAULT_TOKEN:
+        token = DEFAULT_TOKEN.strip()
 
     if not host:
         host = "https://127.0.0.1:5173"
@@ -140,6 +150,14 @@ def _clean_empty(val, depth=0, max_depth=10):
 
 def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
     """当后端 /api/mcp/asset_profile 未部署时，纯客户端极速并发聚合 ARL 各基础维度"""
+    host, token = _get_auth()
+    if not token:
+        return {
+            "status": "auth_error",
+            "message": "ARL 鉴权失败：未检测到有效 ARL_TOKEN，请检查环境变量或 ARL_auth.md",
+            "target": target
+        }
+
     is_ip = bool(re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', target))
     hostname = None
     target_ip = None
@@ -167,13 +185,13 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
     def fetch_domain():
         if hostname:
             p = {"domain": hostname, "size": 5, **task_param}
-            _, res = _request_api("/domain/", p)
-            return "domain", res.get("items", []) if isinstance(res, dict) else []
+            c, res = _request_api("/domain/", p)
+            return "domain", c, res.get("items", []) if isinstance(res, dict) else []
         elif is_ip:
             p = {"ips": target_ip, "size": 10, **task_param}
-            _, res = _request_api("/domain/", p)
-            return "domain", res.get("items", []) if isinstance(res, dict) else []
-        return "domain", []
+            c, res = _request_api("/domain/", p)
+            return "domain", c, res.get("items", []) if isinstance(res, dict) else []
+        return "domain", 200, []
 
     def fetch_site():
         p = {"size": 10, **task_param}
@@ -181,8 +199,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["site"] = hostname
         elif target_ip:
             p["ip"] = target_ip
-        _, res = _request_api("/site/", p)
-        return "site", res.get("items", []) if isinstance(res, dict) else []
+        c, res = _request_api("/site/", p)
+        return "site", c, res.get("items", []) if isinstance(res, dict) else []
 
     def fetch_vuln():
         p = {"size": 30, **task_param}
@@ -190,8 +208,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["target"] = hostname
         elif target_ip:
             p["target"] = target_ip
-        _, res = _request_api("/vuln/", p)
-        return "vuln", res.get("items", []) if isinstance(res, dict) else []
+        c, res = _request_api("/vuln/", p)
+        return "vuln", c, res.get("items", []) if isinstance(res, dict) else []
 
     def fetch_nuclei():
         p = {"size": 30, **task_param}
@@ -199,8 +217,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["target"] = hostname
         elif target_ip:
             p["target"] = target_ip
-        _, res = _request_api("/nuclei_result/", p)
-        return "nuclei", res.get("items", []) if isinstance(res, dict) else []
+        c, res = _request_api("/nuclei_result/", p)
+        return "nuclei", c, res.get("items", []) if isinstance(res, dict) else []
 
     def fetch_leak():
         p = {"size": 30, **task_param}
@@ -208,8 +226,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["url"] = hostname
         elif target_ip:
             p["url"] = target_ip
-        _, res = _request_api("/fileleak/", p)
-        return "fileleak", res.get("items", []) if isinstance(res, dict) else []
+        c, res = _request_api("/fileleak/", p)
+        return "fileleak", c, res.get("items", []) if isinstance(res, dict) else []
 
     futures = [
         _EXECUTOR.submit(fetch_domain),
@@ -218,7 +236,16 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
         _EXECUTOR.submit(fetch_nuclei),
         _EXECUTOR.submit(fetch_leak),
     ]
-    results = dict(f.result() for f in futures)
+    results = {}
+    for f in futures:
+        k, c, items = f.result()
+        if c in (401, 403):
+            return {
+                "status": "auth_error",
+                "message": "ARL 鉴权失败：Token 无效或已过期，请检查 ARL_TOKEN 配置",
+                "target": target
+            }
+        results[k] = items
 
     # 聚合 Domain 与 IP
     for d in results.get("domain", []):
@@ -314,8 +341,9 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
 
     leaks = []
     for lk in results.get("fileleak", []):
-        if target in lk.get("url", "") or any(ip in lk.get("url", "") for ip in resolved_ips):
-            leaks.append({"url": lk.get("url"), "title": lk.get("title"), "status": lk.get("status_code")})
+        url_val = str(lk.get("url") or "")
+        if (target in url_val) or any(ip in url_val for ip in resolved_ips):
+            leaks.append({"url": url_val, "title": lk.get("title"), "status": lk.get("status_code")})
     if leaks:
         profile["leaks"] = leaks
 
@@ -339,8 +367,25 @@ def _fetch_asset_profile(target: str, task_id: str = "") -> dict:
     if code == 200 and isinstance(resp_data, dict) and "code" not in resp_data:
         return resp_data
 
-    # 降级由客户端标准库并发聚合
-    return _fallback_aggregate_profile(target, task_id)
+    # 拦截鉴权失败 (401 及 403)
+    if code in (401, 403) or (isinstance(resp_data, dict) and resp_data.get("code") in (401, 403)):
+        return {
+            "status": "auth_error",
+            "message": "ARL 鉴权失败：Token 无效或已过期，请检查 ARL_TOKEN 配置",
+            "target": target
+        }
+
+    # 仅当原生接口未部署 (404/405) 时，才降级为客户端并发聚合
+    if code in (404, 405):
+        return _fallback_aggregate_profile(target, task_id)
+
+    # 其余网络中断、连接被拒或服务端异常 (5xx) 直接报错，避免 5 路并发子请求放大超时与故障
+    err_msg = resp_data.get("message") if isinstance(resp_data, dict) else str(resp_data)
+    return {
+        "status": "error",
+        "message": f"ARL 服务端响应异常 (HTTP {code}): {err_msg}",
+        "target": target
+    }
 
 
 def handle_request(req: dict) -> dict:
@@ -412,6 +457,7 @@ def handle_request(req: dict) -> dict:
                 }
 
             profile_data = _fetch_asset_profile(target=target, task_id=task_id)
+            is_error = isinstance(profile_data, dict) and profile_data.get("status") in ("auth_error", "error")
             # 采用极致精简 JSON 序列化（消除多余空格与缩进，最大化节省 Token）
             compact_json_str = json.dumps(profile_data, ensure_ascii=False, separators=(",", ":"))
 
@@ -424,7 +470,8 @@ def handle_request(req: dict) -> dict:
                             "type": "text",
                             "text": compact_json_str
                         }
-                    ]
+                    ],
+                    "isError": is_error
                 }
             }
 
@@ -453,29 +500,31 @@ def handle_request(req: dict) -> dict:
 
 def main():
     """标准输入输出事件主循环，支持原生换行符 (NDJSON) 与 LSP Content-Length 两种协议帧"""
-    if sys.version_info >= (3, 7):
-        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+    in_stream = sys.stdin.buffer if hasattr(sys.stdin, "buffer") else sys.stdin
+    if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     while True:
         try:
-            line = sys.stdin.readline()
+            line = in_stream.readline()
             if not line:
                 break
         except Exception:
             break
 
+        line_bytes = line if isinstance(line, bytes) else line.encode("utf-8")
         # 处理可能附带 Content-Length: 的 LSP 帧协议
-        if line.lower().startswith("content-length:"):
+        if line_bytes.lower().startswith(b"content-length:"):
             try:
-                length_str = line.split(":", 1)[1].strip()
+                length_str = line_bytes.split(b":", 1)[1].strip()
                 content_length = int(length_str)
                 # 循环丢弃后续所有附带的 Header，直到真正的空行
                 while True:
-                    h_line = sys.stdin.readline()
+                    h_line = in_stream.readline()
                     if not h_line or not h_line.strip():
                         break
-                body = sys.stdin.read(content_length)
+                raw_body = in_stream.read(content_length)
+                body = raw_body.decode("utf-8", errors="replace") if isinstance(raw_body, bytes) else raw_body
                 req = json.loads(body)
                 try:
                     resp = handle_request(req)
@@ -495,12 +544,12 @@ def main():
             continue
 
         # 标准换行符分隔的 JSON-RPC 消息 (NDJSON)
-        line = line.strip()
-        if not line:
+        line_str = line.decode("utf-8", errors="replace").strip() if isinstance(line, bytes) else line.strip()
+        if not line_str:
             continue
 
         try:
-            req = json.loads(line)
+            req = json.loads(line_str)
         except Exception:
             continue
 

@@ -198,6 +198,13 @@ def update_nginx_auth_config(content: str, enable: bool) -> str:
         rest_scope,
         flags=re.DOTALL
     )
+    # 确保 /mcp/ 块内部的 auth_basic 始终为 off
+    rest_scope = re.sub(
+        r'(location\s+\^?~?\s*/mcp/[^{]*\{[^}]*?auth_basic\s+)[^;]+;',
+        r'\g<1>off;',
+        rest_scope,
+        flags=re.DOTALL
+    )
 
     return server_scope + rest_scope
 
