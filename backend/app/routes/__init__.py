@@ -18,7 +18,7 @@ base_query_fields = {
 
 # 只能用等号进行mongo查询的字段
 EQUAL_FIELDS = [
-    "task_id", "task_tag", "ip_type", "scope_id", "type", "query_type",
+    "task_id", "task_tag", "ip_type", "scope_id", "group_id", "type", "query_type",
     "status", "schedule_status", "schedule_type", "source",
     "plg_type", "plugin_type", "vuln_severity", "port_scan_type",
     "record_type"
@@ -710,6 +710,7 @@ from .cert import ns as cert_ns
 from .service import ns as service_ns
 from .fileleak import ns as fileleak_ns
 from .export import ns as export_ns
+from .assetGroup import ns as asset_group_ns
 from .assetScope import ns as asset_scope_ns
 from .assetDomain import ns as asset_domain_ns
 from .assetIP import ns as asset_ip_ns

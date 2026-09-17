@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted, isRef } from 'vue';
 
-export function useSticky(actionBarRef, offsetModifier = 24) {
+export function useSticky(actionBarRef, offsetModifier = 24, customContainerRef = null) {
   const stickyTopNumber = ref(180);
   const actionBarHeight = ref(180);
   const scrollContainer = ref(null);
@@ -15,7 +15,8 @@ export function useSticky(actionBarRef, offsetModifier = 24) {
   });
 
   onMounted(() => {
-    scrollContainer.value = document.querySelector('.ant-layout-content');
+    const getContainerEl = () => (customContainerRef ? (isRef(customContainerRef) ? customContainerRef.value : customContainerRef) : null);
+    scrollContainer.value = getContainerEl() || document.querySelector('.ant-layout-content');
     const getTargetEl = () => (isRef(actionBarRef) ? actionBarRef.value : actionBarRef);
 
     const updateSticky = () => {

@@ -17,7 +17,8 @@ logger = get_logger()
 base_fields = {
     'name': fields.String(description="资产组名称"),
     'scope': fields.String(description="资产范围"),
-    "scope_type": fields.String(description="资产范围类别")
+    "scope_type": fields.String(description="资产范围类别"),
+    "group_id": fields.String(description="集团ID")
 }
 
 
@@ -42,6 +43,9 @@ class ARLAssetScope(ARLResource):
         资产组查看
         """
         args = self.parser.parse_args()
+        if args.get('group_id') == 'unassigned':
+            args['group_id'] = {"$in": [None, ""]}
+            
         data = self.build_data(args=args, collection='asset_scope')
 
         # 历史数据兼容与探测状态统计
@@ -117,8 +121,22 @@ class ARLAssetScope(ARLResource):
                 "sync_time": utils.curr_date()
             }
 
+        group_id = args.pop('group_id', None)
+        group_name = ""
+        if group_id:
+            try:
+                group = utils.conn_db('asset_group').find_one({'_id': ObjectId(group_id)})
+                if group:
+                    group_name = group.get('name', '')
+                else:
+                    group_id = ""
+            except Exception:
+                group_id = ""
+
         scope_data = {
             "name": name,
+            "group_id": group_id,
+            "group_name": group_name,
             "scope_type": scope_type,
             "scope": ",".join(new_scope_array),
             "scope_array": new_scope_array,
@@ -195,9 +213,20 @@ class DeleteARLAssetScope(ARLResource):
             scope_data["domain_status"] = domain_status
 
         scope_data["scope"] = ",".join(scope_data["scope_array"])
+        
+        update_fields = {
+            "scope_array": scope_data["scope_array"],
+            "scope": scope_data["scope"]
+        }
+        if "domain_array" in scope_data:
+            update_fields["domain_array"] = scope_data["domain_array"]
+        if "ip_array" in scope_data:
+            update_fields["ip_array"] = scope_data["ip_array"]
+        if "domain_status" in scope_data:
+            update_fields["domain_status"] = scope_data["domain_status"]
 
         try:
-            utils.conn_db(self._table).find_one_and_replace(query, scope_data)
+            utils.conn_db(self._table).update_one(query, {"$set": update_fields})
             
             # --- 新增：深度级联清理孤儿记录 (级联删除属于该资产的所有子资产) ---
             # 清理由于将该主干目标踢出 Scope 而产生的废弃监控状态和指纹历史
@@ -330,8 +359,17 @@ class AddARLAssetScope(ARLResource):
                 }
         scope_data["domain_status"] = domain_status
         scope_data["scope"] = ",".join(scope_data["scope_array"])
+        
+        update_fields = {
+            "scope_array": scope_data["scope_array"],
+            "domain_array": scope_data["domain_array"],
+            "ip_array": scope_data["ip_array"],
+            "domain_status": scope_data["domain_status"],
+            "scope": scope_data["scope"]
+        }
+        
         try:
-            utils.conn_db(table).find_one_and_replace(query, scope_data)
+            utils.conn_db(table).update_one(query, {"$set": update_fields})
         except Exception as e:
             logger.error(f"add asset_scope error, scope_id={scope_id}, scope={scope}, detail={e}")
             return utils.build_ret(ErrorMsg.Error, {"error": "数据库写入异常，请查看服务端日志"})
@@ -346,7 +384,8 @@ update_scope_fields = ns.model('UpdateScope', {
     '_id': fields.String(description="资产范围 ID"),
     'scope_id': fields.String(description="资产范围 ID（别名兼容）"),
     'name': fields.String(description="资产组名称"),
-    'scope': fields.String(description="资产范围（完整新列表）")
+    'scope': fields.String(description="资产范围（完整新列表）"),
+    'group_id': fields.String(description="集团ID")
 })
 
 
@@ -381,9 +420,30 @@ class UpdateARLAssetScope(ARLResource):
             scope_data["domain_array"] = list(sa) if st == AssetScopeType.DOMAIN else []
             scope_data["ip_array"] = list(sa) if st == AssetScopeType.IP else []
 
+        update_fields = {}
+        
         name = args.pop('name', None)
         if name:
+            update_fields["name"] = name
             scope_data["name"] = name
+
+        group_id = args.pop('group_id', None)
+        if group_id is not None:
+            if group_id:
+                try:
+                    group = utils.conn_db('asset_group').find_one({'_id': ObjectId(group_id)})
+                    if group:
+                        update_fields["group_id"] = group_id
+                        update_fields["group_name"] = group.get('name', '')
+                        scope_data["group_id"] = group_id
+                        scope_data["group_name"] = group.get('name', '')
+                except Exception:
+                    pass
+            else:
+                update_fields["group_id"] = ""
+                update_fields["group_name"] = ""
+                scope_data["group_id"] = ""
+                scope_data["group_name"] = ""
 
         scope = args.pop('scope', None)
         if scope is not None:
@@ -453,15 +513,77 @@ class UpdateARLAssetScope(ARLResource):
             scope_data["domain_array"] = domain_array
             scope_data["ip_array"] = ip_array
             scope_data["scope"] = ",".join(new_scope_array)
+            
+            update_fields["domain_status"] = domain_status
+            update_fields["scope_array"] = new_scope_array
+            update_fields["domain_array"] = domain_array
+            update_fields["ip_array"] = ip_array
+            update_fields["scope"] = scope_data["scope"]
 
-        try:
-            utils.conn_db(table).find_one_and_replace(query, scope_data)
-        except Exception as e:
-            logger.error(f"update asset_scope error, scope_id={scope_id}, detail={e}")
-            return utils.build_ret(ErrorMsg.Error, {"error": "数据库写入异常，请查看服务端日志"})
+        if update_fields:
+            try:
+                utils.conn_db(table).update_one(query, {"$set": update_fields})
+            except Exception as e:
+                logger.error(f"update asset_scope error, scope_id={scope_id}, detail={e}")
+                return utils.build_ret(ErrorMsg.Error, {"error": "数据库写入异常，请查看服务端日志"})
 
         # 兼容返回数据
         scope_data["_id"] = str(scope_data.get("_id", scope_id))
         scope_data["scope_id"] = str(scope_id)
 
         return utils.build_ret(ErrorMsg.Success, scope_data)
+
+# ==========================================
+# 接口：批量划转资产组 (POST /batch_move_group/)
+# ==========================================
+batch_move_fields = ns.model('BatchMoveScope', {
+    'scope_ids': fields.List(fields.String(description="资产组ID列表", required=True)),
+    'group_id': fields.String(description="目标集团ID", required=True)
+})
+
+@ns.route('/batch_move_group/')
+class BatchMoveGroupScope(ARLResource):
+    @auth
+    @ns.expect(batch_move_fields)
+    def post(self):
+        """
+        批量移动资产组至集团
+        """
+        args = self.parse_args(batch_move_fields)
+        scope_ids = args.get('scope_ids', [])
+        group_id = args.get('group_id', '')
+        
+        if not scope_ids or len(scope_ids) > 500:
+            return utils.build_ret("参数错误", {"error": "资产组ID列表为空或单次超过500个上限"})
+            
+        obj_ids = []
+        for sid in scope_ids:
+            try:
+                obj_ids.append(ObjectId(sid))
+            except Exception:
+                pass
+                
+        if not obj_ids:
+            return utils.build_ret("参数错误", {"error": "无效的资产组ID"})
+            
+        if group_id and group_id != "unassigned":
+            try:
+                group_obj_id = ObjectId(group_id)
+            except Exception:
+                return utils.build_ret("参数错误", {"error": "无效的集团ID"})
+                
+            group = utils.conn_db('asset_group').find_one({'_id': group_obj_id})
+            if not group:
+                return utils.build_ret("参数错误", {"error": "集团不存在"})
+                
+            utils.conn_db('asset_scope').update_many(
+                {'_id': {'$in': obj_ids}},
+                {'$set': {'group_id': group_id, 'group_name': group.get('name', '')}}
+            )
+        else:
+            utils.conn_db('asset_scope').update_many(
+                {'_id': {'$in': obj_ids}},
+                {'$unset': {'group_id': "", 'group_name': ""}}
+            )
+            
+        return utils.build_ret(ErrorMsg.Success, {"count": len(obj_ids)})

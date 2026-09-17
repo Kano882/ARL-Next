@@ -46,6 +46,7 @@ def create_index():
         "asset_stat_finger": "scope_id",
         "asset_wih": ["scope_id", "record_type", "fnv_hash"],
         "dict_upload_task": "task_id",
+        "asset_scope": "group_id",
     }
     for table in index_map:
         if isinstance(index_map[table], list):
@@ -85,6 +86,7 @@ def create_index():
         "asset_wih": [("scope_id", 1), ("site", 1), ("fnv_hash", 1)],
         "poc": [("plugin_name", 1)],
         "fingerprint_deleted": [("name", 1)],
+        "asset_group": [("name", 1)],
     }
 
     def _deduplicate_and_create_unique(col, keys, drop_idx=None):

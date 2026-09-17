@@ -1,8 +1,170 @@
 <template>
-  <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+  <div style="min-height: calc(100vh - 96px); background-color: var(--arl-bg-layout); position: relative;">
+    <!-- 隐形定位锚点 (用于精准定位 fixed 侧边栏左边界) -->
+    <div ref="sidebarAnchorRef" style="position: absolute; top: 0; left: 0; width: 0; height: 0; pointer-events: none;"></div>
 
-      <div style="margin-bottom: 24px;">
+    <!-- 左侧集团分组固定侧边栏 (Fixed 视口绝对锁定，绝不随页面滚动) -->
+    <div
+      class="asset-group-sidebar"
+      :style="{
+        position: 'fixed',
+        top: '80px',
+        bottom: '16px',
+        left: (sidebarLeft || 186) + 'px',
+        width: isSidebarCollapsed ? '0px' : '240px',
+        overflow: 'hidden',
+        opacity: isSidebarCollapsed ? 0 : 1,
+        transition: 'width 0.25s, opacity 0.25s, left 0.2s',
+        background: 'var(--arl-bg-white)',
+        borderRight: isSidebarCollapsed ? 'none' : '1px solid var(--arl-border-color)',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 15,
+        boxShadow: isSidebarCollapsed ? 'none' : '2px 0 8px rgba(0,0,0,0.03)'
+      }"
+    >
+      <div style="padding: 16px; border-bottom: 1px solid var(--arl-border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <span style="font-weight: 600; font-size: 16px;">集团分组</span>
+        <a-tooltip title="新建集团">
+          <a-button type="link" size="small" @click="openAddEnterpriseGroupModal"><plus-outlined /></a-button>
+        </a-tooltip>
+      </div>
+      <div style="padding: 12px; flex-shrink: 0; border-bottom: 1px solid var(--arl-border-color); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03); position: relative; z-index: 2;">
+        <a-input v-model:value="groupSearchKey" placeholder="搜索集团..." allowClear>
+          <template #prefix><search-outlined style="color: #bfbfbf;" /></template>
+        </a-input>
+      </div>
+      <div style="flex: 1; min-height: 0; overflow-y: auto;">
+        <a-menu
+          mode="inline"
+          :selectedKeys="[activeGroupId]"
+          @click="handleGroupSwitch"
+          style="border-right: none;"
+        >
+          <a-menu-item key="all">
+            <template #icon><appstore-outlined /></template>
+            全部资产组
+          </a-menu-item>
+          <a-menu-item key="unassigned">
+            <template #icon><inbox-outlined /></template>
+            未分组
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item v-for="group in filteredGroupList" :key="group._id">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <span class="group-name-text" :title="group.name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; margin-right: 8px;">{{ group.name }}</span>
+              <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                <span style="font-size: 11px; color: var(--arl-text-color); opacity: 0.55; background: var(--arl-bg-light); padding: 0 6px; border-radius: 8px; line-height: 18px;">
+                  {{ group.scope_count || 0 }}
+                </span>
+                <a-dropdown :trigger="['click']" :getPopupContainer="getBodyContainer">
+                  <span class="group-action-icon" @click.stop style="cursor: pointer; padding: 2px 4px;"><more-outlined /></span>
+                  <template #overlay>
+                    <a-menu @click="(e) => handleGroupAction(e, group)">
+                      <a-menu-item key="edit">重命名</a-menu-item>
+                      <a-menu-item key="delete" style="color: #ff4d4f;">删除</a-menu-item>
+                    </a-menu>
+                  </template>
+                </a-dropdown>
+              </div>
+            </div>
+          </a-menu-item>
+        </a-menu>
+        <div v-if="groupSearchKey && filteredGroupList.length === 0" style="padding: 24px 16px; text-align: center; color: var(--arl-text-color); opacity: 0.5; font-size: 12px;">
+          <div>未找到匹配集团</div>
+          <a-button type="link" size="small" style="font-size: 11px; padding: 0; margin-top: 4px;" @click="groupSearchKey = ''">清空搜索</a-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 侧边栏折叠把手（展开态：垂直居中悬浮在 Fixed 侧边栏右边缘） -->
+    <div 
+      v-if="!isSidebarCollapsed" 
+      @click="isSidebarCollapsed = true" 
+      :style="{
+        position: 'fixed',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        left: ((sidebarLeft || 186) + 240) + 'px',
+        width: '12px',
+        height: '40px',
+        background: 'var(--arl-bg-white, #fafafa)',
+        border: '1px solid var(--arl-border-color, #d9d9d9)',
+        borderLeft: 'none',
+        borderRadius: '0 4px 4px 0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        zIndex: 16,
+        boxShadow: '2px 0 6px rgba(0,0,0,0.06)',
+        transition: 'left 0.2s'
+      }"
+      class="sidebar-collapse-handle"
+      title="收起集团分组"
+    >
+      <left-outlined style="font-size: 10px; color: var(--arl-text-color); opacity: 0.65;" />
+    </div>
+
+    <!-- 侧边栏展开把手（收起态：细条垂直居中，高度撑满） -->
+    <div 
+      v-if="isSidebarCollapsed" 
+      @click="isSidebarCollapsed = false" 
+      :style="{
+        position: 'fixed',
+        top: '80px',
+        bottom: '16px',
+        left: (sidebarLeft || 186) + 'px',
+        width: '24px',
+        background: 'var(--arl-bg-white)',
+        borderRight: '1px solid var(--arl-border-color)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        zIndex: 15
+      }"
+      class="sidebar-expand-handle"
+      title="展开集团分组"
+    >
+      <right-outlined style="color: var(--arl-text-color); opacity: 0.65;" />
+    </div>
+
+    <!-- 右侧主工作区 (标准全局流，与 TaskList 完全一致的表头联动吸附) -->
+    <div 
+      :style="{
+        marginLeft: isSidebarCollapsed ? '24px' : '240px',
+        transition: 'margin-left 0.25s',
+        padding: '24px',
+        minWidth: 0,
+        position: 'relative'
+      }"
+    >
+      <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+
+      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <a-breadcrumb v-if="isSidebarCollapsed">
+            <a-breadcrumb-item>资产分组</a-breadcrumb-item>
+            <a-breadcrumb-item>
+              <a-dropdown :getPopupContainer="getBodyContainer">
+                <span style="cursor: pointer; color: var(--arl-theme-color);">
+                  {{ currentGroupName }} <down-outlined style="font-size: 10px;" />
+                </span>
+                <template #overlay>
+                  <a-menu :selectedKeys="[activeGroupId]" @click="handleGroupSwitch">
+                    <a-menu-item key="all">全部资产组</a-menu-item>
+                    <a-menu-item key="unassigned">未分组</a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item v-for="g in groupList" :key="g._id">{{ g.name }}</a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
+            </a-breadcrumb-item>
+          </a-breadcrumb>
+          <span v-else style="font-size: 18px; font-weight: 600;">{{ currentGroupName }}</span>
+        </div>
         <a-button type="primary" @click="openAddModal">新建资产分组</a-button>
       </div>
 
@@ -26,10 +188,16 @@
         </a-form>
       </div>
 
+      <div v-if="hasSelected" style="margin-bottom: 16px; padding: 8px 16px; background: #e6f7ff; border: 1px solid #91d5ff; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+        <span>已勾选当前分组下的 <strong style="color: #1890ff;">{{ selectedRowKeys.length }}</strong> 项</span>
+        <a type="link" @click="selectedRowKeys = []">清空选择</a>
+      </div>
+
       <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
         <a-button @click="resetSearch">清 除</a-button>
+        <a-button :disabled="!hasSelected" @click="openBatchMoveModal">批量移动至集团</a-button>
         <a-button danger :disabled="!hasSelected" @click="handleBatchDelete">批量删除</a-button>
-        <a-dropdown :disabled="!hasSelected">
+        <a-dropdown :disabled="!hasSelected" :getPopupContainer="getBodyContainer">
           <template #overlay>
             <a-menu @click="handleBatchExport">
               <a-menu-item key="asset_domain">域名批量导出</a-menu-item>
@@ -53,7 +221,7 @@
       :dataSource="dataSource"
       :columns="columns"
       :pagination="false"
-      :scroll="{ x: 'max-content' }"
+      :scroll="{ x: 1340 }"
       bordered
       style="margin-bottom: 16px;"
       size="middle"
@@ -65,6 +233,13 @@
           <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <a style="font-weight: 500;" @click="goToDetail(record)">{{ record.name }}</a>
           </div>
+        </template>
+
+        <template v-else-if="column.key === 'group_name'">
+          <a-tag v-if="record.group_name" color="blue" style="cursor: pointer;" @click="activeGroupId = record.group_id">
+            {{ record.group_name }}
+          </a-tag>
+          <span v-else style="color: var(--arl-text-color); opacity: 0.45;">-</span>
         </template>
 
         <template v-else-if="column.key === 'scope_array'">
@@ -84,7 +259,7 @@
                 {{ item }}
               </a-tag>
             </a-tooltip>
-            <a-popover v-if="(record.scope_array || []).length > 5" placement="bottomLeft">
+            <a-popover v-if="(record.scope_array || []).length > 5" placement="bottomLeft" :getPopupContainer="getBodyContainer">
               <template #content>
                 <div style="max-width: 440px; max-height: 300px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px;">
                   <a-tooltip
@@ -216,6 +391,12 @@
         :wrapper-col="{ span: 18 }"
         style="margin-top: 20px;"
       >
+        <a-form-item label="所属集团" name="group_id">
+          <a-select v-model:value="addForm.group_id" placeholder="请选择所属集团（可选）" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
+            <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
+          </a-select>
+        </a-form-item>
+
         <a-form-item label="资产组名称" name="name">
           <a-input v-model:value="addForm.name" placeholder="请输入资产组名称" />
         </a-form-item>
@@ -252,6 +433,12 @@
         :wrapper-col="{ span: 19 }"
         style="margin-top: 20px;"
       >
+        <a-form-item label="所属集团" name="group_id">
+          <a-select v-model:value="editGroupForm.group_id" placeholder="请选择所属集团（可选）" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
+            <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
+          </a-select>
+        </a-form-item>
+
         <a-form-item label="资产组名称" name="name">
           <a-input v-model:value="editGroupForm.name" placeholder="请输入资产组名称" />
         </a-form-item>
@@ -485,14 +672,76 @@
       </a-form>
     </a-modal>
 
+
+    <!-- 新建/重命名集团弹窗 -->
+    <a-modal
+      v-model:open="enterpriseGroupModalVisible"
+      :title="enterpriseGroupForm.isEdit ? '重命名集团' : '新建集团'"
+      @ok="submitEnterpriseGroup"
+      :confirmLoading="enterpriseGroupLoading"
+      width="480px"
+      wrapClassName="arl-theme-modal"
+      rootClassName="arl-theme-modal"
+      okText="确 定"
+      cancelText="取 消"
+      destroyOnClose
+    >
+      <a-form :model="enterpriseGroupForm" layout="vertical" style="margin-top: 16px;">
+        <a-form-item label="集团名称" required>
+          <a-input v-model:value="enterpriseGroupForm.name" placeholder="请输入集团名称" />
+        </a-form-item>
+        <a-form-item label="描述" v-if="!enterpriseGroupForm.isEdit">
+          <a-textarea v-model:value="enterpriseGroupForm.description" placeholder="请输入描述（可选）" :rows="3" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 批量移动至集团弹窗 -->
+    <a-modal
+      v-model:open="batchMoveModalVisible"
+      title="批量移动至集团"
+      @ok="submitBatchMove"
+      :confirmLoading="batchMoveLoading"
+      width="480px"
+      wrapClassName="arl-theme-modal"
+      rootClassName="arl-theme-modal"
+      okText="确 定"
+      cancelText="取 消"
+      destroyOnClose
+    >
+      <a-form layout="vertical" style="margin-top: 16px;">
+        <p>已选择 <strong>{{ selectedRowKeys.length }}</strong> 个资产组。</p>
+        <a-form-item label="目标集团" required>
+          <a-select v-model:value="batchMoveTargetGroupId" placeholder="请选择目标集团" :getPopupContainer="(trigger) => trigger.parentNode">
+            <a-select-option value="unassigned">取消分组 (移至未分组)</a-select-option>
+            <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+  </div>
+  <!-- Close Root wrapper div added at step 1 -->
   </div>
 </template>
 
 <script setup>
 defineOptions({ name: 'AssetScope' });
 
-import { ref, reactive, computed, createVNode, watch, onActivated, onDeactivated, onUnmounted } from 'vue';
+import { ref, reactive, computed, createVNode, watch, onActivated, onDeactivated, onUnmounted, onMounted } from 'vue';
 import { useSticky } from '../utils/useSticky';
+const sidebarAnchorRef = ref(null);
+const sidebarLeft = ref(186);
+
+const updateSidebarLeft = () => {
+  if (sidebarAnchorRef.value) {
+    const rect = sidebarAnchorRef.value.getBoundingClientRect();
+    if (rect.left > 0) {
+      sidebarLeft.value = rect.left;
+    }
+  }
+};
+
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
 
@@ -507,17 +756,24 @@ import {
   DeleteOutlined,
   CopyOutlined,
   FileTextOutlined,
-  TagsOutlined
+  TagsOutlined,
+  AppstoreOutlined,
+  InboxOutlined,
+  MoreOutlined,
+  RightOutlined,
+  LeftOutlined
 } from '@ant-design/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { copyText as copyToClipboard } from '../utils/clipboard';
 
+const getBodyContainer = () => document.body;
+
 const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
 const dataSource = ref([]);
-const searchForm = ref({});
+const searchForm = ref({ group_id: undefined });
 const currentRecord = ref(null);
 const globalPageSize = useGlobalPageSize(10);
 const pagination = reactive({ current: 1, pageSize: globalPageSize.value, total: 0 });
@@ -535,13 +791,20 @@ const hasSelected = computed(() => selectedRowKeys.value.length > 0);
 const onSelectChange = (keys) => { selectedRowKeys.value = keys; };
 
 // 表格列定义
-const columns = [
-  { title: '资产组名称', key: 'name', width: 200, sorter: true },
-  { title: '资产范围', key: 'scope_array', minWidth: 280 },
-  { title: '探测覆盖度', key: 'domain_stat', width: 160 },
-  { title: '资产范围ID', key: 'scope_id', width: 220 },
-  { title: '操作', key: 'action', width: 290 }
-];
+// 表格列定义
+const columns = computed(() => {
+  const baseColumns = [
+    { title: '资产组名称', key: 'name', width: 200, sorter: true },
+    { title: '资产范围', key: 'scope_array', minWidth: 280 },
+    { title: '探测覆盖度', key: 'domain_stat', width: 160 },
+    { title: '资产范围ID', key: 'scope_id', width: 220 },
+    { title: '操作', key: 'action', width: 290, fixed: 'right' }
+  ];
+  if (activeGroupId.value === 'all') {
+    baseColumns.splice(1, 0, { title: '所属集团', key: 'group_name', width: 150 });
+  }
+  return baseColumns;
+});
 
 // 获取主域名探测状态与展示样式
 const getDomainStatus = (record, domain) => {
@@ -666,18 +929,28 @@ const checkAndSchedulePoll = () => {
 
 // 拉取表格数据（增加防重与竞态保护）
 let isFetching = false;
+let currentFetchContextId = null;
+
 const fetchData = async (silent = false) => {
   if (isFetching) return;
   isFetching = true;
   if (!silent) {
     loading.value = true;
   }
+  
+  const fetchContextId = activeGroupId.value;
+  currentFetchContextId = fetchContextId;
+
   try {
     const params = { page: pagination.current, size: pagination.pageSize };
     for (const key in searchForm.value) {
       if (searchForm.value[key]) params[key] = searchForm.value[key];
     }
     const res = await request.get('/asset_scope/', { params });
+    
+    // 竞态防御：如果上下文 ID 已变更，说明已经切换了集团，直接丢弃本次请求结果
+    if (currentFetchContextId !== fetchContextId) return;
+
     if (res.code === 200) {
       dataSource.value = processScopeItems(res.items || []);
       pagination.total = res.total || 0;
@@ -685,11 +958,17 @@ const fetchData = async (silent = false) => {
       checkAndSchedulePoll();
     }
   } catch (error) {
-    message.error('加载资产分组失败');
+    if (currentFetchContextId === fetchContextId) {
+      message.error('加载资产分组失败');
+    }
   } finally {
-    isFetching = false;
-    if (!silent) {
-      loading.value = false;
+    if (currentFetchContextId === fetchContextId) {
+      isFetching = false;
+      if (!silent) {
+        loading.value = false;
+      }
+    } else {
+      isFetching = false;
     }
   }
 };
@@ -701,12 +980,217 @@ const resetSearch = () => {
 };
 const handleTableChange = (page, pageSize) => { pagination.current = page; pagination.pageSize = pageSize; fetchData(); };
 
+
+const isSidebarCollapsed = ref(false);
+const activeGroupId = ref('all');
+const groupSearchKey = ref('');
+const groupList = ref([]);
+const filteredGroupList = computed(() => {
+  if (!groupSearchKey.value) return groupList.value;
+  return groupList.value.filter(g => g.name.toLowerCase().includes(groupSearchKey.value.toLowerCase()));
+});
+
+const currentGroupName = computed(() => {
+  if (activeGroupId.value === 'all') return '全部资产组';
+  if (activeGroupId.value === 'unassigned') return '未分组';
+  const g = groupList.value.find(x => x._id === activeGroupId.value);
+  return g ? g.name : '未知分组';
+});
+
+// fetch groups
+const fetchGroups = async () => {
+  try {
+    const res = await request.get('/asset_group/');
+    if (res.code === 200) {
+      groupList.value = res.items || [];
+    }
+  } catch (err) {}
+};
+
+// handle group switch with confirmation guard
+const handleGroupSwitch = (info) => {
+  const newKey = info.key;
+  if (newKey === activeGroupId.value) return;
+  
+  if (selectedRowKeys.value.length > 0) {
+    Modal.confirm({
+      title: '切换分组提示',
+      content: `您在当前分组下已勾选了 ${selectedRowKeys.value.length} 个资产组尚未处理。切换分组将清空当前勾选，是否继续？`,
+      onOk: () => {
+        selectedRowKeys.value = [];
+        activeGroupId.value = newKey;
+      }
+    });
+  } else {
+    activeGroupId.value = newKey;
+  }
+};
+
+watch(activeGroupId, (newVal) => {
+  selectedRowKeys.value = [];
+  searchForm.value.group_id = newVal === 'all' ? undefined : newVal;
+  pagination.current = 1;
+  fetchData();
+});
+
+// Group Actions
+const handleGroupAction = (e, group) => {
+  if (e.key === 'edit') {
+    enterpriseGroupForm.isEdit = true;
+    enterpriseGroupForm._id = group._id;
+    enterpriseGroupForm.name = group.name;
+    enterpriseGroupModalVisible.value = true;
+  } else if (e.key === 'delete') {
+    if (group.scope_count > 0) {
+      Modal.warning({
+        title: '无法删除集团',
+        content: `集团【${group.name}】下仍有关联的 ${group.scope_count} 个资产组，禁止删除。请先将下属资产组批量划转至其他集团或移至未分组后再进行删除。`,
+        okText: '知道了'
+      });
+      return;
+    }
+    Modal.confirm({
+      title: '删除集团确认',
+      content: `确定要删除空集团【${group.name}】吗？删除后该操作不可恢复。`,
+      okType: 'danger',
+      okText: '确 定',
+      cancelText: '取 消',
+      onOk: async () => {
+        try {
+          const res = await request.post('/asset_group/delete/', { _id: group._id });
+          if (res.code === 200) {
+            message.success('删除集团成功');
+            if (activeGroupId.value === group._id) {
+              activeGroupId.value = 'all'; // Fallback focus
+            }
+            fetchGroups();
+          } else {
+            message.error(res.message || '删除失败');
+          }
+        } catch(err) {
+          message.error('请求异常');
+        }
+      }
+    });
+  }
+};
+
+// Enterprise Group Modal
+const enterpriseGroupModalVisible = ref(false);
+const enterpriseGroupLoading = ref(false);
+const enterpriseGroupForm = reactive({ isEdit: false, _id: '', name: '', description: '' });
+
+const openAddEnterpriseGroupModal = () => {
+  enterpriseGroupForm.isEdit = false;
+  enterpriseGroupForm._id = '';
+  enterpriseGroupForm.name = '';
+  enterpriseGroupForm.description = '';
+  enterpriseGroupModalVisible.value = true;
+};
+
+const submitEnterpriseGroup = async () => {
+  if (!enterpriseGroupForm.name) {
+    message.warning('请输入集团名称');
+    return;
+  }
+  enterpriseGroupLoading.value = true;
+  try {
+    let res;
+    if (enterpriseGroupForm.isEdit) {
+      res = await request.post('/asset_group/edit/', { _id: enterpriseGroupForm._id, name: enterpriseGroupForm.name });
+    } else {
+      res = await request.post('/asset_group/', { name: enterpriseGroupForm.name, description: enterpriseGroupForm.description });
+    }
+    if (res.code === 200) {
+      message.success(enterpriseGroupForm.isEdit ? '重命名成功' : '新建集团成功');
+      enterpriseGroupModalVisible.value = false;
+      fetchGroups();
+    } else {
+      message.error(res.message || '操作失败');
+    }
+  } catch(err) {
+    message.error('请求异常');
+  } finally {
+    enterpriseGroupLoading.value = false;
+  }
+};
+
+// Batch Move Modal
+const batchMoveModalVisible = ref(false);
+const batchMoveLoading = ref(false);
+const batchMoveTargetGroupId = ref(undefined);
+
+const openBatchMoveModal = () => {
+  batchMoveTargetGroupId.value = undefined;
+  batchMoveModalVisible.value = true;
+};
+
+const submitBatchMove = async () => {
+  if (!batchMoveTargetGroupId.value) {
+    message.warning('请选择目标集团');
+    return;
+  }
+  batchMoveLoading.value = true;
+  try {
+    const res = await request.post('/asset_scope/batch_move_group/', {
+      scope_ids: selectedRowKeys.value,
+      group_id: batchMoveTargetGroupId.value === 'unassigned' ? '' : batchMoveTargetGroupId.value
+    });
+    if (res.code === 200) {
+      message.success('批量移动成功');
+      batchMoveModalVisible.value = false;
+      selectedRowKeys.value = [];
+      fetchData();
+      fetchGroups();
+    } else {
+      message.error(res.message || '移动失败');
+    }
+  } catch(err) {
+    message.error('请求异常');
+  } finally {
+    batchMoveLoading.value = false;
+  }
+};
+
+// initialize
+let siderObserver = null;
+
+onMounted(() => {
+  if (route.path === '/group') {
+    fetchGroups();
+  }
+  updateSidebarLeft();
+  window.addEventListener('resize', updateSidebarLeft);
+  const siderEl = document.querySelector('.ant-layout-sider');
+  if (siderEl) {
+    const handleSiderChange = () => {
+      updateSidebarLeft();
+      setTimeout(updateSidebarLeft, 250);
+      setTimeout(updateSidebarLeft, 550);
+    };
+    siderObserver = new MutationObserver(handleSiderChange);
+    siderObserver.observe(siderEl, { attributes: true, attributeFilter: ['style', 'class'] });
+    siderEl.addEventListener('transitionend', updateSidebarLeft);
+  }
+});
+
+onActivated(() => {
+  if (route.path === '/group') {
+    fetchGroups();
+    fetchData(true);
+  }
+  updateSidebarLeft();
+});
+
+// Update the initial addForm and editGroupForm state definitions
+
 // ================= 新建资产分组逻辑 =================
 const addModalVisible = ref(false);
 const addLoading = ref(false);
 const addFormRef = ref();
 
 const addForm = reactive({
+  group_id: undefined,
   name: '',
   scope: ''
 });
@@ -717,6 +1201,7 @@ const addRules = {
 };
 
 const openAddModal = () => {
+  addForm.group_id = activeGroupId.value === 'all' || activeGroupId.value === 'unassigned' ? undefined : activeGroupId.value;
   addForm.name = '';
   addForm.scope = '';
   addModalVisible.value = true;
@@ -754,6 +1239,7 @@ const editGroupNewInput = ref('');
 
 const editGroupForm = reactive({
   _id: '',
+  group_id: undefined,
   name: '',
   scope: ''
 });
@@ -789,6 +1275,7 @@ const filteredScopeList = computed(() => {
 const openEditGroupModal = (record) => {
   currentRecord.value = record;
   editGroupForm._id = record._id;
+  editGroupForm.group_id = record.group_id || undefined;
   editGroupForm.name = record.name || '';
   editGroupScopeList.value = [...(record.scope_array || [])];
   editGroupForm.scope = editGroupScopeList.value.join('\n');
@@ -909,6 +1396,7 @@ const submitEditGroupUpdate = async (scopeList) => {
     editGroupLoading.value = true;
     const res = await request.post('/asset_scope/update/', {
       _id: editGroupForm._id,
+      group_id: editGroupForm.group_id || '',
       name: editGroupForm.name,
       scope: scopeList.join(',')
     });
@@ -1046,7 +1534,7 @@ const handleBatchExport = async ({ key }) => {
   try {
     message.loading({ content: `正在生成 ${exportName} 导出文件...`, key: 'export_data' });
 
-    const res = await request.post(url, { scope_id: selectedRowKeys.value }, { responseType: 'blob' });
+    const res = await request.post(url, { scope_id: selectedRowKeys.value, group_id: searchForm.value.group_id }, { responseType: 'blob' });
     const blob = new Blob([res], { type: 'text/plain;charset=utf-8' });
     const downloadUrl = window.URL.createObjectURL(blob);
 
@@ -1266,17 +1754,19 @@ watch(() => route.query.scope_id, (newScopeId) => {
   fetchData();
 }, { immediate: true });
 
-onActivated(() => {
-  if (route.path === '/group') {
-    fetchData(true);
-  }
-});
+
 
 onDeactivated(() => {
   stopPoll();
 });
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateSidebarLeft);
+  const siderEl = document.querySelector('.ant-layout-sider');
+  if (siderEl) {
+    siderEl.removeEventListener('transitionend', updateSidebarLeft);
+  }
+  if (siderObserver) siderObserver.disconnect();
   stopPoll();
 });
 
@@ -1331,5 +1821,27 @@ onUnmounted(() => {
   opacity: 0.55;
   padding: 36px 0;
   font-size: 13px;
+}
+
+.sidebar-collapse-handle {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+.sidebar-collapse-handle:hover {
+  background: var(--arl-bg-light, #f1f5f9) !important;
+}
+.sidebar-collapse-handle:hover :deep(.anticon) {
+  color: var(--arl-theme-color) !important;
+}
+
+.sidebar-expand-handle {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+.sidebar-expand-handle:hover {
+  background: var(--arl-bg-light, #f1f5f9) !important;
+}
+.sidebar-expand-handle:hover :deep(.anticon) {
+  color: var(--arl-theme-color) !important;
 }
 </style>

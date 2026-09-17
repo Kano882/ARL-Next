@@ -138,20 +138,36 @@ body.dark-mode .ant-table-wrapper .ant-table-tbody > tr.ant-table-row-selected >
     background-color: rgba(0, 0, 0, 0.45) !important;
 }
 
-/* 7. 表头 (Table Header) 深度定制，完美适配 Slate 冰霜冷灰调 */
-.ant-table-thead > tr > th {
+/* 7. 表头 (Table Header) 深度定制，完美适配 Slate 冰霜冷灰调，表头固定列同色一体化 */
+.ant-table-thead > tr > th,
+.ant-table-sticky-holder .ant-table-thead > tr > th,
+.ant-table-thead > tr > th.ant-table-cell-fix-left,
+.ant-table-thead > tr > th.ant-table-cell-fix-right,
+.ant-table-thead > tr > th.ant-table-cell-fix-left-first,
+.ant-table-thead > tr > th.ant-table-cell-fix-left-last,
+.ant-table-thead > tr > th.ant-table-cell-fix-right-first,
+.ant-table-thead > tr > th.ant-table-cell-fix-right-last,
+.ant-table-sticky-holder .ant-table-cell-fix-left,
+.ant-table-sticky-holder .ant-table-cell-fix-right {
     background: var(--arl-bg-light) !important;
     border-bottom: 1px solid var(--arl-border-color) !important;
     font-weight: 500 !important;
 }
 
-/* 8. 美化表格固定列，解决文字穿透，使用动态底色告别生硬纯白 */
-.ant-table .ant-table-cell-fix-left,
-.ant-table .ant-table-cell-fix-right,
-.ant-table .ant-table-cell-fix-left-first,
-.ant-table .ant-table-cell-fix-left-last,
-.ant-table .ant-table-cell-fix-right-first,
-.ant-table .ant-table-cell-fix-right-last {
+/* 确保 sticky-holder 吸附容器实体化并处于安全层深，阻断纵向数据穿透 */
+.ant-table-sticky-holder {
+    background: var(--arl-bg-light) !important;
+    z-index: 9 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* 8. 美化表格内容区 (tbody) 固定列，彻底解决横向文字穿透与遮挡 */
+.ant-table-tbody > tr > td.ant-table-cell-fix-left,
+.ant-table-tbody > tr > td.ant-table-cell-fix-right,
+.ant-table-tbody > tr > td.ant-table-cell-fix-left-first,
+.ant-table-tbody > tr > td.ant-table-cell-fix-left-last,
+.ant-table-tbody > tr > td.ant-table-cell-fix-right-first,
+.ant-table-tbody > tr > td.ant-table-cell-fix-right-last {
     /* 使用支持双端的动态底色，告别高开销重复模糊以释放 GPU 渲染压力 */
     background: var(--arl-bg-white) !important;
 }

@@ -143,11 +143,35 @@ class BatchExportWIH(ARLResource):
 
 
 scope_batch_export_fields = ns.model('ScopeBatchExport',  {
-    "scope_id": fields.List(fields.String(description="资产分组 ID"), required=True),
+    "scope_id": fields.List(fields.String(description="资产分组 ID")),
+    "group_id": fields.String(description="集团ID")
 })
 
 
 from flask import request
+
+def _get_scope_ids(self_obj, request_obj):
+    scope_id_list = request_obj.json.get("scope_id", []) if request_obj.json else []
+    group_id = request_obj.json.get("group_id", "") if request_obj.json else ""
+    
+    if not scope_id_list and not group_id:
+        args = self_obj.parse_args(scope_batch_export_fields)
+        scope_id_list = args.get("scope_id", [])
+        group_id = args.get("group_id", "")
+        
+    if isinstance(scope_id_list, str):
+        scope_id_list = [scope_id_list]
+        
+    # 优先使用显式选中的资产组列表；仅当未显式勾选特定资产组时，才根据 group_id 捞取集团下的全量资产组
+    if not scope_id_list and group_id:
+        if group_id == "unassigned":
+            query = {"group_id": {"$in": [None, ""]}}
+        else:
+            query = {"group_id": group_id}
+        scopes = utils.conn_db('asset_scope').find(query, {"_id": 1})
+        scope_id_list = [str(s["_id"]) for s in scopes]
+        
+    return scope_id_list
 
 @ns.route('/asset_ip/')
 class BatchExportAssetIP(ARLResource):
@@ -158,17 +182,8 @@ class BatchExportAssetIP(ARLResource):
         """
         资产分组中IP批量导出
         """
-        # 兼容 reqparse 缺陷，直接从原始 JSON 体安全提取
-        scope_id_list = request.json.get("scope_id", []) if request.json else []
-        if not scope_id_list:
-            args = self.parse_args(scope_batch_export_fields)
-            scope_id_list = args.get("scope_id", [])
-            
-        if isinstance(scope_id_list, str):
-            scope_id_list = [scope_id_list]
-
+        scope_id_list = _get_scope_ids(self, request)
         response = self.send_scope_batch_export_file(scope_id_list, "asset_ip")
-
         return response
 
 
@@ -181,16 +196,8 @@ class BatchExportAssetDomain(ARLResource):
         """
         资产分组中域名批量导出
         """
-        scope_id_list = request.json.get("scope_id", []) if request.json else []
-        if not scope_id_list:
-            args = self.parse_args(scope_batch_export_fields)
-            scope_id_list = args.get("scope_id", [])
-            
-        if isinstance(scope_id_list, str):
-            scope_id_list = [scope_id_list]
-
+        scope_id_list = _get_scope_ids(self, request)
         response = self.send_scope_batch_export_file(scope_id_list, "asset_domain")
-
         return response
 
 
@@ -203,16 +210,8 @@ class BatchExportAssetSite(ARLResource):
         """
         资产分组中站点批量导出
         """
-        scope_id_list = request.json.get("scope_id", []) if request.json else []
-        if not scope_id_list:
-            args = self.parse_args(scope_batch_export_fields)
-            scope_id_list = args.get("scope_id", [])
-            
-        if isinstance(scope_id_list, str):
-            scope_id_list = [scope_id_list]
-
+        scope_id_list = _get_scope_ids(self, request)
         response = self.send_scope_batch_export_file(scope_id_list, "asset_site")
-
         return response
 
 
@@ -225,14 +224,6 @@ class BatchExportAssetWIH(ARLResource):
         """
         资产分组中 WIH 批量导出
         """
-        scope_id_list = request.json.get("scope_id", []) if request.json else []
-        if not scope_id_list:
-            args = self.parse_args(scope_batch_export_fields)
-            scope_id_list = args.get("scope_id", [])
-            
-        if isinstance(scope_id_list, str):
-            scope_id_list = [scope_id_list]
-
+        scope_id_list = _get_scope_ids(self, request)
         response = self.send_scope_batch_export_file(scope_id_list, "asset_wih")
-
         return response
