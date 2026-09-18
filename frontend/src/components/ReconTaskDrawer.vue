@@ -2,7 +2,7 @@
   <a-drawer
     :open="open"
     @update:open="val => $emit('update:open', val)"
-    title="企业测绘历史与任务审计"
+    title="企业测绘任务"
     width="960px"
     placement="right"
     destroyOnClose

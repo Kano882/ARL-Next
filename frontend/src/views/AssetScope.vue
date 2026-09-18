@@ -183,7 +183,7 @@
             </div>
             <div class="scope-header-actions">
               <a-button @click="reconDrawerVisible = true" class="header-action-btn">
-                <HistoryOutlined /> 测绘任务历史
+                <ApartmentOutlined /> 企业测绘任务
               </a-button>
               <a-button type="primary" @click="openAddModal" class="header-action-btn">
                 <PlusOutlined /> 新建资产分组
@@ -1029,7 +1029,7 @@
       </a-table>
     </a-modal>
 
-    <!-- 测绘任务历史抽屉组件 -->
+    <!-- 企业测绘任务抽屉组件 -->
     <ReconTaskDrawer
       v-model:open="reconDrawerVisible"
       @synced="handleReconDrawerSynced"
@@ -1545,7 +1545,7 @@ const addRules = {
   scope: [{ required: true, message: '请输入资产范围', trigger: 'blur' }]
 };
 
-// ================= 测绘任务历史抽屉与向导建组状态 =================
+// ================= 企业测绘任务抽屉与向导建组状态 =================
 const reconDrawerVisible = ref(false);
 const handleReconDrawerSynced = () => {
   fetchData();
@@ -1705,7 +1705,7 @@ const startWizardRecon = async () => {
       if (attempts < maxAttempts) {
         setTimeout(pollTask, pollInterval);
       } else {
-        message.info('测绘数据量较大，已转入后台运行。您可稍后在【测绘任务历史】中查看。');
+        message.info('测绘数据量较大，已转入后台运行。您可稍后在【企业测绘任务】中查看。');
         wizardLoading.value = false;
         addModalVisible.value = false;
       }
