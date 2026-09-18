@@ -1,107 +1,125 @@
 <template>
-  <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
+  <div style="background-color: var(--arl-bg-layout); padding: 12px 16px; min-height: calc(100vh - 64px);">
     <!-- 1. 一体化资产画像 Hero 头部卡片 (常驻吸附在页面最顶部 top: 0) -->
     <div ref="heroRef" class="arl-hero-card hero-sticky-card">
-        <div class="hero-top-row">
-          <div class="hero-title-area">
-            <a-button type="text" class="hero-back-btn" @click="() => $router.push('/group')">
-              <template #icon><arrow-left-outlined style="font-size: 16px;" /></template>
-            </a-button>
-            <div class="hero-title-group">
-              <div class="hero-title-main">
-                <span class="hero-title-text">{{ targetName }}</span>
-                <a-tag v-if="scopeGroupName" color="orange" class="hero-scope-tag">
-                  <cluster-outlined /> {{ scopeGroupName }}
-                </a-tag>
-                <a-tag v-if="scopeType" color="blue" class="hero-scope-tag">
-                  {{ scopeType.toUpperCase() }}
-                </a-tag>
-              </div>
-              <div class="hero-meta-row">
-                <template v-if="boundIcpTaskId">
-                  <span class="hero-enterprise-label">
-                    <bank-outlined style="color: var(--arl-theme-color); margin-right: 4px;" />
-                    关联主体: <b>{{ scopeEnterpriseName || targetName }}</b>
-                  </span>
-                  <a-tag v-if="taskTarget && taskTarget.startsWith('TYC_')" color="cyan" class="hero-mini-tag">
-                    {{ taskTarget }}
-                  </a-tag>
-                  <a-tag v-if="taskTypeLabel" color="geekblue" class="hero-mini-tag">
-                    {{ taskTypeLabel }}
-                  </a-tag>
-                  <a-tag v-if="taskStatusLabel" :color="taskStatusColor" class="hero-mini-tag">
-                    {{ taskStatusLabel }}
-                  </a-tag>
-                  <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
-                </template>
-                <template v-else>
-                  <span class="hero-unbound-label">尚未关联企业主体（点击右侧绑定自动拉取工商资产）</span>
-                </template>
-              </div>
-            </div>
+      <!-- 上层：标题、分组类型、主体状态元数据与快捷操作 (整合为单行) -->
+      <div class="hero-title-bar">
+        <!-- 左侧：返回 + 标题 + 核心标签 + 垂直分割线 + 主体元数据 -->
+        <div class="hero-left-section">
+          <a-button type="text" class="hero-back-btn" @click="() => $router.push('/group')" title="返回资产组列表">
+            <template #icon><arrow-left-outlined style="font-size: 15px;" /></template>
+          </a-button>
+
+          <div class="hero-title-wrapper">
+            <a-tooltip :title="targetName" placement="bottomLeft">
+              <span class="hero-title-text">{{ targetName }}</span>
+            </a-tooltip>
+            <a-tag v-if="scopeGroupName" color="orange" class="hero-scope-tag">
+              <cluster-outlined /> {{ scopeGroupName }}
+            </a-tag>
+            <a-tag v-if="scopeType" color="blue" class="hero-scope-tag">
+              {{ scopeType.toUpperCase() }}
+            </a-tag>
           </div>
 
-          <div class="hero-actions">
+          <div class="hero-v-divider"></div>
+
+          <div class="hero-meta-section">
             <template v-if="boundIcpTaskId">
-              <a-button
-                type="primary"
-                size="middle"
-                :loading="osintRefreshLoading"
-                @click="triggerOsintRefresh"
-              >
-                <template #icon><sync-outlined :spin="osintRefreshLoading" /></template>
-                增量更新测绘
-              </a-button>
-              <a-button
-                size="middle"
-                @click="openBindModal"
-              >
-                <template #icon><link-outlined /></template>
-                重新绑定企业主体
-              </a-button>
+              <a-tooltip placement="bottom">
+                <template #title>
+                  <div style="font-size: 12px; line-height: 1.6;">
+                    <div>关联主体: {{ scopeEnterpriseName || targetName }}</div>
+                    <div v-if="taskTarget && taskTarget.startsWith('TYC_')">主体编号: {{ taskTarget }}</div>
+                    <div v-if="taskTypeLabel">任务类型: {{ taskTypeLabel }}</div>
+                    <div v-if="taskStatusLabel">测绘状态: {{ taskStatusLabel }}</div>
+                  </div>
+                </template>
+                <span class="hero-enterprise-label">
+                  <bank-outlined class="meta-icon" />
+                  <span class="enterprise-text">{{ scopeEnterpriseName || targetName }}</span>
+                </span>
+              </a-tooltip>
+              <a-tag v-if="taskStatusLabel" :color="taskStatusColor" class="hero-mini-tag">
+                {{ taskStatusLabel }}
+              </a-tag>
+              <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
             </template>
+            <template v-else>
+              <a-tooltip title="尚未关联企业主体，点击右侧「绑定企业主体」可自动拉取工商资产数据" placement="bottom">
+                <span class="hero-unbound-label">
+                  <info-circle-outlined style="margin-right: 4px;" />
+                  未关联主体
+                </span>
+              </a-tooltip>
+            </template>
+          </div>
+        </div>
+
+        <!-- 右侧：快捷操作按钮 -->
+        <div class="hero-right-section">
+          <template v-if="boundIcpTaskId">
             <a-button
-              v-else
               type="primary"
-              size="middle"
+              size="small"
+              :loading="osintRefreshLoading"
+              @click="triggerOsintRefresh"
+            >
+              <template #icon><sync-outlined :spin="osintRefreshLoading" /></template>
+              增量更新测绘
+            </a-button>
+            <a-button
+              size="small"
               @click="openBindModal"
             >
               <template #icon><link-outlined /></template>
-              绑定企业主体
+              重新绑定主体
             </a-button>
-          </div>
-        </div>
-
-        <!-- 底部胶囊双视角切换器 -->
-        <div class="hero-view-switcher">
-          <div class="capsule-switcher">
-            <button
-              class="capsule-btn"
-              :class="{ active: currentView === 'osint' }"
-              @click="currentView = 'osint'"
-            >
-              <bank-outlined class="capsule-icon" />
-              <span>企业生态资产 (OSINT)</span>
-              <span class="capsule-count" v-if="osintTotalCount > 0">{{ osintTotalCount }}</span>
-              <span v-if="scopeHasIncrement" class="capsule-dot"></span>
-            </button>
-            <button
-              class="capsule-btn"
-              :class="{ active: currentView === 'asm' }"
-              @click="currentView = 'asm'"
-            >
-              <global-outlined class="capsule-icon" />
-              <span>网络暴露面 (ASM)</span>
-              <span class="capsule-count" v-if="asmTotalCount > 0">{{ asmTotalCount }}</span>
-            </button>
-          </div>
+          </template>
+          <a-button
+            v-else
+            type="primary"
+            size="small"
+            @click="openBindModal"
+          >
+            <template #icon><link-outlined /></template>
+            绑定企业主体
+          </a-button>
         </div>
       </div>
+
+      <!-- 下层：专属独立行 OSINT / ASM 视角切换 Tab 栏 (靠左对齐，视觉焦点突出) -->
+      <div class="hero-view-switcher">
+        <div class="capsule-switcher">
+          <button
+            class="capsule-btn"
+            :class="{ active: currentView === 'osint' }"
+            @click="currentView = 'osint'"
+            title="切换至企业生态资产视角"
+          >
+            <bank-outlined class="capsule-icon" />
+            <span>企业生态资产 (OSINT)</span>
+            <span class="capsule-count" v-if="osintTotalCount > 0">{{ osintTotalCount }}</span>
+            <span v-if="scopeHasIncrement" class="capsule-dot"></span>
+          </button>
+          <button
+            class="capsule-btn"
+            :class="{ active: currentView === 'asm' }"
+            @click="currentView = 'asm'"
+            title="切换至网络暴露面视角"
+          >
+            <global-outlined class="capsule-icon" />
+            <span>网络暴露面 (ASM)</span>
+            <span class="capsule-count" v-if="asmTotalCount > 0">{{ asmTotalCount }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
       <!-- 2. 网络暴露面 (ASM) 专属控制与筛选区 (吸附于 Hero 头部正下方) -->
       <div v-show="currentView === 'asm'" ref="asmControlRef" class="asm-control-box" :style="{ top: heroHeight + 'px' }">
         <!-- 维度 Tabs 导航 (带数量徽标与平滑滚动) -->
-        <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs asm-tabs-nav">
+        <a-tabs v-model:activeKey="activeTab" type="card" size="small" class="arl-detail-tabs asm-tabs-nav">
           <a-tab-pane key="site_chain">
             <template #tab>
               <span class="chain-tab-pill">
@@ -146,16 +164,17 @@
               style="width: 360px;"
               placeholder="请输入或选择子域名/IP（回车直接搜索）"
               allow-clear
+              size="small"
               @select="(val) => handleChainSearch(val)"
               @search="handleDomainSearchInput"
               @pressEnter="() => handleChainSearch()"
             />
-            <a-button type="primary" :loading="chainLoading" @click="() => handleChainSearch()">
+            <a-button type="primary" size="small" :loading="chainLoading" @click="() => handleChainSearch()">
               <template #icon><search-outlined /></template>
               查 询
             </a-button>
-            <a-button @click="resetChainSearch">清 除</a-button>
-            <a-button v-if="chainData" @click="downloadChainJson">
+            <a-button size="small" @click="resetChainSearch">清 除</a-button>
+            <a-button v-if="chainData" size="small" @click="downloadChainJson">
               <template #icon><download-outlined /></template>
               导出画像 (JSON)
             </a-button>
@@ -176,27 +195,27 @@
             </div>
 
             <div class="toolbar-right">
-              <a-button v-if="activeTab === 'site'" type="primary" @click="openAddSiteModal">
+              <a-button v-if="activeTab === 'site'" type="primary" size="small" @click="openAddSiteModal">
                 <template #icon><plus-outlined /></template>
                 添加站点
               </a-button>
-              <a-button v-if="activeTab === 'domain'" type="primary" @click="openAddDomainModal">
+              <a-button v-if="activeTab === 'domain'" type="primary" size="small" @click="openAddDomainModal">
                 <template #icon><plus-outlined /></template>
                 添加子域名
               </a-button>
-              <a-button v-if="activeTab !== 'ip' && tabConfig[activeTab]?.exportUrl" @click="handleExport">
+              <a-button v-if="activeTab !== 'ip' && tabConfig[activeTab]?.exportUrl" size="small" @click="handleExport">
                 <template #icon><download-outlined /></template>
                 导出{{ tabConfig[activeTab].tabName }}
               </a-button>
               <template v-if="activeTab === 'ip'">
-                <a-button @click="handleIPExport('port')">导出端口</a-button>
-                <a-button @click="handleIPExport('domain')">导出域名</a-button>
-                <a-button type="primary" ghost @click="handleIPExport('ip')">
+                <a-button size="small" @click="handleIPExport('port')">导出端口</a-button>
+                <a-button size="small" @click="handleIPExport('domain')">导出域名</a-button>
+                <a-button type="primary" ghost size="small" @click="handleIPExport('ip')">
                   <template #icon><download-outlined /></template>
                   导出 IP
                 </a-button>
               </template>
-              <a-button v-if="activeTab === 'site'" type="dashed" danger @click="openRiskModal">
+              <a-button v-if="activeTab === 'site'" type="dashed" danger size="small" @click="openRiskModal">
                 <template #icon><bug-outlined /></template>
                 风险巡航
               </a-button>
@@ -206,7 +225,7 @@
           <!-- 直接平铺展示搜索字段的紧凑栅格卡片 (无需展开/折叠，美观微质感) -->
           <div v-if="tabConfig[activeTab]?.searchFields?.length" class="asm-filter-card">
             <a-form :model="searchForm" class="filter-grid-form">
-              <a-row :gutter="[16, 10]">
+              <a-row :gutter="[12, 6]">
                 <a-col
                   v-for="field in tabConfig[activeTab].searchFields"
                   :key="field.key"
@@ -221,6 +240,7 @@
                         v-model:value="searchForm[field.key]"
                         :placeholder="`请选择${field.label}`"
                         style="width: 100%;"
+                        size="small"
                         allowClear
                         @change="onSearch"
                       >
@@ -233,6 +253,7 @@
                         v-model:value="searchForm[field.key]"
                         :placeholder="['开始日期', '结束日期']"
                         style="width: 100%;"
+                        size="small"
                         @change="onSearch"
                       />
 
@@ -245,6 +266,7 @@
                           v-model:value="searchForm[field.key]"
                           :placeholder="`请输入${field.label}`"
                           :bordered="false"
+                          size="small"
                           class="operator-text-input"
                           allowClear
                           @pressEnter="onSearch"
@@ -257,6 +279,7 @@
                         <a-select
                           v-model:value="field.operator"
                           :bordered="false"
+                          size="small"
                           class="operator-op-select"
                           @change="onSearch"
                         >
@@ -270,6 +293,7 @@
                         v-model:value="searchForm[field.key]"
                         :placeholder="`请输入${field.label}`"
                         style="width: 100%;"
+                        size="small"
                         allowClear
                         @pressEnter="onSearch"
                       >
@@ -319,7 +343,7 @@
       :scroll="pagination.pageSize >= 100 ? { y: tableScrollY, x: 'max-content' } : { x: 'max-content' }"
       :virtual="pagination.pageSize >= 100"
       bordered
-      size="middle"
+      size="small"
       :rowKey="(record) => record._id || record.id"
     >
       <template #bodyCell="{ column, record, index }">
@@ -1244,9 +1268,9 @@
     </a-modal>
 
 
-    <div v-if="tabConfig[activeTab] && activeTab !== 'site_chain'" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; margin-top: 16px;">
-      <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-      <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
+    <div v-if="tabConfig[activeTab] && activeTab !== 'site_chain'" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; margin-top: 10px;">
+      <div style="color: var(--arl-text-color); opacity: 0.65; font-size: 12px;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+      <a-pagination size="small" :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
     </div>
 
     <!-- 悬浮浮动批处理条 (Floating Action Bar) -->
@@ -1430,7 +1454,7 @@
 import { ref, onMounted, reactive, watch, computed, createVNode, onUnmounted, nextTick } from 'vue';
 const heroRef = ref(null);
 const asmControlRef = ref(null);
-const heroHeight = ref(120);
+const heroHeight = ref(82);
 const asmControlHeight = ref(180);
 const scrollContainer = ref(null);
 
@@ -1518,6 +1542,7 @@ import { copyText } from '../utils/clipboard';
 import {
   SearchOutlined,
   ExclamationCircleOutlined,
+  InfoCircleOutlined,
   GlobalOutlined,
   CloudServerOutlined,
   SafetyCertificateOutlined,
@@ -3334,35 +3359,42 @@ const submitAddDomain = async () => {
   background: var(--arl-bg-white);
   border-radius: 8px;
   border: 1px solid var(--arl-border-color);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-bottom: 8px;
   overflow: hidden;
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 
-.hero-top-row {
+/* 上层：标题、分组类型、主体元数据与操作整合为单行 */
+.hero-title-bar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  padding: 18px 24px 14px 24px;
-  gap: 16px;
-  flex-wrap: wrap;
+  padding: 8px 16px;
+  min-height: 42px;
+  gap: 12px;
+  box-sizing: border-box;
 }
 
-.hero-title-area {
+/* 左侧区域：返回按钮 + 标题 + 核心标签 + 垂直分割线 + 主体元数据 */
+.hero-left-section {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex: 1;
-  min-width: 320px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .hero-back-btn {
-  padding: 4px 8px;
-  height: 32px;
-  border-radius: 6px;
+  padding: 2px 6px;
+  height: 28px;
+  width: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
   color: var(--arl-text-secondary);
-  margin-top: 2px;
+  flex-shrink: 0;
   transition: all 0.2s;
 }
 .hero-back-btn:hover {
@@ -3370,94 +3402,133 @@ const submitAddDomain = async () => {
   color: var(--arl-theme-color);
 }
 
-.hero-title-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.hero-title-main {
-  display: flex;
+.hero-title-wrapper {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 0;
 }
 
 .hero-title-text {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--arl-text-color);
   letter-spacing: -0.2px;
-  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+  line-height: 24px;
 }
 
 .hero-scope-tag {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
-  border-radius: 4px;
-  padding: 1px 8px;
+  border-radius: 3px;
+  padding: 0 6px;
+  line-height: 18px;
+  margin-right: 0;
+  flex-shrink: 0;
 }
 
-.hero-meta-row {
-  display: flex;
+.hero-v-divider {
+  width: 1px;
+  height: 14px;
+  background-color: var(--arl-border-color);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.hero-meta-section {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: var(--arl-text-secondary);
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .hero-enterprise-label {
   display: inline-flex;
   align-items: center;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--arl-text-color);
+  min-width: 0;
+  cursor: default;
+}
+
+.hero-enterprise-label .meta-icon {
+  color: var(--arl-theme-color);
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.hero-enterprise-label .enterprise-text {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
 }
 
 .hero-unbound-label {
+  display: inline-flex;
+  align-items: center;
   color: var(--arl-text-secondary);
   font-size: 12px;
+  background: var(--arl-bg-layout);
+  padding: 1px 8px;
+  border-radius: 4px;
+  border: 1px dashed var(--arl-border-color);
+  cursor: help;
+  white-space: nowrap;
 }
 
 .hero-mini-tag {
   font-size: 11px;
-  padding: 0 6px;
+  padding: 0 5px;
   border-radius: 3px;
   line-height: 18px;
+  margin-right: 0;
+  flex-shrink: 0;
 }
 
-.hero-actions {
+/* 右侧区域：操作按钮组 */
+.hero-right-section {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-/* ================= 胶囊双视角切换器 ================= */
+/* 下层：专属独立行 OSINT / ASM 视角切换 Tab 栏 (浅底通栏，靠左对齐，视觉焦点突出) */
 .hero-view-switcher {
   background: var(--arl-bg-light);
   border-top: 1px solid var(--arl-border-color);
-  padding: 8px 24px;
+  padding: 5px 16px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  min-height: 38px;
 }
 
 .capsule-switcher {
   display: inline-flex;
-  background: var(--arl-bg-layout);
+  background: var(--arl-bg-white);
   padding: 3px;
-  border-radius: 8px;
+  border-radius: 7px;
   border: 1px solid var(--arl-border-color);
-  gap: 4px;
+  gap: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
 .capsule-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 16px;
-  border-radius: 6px;
+  padding: 4px 14px;
+  border-radius: 5px;
   border: none;
   background: transparent;
   color: var(--arl-text-secondary);
@@ -3466,16 +3537,17 @@ const submitAddDomain = async () => {
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
+  line-height: 20px;
 }
 .capsule-btn:hover {
   color: var(--arl-text-color);
   background: rgba(0, 0, 0, 0.03);
 }
 .capsule-btn.active {
-  background: var(--arl-bg-white);
-  color: var(--arl-theme-color);
+  background: var(--arl-theme-color);
+  color: #fff;
   font-weight: 600;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--arl-theme-color) 35%, transparent);
 }
 
 .capsule-icon {
@@ -3488,8 +3560,8 @@ const submitAddDomain = async () => {
   justify-content: center;
   min-width: 18px;
   height: 18px;
-  padding: 0 6px;
-  border-radius: 10px;
+  padding: 0 5px;
+  border-radius: 9px;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
@@ -3499,9 +3571,9 @@ const submitAddDomain = async () => {
   transition: all 0.2s;
 }
 .capsule-btn.active .capsule-count {
-  background: color-mix(in srgb, var(--arl-theme-color) 12%, transparent);
-  color: var(--arl-theme-color);
-  border-color: color-mix(in srgb, var(--arl-theme-color) 30%, transparent);
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .capsule-dot {
@@ -3511,6 +3583,27 @@ const submitAddDomain = async () => {
   background: #52c41a;
   margin-left: 2px;
 }
+.capsule-btn.active .capsule-dot {
+  background: #fff;
+  box-shadow: 0 0 4px #fff;
+}
+
+/* 响应式优雅降级：极端窄屏下标题与操作自适应折行 */
+@media screen and (max-width: 1080px) {
+  .hero-title-bar {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 8px;
+    min-height: auto;
+  }
+  .hero-left-section {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .hero-right-section {
+    margin-left: auto;
+  }
+}
 
 /* ================= 一体化资产画像 Hero 头部卡片常驻吸附 ================= */
 .hero-sticky-card {
@@ -3518,8 +3611,8 @@ const submitAddDomain = async () => {
   top: 0px;
   z-index: 12;
   background: var(--arl-bg-white);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  margin-bottom: 12px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 8px !important;
 }
 
 /* ================= ASM 网络暴露面专属控制区 ================= */
@@ -3529,13 +3622,13 @@ const submitAddDomain = async () => {
   background: var(--arl-bg-white);
   border-radius: 8px;
   border: 1px solid var(--arl-border-color);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 8px;
   transition: box-shadow 0.2s ease;
 }
 
 .asm-tabs-nav {
-  padding: 12px 16px 0 16px;
+  padding: 6px 12px 0 12px;
   margin-bottom: 0 !important;
 }
 
@@ -3546,26 +3639,28 @@ const submitAddDomain = async () => {
 .chain-tab-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   color: #722ed1;
   font-weight: 600;
+  font-size: 12px;
 }
 
 .asm-tab-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  font-size: 12px;
 }
 
 .asm-tab-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 8px;
-  font-size: 11px;
+  min-width: 16px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  font-size: 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 500;
   background: var(--arl-bg-light);
@@ -3580,18 +3675,18 @@ const submitAddDomain = async () => {
 
 /* 全链路画像专属检索栏 */
 .chain-search-container {
-  padding: 14px 16px;
+  padding: 8px 12px;
   border-top: 1px solid var(--arl-border-color);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   background: var(--arl-bg-light);
 }
 
 .chain-quick-chips {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
   font-size: 12px;
 }
@@ -3602,18 +3697,20 @@ const submitAddDomain = async () => {
   align-items: center;
   gap: 4px;
   font-weight: 500;
+  font-size: 12px;
 }
 
 .chips-list {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .quick-chip-tag {
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 3px;
+  font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   transition: all 0.2s;
   user-select: none;
@@ -3626,25 +3723,25 @@ const submitAddDomain = async () => {
 .chain-search-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .chain-search-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--arl-text-color);
 }
 
 .chain-result-stat {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--arl-text-secondary);
-  margin-left: 8px;
+  margin-left: 6px;
 }
 
 /* 普通资产列表工具栏与平铺检索区 */
 .asm-toolbar-container {
-  padding: 12px 16px;
+  padding: 8px 12px;
   border-top: 1px solid var(--arl-border-color);
   background: var(--arl-bg-white);
 }
@@ -3653,43 +3750,43 @@ const submitAddDomain = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .toolbar-title-text {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--arl-text-color);
 }
 
 .toolbar-meta-count {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--arl-text-secondary);
   background: var(--arl-bg-light);
-  padding: 1px 8px;
-  border-radius: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
   border: 1px solid var(--arl-border-color);
 }
 
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 /* 直接平铺的紧凑栅格筛选卡片 */
 .asm-filter-card {
-  margin-top: 12px;
-  padding: 14px 16px 10px 16px;
+  margin-top: 6px;
+  padding: 8px 12px 6px 12px;
   background: var(--arl-bg-light);
   border: 1px solid var(--arl-border-color);
   border-radius: 6px;
@@ -3702,12 +3799,12 @@ const submitAddDomain = async () => {
 .filter-field-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
 }
 
 .filter-field-label {
-  width: 80px;
+  width: 72px;
   flex-shrink: 0;
   text-align: right;
   font-size: 12px;
@@ -3729,7 +3826,7 @@ const submitAddDomain = async () => {
   opacity: 0.45;
   cursor: pointer;
   transition: all 0.2s;
-  font-size: 12px;
+  font-size: 11px;
 }
 .filter-search-icon:hover {
   color: var(--arl-theme-color);
@@ -3742,9 +3839,9 @@ const submitAddDomain = async () => {
   display: flex;
   align-items: center;
   border: 1px solid var(--arl-border-color);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--arl-bg-white);
-  height: 32px;
+  height: 24px;
   transition: all 0.2s;
   overflow: hidden;
 }
@@ -3757,17 +3854,24 @@ const submitAddDomain = async () => {
   flex: 1;
   min-width: 0;
   box-shadow: none !important;
+  font-size: 12px;
 }
 .operator-divider {
   width: 1px;
-  height: 16px;
+  height: 14px;
   background: var(--arl-border-color);
   flex-shrink: 0;
 }
 .operator-op-select {
-  width: 82px;
+  width: 70px;
   flex-shrink: 0;
   box-shadow: none !important;
+  font-size: 12px;
+}
+.operator-op-select :deep(.ant-select-selector) {
+  height: 22px !important;
+  padding: 0 4px !important;
+  font-size: 12px !important;
 }
 
 /* 底部操作行与状态提示 */
@@ -3775,22 +3879,22 @@ const submitAddDomain = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 10px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 4px;
   border-top: 1px dashed color-mix(in srgb, var(--arl-border-color) 80%, transparent);
 }
 
 .filter-badge-status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 5px;
+  font-size: 11px;
   color: var(--arl-text-secondary);
 }
 
 .active-indicator-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--arl-theme-color);
   animation: filter-dot-pulse 2s infinite;
@@ -3810,7 +3914,7 @@ const submitAddDomain = async () => {
 .filter-action-btns {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 /* ================= 可行动的空状态引导 (Actionable Empty State) ================= */
