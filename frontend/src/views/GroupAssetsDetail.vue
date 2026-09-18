@@ -59,15 +59,17 @@
         <!-- 右侧：快捷操作按钮 -->
         <div class="hero-right-section">
           <template v-if="boundIcpTaskId">
-            <a-button
-              type="primary"
-              size="small"
-              :loading="osintRefreshLoading"
-              @click="triggerOsintRefresh"
-            >
-              <template #icon><sync-outlined :spin="osintRefreshLoading" /></template>
-              增量更新测绘
-            </a-button>
+            <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
+              <a-button
+                type="primary"
+                size="small"
+                :loading="osintRefreshLoading"
+                @click="triggerOsintRefresh"
+              >
+                <template #icon><sync-outlined :spin="osintRefreshLoading" /></template>
+                更新主体资产
+              </a-button>
+            </a-tooltip>
             <a-button
               size="small"
               @click="openBindModal"
@@ -1307,6 +1309,7 @@
       :sticky-top-offset="heroHeight"
       @taskLoaded="handleOsintLoaded"
       @synced="handleOsintSynced"
+      @refreshed="(newTid) => { if (newTid) { boundIcpTaskId = newTid; fetchBoundTaskDetail(newTid); } }"
     />
     <div v-else style="background: var(--arl-bg-white); border: 1px dashed var(--arl-border-color); border-radius: 8px; padding: 60px 24px; text-align: center; margin-top: 16px;">
       <BankOutlined style="font-size: 48px; color: var(--arl-theme-color); opacity: 0.6; margin-bottom: 16px;" />
@@ -1742,8 +1745,14 @@ const triggerOsintRefresh = async () => {
   try {
     const res = await request.get(`/icp/restart/${boundIcpTaskId.value}`);
     if (res.code === 200) {
-      message.success('已触发增量测绘任务');
-      fetchBoundTaskDetail(boundIcpTaskId.value);
+      message.success('已触发主体资产更新任务');
+      const newTaskId = res.data?.task_id;
+      if (newTaskId) {
+        boundIcpTaskId.value = newTaskId;
+        fetchBoundTaskDetail(newTaskId);
+      } else {
+        fetchBoundTaskDetail(boundIcpTaskId.value);
+      }
       if (osintPanelRef.value?.fetchTaskDetail) {
         osintPanelRef.value.fetchTaskDetail();
       }

@@ -11,10 +11,12 @@
           <a-badge v-if="hasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <a-button type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
-            <template #icon><sync-outlined /></template>
-            增量更新测绘
-          </a-button>
+          <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
+            <a-button type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
+              <template #icon><sync-outlined /></template>
+              更新主体资产
+            </a-button>
+          </a-tooltip>
           <a-button v-if="activeTab === 'web' && selectedWebRowKeys.length > 0" type="dashed" size="small" @click="openSyncModalWithSelected">
             <template #icon><cloud-sync-outlined /></template>
             同步勾选域名 ({{ selectedWebRowKeys.length }})
@@ -373,7 +375,7 @@ onMounted(() => {
   updateOsintHeight();
 });
 
-const emit = defineEmits(['synced', 'refreshed', 'taskLoaded']);
+const emit = defineEmits(['synced', 'refreshed', 'taskLoaded', 'update:taskId']);
 
 const rawDrawerVisible = ref(false);
 const currentRawRecord = ref({});
@@ -473,9 +475,13 @@ const handleRefreshTask = async () => {
   try {
     const res = await request.get(`/icp/restart/${props.taskId}`);
     if (res.code === 200) {
-      message.success('已触发增量测绘任务');
+      message.success('已触发主体资产更新任务');
+      const newTaskId = res.data?.task_id;
+      if (newTaskId) {
+        emit('update:taskId', newTaskId);
+      }
       fetchTaskDetail();
-      emit('refreshed');
+      emit('refreshed', newTaskId);
     } else {
       message.error(res.message || '触发失败');
     }

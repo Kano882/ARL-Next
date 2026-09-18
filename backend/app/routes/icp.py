@@ -625,6 +625,17 @@ def _restart_single_icp_task(task_id: str):
         result = conn_db('icp_task').insert_one(task)
         new_task_id = str(result.inserted_id)
 
+        # 若原任务关联了资产组，同步更新资产组关联至新任务
+        synced_scope_id = task.get('synced_scope_id')
+        if synced_scope_id:
+            try:
+                conn_db('asset_scope').update_one(
+                    {"_id": bson.ObjectId(synced_scope_id)},
+                    {"$set": {"synced_icp_task_id": new_task_id}}
+                )
+            except Exception as scope_err:
+                logger.warning(f"Failed to update asset_scope synced_icp_task_id: {scope_err}")
+
         # 格式化 query_type 确保为 list
         query_type = task.get("query_type", ["web"])
         if isinstance(query_type, str):
