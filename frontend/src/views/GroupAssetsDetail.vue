@@ -44,16 +44,24 @@
           </div>
 
           <div class="hero-actions">
-            <a-button
-              v-if="boundIcpTaskId"
-              type="primary"
-              size="middle"
-              :loading="osintRefreshLoading"
-              @click="triggerOsintRefresh"
-            >
-              <template #icon><sync-outlined :spin="osintRefreshLoading" /></template>
-              增量更新测绘
-            </a-button>
+            <template v-if="boundIcpTaskId">
+              <a-button
+                type="primary"
+                size="middle"
+                :loading="osintRefreshLoading"
+                @click="triggerOsintRefresh"
+              >
+                <template #icon><sync-outlined :spin="osintRefreshLoading" /></template>
+                增量更新测绘
+              </a-button>
+              <a-button
+                size="middle"
+                @click="openBindModal"
+              >
+                <template #icon><link-outlined /></template>
+                重新绑定企业主体
+              </a-button>
+            </template>
             <a-button
               v-else
               type="primary"
@@ -63,21 +71,6 @@
               <template #icon><link-outlined /></template>
               绑定企业主体
             </a-button>
-            <a-dropdown>
-              <template #overlay>
-                <a-menu>
-                  <a-menu-item key="bind" v-if="boundIcpTaskId" @click="openBindModal">
-                    <link-outlined /> 重新绑定企业主体
-                  </a-menu-item>
-                  <a-menu-item key="risk" v-if="currentView === 'asm' && activeTab === 'site'" @click="openRiskModal">
-                    <bug-outlined /> 风险任务下发
-                  </a-menu-item>
-                </a-menu>
-              </template>
-              <a-button size="middle">
-                更多 <down-outlined style="font-size: 10px;" />
-              </a-button>
-            </a-dropdown>
           </div>
         </div>
 
@@ -1329,7 +1322,7 @@
     <!-- 绑定企业主体弹窗 -->
     <a-modal
       v-model:open="bindModalVisible"
-      title="绑定企业主体"
+      :title="boundIcpTaskId ? '重新绑定企业主体' : '绑定企业主体'"
       @ok="handleBindSubmit"
       :confirmLoading="bindLoading"
       width="540px"
@@ -1737,7 +1730,7 @@ const fetchScopeMeta = async () => {
 
 const openBindModal = async () => {
   bindModalVisible.value = true;
-  selectedBindTaskId.value = undefined;
+  selectedBindTaskId.value = boundIcpTaskId.value || undefined;
   newEnterpriseTarget.value = '';
   bindMode.value = 'existing';
   try {
@@ -1750,80 +1743,114 @@ const openBindModal = async () => {
   }
 };
 
+const executeBindExisting = async () => {
+  bindLoading.value = true;
+  try {
+    const res = await request.post('/asset_scope/bind_enterprise/', {
+      scope_id: scope_id.value,
+      task_id: selectedBindTaskId.value
+    });
+    if (res && res.code === 200) {
+      message.success(boundIcpTaskId.value ? '重新绑定企业主体成功' : '绑定企业主体成功');
+      bindModalVisible.value = false;
+      fetchScopeMeta();
+      currentView.value = 'osint';
+    } else {
+      message.error(res.message || '绑定失败');
+    }
+  } catch (err) {
+    message.error('网络请求失败');
+  } finally {
+    bindLoading.value = false;
+  }
+};
+
+const executeBindNew = async () => {
+  const targetVal = newEnterpriseTarget.value.trim();
+  if (!targetVal) {
+    message.warning(newEnterpriseEngine.value === 'tyc' ? '请输入天眼查公司 ID (TYC_id)' : '请输入企业全称或主域名');
+    return;
+  }
+  if (newEnterpriseEngine.value === 'tyc' && !/^[a-zA-Z0-9]+$/.test(targetVal)) {
+    message.warning('天眼查公司 ID 格式不正确，请输入纯数字/字母 ID（例如：25174642）');
+    return;
+  }
+  bindLoading.value = true;
+  try {
+    let createRes;
+    if (newEnterpriseEngine.value === 'tyc') {
+      createRes = await request.post('/icp/tyc_task', {
+        name: `${targetName.value}企业测绘`,
+        gid: targetVal,
+        depth: 1,
+        invest_ratio: 50,
+        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+      });
+    } else {
+      createRes = await request.post('/icp/task', {
+        name: `${targetName.value}ICP查询`,
+        target: targetVal,
+        query_type: ['web', 'app', 'mapp']
+      });
+    }
+
+    if (createRes && createRes.code === 200) {
+      const newTaskId = createRes.data?.task_id || createRes.data?._id || createRes.task_id;
+      if (newTaskId) {
+        await request.post('/asset_scope/bind_enterprise/', {
+          scope_id: scope_id.value,
+          task_id: newTaskId
+        });
+      }
+      message.success('已成功发起企业测绘并绑定');
+      bindModalVisible.value = false;
+      fetchScopeMeta();
+      currentView.value = 'osint';
+    } else {
+      message.error(createRes.message || '创建测绘任务失败');
+    }
+  } catch (err) {
+    message.error('网络请求失败');
+  } finally {
+    bindLoading.value = false;
+  }
+};
+
 const handleBindSubmit = async () => {
   if (bindMode.value === 'existing') {
     if (!selectedBindTaskId.value) {
       message.warning('请选择要绑定的测绘任务');
       return;
     }
-    bindLoading.value = true;
-    try {
-      const res = await request.post('/asset_scope/bind_enterprise/', {
-        scope_id: scope_id.value,
-        task_id: selectedBindTaskId.value
-      });
-      if (res && res.code === 200) {
-        message.success('绑定企业主体成功');
-        bindModalVisible.value = false;
-        fetchScopeMeta();
-        currentView.value = 'osint';
-      } else {
-        message.error(res.message || '绑定失败');
-      }
-    } catch (err) {
-      message.error('网络请求失败');
-    } finally {
-      bindLoading.value = false;
-    }
-  } else {
-    const targetVal = newEnterpriseTarget.value.trim();
-    if (!targetVal) {
-      message.warning(newEnterpriseEngine.value === 'tyc' ? '请输入天眼查公司 ID (TYC_id)' : '请输入企业全称或主域名');
-      return;
-    }
-    if (newEnterpriseEngine.value === 'tyc' && !/^[a-zA-Z0-9]+$/.test(targetVal)) {
-      message.warning('天眼查公司 ID 格式不正确，请输入纯数字/字母 ID（例如：25174642）');
-      return;
-    }
-    bindLoading.value = true;
-    try {
-      let createRes;
-      if (newEnterpriseEngine.value === 'tyc') {
-        createRes = await request.post('/icp/tyc_task', {
-          name: `${targetName.value}企业测绘`,
-          gid: targetVal,
-          depth: 1,
-          invest_ratio: 50,
-          query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
-        });
-      } else {
-        createRes = await request.post('/icp/task', {
-          name: `${targetName.value}ICP查询`,
-          target: targetVal,
-          query_type: ['web', 'app', 'mapp']
-        });
-      }
-
-      if (createRes && createRes.code === 200) {
-        const newTaskId = createRes.data?.task_id || createRes.data?._id || createRes.task_id;
-        if (newTaskId) {
-          await request.post('/asset_scope/bind_enterprise/', {
-            scope_id: scope_id.value,
-            task_id: newTaskId
-          });
+    // 若已绑定主体且用户选择了不同的测绘任务，弹出二次确认
+    if (boundIcpTaskId.value && selectedBindTaskId.value !== boundIcpTaskId.value) {
+      Modal.confirm({
+        title: '确认更换企业主体？',
+        content: '检测到您正在更换绑定的企业主体，此操作将同步切换本资产组关联的企业工商与全域数字资产画像。',
+        okText: '确认更换',
+        cancelText: '取消',
+        onOk: () => {
+          executeBindExisting();
         }
-        message.success('已成功发起企业测绘并绑定');
-        bindModalVisible.value = false;
-        fetchScopeMeta();
-        currentView.value = 'osint';
-      } else {
-        message.error(createRes.message || '创建测绘任务失败');
-      }
-    } catch (err) {
-      message.error('网络请求失败');
-    } finally {
-      bindLoading.value = false;
+      });
+      return;
     }
+    await executeBindExisting();
+  } else {
+    // 若已绑定主体，用户选择发起新测绘并绑定，也弹出二次确认
+    if (boundIcpTaskId.value) {
+      Modal.confirm({
+        title: '确认发起并更换企业主体？',
+        content: '当前资产组已关联企业主体，发起新测绘后将自动切换为新主体画像，是否继续？',
+        okText: '确认发起',
+        cancelText: '取消',
+        onOk: () => {
+          executeBindNew();
+        }
+      });
+      return;
+    }
+    await executeBindNew();
   }
 };
 
@@ -2971,12 +2998,13 @@ const submitAddSite = async () => {
   }
 };
 
-// ================= 风险任务下发 =================
+// ================= 风险巡航 =================
 const riskModalVisible = ref(false);
 const riskLoading = ref(false);
 const riskFormRef = ref();
 const currentResultSetId = ref(''); // 保存弹药箱 ID
 const currentTargetCount = ref(0); // 保存查出来的目标数量
+const selectedRiskTargets = ref([]); // 保存勾选选中的具体目标列表
 
 const riskForm = reactive({ name: '', policy_id: undefined });
 const riskRules = {
@@ -2988,31 +3016,10 @@ const getPocCount = (policy) => {
   return policy.policy?.poc_config?.filter(poc => poc.enable)?.length || 0;
 };
 
-// 1. 打开弹窗：打包结果集 & 获取策略
+// 1. 打开弹窗：智能区分勾选目标 vs 全量筛选结果集
 const openRiskModal = async () => {
   try {
-    message.loading({ content: '正在打包目标集合...', key: 'risk_task' });
-
-    // 构建过滤参数（和搜索一模一样，确保下发的就是当前查出来的）
-    const params = { scope_id: scope_id.value };
-    for (const key in searchForm.value) {
-      if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
-        if (key === 'update_date' && Array.isArray(searchForm.value[key])) {
-          params.update_date__dgt = searchForm.value[key][0].format('YYYY-MM-DD HH:mm:ss');
-          params.update_date__dlt = searchForm.value[key][1].format('YYYY-MM-DD HH:mm:ss');
-        } else {
-          params[key] = searchForm.value[key];
-        }
-      }
-    }
-
-    // 发起结果集保存请求
-    const setRes = await request.get('/asset_site/save_result_set/', { params });
-    if (setRes.code !== 200) throw new Error('生成结果集失败');
-
-    currentResultSetId.value = setRes.data.result_set_id;
-    // 🚨 将后端返回的真实数量赋给弹窗展示
-    currentTargetCount.value = setRes.data.result_total || 0;
+    message.loading({ content: '正在准备巡航目标...', key: 'risk_task' });
 
     // 复用之前的 policies 拉取逻辑，没有才去拉
     if (policies.value.length === 0) {
@@ -3020,7 +3027,47 @@ const openRiskModal = async () => {
       if (polRes.code === 200) policies.value = polRes.items || [];
     }
 
-    message.success({ content: `成功锁定 ${setRes.data.result_total} 条资产准备下发`, key: 'risk_task' });
+    // 🎯 智能分支：如果用户在表格中勾选了具体数据行，严格仅针对勾选项下发
+    if (hasSelected.value && selectedRowKeys.value.length > 0) {
+      const selectedSites = dataSource.value
+        .filter(item => selectedRowKeys.value.includes(item._id || item.id))
+        .map(item => item.site)
+        .filter(Boolean);
+
+      if (selectedSites.length === 0) {
+        message.warning({ content: '选中的记录中未包含有效的站点目标', key: 'risk_task' });
+        return;
+      }
+
+      selectedRiskTargets.value = selectedSites;
+      currentResultSetId.value = '';
+      currentTargetCount.value = selectedSites.length;
+
+      message.success({ content: `成功锁定选中的 ${selectedSites.length} 条资产准备下发`, key: 'risk_task' });
+    } else {
+      // 🎯 未勾选：根据当前搜索与资产组条件打包全量结果集
+      selectedRiskTargets.value = [];
+      const params = { scope_id: scope_id.value };
+      for (const key in searchForm.value) {
+        if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
+          if (key === 'update_date' && Array.isArray(searchForm.value[key])) {
+            params.update_date__dgt = searchForm.value[key][0].format('YYYY-MM-DD HH:mm:ss');
+            params.update_date__dlt = searchForm.value[key][1].format('YYYY-MM-DD HH:mm:ss');
+          } else {
+            params[key] = searchForm.value[key];
+          }
+        }
+      }
+
+      // 发起结果集保存请求
+      const setRes = await request.get('/asset_site/save_result_set/', { params });
+      if (setRes.code !== 200) throw new Error('生成结果集失败');
+
+      currentResultSetId.value = setRes.data.result_set_id;
+      currentTargetCount.value = setRes.data.result_total || 0;
+
+      message.success({ content: `成功锁定 ${setRes.data.result_total} 条资产准备下发`, key: 'risk_task' });
+    }
 
     // 初始化弹窗数据
     riskForm.name = '';
@@ -3049,18 +3096,27 @@ const submitRiskTask = async () => {
     const payload = {
       name: riskForm.name,
       task_tag: 'risk_cruising',
-      target: '', // 因为用了结果集，所以 target 留空
-      policy_id: riskForm.policy_id,
-      result_set_id: currentResultSetId.value
+      policy_id: riskForm.policy_id
     };
+
+    if (selectedRiskTargets.value.length > 0) {
+      payload.target = selectedRiskTargets.value.join('\n');
+      payload.result_set_id = '';
+    } else {
+      payload.target = '';
+      payload.result_set_id = currentResultSetId.value;
+    }
 
     const res = await request.post('/task/policy/', payload);
 
     if (res.code === 200) {
-      message.success('风险任务下发成功！');
+      message.success('风险巡航任务下发成功！');
       riskModalVisible.value = false;
+      if (selectedRiskTargets.value.length > 0) {
+        selectedRowKeys.value = [];
+      }
     } else {
-      message.error('下发失败: ' + res.message);
+      message.error('下发失败: ' + (res.message || '未知错误'));
     }
   } catch (e) {
     console.warn('请求异常', e);
