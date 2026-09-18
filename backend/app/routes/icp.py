@@ -289,9 +289,225 @@ base_search_icp_asset_fields = {
 base_search_icp_asset_fields.update(base_query_fields)
 search_icp_asset_fields = ns.model('SearchIcpAsset', base_search_icp_asset_fields)
 
+def normalize_icp_asset_item(item):
+    """
+    跨数据源 (ICP vs TYC) 资产字段归一化增强
+    保留原始字段完整性，同时补充统一的规范别名字段
+    """
+    if not isinstance(item, dict):
+        return item
+
+    # 1. 域名归一化
+    domain = item.get('domain') or item.get('ym') or ''
+    item['domain'] = domain
+    if 'ym' not in item or not item['ym']:
+        item['ym'] = domain
+
+    # 2. 名称归一化 (网站名称/应用名称/公众号标题/商标名)
+    service_name = item.get('serviceName') or item.get('webName') or item.get('name') or item.get('title') or item.get('tmName') or ''
+    item['serviceName'] = service_name
+    if not item.get('name'):
+        item['name'] = service_name
+    if not item.get('webName'):
+        item['webName'] = service_name
+    if not item.get('title'):
+        item['title'] = service_name
+    if not item.get('tmName'):
+        item['tmName'] = service_name
+
+    # 3. 主办单位归一化
+    unit_name = item.get('unitName') or item.get('companyName') or ''
+    if not unit_name and isinstance(item.get('miniProgramIcpRecordDetail'), dict):
+        unit_name = item['miniProgramIcpRecordDetail'].get('icpFilingSubjectInformation', {}).get('organizingName', '')
+    item['unitName'] = unit_name
+    if not item.get('companyName'):
+        item['companyName'] = unit_name
+
+    # 4. 备案号归一化
+    licence = item.get('serviceLicence') or item.get('liscense') or item.get('serviceFilingNumber') or item.get('mainLicence') or ''
+    item['serviceLicence'] = licence
+    if not item.get('liscense'):
+        item['liscense'] = licence
+    if not item.get('serviceFilingNumber'):
+        item['serviceFilingNumber'] = licence
+
+    # 5. 更新/审核时间归一化
+    update_time = item.get('updateRecordTime') or item.get('examineDate') or ''
+    item['updateRecordTime'] = update_time
+    if not item.get('examineDate'):
+        item['examineDate'] = update_time
+
+    # 6. 首页网址归一化
+    home_url = item.get('homeUrl')
+    if not home_url:
+        ws = item.get('webSite')
+        if isinstance(ws, list) and ws:
+            home_url = ws[0]
+        elif isinstance(ws, str):
+            home_url = ws
+    item['homeUrl'] = home_url or ''
+
+    # 7. 图标/图片/二维码归一化
+    icon = item.get('icon') or item.get('titleImgURL') or item.get('codeImg') or item.get('ico') or item.get('productLogo') or item.get('tmPic') or ''
+    item['icon'] = icon
+
+    # 8. 简介/描述/认证信息归一化
+    brief = item.get('brief') or item.get('recommend') or item.get('info') or ''
+    item['brief'] = brief
+
+    # 9. 分类/类型归一化
+    category = item.get('category') or item.get('classes') or item.get('intCls') or item.get('type') or ''
+    item['category'] = category
+
+    # 10. 微信公众号 ID 归一化
+    wechat_id = item.get('wechatId') or item.get('publicNum') or ''
+    item['wechatId'] = wechat_id
+
+    # 11. 法人归一化
+    legal_person = item.get('legalPerson') or item.get('legalPersonName') or ''
+    item['legalPerson'] = legal_person
+
+    # 12. 状态归一化
+    status = item.get('status') or item.get('regStatus') or ''
+    item['status'] = status
+
+    # 13. 地区归一化
+    region = item.get('region') or item.get('province') or ''
+    if item.get('city') and item.get('city') not in region:
+        region = f"{region} {item.get('city')}".strip()
+    item['region'] = region
+
+    return item
+
+
 @ns.route('/asset')
 class IcpAsset(ARLResource):
     parser = get_arl_parser(search_icp_asset_fields, location='args')
+
+    def build_db_query(self, args=None):
+        query = super().build_db_query(args)
+
+        # 针对跨数据源 (ICP vs TYC) 的核心字段构建多路兼容 ($or) 查询
+        or_groups = []
+
+        # 1. 域名 (domain vs ym)
+        if 'domain' in query:
+            val = query.pop('domain')
+            query.pop('ym', None)
+            or_groups.append([{'domain': val}, {'ym': val}])
+        elif 'ym' in query:
+            val = query.pop('ym')
+            or_groups.append([{'domain': val}, {'ym': val}])
+
+        # 2. 单位名称 (unitName vs companyName)
+        if 'unitName' in query:
+            val = query.pop('unitName')
+            query.pop('companyName', None)
+            or_groups.append([{'unitName': val}, {'companyName': val}])
+        elif 'companyName' in query:
+            val = query.pop('companyName')
+            or_groups.append([{'unitName': val}, {'companyName': val}])
+
+        # 3. 业务/资产名称 (serviceName, webName, name, title, tmName)
+        matched_name_val = None
+        for k in ['serviceName', 'name', 'webName', 'title', 'tmName']:
+            if k in query:
+                matched_name_val = query.pop(k)
+                break
+        if matched_name_val:
+            for k in ['serviceName', 'name', 'webName', 'title', 'tmName']:
+                query.pop(k, None)
+            or_groups.append([
+                {'serviceName': matched_name_val},
+                {'name': matched_name_val},
+                {'webName': matched_name_val},
+                {'title': matched_name_val},
+                {'tmName': matched_name_val}
+            ])
+
+        # 4. 备案号 (serviceLicence, liscense, serviceFilingNumber, mainLicence)
+        matched_lic_val = None
+        for k in ['serviceLicence', 'liscense', 'serviceFilingNumber', 'mainLicence']:
+            if k in query:
+                matched_lic_val = query.pop(k)
+                break
+        if matched_lic_val:
+            for k in ['serviceLicence', 'liscense', 'serviceFilingNumber', 'mainLicence']:
+                query.pop(k, None)
+            or_groups.append([
+                {'serviceLicence': matched_lic_val},
+                {'liscense': matched_lic_val},
+                {'serviceFilingNumber': matched_lic_val},
+                {'mainLicence': matched_lic_val}
+            ])
+
+        # 5. 法定代表人 (legalPerson vs legalPersonName)
+        if 'legalPerson' in query:
+            val = query.pop('legalPerson')
+            query.pop('legalPersonName', None)
+            or_groups.append([{'legalPerson': val}, {'legalPersonName': val}])
+        elif 'legalPersonName' in query:
+            val = query.pop('legalPersonName')
+            or_groups.append([{'legalPerson': val}, {'legalPersonName': val}])
+
+        # 6. 企业状态 (status vs regStatus)
+        if 'status' in query:
+            val = query.pop('status')
+            query.pop('regStatus', None)
+            or_groups.append([{'status': val}, {'regStatus': val}])
+        elif 'regStatus' in query:
+            val = query.pop('regStatus')
+            or_groups.append([{'status': val}, {'regStatus': val}])
+
+        # 7. 分类/性质 (category vs classes vs intCls vs type vs companyType vs natureName)
+        matched_cat_val = None
+        for k in ['category', 'classes', 'intCls', 'type', 'companyType', 'natureName']:
+            if k in query:
+                matched_cat_val = query.pop(k)
+                break
+        if matched_cat_val:
+            for k in ['category', 'classes', 'intCls', 'type', 'companyType', 'natureName']:
+                query.pop(k, None)
+            or_groups.append([
+                {'category': matched_cat_val},
+                {'classes': matched_cat_val},
+                {'intCls': matched_cat_val},
+                {'type': matched_cat_val},
+                {'companyType': matched_cat_val},
+                {'natureName': matched_cat_val}
+            ])
+
+        # 8. 微信公号 (wechatId vs publicNum)
+        if 'wechatId' in query:
+            val = query.pop('wechatId')
+            query.pop('publicNum', None)
+            or_groups.append([{'wechatId': val}, {'publicNum': val}])
+        elif 'publicNum' in query:
+            val = query.pop('publicNum')
+            or_groups.append([{'wechatId': val}, {'publicNum': val}])
+
+        # 9. 简介 (brief vs recommend vs info)
+        matched_brief_val = None
+        for k in ['brief', 'recommend', 'info']:
+            if k in query:
+                matched_brief_val = query.pop(k)
+                break
+        if matched_brief_val:
+            for k in ['brief', 'recommend', 'info']:
+                query.pop(k, None)
+            or_groups.append([
+                {'brief': matched_brief_val},
+                {'recommend': matched_brief_val},
+                {'info': matched_brief_val}
+            ])
+
+        if or_groups:
+            existing_and = query.get('$and', [])
+            for grp in or_groups:
+                existing_and.append({'$or': grp})
+            query['$and'] = existing_and
+
+        return query
 
     @auth
     @ns.expect(parser)
@@ -301,6 +517,9 @@ class IcpAsset(ARLResource):
         """
         args = self.parser.parse_args()
         data = self.build_data(args=args, collection='icp_asset')
+        items = data.get('items', [])
+        for item in items:
+            normalize_icp_asset_item(item)
         return data
 
 
@@ -322,6 +541,24 @@ class IcpTaskStop(ARLResource):
                 logger.error(f"Failed to stop osint-service task {task_id}: {e}")
                 
             return build_ret(ErrorMsg.Success, {"task_id": task_id})
+        except Exception as e:
+            return build_ret(ErrorMsg.Error, {"error": str(e)})
+
+
+@ns.route('/task/log/<string:task_id>')
+class IcpTaskLog(ARLResource):
+    @auth
+    def get(self, task_id):
+        """获取 ICP / TYC 任务的运行日志"""
+        try:
+            query = {"task_id": task_id}
+            logs = list(conn_db('syslog').find(query, {"_id": 0}).sort("create_time", 1).limit(1000))
+            return {
+                "code": 200,
+                "message": "success",
+                "total": len(logs),
+                "items": logs
+            }
         except Exception as e:
             return build_ret(ErrorMsg.Error, {"error": str(e)})
 
@@ -494,7 +731,18 @@ class IcpTaskBatchRestart(ARLResource):
 
 from flask import make_response
 
-def _build_excel_response(assets, filename="export.xlsx"):
+def _build_excel_response(assets, filename="export.xlsx", target_query_type=None):
+    try:
+        import numpy
+        if not hasattr(numpy, "float"):
+            numpy.float = float
+        if not hasattr(numpy, "int"):
+            numpy.int = int
+        if not hasattr(numpy, "bool"):
+            numpy.bool = bool
+    except Exception:
+        pass
+
     import openpyxl
     from io import BytesIO
     from flask import make_response
@@ -503,28 +751,32 @@ def _build_excel_response(assets, filename="export.xlsx"):
     wb.remove(wb.active)  # 移除默认的 Sheet
 
     headers = {
-        'web': (['主办单位名称', '单位性质', '主备案号', '域名', '网站名称', '服务许可', '更新时间/审核日期'],
-                ['unitName|companyName', 'natureName|companyType', 'mainLicence|liscense', 'domain|ym', 'serviceName|webName', 'serviceLicence', 'updateRecordTime|examineDate']),
-        'app': (['APP名称', '主办单位名称', '单位性质/分类', '主备案号/应用类型', 'APP备案号', '前置审批/内容类型', '审核时间', '简介'],
-                ['name|serviceName', 'unitName', 'natureName|classes', 'mainLicence|type', 'serviceLicence', 'contentTypeName', 'updateRecordTime|examineDate', 'brief']),
-        'invest': (['投资公司名称', '法定代表人', '注册资本', '投资比例(%)'], ['name', 'legalPersonName', 'amount', 'percent']),
-        'trademark': (['商标名称', '注册号', '分类', '状态'], ['tmName', 'regNo', 'intCls', 'status']),
-        'wechat': (['公众号名称', '微信号', '简介'], ['title', 'publicNum', 'recommend']),
-        'weibo': (['微博名称', '微博链接'], ['name', 'href']),
+        'web': (['主办单位名称', '单位性质', '主备案号', '域名', '网站名称', '服务许可/备案号', '更新时间/审核日期', '首页网址'],
+                ['unitName|companyName', 'natureName|companyType', 'mainLicence|liscense', 'domain|ym', 'serviceName|webName', 'serviceLicence|liscense', 'updateRecordTime|examineDate', 'homeUrl|webSite']),
+        'app': (['APP名称', '主办单位名称', '分类/单位性质', '主备案号/应用类型', 'APP备案号', '前置审批/内容类型', '审核时间', '简介'],
+                ['name|serviceName', 'unitName|companyName', 'natureName|classes|category', 'mainLicence|type', 'serviceLicence', 'contentTypeName', 'updateRecordTime|examineDate', 'brief|info']),
+        'invest': (['投资公司名称', '法定代表人', '注册资本', '投资比例(%)', '企业状态', '地区'],
+                ['name', 'legalPersonName|legalPerson', 'amount', 'percent', 'regStatus|status', 'region|province']),
+        'trademark': (['商标名称', '注册号', '分类', '状态', '申请日期'],
+                ['tmName|name', 'regNo', 'intCls|category', 'status', 'appDate']),
+        'wechat': (['公众号名称', '微信号', '简介', '认证主体'],
+                ['title|name', 'publicNum|wechatId', 'recommend|brief', 'unitName|companyName']),
+        'weibo': (['微博名称', '微博链接', '认证信息/简介', '粉丝数'],
+                ['name', 'href', 'info|brief', 'fans']),
         'mapp': (['小程序名称', '主办单位名称', '主备案号', '小程序备案号', '前置审批/内容类型', '审核时间', '简介'],
-                ['name|serviceName', 'unitName|companyName', 'mainLicence', 'serviceLicence|serviceFilingNumber', 'contentTypeName', 'updateRecordTime|examineDate', 'brief']),
+                ['name|serviceName', 'unitName|companyName', 'mainLicence', 'serviceLicence|serviceFilingNumber', 'contentTypeName', 'updateRecordTime|examineDate', 'brief|recommend']),
         'kapp': (['快应用名称', '主办单位名称', '主备案号', '快应用备案号', '前置审批/内容类型', '审核时间', '简介'],
                 ['name|serviceName', 'unitName|companyName', 'mainLicence', 'serviceLicence', 'contentTypeName', 'updateRecordTime|examineDate', 'brief']),
     }
 
     grouped_assets = {}
     for item in assets:
+        normalize_icp_asset_item(item)
         qt = item.get('query_type', 'unknown')
+        if target_query_type and target_query_type != 'all' and qt != target_query_type:
+            continue
         if qt not in grouped_assets:
             grouped_assets[qt] = []
-        # 兼容移动端应用在不同接口下的名称字段
-        if qt in ('app', 'mapp', 'kapp') and not item.get('name'):
-            item['name'] = item.get('serviceName', '')
         grouped_assets[qt].append(item)
 
     for qt, items in grouped_assets.items():
@@ -540,11 +792,19 @@ def _build_excel_response(assets, filename="export.xlsx"):
             row = []
             for k in h_keys:
                 if '|' in k:
-                    k1, k2 = k.split('|')
-                    val = item.get(k1) if item.get(k1) else item.get(k2, '')
+                    parts = k.split('|')
+                    val = ''
+                    for p in parts:
+                        v = item.get(p)
+                        if v is not None and v != '':
+                            if isinstance(v, list):
+                                val = ', '.join(str(x) for x in v)
+                            else:
+                                val = v
+                            break
                 else:
                     val = item.get(k, '')
-                row.append(str(val))
+                row.append(str(val if val is not None else ''))
             ws.append(row)
 
     if len(wb.sheetnames) == 0:
@@ -567,8 +827,13 @@ class IcpTaskExport(ARLResource):
     def get(self, task_id):
         """导出 ICP/TYC 资产 (多表单 Excel)"""
         try:
-            assets = list(conn_db('icp_asset').find({"task_id": task_id}))
-            return _build_excel_response(assets, filename=f"export_{task_id}.xlsx")
+            from flask import request as flask_request
+            qt = flask_request.args.get('query_type')
+            query = {"task_id": task_id}
+            if qt and qt != 'all':
+                query["query_type"] = qt
+            assets = list(conn_db('icp_asset').find(query))
+            return _build_excel_response(assets, filename=f"export_{task_id}_{qt or 'all'}.xlsx", target_query_type=qt)
         except Exception as e:
             return build_ret(ErrorMsg.Error, {"error": str(e)})
 

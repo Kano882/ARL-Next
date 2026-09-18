@@ -9,7 +9,7 @@
       <template #title>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span>{{ targetName }}相关资产</span>
-          <a-tag v-if="scopeEnterpriseName" color="cyan" style="font-weight: normal; font-size: 13px;">
+          <a-tag v-if="scopeEnterpriseName && scopeEnterpriseName !== targetName" color="cyan" style="font-weight: normal; font-size: 13px;">
             <BankOutlined /> {{ scopeEnterpriseName }}
           </a-tag>
         </div>
@@ -20,12 +20,12 @@
     <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--arl-bg-white); padding: 8px 16px; border-radius: 6px; border: 1px solid var(--arl-border-color);">
       <div style="display: flex; align-items: center; gap: 16px;">
         <a-radio-group v-model:value="currentView" button-style="solid" size="small">
-          <a-radio-button value="asm">
-            <GlobalOutlined style="margin-right: 6px;" />网络暴露面 (ASM)
-          </a-radio-button>
           <a-radio-button value="osint">
             <BankOutlined style="margin-right: 6px;" />企业生态资产 (OSINT)
             <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px', marginLeft: '6px' }" />
+          </a-radio-button>
+          <a-radio-button value="asm">
+            <GlobalOutlined style="margin-right: 6px;" />网络暴露面 (ASM)
           </a-radio-button>
         </a-radio-group>
         <span v-if="scopeEnterpriseName" style="font-size: 13px; color: var(--arl-text-color); opacity: 0.85;">
@@ -1231,12 +1231,38 @@ const route = useRoute();
 const router = useRouter();
 // 🚨 修复 1：使用 computed，让路由参数具备真正的响应式
 const scope_id = computed(() => route.query.scope_id || '');
-const targetName = computed(() => route.query.targetName || '未知资产');
-
-// 双视角状态 (ASM vs OSINT)
-const currentView = ref(route.query.view === 'osint' ? 'osint' : 'asm');
-const boundIcpTaskId = ref('');
 const scopeEnterpriseName = ref('');
+const targetName = computed(() => {
+  const t = route.query.targetName;
+  if (!t || /^[0-9a-fA-F]{24}$/.test(t) || t === '未知资产') {
+    return scopeEnterpriseName.value || t || '企业资产';
+  }
+  return t;
+});
+
+// 双视角状态 (OSINT vs ASM，默认优先激活 OSINT)
+const currentView = ref(route.query.view === 'asm' ? 'asm' : 'osint');
+
+// 监听 currentView 变化，通过 router.replace 同步更新 URL query 参数
+watch(currentView, (newVal) => {
+  if (route.query.view !== newVal) {
+    router.replace({
+      query: {
+        ...route.query,
+        view: newVal
+      }
+    });
+  }
+});
+
+// 监听路由 query.view 变化，支持浏览器前进/后退联动
+watch(() => route.query.view, (newVal) => {
+  const target = newVal === 'asm' ? 'asm' : 'osint';
+  if (currentView.value !== target) {
+    currentView.value = target;
+  }
+});
+const boundIcpTaskId = ref('');
 const scopeHasIncrement = ref(false);
 
 const bindModalVisible = ref(false);
@@ -1254,7 +1280,7 @@ const fetchScopeMeta = async () => {
     if (res && res.code === 200 && res.items && res.items.length > 0) {
       const item = res.items[0];
       boundIcpTaskId.value = item.synced_icp_task_id || '';
-      scopeEnterpriseName.value = item.enterprise_name || '';
+      scopeEnterpriseName.value = item.enterprise_name || item.name || '';
       scopeHasIncrement.value = !!item.has_increment;
     }
   } catch (err) {

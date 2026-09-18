@@ -3,8 +3,9 @@
     <!-- 顶部摘要与操作栏 (仅当有任务时渲染) -->
     <div v-if="taskId" style="margin-bottom: 16px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">{{ taskTarget || taskName || '企业资产画像' }}</span>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">{{ displayName }}</span>
+          <a-tag v-if="taskTarget && taskTarget.startsWith('TYC_')" color="cyan">{{ taskTarget }}</a-tag>
           <a-tag v-if="taskTypeLabel" color="blue">{{ taskTypeLabel }}</a-tag>
           <a-tag v-if="taskStatusLabel" :color="taskStatusColor">{{ taskStatusLabel }}</a-tag>
           <a-badge v-if="hasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
@@ -38,7 +39,10 @@
         <div style="margin-bottom: 12px;">
           <a-form :model="searchForm" layout="inline" style="row-gap: 12px;">
             <template v-for="col in dynamicColumns" :key="col.key">
-              <a-form-item v-if="col.key !== 'index' && col.key !== 'raw' && col.key !== 'icon' && col.key !== 'examineDate' && col.key !== 'updateRecordTime'" :label="col.title + ':'">
+              <a-form-item
+                v-if="col.key !== 'index' && col.key !== 'raw' && col.key !== 'icon' && col.key !== 'qrcode' && col.key !== 'examineDate' && col.key !== 'updateRecordTime' && col.key !== 'estiblishTime' && col.key !== 'href'"
+                :label="col.title + ':'"
+              >
                 <a-input-group compact v-if="['amount', 'percent'].includes(col.dataIndex)">
                   <a-select v-model:value="searchFormOp[col.dataIndex]" style="width: 65px" :options="[{value:'eq',label:'='},{value:'gt',label:'>'},{value:'lt',label:'<'}]" />
                   <a-input v-model:value="searchForm[col.dataIndex]" style="width: 120px" :placeholder="'输入' + col.title" @pressEnter="onSearch">
@@ -56,7 +60,7 @@
           <a-button size="small" @click="resetSearch">重 置</a-button>
           <a-button size="small" type="primary" :loading="exportLoading" @click="handleExport">
             <template #icon><download-outlined /></template>
-            导出表格
+            导出当前维度表格
           </a-button>
         </div>
       </div>
@@ -80,27 +84,134 @@
           <template v-if="column.key === 'index'">
             {{ (pagination.current - 1) * pagination.pageSize + index + 1 }}
           </template>
+
+          <!-- 图标/头像渲染 -->
           <template v-else-if="column.key === 'icon'">
-            <img v-if="text" :src="text" style="width:28px;height:28px;border-radius:4px;" />
+            <a-avatar v-if="getAssetIcon(record)" :src="getAssetIcon(record)" shape="square" :size="32" style="background: #fafafa; border: 1px solid var(--arl-border-color);" />
+            <span v-else style="color: #bfbfbf;">-</span>
           </template>
+
+          <!-- 域名可点击外链 -->
+          <template v-else-if="column.key === 'domain'">
+            <a v-if="record.domain || record.ym" :href="(record.domain || record.ym).startsWith('http') ? (record.domain || record.ym) : ('http://' + (record.domain || record.ym))" target="_blank" rel="noopener noreferrer" style="color: var(--arl-theme-color);">
+              {{ record.domain || record.ym }} <export-outlined style="font-size: 11px;" />
+            </a>
+            <span v-else>-</span>
+          </template>
+
+          <!-- 首页网址外链 -->
+          <template v-else-if="column.key === 'homeUrl'">
+            <a v-if="getAssetHomeUrl(record)" :href="getAssetHomeUrl(record)" target="_blank" rel="noopener noreferrer" style="color: var(--arl-theme-color);">
+              {{ getAssetHomeUrl(record) }} <export-outlined style="font-size: 11px;" />
+            </a>
+            <span v-else>-</span>
+          </template>
+
+          <!-- 微博主页外链 -->
+          <template v-else-if="column.key === 'href'">
+            <a v-if="record.href" :href="record.href" target="_blank" rel="noopener noreferrer" style="color: var(--arl-theme-color);">
+              访问微博 <export-outlined style="font-size: 11px;" />
+            </a>
+            <span v-else>-</span>
+          </template>
+
+          <!-- 公众号二维码浮层预览 -->
+          <template v-else-if="column.key === 'qrcode'">
+            <a-popover v-if="record.codeImg" placement="right" trigger="hover">
+              <template #content>
+                <div style="text-align: center; padding: 4px;">
+                  <img :src="record.codeImg" style="width: 150px; height: 150px; display: block;" />
+                  <span style="font-size: 12px; color: #8c8c8c; margin-top: 4px; display: block;">微信扫码关注</span>
+                </div>
+              </template>
+              <a-tag color="blue" style="cursor: pointer;"><qrcode-outlined /> 查看二维码</a-tag>
+            </a-popover>
+            <span v-else style="color: #bfbfbf;">-</span>
+          </template>
+
+          <!-- 企业状态 Tag 渲染 -->
+          <template v-else-if="column.key === 'status'">
+            <a-tag v-if="['存续', '在业', '正常'].includes(record.status || record.regStatus)" color="success">
+              {{ record.status || record.regStatus }}
+            </a-tag>
+            <a-tag v-else-if="['注销', '吊销', '撤销', '迁出'].includes(record.status || record.regStatus)" color="error">
+              {{ record.status || record.regStatus }}
+            </a-tag>
+            <a-tag v-else-if="record.status || record.regStatus">
+              {{ record.status || record.regStatus }}
+            </a-tag>
+            <span v-else style="color: #bfbfbf;">-</span>
+          </template>
+
+          <!-- 地区展示 -->
+          <template v-else-if="column.key === 'region'">
+            {{ record.region || [record.province, record.city].filter(Boolean).join(' ') || '-' }}
+          </template>
+
+          <!-- 成立时间 -->
+          <template v-else-if="column.key === 'estiblishTime'">
+            {{ formatDate(record.estiblishTime) }}
+          </template>
+
+          <!-- 单位性质 -->
+          <template v-else-if="column.key === 'companyType'">
+            {{ record.companyType || record.natureName || '-' }}
+          </template>
+
+          <!-- 服务备案号/服务许可 -->
+          <template v-else-if="column.key === 'serviceLicence'">
+            {{ record.serviceLicence || record.liscense || record.serviceFilingNumber || record.mainLicence || '-' }}
+          </template>
+
+          <!-- 主办单位 -->
+          <template v-else-if="column.key === 'unitName'">
+            {{ record.unitName || record.companyName || record.miniProgramIcpRecordDetail?.icpFilingSubjectInformation?.organizingName || '-' }}
+          </template>
+
+          <!-- 名称字段多字段兼顾 -->
+          <template v-else-if="column.key === 'serviceName' || column.key === 'name'">
+            {{ record.serviceName || record.name || record.webName || record.title || record.tmName || '-' }}
+          </template>
+
+          <!-- 法定代表人 -->
+          <template v-else-if="column.key === 'legalPerson'">
+            {{ record.legalPerson || record.legalPersonName || '-' }}
+          </template>
+
+          <!-- 分类字段 -->
+          <template v-else-if="column.key === 'category'">
+            {{ record.category || record.classes || record.intCls || record.type || '-' }}
+          </template>
+
+          <!-- 微信号 -->
+          <template v-else-if="column.key === 'wechatId'">
+            {{ record.wechatId || record.publicNum || '-' }}
+          </template>
+
+          <!-- 更新/审核时间 -->
+          <template v-else-if="column.key === 'updateRecordTime'">
+            {{ record.updateRecordTime || record.examineDate || '-' }}
+          </template>
+
+          <!-- 简介/描述 -->
           <template v-else-if="column.key === 'brief' || column.key === 'recommend'">
-            <div style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" :title="text">
-              {{ text || '-' }}
+            <div style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" :title="record.brief || record.recommend || record.info || text">
+              {{ record.brief || record.recommend || record.info || text || '-' }}
             </div>
           </template>
-          <template v-else-if="column.key === 'serviceName' || column.key === 'name'">
-            {{ record.serviceName || record.name || '-' }}
-          </template>
+
+          <!-- 原始 JSON 抽屉/浮层 -->
           <template v-else-if="column.key === 'raw'">
             <a-popover title="原始数据" trigger="click" placement="left">
               <template #content>
-                <div style="max-width: 400px; max-height: 400px; overflow: auto;">
-                  <pre style="font-size: 11px;">{{ JSON.stringify(record, null, 2) }}</pre>
+                <div style="max-width: 480px; max-height: 400px; overflow: auto;">
+                  <pre style="font-size: 11px; margin: 0;">{{ JSON.stringify(record, null, 2) }}</pre>
                 </div>
               </template>
-              <a-button type="link" size="small">查看JSON</a-button>
+              <a-button type="link" size="small" style="padding: 0;">查看JSON</a-button>
             </a-popover>
           </template>
+
           <template v-else>
             {{ text || '-' }}
           </template>
@@ -124,7 +235,20 @@
 
     <!-- 运行日志 Tab -->
     <div v-if="taskId && activeTab === 'log'">
-      <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 8px; background-color: var(--arl-bg-light);">
+      <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 12px; background-color: var(--arl-bg-light);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: bold; font-size: 13px;">任务执行过程日志</span>
+            <a-tag :color="taskRecord.status === 'running' ? 'processing' : taskRecord.status === 'done' ? 'success' : taskRecord.status === 'error' ? 'error' : 'default'">
+              {{ taskRecord.status === 'running' ? '实时采集监控中...' : taskRecord.status === 'done' ? '测绘已完成' : taskRecord.status === 'error' ? '任务异常终止' : (taskRecord.status || '就绪') }}
+            </a-tag>
+            <span style="color: rgba(255,255,255,0.45); font-size: 12px;" v-if="taskRecord.status === 'running'">(每 3 秒自动轮询增量)</span>
+          </div>
+          <a-button size="small" :loading="logLoading" @click="() => fetchLogs(true)">
+            <template #icon><SyncOutlined :spin="logLoading" /></template>
+            刷新日志
+          </a-button>
+        </div>
         <div ref="terminalContainer" style="background-color: #001529; color: #e6f7ff; font-family: 'Fira Code', Consolas, monospace; padding: 14px; border-radius: 4px; height: 480px; overflow-y: auto; font-size: 12px; line-height: 1.6;">
           <div v-for="(log, idx) in syslogList" :key="idx" style="margin-bottom: 4px; word-break: break-all; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 2px;">
             <span style="opacity: 0.7; margin-right: 8px;">[{{ log.create_time }}]</span>
@@ -148,9 +272,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, nextTick, onUnmounted } from 'vue';
 import { message } from 'ant-design-vue';
-import { SearchOutlined, DownloadOutlined, CloudSyncOutlined, SyncOutlined } from '@ant-design/icons-vue';
+import {
+  SearchOutlined,
+  DownloadOutlined,
+  CloudSyncOutlined,
+  SyncOutlined,
+  ExportOutlined,
+  QrcodeOutlined
+} from '@ant-design/icons-vue';
 import request from '../utils/request';
 import SyncToScopeModal from './SyncToScopeModal.vue';
 
@@ -193,6 +324,10 @@ const queryCounts = reactive({
   kapp: 0,
   trademark: 0,
   invest: 0,
+});
+
+const displayName = computed(() => {
+  return props.enterpriseName || (taskName.value && !taskName.value.includes('TYC_') ? taskName.value : '') || (taskTarget.value && !taskTarget.value.startsWith('TYC_') ? taskTarget.value : '') || taskName.value || '企业资产画像';
 });
 
 const taskTypeLabel = computed(() => {
@@ -271,67 +406,87 @@ const searchFormOp = reactive({});
 const columnConfigs = {
   web: [
     { title: '序号', key: 'index', width: 60 },
-    { title: '域名', dataIndex: 'domain', key: 'domain' },
-    { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName' },
-    { title: '主办单位', dataIndex: 'unitName', key: 'unitName' },
-    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence' },
-    { title: '首页网址', dataIndex: 'homeUrl', key: 'homeUrl' },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 }
+    { title: '域名', dataIndex: 'domain', key: 'domain', width: 160 },
+    { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName', ellipsis: true },
+    { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { title: '单位性质', dataIndex: 'companyType', key: 'companyType', width: 100 },
+    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
+    { title: '首页网址', dataIndex: 'homeUrl', key: 'homeUrl', ellipsis: true },
+    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 130 },
+    { title: '原始数据', key: 'raw', width: 90 }
   ],
   app: [
     { title: '序号', key: 'index', width: 60 },
     { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
-    { title: 'APP名称', dataIndex: 'name', key: 'name' },
-    { title: '分类', dataIndex: 'category', key: 'category' },
+    { title: 'APP名称', dataIndex: 'name', key: 'name', width: 150 },
+    { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
+    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 160 },
+    { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
     { title: '简介', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '当前版本', dataIndex: 'version', key: 'version' },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 }
+    { title: '版本', dataIndex: 'version', key: 'version', width: 90 },
+    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 130 },
+    { title: '原始数据', key: 'raw', width: 90 }
   ],
   mapp: [
     { title: '序号', key: 'index', width: 60 },
     { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
-    { title: '小程序名称', dataIndex: 'name', key: 'name' },
-    { title: '分类', dataIndex: 'category', key: 'category' },
+    { title: '小程序名称', dataIndex: 'name', key: 'name', width: 160 },
+    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
+    { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
     { title: '描述', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 }
+    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 130 },
+    { title: '原始数据', key: 'raw', width: 90 }
   ],
   wechat: [
     { title: '序号', key: 'index', width: 60 },
-    { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
-    { title: '公众号名称', dataIndex: 'name', key: 'name' },
-    { title: '微信号', dataIndex: 'wechatId', key: 'wechatId' },
+    { title: '头像', dataIndex: 'icon', key: 'icon', width: 70 },
+    { title: '公众号名称', dataIndex: 'name', key: 'name', width: 160 },
+    { title: '微信号', dataIndex: 'wechatId', key: 'wechatId', width: 140 },
+    { title: '二维码', key: 'qrcode', width: 100 },
     { title: '功能介绍', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '认证主体', dataIndex: 'unitName', key: 'unitName' }
+    { title: '认证主体', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { title: '原始数据', key: 'raw', width: 90 }
   ],
   weibo: [
     { title: '序号', key: 'index', width: 60 },
-    { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
-    { title: '微博昵称', dataIndex: 'name', key: 'name' },
-    { title: '认证信息', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '粉丝数', dataIndex: 'fans', key: 'fans' }
+    { title: '头像', dataIndex: 'icon', key: 'icon', width: 70 },
+    { title: '微博昵称', dataIndex: 'name', key: 'name', width: 160 },
+    { title: '认证信息/简介', dataIndex: 'brief', key: 'brief', ellipsis: true },
+    { title: '微博主页', key: 'href', width: 160 },
+    { title: '粉丝数', dataIndex: 'fans', key: 'fans', width: 100 },
+    { title: '原始数据', key: 'raw', width: 90 }
   ],
   kapp: [
     { title: '序号', key: 'index', width: 60 },
     { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
-    { title: '快应用名称', dataIndex: 'name', key: 'name' },
-    { title: '分类', dataIndex: 'category', key: 'category' }
+    { title: '快应用名称', dataIndex: 'name', key: 'name', width: 160 },
+    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
+    { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
+    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 130 },
+    { title: '原始数据', key: 'raw', width: 90 }
   ],
   trademark: [
     { title: '序号', key: 'index', width: 60 },
     { title: '商标图', dataIndex: 'icon', key: 'icon', width: 70 },
-    { title: '商标名称', dataIndex: 'name', key: 'name' },
-    { title: '注册号', dataIndex: 'regNo', key: 'regNo' },
-    { title: '国际分类', dataIndex: 'category', key: 'category' },
-    { title: '状态', dataIndex: 'status', key: 'status' },
-    { title: '申请日期', dataIndex: 'appDate', key: 'appDate' }
+    { title: '商标名称', dataIndex: 'name', key: 'name', width: 160 },
+    { title: '注册号', dataIndex: 'regNo', key: 'regNo', width: 140 },
+    { title: '国际分类', dataIndex: 'category', key: 'category', width: 110 },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
+    { title: '申请日期', dataIndex: 'appDate', key: 'appDate', width: 130 },
+    { title: '原始数据', key: 'raw', width: 90 }
   ],
   invest: [
     { title: '序号', key: 'index', width: 60 },
-    { title: '被投资企业', dataIndex: 'name', key: 'name' },
-    { title: '法定代表人', dataIndex: 'legalPerson', key: 'legalPerson' },
-    { title: '投资比例', dataIndex: 'percent', key: 'percent' },
-    { title: '投资数额', dataIndex: 'amount', key: 'amount' },
-    { title: '企业状态', dataIndex: 'status', key: 'status' }
+    { title: '被投资企业', dataIndex: 'name', key: 'name', ellipsis: true },
+    { title: '法定代表人', dataIndex: 'legalPerson', key: 'legalPerson', width: 110 },
+    { title: '投资比例', dataIndex: 'percent', key: 'percent', width: 100 },
+    { title: '投资数额', dataIndex: 'amount', key: 'amount', width: 140 },
+    { title: '企业状态', dataIndex: 'status', key: 'status', width: 100 },
+    { title: '地区', key: 'region', width: 130 },
+    { title: '成立日期', key: 'estiblishTime', width: 120 },
+    { title: '原始数据', key: 'raw', width: 90 }
   ]
 };
 
@@ -341,6 +496,33 @@ const dynamicColumns = computed(() => {
 
 const assetList = ref([]);
 const syslogList = ref([]);
+const terminalContainer = ref(null);
+const logLoading = ref(false);
+let logTimer = null;
+
+const getAssetIcon = (record) => {
+  return record.icon || record.titleImgURL || record.codeImg || record.ico || record.productLogo || record.tmPic || '';
+};
+
+const getAssetHomeUrl = (record) => {
+  if (record.homeUrl) return record.homeUrl;
+  if (record.webSite) {
+    if (Array.isArray(record.webSite) && record.webSite.length > 0) return record.webSite[0];
+    if (typeof record.webSite === 'string') return record.webSite;
+  }
+  return '';
+};
+
+const formatDate = (val) => {
+  if (!val) return '-';
+  if (typeof val === 'number') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  }
+  return String(val);
+};
 
 const fetchTaskDetail = async () => {
   if (!props.taskId) return;
@@ -363,6 +545,10 @@ const fetchTaskDetail = async () => {
       queryCounts.kapp = stats.kapp_cnt || 0;
       queryCounts.trademark = stats.trademark_cnt || 0;
       queryCounts.invest = stats.invest_cnt || 0;
+
+      if (task.status === 'done' || task.status === 'error') {
+        stopLogPolling();
+      }
     }
   } catch (err) {
     console.error('获取任务详情失败', err);
@@ -386,6 +572,9 @@ const fetchAssets = async (page = 1, size = 10) => {
     for (const k in searchForm) {
       if (searchForm[k] !== undefined && searchForm[k] !== '') {
         params[k] = searchForm[k];
+        if (searchFormOp[k]) {
+          params[`${k}_op`] = searchFormOp[k];
+        }
       }
     }
     const res = await request.get('/icp/asset', { params });
@@ -402,25 +591,70 @@ const fetchAssets = async (page = 1, size = 10) => {
   }
 };
 
-const fetchLogs = async () => {
+const fetchLogs = async (isManual = false) => {
   if (!props.taskId) return;
+  if (isManual) logLoading.value = true;
   try {
-    const res = await request.get(`/icp/task/log/${props.taskId}`);
-    if (res.code === 200) {
-      syslogList.value = res.items || [];
+    let items = [];
+    try {
+      const res = await request.get(`/icp/task/log/${props.taskId}`);
+      if (res && res.code === 200 && Array.isArray(res.items)) {
+        items = res.items;
+      }
+    } catch (e) {
+      console.warn('Fallback to /syslog for task logs', e);
+      const res = await request.get('/syslog/', {
+        params: { task_id: props.taskId, size: 500, order: 'create_time' }
+      });
+      if (res && res.code === 200 && Array.isArray(res.items)) {
+        items = res.items;
+      }
+    }
+
+    items.sort((a, b) => (a.create_time || '').localeCompare(b.create_time || ''));
+    syslogList.value = items;
+
+    await nextTick();
+    if (terminalContainer.value) {
+      terminalContainer.value.scrollTop = terminalContainer.value.scrollHeight;
     }
   } catch (err) {
     console.error('获取日志失败', err);
+  } finally {
+    if (isManual) logLoading.value = false;
   }
 };
+
+const startLogPolling = () => {
+  stopLogPolling();
+  if (activeTab.value === 'log' && (taskRecord.value.status === 'running' || taskRecord.value.status === 'waiting')) {
+    logTimer = setInterval(() => {
+      fetchLogs(false);
+      fetchTaskDetail();
+    }, 3000);
+  }
+};
+
+const stopLogPolling = () => {
+  if (logTimer) {
+    clearInterval(logTimer);
+    logTimer = null;
+  }
+};
+
+onUnmounted(() => {
+  stopLogPolling();
+});
 
 const onTabChange = (key) => {
   pagination.current = 1;
   selectedWebRowKeys.value = [];
   selectedWebDomains.value = [];
   if (key === 'log') {
-    fetchLogs();
+    fetchLogs(true);
+    startLogPolling();
   } else {
+    stopLogPolling();
     fetchAssets(1, pagination.pageSize);
   }
 };
@@ -429,6 +663,9 @@ const onSearch = () => fetchAssets(1, pagination.pageSize);
 const resetSearch = () => {
   for (const k in searchForm) {
     searchForm[k] = undefined;
+  }
+  for (const k in searchFormOp) {
+    searchFormOp[k] = undefined;
   }
   onSearch();
 };
@@ -449,7 +686,7 @@ const handleExport = async () => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `${taskTarget.value || 'osint'}_${activeTab.value}.xlsx`);
+    link.setAttribute('download', `${displayName.value || taskTarget.value || 'osint'}_${activeTab.value}.xlsx`);
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -465,8 +702,10 @@ watch(() => props.taskId, (newVal) => {
   if (newVal) {
     fetchTaskDetail();
     if (activeTab.value === 'log') {
-      fetchLogs();
+      fetchLogs(true);
+      startLogPolling();
     } else {
+      stopLogPolling();
       fetchAssets(pagination.current, pagination.pageSize);
     }
   }

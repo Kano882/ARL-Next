@@ -149,6 +149,47 @@ async def run_icp_job(options):
     logger.info(f"ICP query task {task_id} completed.")
 
 
+def _normalize_tyc_asset(item, query_type):
+    """TYC 资产入库前规整核心别名，提升底层统一性"""
+    if not isinstance(item, dict):
+        return item
+    item.pop('_id', None)
+    if query_type == 'web':
+        item['domain'] = item.get('ym') or item.get('domain') or ''
+        item['unitName'] = item.get('companyName') or item.get('unitName') or ''
+        item['serviceLicence'] = item.get('liscense') or item.get('serviceLicence') or ''
+        item['updateRecordTime'] = item.get('examineDate') or item.get('updateRecordTime') or ''
+        item['serviceName'] = item.get('webName') or item.get('serviceName') or ''
+        ws = item.get('webSite')
+        if isinstance(ws, list) and ws:
+            item['homeUrl'] = ws[0]
+        elif isinstance(ws, str):
+            item['homeUrl'] = ws
+    elif query_type == 'app':
+        item['category'] = item.get('classes') or item.get('category') or ''
+    elif query_type == 'mapp':
+        item['serviceLicence'] = item.get('serviceFilingNumber') or item.get('serviceLicence') or ''
+        item['updateRecordTime'] = item.get('examineDate') or item.get('updateRecordTime') or ''
+        if isinstance(item.get('miniProgramIcpRecordDetail'), dict):
+            item['unitName'] = item['miniProgramIcpRecordDetail'].get('icpFilingSubjectInformation', {}).get('organizingName', '')
+    elif query_type == 'wechat':
+        item['name'] = item.get('title') or item.get('name') or ''
+        item['wechatId'] = item.get('publicNum') or item.get('wechatId') or ''
+        item['brief'] = item.get('recommend') or item.get('brief') or ''
+        item['icon'] = item.get('titleImgURL') or item.get('codeImg') or item.get('icon') or ''
+    elif query_type == 'weibo':
+        item['icon'] = item.get('ico') or item.get('icon') or ''
+        item['brief'] = item.get('info') or item.get('brief') or ''
+    elif query_type == 'invest':
+        item['legalPerson'] = item.get('legalPersonName') or item.get('legalPerson') or ''
+        item['status'] = item.get('regStatus') or item.get('status') or ''
+    elif query_type == 'trademark':
+        item['name'] = item.get('tmName') or item.get('name') or ''
+        item['category'] = item.get('intCls') or item.get('category') or ''
+        item['icon'] = item.get('tmPic') or item.get('icon') or ''
+    return item
+
+
 async def run_tyc_job(options):
     task_id = options.get("task_id")
     gid = options.get("gid")
@@ -273,6 +314,7 @@ async def run_tyc_job(options):
                                     dropped_unknown_names.append(cname)
                                     
                             if is_passed:
+                                item = _normalize_tyc_asset(item, 'invest')
                                 await db['icp_asset'].insert_one(item)
                                 next_gids.append(item.get("id"))
                                 passed_count += 1
@@ -301,6 +343,7 @@ async def run_tyc_job(options):
                         for item in web_list:
                             item['task_id'] = task_id
                             item['query_type'] = 'web'
+                            item = _normalize_tyc_asset(item, 'web')
                             await db['icp_asset'].insert_one(item)
                         counts["web"] += len(web_list)
                         total_assets += len(web_list)
@@ -321,6 +364,7 @@ async def run_tyc_job(options):
                         for item in app_list:
                             item['task_id'] = task_id
                             item['query_type'] = 'app'
+                            item = _normalize_tyc_asset(item, 'app')
                             await db['icp_asset'].insert_one(item)
                         counts["app"] += len(app_list)
                         total_assets += len(app_list)
@@ -341,6 +385,7 @@ async def run_tyc_job(options):
                         for item in wechat_list:
                             item['task_id'] = task_id
                             item['query_type'] = 'wechat'
+                            item = _normalize_tyc_asset(item, 'wechat')
                             await db['icp_asset'].insert_one(item)
                         counts["wechat"] += len(wechat_list)
                         total_assets += len(wechat_list)
@@ -361,6 +406,7 @@ async def run_tyc_job(options):
                         for item in weibo_list:
                             item['task_id'] = task_id
                             item['query_type'] = 'weibo'
+                            item = _normalize_tyc_asset(item, 'weibo')
                             await db['icp_asset'].insert_one(item)
                         counts["weibo"] += len(weibo_list)
                         total_assets += len(weibo_list)
@@ -381,6 +427,7 @@ async def run_tyc_job(options):
                         for item in mapp_list:
                             item['task_id'] = task_id
                             item['query_type'] = 'mapp'
+                            item = _normalize_tyc_asset(item, 'mapp')
                             await db['icp_asset'].insert_one(item)
                         counts["mapp"] += len(mapp_list)
                         total_assets += len(mapp_list)

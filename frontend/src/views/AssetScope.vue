@@ -23,22 +23,29 @@
         boxShadow: isSidebarCollapsed ? 'none' : '2px 0 8px rgba(0,0,0,0.03)'
       }"
     >
-      <div style="padding: 16px; border-bottom: 1px solid var(--arl-border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-        <span style="font-weight: 600; font-size: 16px;">集团分组</span>
+      <div class="sidebar-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <ApartmentOutlined style="font-size: 16px; color: var(--arl-theme-color);" />
+          <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">集团分组</span>
+          <span class="sidebar-total-badge">{{ groupList.length }}</span>
+        </div>
         <a-tooltip title="新建集团">
-          <a-button type="link" size="small" @click="openAddEnterpriseGroupModal"><plus-outlined /></a-button>
+          <a-button type="text" size="small" class="sidebar-add-btn" @click="openAddEnterpriseGroupModal">
+            <plus-outlined />
+          </a-button>
         </a-tooltip>
       </div>
-      <div style="padding: 12px; flex-shrink: 0; border-bottom: 1px solid var(--arl-border-color); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03); position: relative; z-index: 2;">
-        <a-input v-model:value="groupSearchKey" placeholder="搜索集团..." allowClear>
-          <template #prefix><search-outlined style="color: #bfbfbf;" /></template>
+      <div class="sidebar-search-container">
+        <a-input v-model:value="groupSearchKey" placeholder="搜索集团..." allowClear size="small">
+          <template #prefix><search-outlined style="color: var(--arl-text-color); opacity: 0.35;" /></template>
         </a-input>
       </div>
-      <div style="flex: 1; min-height: 0; overflow-y: auto;">
+      <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 6px 0;">
         <a-menu
           mode="inline"
           :selectedKeys="[activeGroupId]"
           @click="handleGroupSwitch"
+          class="sidebar-group-menu"
           style="border-right: none;"
         >
           <a-menu-item key="all">
@@ -49,16 +56,16 @@
             <template #icon><inbox-outlined /></template>
             未分组
           </a-menu-item>
-          <a-menu-divider />
+          <a-menu-divider style="margin: 4px 12px;" />
           <a-menu-item v-for="group in filteredGroupList" :key="group._id">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
               <span class="group-name-text" :title="group.name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; margin-right: 8px;">{{ group.name }}</span>
               <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
-                <span style="font-size: 11px; color: var(--arl-text-color); opacity: 0.55; background: var(--arl-bg-light); padding: 0 6px; border-radius: 8px; line-height: 18px;">
+                <span class="sidebar-scope-pill">
                   {{ group.scope_count || 0 }}
                 </span>
                 <a-dropdown :trigger="['click']" :getPopupContainer="getBodyContainer">
-                  <span class="group-action-icon" @click.stop style="cursor: pointer; padding: 2px 4px;"><more-outlined /></span>
+                  <span class="group-action-icon" @click.stop><more-outlined /></span>
                   <template #overlay>
                     <a-menu @click="(e) => handleGroupAction(e, group)">
                       <a-menu-item key="edit">重命名</a-menu-item>
@@ -86,19 +93,19 @@
         top: '50%',
         transform: 'translateY(-50%)',
         left: ((sidebarLeft || 186) + 240) + 'px',
-        width: '12px',
-        height: '40px',
-        background: 'var(--arl-bg-white, #fafafa)',
-        border: '1px solid var(--arl-border-color, #d9d9d9)',
+        width: '14px',
+        height: '44px',
+        background: 'var(--arl-bg-white)',
+        border: '1px solid var(--arl-border-color)',
         borderLeft: 'none',
-        borderRadius: '0 4px 4px 0',
+        borderRadius: '0 6px 6px 0',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
         zIndex: 16,
-        boxShadow: '2px 0 6px rgba(0,0,0,0.06)',
-        transition: 'left 0.2s'
+        boxShadow: '2px 0 8px rgba(0,0,0,0.06)',
+        transition: 'left 0.2s ease, background 0.2s'
       }"
       class="sidebar-collapse-handle"
       title="收起集团分组"
@@ -115,318 +122,350 @@
         top: '80px',
         bottom: '16px',
         left: (sidebarLeft || 186) + 'px',
-        width: '24px',
+        width: '26px',
         background: 'var(--arl-bg-white)',
         borderRight: '1px solid var(--arl-border-color)',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: '8px',
         cursor: 'pointer',
-        transition: 'all 0.2s',
+        transition: 'all 0.2s ease',
         zIndex: 15
       }"
       class="sidebar-expand-handle"
       title="展开集团分组"
     >
-      <right-outlined style="color: var(--arl-text-color); opacity: 0.65;" />
+      <right-outlined style="font-size: 11px; color: var(--arl-text-color); opacity: 0.65;" />
+      <span style="writing-mode: vertical-lr; font-size: 11px; letter-spacing: 2px; color: var(--arl-text-color); opacity: 0.65;">集团</span>
     </div>
 
-    <!-- 右侧主工作区 (标准全局流，与 TaskList 完全一致的表头联动吸附) -->
+    <!-- 右侧主工作区 (现代化一体卡片容器) -->
     <div 
       :style="{
-        marginLeft: isSidebarCollapsed ? '24px' : '240px',
-        transition: 'margin-left 0.25s',
-        padding: '24px',
+        marginLeft: isSidebarCollapsed ? '34px' : '248px',
+        transition: 'margin-left 0.25s ease',
+        padding: '16px 20px',
         minWidth: 0,
         position: 'relative'
       }"
     >
-      <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+      <div class="arl-scope-main-card">
+        <!-- 头部吸附操作区 (含标题、全局搜索与批量操作) -->
+        <div ref="actionBarRef" class="arl-scope-action-bar">
 
-      <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
-        <div style="display: flex; align-items: center; gap: 16px;">
-          <a-breadcrumb v-if="isSidebarCollapsed">
-            <a-breadcrumb-item>资产分组</a-breadcrumb-item>
-            <a-breadcrumb-item>
-              <a-dropdown :getPopupContainer="getBodyContainer">
-                <span style="cursor: pointer; color: var(--arl-theme-color);">
-                  {{ currentGroupName }} <down-outlined style="font-size: 10px;" />
-                </span>
+          <!-- 顶行：标题与快捷操作按钮 -->
+          <div class="scope-header-top">
+            <div class="scope-title-area">
+              <a-breadcrumb v-if="isSidebarCollapsed">
+                <a-breadcrumb-item>资产分组</a-breadcrumb-item>
+                <a-breadcrumb-item>
+                  <a-dropdown :getPopupContainer="getBodyContainer">
+                    <span class="group-switch-trigger">
+                      {{ currentGroupName }} <down-outlined style="font-size: 10px;" />
+                    </span>
+                    <template #overlay>
+                      <a-menu :selectedKeys="[activeGroupId]" @click="handleGroupSwitch">
+                        <a-menu-item key="all">全部资产组</a-menu-item>
+                        <a-menu-item key="unassigned">未分组</a-menu-item>
+                        <a-menu-divider />
+                        <a-menu-item v-for="g in groupList" :key="g._id">{{ g.name }}</a-menu-item>
+                      </a-menu>
+                    </template>
+                  </a-dropdown>
+                </a-breadcrumb-item>
+              </a-breadcrumb>
+              <div v-else class="scope-title-wrap">
+                <span class="scope-title-text">{{ currentGroupName }}</span>
+                <span class="scope-total-tag" v-if="pagination.total !== undefined">共 {{ pagination.total }} 个资产组</span>
+              </div>
+            </div>
+            <div class="scope-header-actions">
+              <a-button @click="reconDrawerVisible = true" class="header-action-btn">
+                <HistoryOutlined /> 测绘任务历史
+              </a-button>
+              <a-button type="primary" @click="openAddModal" class="header-action-btn">
+                <PlusOutlined /> 新建资产分组
+              </a-button>
+            </div>
+          </div>
+
+          <!-- 筛选表单栏 -->
+          <div class="scope-filter-toolbar">
+            <a-form :model="searchForm" layout="inline" class="scope-filter-form" @submit.prevent>
+              <a-form-item label="资产组名称">
+                <a-input v-model:value="searchForm.name" placeholder="输入名称搜索" style="width: 170px;" allowClear @pressEnter="onSearch" />
+              </a-form-item>
+              <a-form-item label="资产范围">
+                <a-input v-model:value="searchForm.scope" placeholder="输入域名/IP搜索" style="width: 175px;" allowClear @pressEnter="onSearch" />
+              </a-form-item>
+              <a-form-item label="资产范围ID">
+                <a-input v-model:value="searchForm._id" placeholder="输入ID搜索" style="width: 170px;" allowClear @pressEnter="onSearch" />
+              </a-form-item>
+              <a-form-item class="filter-actions-item">
+                <a-space size="small">
+                  <a-button type="primary" @click="onSearch">
+                    <SearchOutlined /> 查 询
+                  </a-button>
+                  <a-button @click="resetSearch">
+                    <ReloadOutlined /> 重 置
+                  </a-button>
+                </a-space>
+              </a-form-item>
+            </a-form>
+          </div>
+
+          <!-- 批量操作栏与选中信息条 -->
+          <div class="scope-batch-toolbar">
+            <div class="batch-buttons-group">
+              <a-button :disabled="!hasSelected" @click="openBatchMoveModal">
+                <FolderOpenOutlined /> 批量移动至集团
+              </a-button>
+              <a-button danger :disabled="!hasSelected" @click="handleBatchDelete">
+                <DeleteOutlined /> 批量删除
+              </a-button>
+              <a-dropdown :disabled="!hasSelected" :getPopupContainer="getBodyContainer">
                 <template #overlay>
-                  <a-menu :selectedKeys="[activeGroupId]" @click="handleGroupSwitch">
-                    <a-menu-item key="all">全部资产组</a-menu-item>
-                    <a-menu-item key="unassigned">未分组</a-menu-item>
-                    <a-menu-divider />
-                    <a-menu-item v-for="g in groupList" :key="g._id">{{ g.name }}</a-menu-item>
+                  <a-menu @click="handleBatchExport">
+                    <a-menu-item key="asset_domain">域名批量导出</a-menu-item>
+                    <a-menu-item key="asset_ip">IP 批量导出</a-menu-item>
+                    <a-menu-item key="asset_site">站点批量导出</a-menu-item>
+                    <a-menu-item key="asset_wih">WIH批量导出</a-menu-item>
                   </a-menu>
                 </template>
+                <a-button>
+                  批量导出 <DownOutlined />
+                </a-button>
               </a-dropdown>
-            </a-breadcrumb-item>
-          </a-breadcrumb>
-          <span v-else style="font-size: 18px; font-weight: 600;">{{ currentGroupName }}</span>
-        </div>
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <a-button @click="reconDrawerVisible = true">
-            <ProfileOutlined /> 测绘任务历史
-          </a-button>
-          <a-button type="primary" @click="openAddModal">新建资产分组</a-button>
-        </div>
-      </div>
-
-      <div style="margin-bottom: 16px;">
-        <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
-          <a-form-item label="资产组名称:">
-            <a-input v-model:value="searchForm.name" placeholder="请输入资产组名称" style="width: 220px;" allowClear @pressEnter="onSearch">
-              <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;" /></template>
-            </a-input>
-          </a-form-item>
-          <a-form-item label="资产范围:">
-            <a-input v-model:value="searchForm.scope" placeholder="请输入资产范围" style="width: 220px;" allowClear @pressEnter="onSearch">
-              <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;" /></template>
-            </a-input>
-          </a-form-item>
-          <a-form-item label="资产范围ID:">
-            <a-input v-model:value="searchForm._id" placeholder="请输入资产范围ID" style="width: 220px;" allowClear @pressEnter="onSearch">
-              <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;" /></template>
-            </a-input>
-          </a-form-item>
-        </a-form>
-      </div>
-
-      <div v-if="hasSelected" style="margin-bottom: 16px; padding: 8px 16px; background: #e6f7ff; border: 1px solid #91d5ff; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-        <span>已勾选当前分组下的 <strong style="color: #1890ff;">{{ selectedRowKeys.length }}</strong> 项</span>
-        <a type="link" @click="selectedRowKeys = []">清空选择</a>
-      </div>
-
-      <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-        <a-button @click="resetSearch">清 除</a-button>
-        <a-button :disabled="!hasSelected" @click="openBatchMoveModal">批量移动至集团</a-button>
-        <a-button danger :disabled="!hasSelected" @click="handleBatchDelete">批量删除</a-button>
-        <a-dropdown :disabled="!hasSelected" :getPopupContainer="getBodyContainer">
-          <template #overlay>
-            <a-menu @click="handleBatchExport">
-              <a-menu-item key="asset_domain">域名批量导出</a-menu-item>
-              <a-menu-item key="asset_ip">IP 批量导出</a-menu-item>
-              <a-menu-item key="asset_site">站点批量导出</a-menu-item>
-              <a-menu-item key="asset_wih">WIH批量导出</a-menu-item>
-            </a-menu>
-          </template>
-          <a-button>
-            批量导出 <down-outlined />
-          </a-button>
-        </a-dropdown>
-      </div>
-
-    </div>
-
-    <a-table 
-      :sticky="stickyConfig"
-      :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
-      :loading="loading"
-      :dataSource="dataSource"
-      :columns="columns"
-      :pagination="false"
-      :scroll="{ x: 1340 }"
-      bordered
-      style="margin-bottom: 16px;"
-      size="middle"
-      :rowKey="(record) => record._id"
-    >
-      <template #bodyCell="{ column, record }">
-
-        <template v-if="column.key === 'name'">
-          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
-            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-              <a style="font-weight: 500;" @click="goToDetail(record)">{{ record.name }}</a>
-              <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
             </div>
-            <div v-if="record.enterprise_name" style="display: flex; align-items: center; gap: 4px;">
-              <a-tag color="cyan" size="small" style="font-size: 11px; cursor: pointer; margin-right: 0;" @click.stop="goToOsintDetail(record)">
-                <BankOutlined style="margin-right: 2px;" />{{ record.enterprise_name }}
-              </a-tag>
+
+            <div v-if="hasSelected" class="selection-indicator">
+              <InfoCircleOutlined style="color: var(--arl-theme-color);" />
+              <span>已勾选 <strong>{{ selectedRowKeys.length }}</strong> 项</span>
+              <a-button type="link" size="small" @click="selectedRowKeys = []" style="padding: 0 4px;">清空已选</a-button>
             </div>
           </div>
-        </template>
 
-        <template v-else-if="column.key === 'group_name'">
-          <a-tag v-if="record.group_name" color="blue" style="cursor: pointer;" @click="activeGroupId = record.group_id">
-            {{ record.group_name }}
-          </a-tag>
-          <span v-else style="color: var(--arl-text-color); opacity: 0.45;">-</span>
-        </template>
+        </div>
 
-        <template v-else-if="column.key === 'scope_array'">
-          <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
-            <a-tooltip
-              v-for="(item, idx) in (record._sorted_scopes || record.scope_array || []).slice(0, 5)"
-              :key="idx"
-              placement="topLeft"
-              :getPopupContainer="getBodyContainer"
-            >
-              <template #title>
-                <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
-                  <div><b>目标:</b> {{ item }}</div>
-                  <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
-                  <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
-                    <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
-                    <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
-                    <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
-                    <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
-                      <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
-                        查看企业资产任务详情 &rarr;
-                      </a>
-                    </div>
-                  </template>
-                  <div v-else-if="record.domain_status?.[item]?.sync_time">
-                    <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
-                  </div>
+        <a-table 
+          :sticky="stickyConfig"
+          :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
+          :loading="loading"
+          :dataSource="dataSource"
+          :columns="columns"
+          :pagination="false"
+          :scroll="{ x: 1360 }"
+          bordered
+          class="arl-scope-table"
+          size="middle"
+          :rowKey="(record) => record._id"
+        >
+          <template #bodyCell="{ column, record }">
+
+            <template v-if="column.key === 'name'">
+              <div class="group-name-cell">
+                <div class="group-name-title-row">
+                  <a class="group-name-title" @click="goToDetail(record)">{{ record.name }}</a>
+                  <a-badge v-if="record.has_increment" count="增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
                 </div>
-              </template>
-              <a-tag
-                closable
-                @close="(e) => { e.preventDefault(); handleRemoveSingleScope(record, item); }"
-                :style="getDomainTagStyle(record, item)"
-              >
-                <span v-if="getDomainStatus(record, item) === 'unprobed'" style="color: #faad14; font-weight: bold; margin-right: 2px;">●</span>
-                <span v-else-if="getDomainStatus(record, item) === 'scanning'" style="color: #1890ff; font-weight: bold; margin-right: 2px;">◌</span>
-                <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: #1890ff; margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
-                {{ item }}
-              </a-tag>
-            </a-tooltip>
-            <a-popover v-if="(record.scope_array || []).length > 5" placement="bottomLeft" :getPopupContainer="getBodyContainer">
-              <template #content>
-                <div style="max-width: 440px; max-height: 300px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px;">
-                  <a-tooltip
-                    v-for="(item, idx) in (record._sorted_scopes || record.scope_array || []).slice(5)"
-                    :key="idx"
-                    placement="topLeft"
-                    :getPopupContainer="getBodyContainer"
-                  >
-                    <template #title>
-                      <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
-                        <div><b>目标:</b> {{ item }}</div>
-                        <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
-                        <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
-                          <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
-                          <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
-                          <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
-                          <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
-                            <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
-                              查看企业资产任务详情 &rarr;
-                            </a>
-                          </div>
-                        </template>
-                        <div v-else-if="record.domain_status?.[item]?.sync_time">
-                          <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
-                        </div>
-                      </div>
-                    </template>
-                    <a-tag
-                      closable
-                      @close="(e) => { e.preventDefault(); handleRemoveSingleScope(record, item); }"
-                      :style="getDomainTagStyle(record, item)"
-                    >
-                      <span v-if="getDomainStatus(record, item) === 'unprobed'" style="color: #faad14; font-weight: bold; margin-right: 2px;">●</span>
-                      <span v-else-if="getDomainStatus(record, item) === 'scanning'" style="color: #1890ff; font-weight: bold; margin-right: 2px;">◌</span>
-                      <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: #1890ff; margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
-                      {{ item }}
-                    </a-tag>
-                  </a-tooltip>
+                <div v-if="record.enterprise_name" class="enterprise-tag-row">
+                  <a-tag color="cyan" size="small" class="enterprise-osint-tag" @click.stop="goToOsintDetail(record)">
+                    <BankOutlined style="margin-right: 2px;" />{{ record.enterprise_name }}
+                  </a-tag>
                 </div>
-              </template>
-              <a-tag style="background: var(--arl-bg-white); border-style: dashed; cursor: pointer; margin-right: 0;">
-                +{{ record.scope_array.length - 5 }} 更多
-              </a-tag>
-            </a-popover>
-            <a-tag 
-              style="background: var(--arl-bg-white); border-style: dashed; cursor: pointer; margin-right: 0; color: var(--arl-theme-color);" 
-              @click="openEditGroupModal(record)"
-            >
-              <plus-outlined /> 添加
-            </a-tag>
-          </div>
-        </template>
-
-        <template v-else-if="column.key === 'domain_stat'">
-          <a-tooltip
-            v-if="record.domain_stat && record.domain_stat.total > 0"
-            placement="top"
-          >
-            <template #title>
-              <div style="line-height: 1.8;">
-                <div>总资产范围数: <strong>{{ record.domain_stat.total }}</strong></div>
-                <div v-if="record.domain_stat.scanning > 0">探测中数量: <strong style="color: #1890ff;">{{ record.domain_stat.scanning }}</strong></div>
-                <div>已探测数量: <strong style="color: #52c41a;">{{ record.domain_stat.probed }}</strong> ({{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}%)</div>
-                <div v-if="record.domain_stat.unprobed > 0">待探测数量: <strong style="color: #faad14;">{{ record.domain_stat.unprobed }}</strong></div>
-                <div v-if="record.domain_stat.error > 0">探测异常数量: <strong style="color: #ff4d4f;">{{ record.domain_stat.error }}</strong></div>
               </div>
             </template>
-            <div style="display: flex; gap: 6px; align-items: center; cursor: pointer; flex-wrap: wrap;">
-              <a-badge
-                v-if="record.domain_stat.scanning > 0"
-                :count="record.domain_stat.scanning + ' 探测中'"
-                :number-style="{ backgroundColor: '#1890ff', color: '#fff' }"
-              />
-              <a-badge
-                v-if="record.domain_stat.probed > 0 || (!record.domain_stat.scanning && !record.domain_stat.unprobed)"
-                :count="record.domain_stat.probed + ' 已测'"
-                :number-style="{ backgroundColor: '#52c41a', color: '#fff' }"
-              />
-              <a-badge
-                v-if="record.domain_stat.unprobed > 0"
-                :count="record.domain_stat.unprobed + ' 待测'"
-                :number-style="{ backgroundColor: '#faad14', color: '#fff' }"
-              />
-              <a-badge
-                v-if="record.domain_stat.error > 0"
-                :count="record.domain_stat.error + ' 异常'"
-                :number-style="{ backgroundColor: '#ff4d4f', color: '#fff' }"
-              />
-            </div>
-          </a-tooltip>
-          <span v-else style="color: var(--arl-text-color); opacity: 0.45;">-</span>
-        </template>
 
-        <template v-else-if="column.key === 'scope_id'">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <a style="font-family: monospace; font-size: 13px;" @click="goToDetail(record)">{{ record._id }}</a>
-            <a-tooltip title="复制所有资产范围">
-              <copy-outlined
-                style="cursor: pointer; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;"
-                @click="copyText(record.scope_array ? record.scope_array.join('\n') : '')"
-              />
-            </a-tooltip>
-          </div>
-        </template>
+            <template v-else-if="column.key === 'group_name'">
+              <a-tag v-if="record.group_name" color="blue" class="group-cell-tag" @click="activeGroupId = record.group_id">
+                {{ record.group_name }}
+              </a-tag>
+              <span v-else style="color: var(--arl-text-color); opacity: 0.45;">-</span>
+            </template>
 
-        <template v-else-if="column.key === 'action'">
-          <a-space size="small">
-            <a-button type="link" size="small" style="padding: 0 4px;" @click="openEditGroupModal(record)">编辑</a-button>
-            <a-button v-if="record.has_increment" type="link" size="small" style="padding: 0 4px; color: #52c41a; font-weight: bold;" @click="openSyncIncrement(record)">同步增量</a-button>
-            <a-button v-else-if="record.synced_icp_task_id" type="link" size="small" style="padding: 0 4px;" @click="handleRefreshScopeEnterprise(record)">刷新企业</a-button>
-            <a-button v-else type="link" size="small" style="padding: 0 4px; color: var(--arl-theme-color);" @click="openBindEnterprise(record)">绑定企业</a-button>
-            <a-button type="link" size="small" style="padding: 0 4px;" @click="openAddMonitorModal(record)">资产监控</a-button>
-            <a-button type="link" size="small" style="padding: 0 4px;" @click="openAddSiteMonitorModal(record)">站点监控</a-button>
-            <a-button type="link" size="small" style="padding: 0 4px;" @click="openAddWihMonitorModal(record)">WIH</a-button>
-            <a-button type="link" danger size="small" style="padding: 0 4px;" @click="handleSingleDelete(record)">删除</a-button>
-          </a-space>
-        </template>
+            <template v-else-if="column.key === 'scope_array'">
+              <div class="domain-scope-tags-wrapper">
+                <a-tooltip
+                  v-for="(item, idx) in (record._sorted_scopes || record.scope_array || []).slice(0, 5)"
+                  :key="idx"
+                  placement="topLeft"
+                  :getPopupContainer="getBodyContainer"
+                >
+                  <template #title>
+                    <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
+                      <div><b>目标:</b> {{ item }}</div>
+                      <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
+                      <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
+                        <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
+                        <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
+                        <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
+                        <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
+                          <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
+                            查看企业资产任务详情 &rarr;
+                          </a>
+                        </div>
+                      </template>
+                      <div v-else-if="record.domain_status?.[item]?.sync_time">
+                        <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
+                      </div>
+                    </div>
+                  </template>
+                  <a-tag
+                    closable
+                    class="domain-scope-item-tag"
+                    @close="(e) => { e.preventDefault(); handleRemoveSingleScope(record, item); }"
+                    :style="getDomainTagStyle(record, item)"
+                  >
+                    <span class="domain-status-dot" :class="'status-' + getDomainStatus(record, item)"></span>
+                    <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: var(--arl-theme-color); margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
+                    <span class="domain-name-text">{{ item }}</span>
+                  </a-tag>
+                </a-tooltip>
+                <a-popover v-if="(record.scope_array || []).length > 5" placement="bottomLeft" :getPopupContainer="getBodyContainer">
+                  <template #content>
+                    <div style="max-width: 440px; max-height: 300px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px;">
+                      <a-tooltip
+                        v-for="(item, idx) in (record._sorted_scopes || record.scope_array || []).slice(5)"
+                        :key="idx"
+                        placement="topLeft"
+                        :getPopupContainer="getBodyContainer"
+                      >
+                        <template #title>
+                          <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
+                            <div><b>目标:</b> {{ item }}</div>
+                            <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
+                            <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
+                              <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
+                              <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
+                              <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
+                              <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
+                                <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
+                                  查看企业资产任务详情 &rarr;
+                                </a>
+                              </div>
+                            </template>
+                            <div v-else-if="record.domain_status?.[item]?.sync_time">
+                              <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
+                            </div>
+                          </div>
+                        </template>
+                        <a-tag
+                          closable
+                          class="domain-scope-item-tag"
+                          @close="(e) => { e.preventDefault(); handleRemoveSingleScope(record, item); }"
+                          :style="getDomainTagStyle(record, item)"
+                        >
+                          <span class="domain-status-dot" :class="'status-' + getDomainStatus(record, item)"></span>
+                          <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: var(--arl-theme-color); margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
+                          <span class="domain-name-text">{{ item }}</span>
+                        </a-tag>
+                      </a-tooltip>
+                    </div>
+                  </template>
+                  <a-tag class="domain-scope-more-tag">
+                    +{{ record.scope_array.length - 5 }} 更多
+                  </a-tag>
+                </a-popover>
+                <a-tag 
+                  class="domain-scope-add-tag" 
+                  @click="openEditGroupModal(record)"
+                >
+                  <plus-outlined /> 添加
+                </a-tag>
+              </div>
+            </template>
 
-      </template>
-    </a-table>
+            <template v-else-if="column.key === 'domain_stat'">
+              <a-tooltip
+                v-if="record.domain_stat && record.domain_stat.total > 0"
+                placement="top"
+              >
+                <template #title>
+                  <div style="line-height: 1.8;">
+                    <div>总资产范围数: <strong>{{ record.domain_stat.total }}</strong></div>
+                    <div v-if="record.domain_stat.scanning > 0">探测中数量: <strong style="color: #1890ff;">{{ record.domain_stat.scanning }}</strong></div>
+                    <div>已探测数量: <strong style="color: #52c41a;">{{ record.domain_stat.probed }}</strong> ({{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}%)</div>
+                    <div v-if="record.domain_stat.unprobed > 0">待探测数量: <strong style="color: #faad14;">{{ record.domain_stat.unprobed }}</strong></div>
+                    <div v-if="record.domain_stat.error > 0">探测异常数量: <strong style="color: #ff4d4f;">{{ record.domain_stat.error }}</strong></div>
+                  </div>
+                </template>
+                <div class="stat-badge-group">
+                  <span v-if="record.domain_stat.scanning > 0" class="stat-pill-badge badge-scanning">
+                    {{ record.domain_stat.scanning }} 探测中
+                  </span>
+                  <span v-if="record.domain_stat.probed > 0 || (!record.domain_stat.scanning && !record.domain_stat.unprobed)" class="stat-pill-badge badge-probed">
+                    {{ record.domain_stat.probed }} 已测
+                  </span>
+                  <span v-if="record.domain_stat.unprobed > 0" class="stat-pill-badge badge-unprobed">
+                    {{ record.domain_stat.unprobed }} 待测
+                  </span>
+                  <span v-if="record.domain_stat.error > 0" class="stat-pill-badge badge-error">
+                    {{ record.domain_stat.error }} 异常
+                  </span>
+                </div>
+              </a-tooltip>
+              <span v-else style="color: var(--arl-text-color); opacity: 0.45;">-</span>
+            </template>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
-      <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-      <a-pagination 
-        :pageSizeOptions="$pageSizeOptions" 
-        v-model:current="pagination.current" 
-        v-model:pageSize="pagination.pageSize" 
-        :total="pagination.total" 
-        show-size-changer 
-        @change="handleTableChange" 
-        @showSizeChange="handleTableChange" 
-      />
-    </div>
+            <template v-else-if="column.key === 'scope_id'">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <a class="scope-id-text" @click="goToDetail(record)">{{ record._id }}</a>
+                <a-tooltip title="复制所有资产范围">
+                  <copy-outlined
+                    class="copy-id-icon"
+                    @click="copyText(record.scope_array ? record.scope_array.join('\n') : '')"
+                  />
+                </a-tooltip>
+              </div>
+            </template>
+
+            <template v-else-if="column.key === 'action'">
+              <div class="table-actions-container">
+                <a-button type="link" size="small" class="grid-action-btn" @click="openEditGroupModal(record)">
+                  <EditOutlined />编辑
+                </a-button>
+                <a-button v-if="record.has_increment" type="link" size="small" class="grid-action-btn btn-success" @click="openSyncIncrement(record)">
+                  <SyncOutlined />增量
+                </a-button>
+                <a-button v-else-if="record.synced_icp_task_id" type="link" size="small" class="grid-action-btn btn-theme" @click="handleRefreshScopeEnterprise(record)">
+                  <ReloadOutlined />刷新企业
+                </a-button>
+                <a-button v-else type="link" size="small" class="grid-action-btn btn-theme" @click="openBindEnterprise(record)">
+                  <LinkOutlined />绑定企业
+                </a-button>
+                <a-button type="link" size="small" class="grid-action-btn" @click="openAddMonitorModal(record)">
+                  <DashboardOutlined />资产监控
+                </a-button>
+                <a-button type="link" size="small" class="grid-action-btn" @click="openAddSiteMonitorModal(record)">
+                  <GlobalOutlined />站点监控
+                </a-button>
+                <a-button type="link" size="small" class="grid-action-btn" @click="openAddWihMonitorModal(record)">
+                  <RadarChartOutlined />WIH
+                </a-button>
+                <a-button type="link" danger size="small" class="grid-action-btn btn-danger" @click="handleSingleDelete(record)">
+                  <DeleteOutlined />删除
+                </a-button>
+              </div>
+            </template>
+
+          </template>
+        </a-table>
+
+        <div class="table-pagination-footer">
+          <div class="pagination-summary">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+          <a-pagination 
+            :pageSizeOptions="$pageSizeOptions" 
+            v-model:current="pagination.current" 
+            v-model:pageSize="pagination.pageSize" 
+            :total="pagination.total" 
+            show-size-changer 
+            @change="handleTableChange" 
+            @showSizeChange="handleTableChange" 
+          />
+        </div>
+      </div>
 
     <!-- 新建资产分组弹窗 -->
     <a-modal
@@ -1086,7 +1125,17 @@ import {
   CloudDownloadOutlined,
   ProfileOutlined,
   BankOutlined,
-  SyncOutlined
+  SyncOutlined,
+  ReloadOutlined,
+  FolderOpenOutlined,
+  EditOutlined,
+  LinkOutlined,
+  DashboardOutlined,
+  GlobalOutlined,
+  RadarChartOutlined,
+  HistoryOutlined,
+  ApartmentOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
@@ -1116,17 +1165,16 @@ const hasSelected = computed(() => selectedRowKeys.value.length > 0);
 const onSelectChange = (keys) => { selectedRowKeys.value = keys; };
 
 // 表格列定义
-// 表格列定义
 const columns = computed(() => {
   const baseColumns = [
-    { title: '资产组名称', key: 'name', width: 200, sorter: true },
-    { title: '资产范围', key: 'scope_array', minWidth: 280 },
-    { title: '探测覆盖度', key: 'domain_stat', width: 160 },
-    { title: '资产范围ID', key: 'scope_id', width: 220 },
-    { title: '操作', key: 'action', width: 290, fixed: 'right' }
+    { title: '资产组名称', key: 'name', width: 210, sorter: true },
+    { title: '资产范围', key: 'scope_array', minWidth: 260 },
+    { title: '探测覆盖度', key: 'domain_stat', width: 130 },
+    { title: '资产范围ID', key: 'scope_id', width: 180 },
+    { title: '操作', key: 'action', width: 420, fixed: 'right' }
   ];
   if (activeGroupId.value === 'all') {
-    baseColumns.splice(1, 0, { title: '所属集团', key: 'group_name', width: 150 });
+    baseColumns.splice(1, 0, { title: '所属集团', key: 'group_name', width: 120 });
   }
   return baseColumns;
 });
@@ -1146,35 +1194,10 @@ const getDomainStatusLabel = (record, domain) => {
 };
 
 const getDomainTagStyle = (record, domain) => {
-  const st = getDomainStatus(record, domain);
-  if (st === 'unprobed') {
-    return {
-      background: '#fffbe6',
-      borderColor: '#ffe58f',
-      color: '#d48806',
-      marginRight: '0'
-    };
-  }
-  if (st === 'scanning') {
-    return {
-      background: '#e6f7ff',
-      borderColor: '#91d5ff',
-      color: '#1890ff',
-      marginRight: '0'
-    };
-  }
-  if (st === 'error') {
-    return {
-      background: '#fff1f0',
-      borderColor: '#ffa39e',
-      color: '#cf1322',
-      marginRight: '0'
-    };
-  }
   return {
-    background: 'var(--arl-bg-light)',
-    color: 'var(--arl-text-color)',
-    borderColor: 'var(--arl-border-color)',
+    background: 'var(--arl-bg-light, #f8fafc)',
+    color: 'var(--arl-text-color, #334155)',
+    borderColor: 'var(--arl-border-color, #e2e8f0)',
     marginRight: '0'
   };
 };
@@ -2577,5 +2600,437 @@ onUnmounted(() => {
 }
 .sidebar-expand-handle:hover :deep(.anticon) {
   color: var(--arl-theme-color) !important;
+}
+
+/* 一体化卡片容器 */
+.arl-scope-main-card {
+  background: var(--arl-bg-white, #ffffff);
+  border: 1px solid var(--arl-border-color, #e2e8f0);
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  padding: 20px 24px;
+  position: relative;
+  min-height: calc(100vh - 128px);
+}
+
+/* 顶部吸附操作区 */
+.arl-scope-action-bar {
+  position: sticky;
+  top: 0px;
+  z-index: 10;
+  background-color: var(--arl-bg-white, #ffffff);
+  margin: -20px -24px 16px -24px;
+  padding: 20px 24px 14px 24px;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-bottom: 1px solid var(--arl-border-color, #e2e8f0);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+/* 顶部标题与操作 */
+.scope-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.scope-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.scope-title-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+  letter-spacing: -0.2px;
+}
+.scope-total-tag {
+  font-size: 12px;
+  color: var(--arl-text-color);
+  opacity: 0.55;
+  background: var(--arl-bg-light, #f1f5f9);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.group-switch-trigger {
+  cursor: pointer;
+  color: var(--arl-theme-color);
+  font-weight: 500;
+}
+.scope-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 筛选表单栏 */
+.scope-filter-toolbar {
+  margin-bottom: 14px;
+}
+.scope-filter-form {
+  row-gap: 12px;
+  align-items: center;
+}
+.filter-actions-item {
+  margin-right: 0 !important;
+}
+
+/* 批量操作与选中反馈 */
+.scope-batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.batch-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.selection-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 4px 12px;
+  background: rgba(250, 84, 28, 0.08);
+  border: 1px solid rgba(250, 84, 28, 0.2);
+  border-radius: 6px;
+}
+
+/* 表格主体美化 */
+.arl-scope-table {
+  margin-bottom: 16px;
+}
+:deep(.arl-scope-table .ant-table-thead > tr > th) {
+  font-weight: 600;
+  background: var(--arl-bg-light, #f8fafc) !important;
+  color: var(--arl-text-color);
+  font-size: 13px;
+}
+:deep(.arl-scope-table .ant-table-tbody > tr > td) {
+  padding: 10px 12px !important;
+}
+
+/* 资产组名称单元格 */
+.group-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.group-name-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.group-name-title {
+  font-weight: 600;
+  color: var(--arl-text-color);
+  transition: color 0.2s;
+  font-size: 13px;
+}
+.group-name-title:hover {
+  color: var(--arl-theme-color);
+}
+.enterprise-tag-row {
+  display: flex;
+  align-items: center;
+}
+.enterprise-osint-tag {
+  font-size: 11px !important;
+  line-height: 18px !important;
+  cursor: pointer;
+  margin-right: 0 !important;
+  border-radius: 4px;
+}
+.group-cell-tag {
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-right: 0;
+}
+
+/* 资产范围 Tag 与微圆点 */
+.domain-scope-tags-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.domain-scope-item-tag {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 12px !important;
+  line-height: 20px !important;
+  padding: 1px 7px !important;
+  border-radius: 4px !important;
+  margin: 0 !important;
+  transition: all 0.2s ease;
+}
+.domain-scope-item-tag:hover {
+  border-color: var(--arl-theme-color) !important;
+}
+.domain-name-text {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.domain-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+.domain-status-dot.status-probed {
+  background-color: #52c41a;
+  box-shadow: 0 0 0 1.5px rgba(82, 196, 26, 0.25);
+}
+.domain-status-dot.status-scanning {
+  background-color: #1890ff;
+  box-shadow: 0 0 0 1.5px rgba(24, 144, 255, 0.25);
+  animation: pulse-dot 1.5s infinite ease-in-out;
+}
+.domain-status-dot.status-unprobed {
+  background-color: #faad14;
+  box-shadow: 0 0 0 1.5px rgba(250, 173, 20, 0.25);
+}
+.domain-status-dot.status-error {
+  background-color: #ff4d4f;
+  box-shadow: 0 0 0 1.5px rgba(255, 77, 79, 0.25);
+}
+@keyframes pulse-dot {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.7; }
+}
+.domain-scope-more-tag {
+  background: var(--arl-bg-white) !important;
+  border: 1px dashed var(--arl-border-color) !important;
+  color: var(--arl-text-color) !important;
+  opacity: 0.75;
+  cursor: pointer;
+  margin: 0 !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+}
+.domain-scope-more-tag:hover {
+  border-color: var(--arl-theme-color) !important;
+  color: var(--arl-theme-color) !important;
+  opacity: 1;
+}
+.domain-scope-add-tag {
+  background: var(--arl-bg-white) !important;
+  border: 1px dashed var(--arl-theme-color) !important;
+  color: var(--arl-theme-color) !important;
+  cursor: pointer;
+  margin: 0 !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+}
+.domain-scope-add-tag:hover {
+  background: var(--arl-bg-light) !important;
+}
+
+/* 覆盖度胶囊徽章 */
+.stat-badge-group {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+  cursor: pointer;
+}
+.stat-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.stat-pill-badge.badge-scanning {
+  background: #e6f7ff;
+  color: #096dd9;
+  border: 1px solid #91d5ff;
+}
+.stat-pill-badge.badge-probed {
+  background: #f6ffed;
+  color: #389e0d;
+  border: 1px solid #b7eb8f;
+}
+.stat-pill-badge.badge-unprobed {
+  background: #fffbe6;
+  color: #d48806;
+  border: 1px solid #ffe58f;
+}
+.stat-pill-badge.badge-error {
+  background: #fff2f0;
+  color: #cf1322;
+  border: 1px solid #ffccc7;
+}
+
+/* ID 样式 */
+.scope-id-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: var(--arl-text-color);
+  opacity: 0.85;
+}
+.scope-id-text:hover {
+  color: var(--arl-theme-color);
+}
+.copy-id-icon {
+  cursor: pointer;
+  color: var(--arl-text-color);
+  opacity: 0.4;
+  font-size: 12px;
+  transition: opacity 0.2s;
+}
+.copy-id-icon:hover {
+  opacity: 1;
+  color: var(--arl-theme-color);
+}
+
+/* 操作列平铺紧凑按钮 */
+.table-actions-container {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+:deep(.arl-scope-table .ant-table-cell:last-child) {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+.grid-action-btn {
+  padding: 0 4px !important;
+  height: 24px !important;
+  line-height: 24px !important;
+  font-size: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  white-space: nowrap !important;
+  color: var(--arl-text-color);
+  opacity: 0.85;
+  transition: all 0.2s ease;
+}
+.grid-action-btn:hover {
+  opacity: 1;
+  color: var(--arl-theme-color);
+}
+.grid-action-btn.btn-theme {
+  color: var(--arl-theme-color) !important;
+  opacity: 1;
+}
+.grid-action-btn.btn-success {
+  color: #52c41a !important;
+  font-weight: 500;
+  opacity: 1;
+}
+.grid-action-btn.btn-danger {
+  color: #ff4d4f !important;
+  opacity: 0.85;
+}
+.grid-action-btn.btn-danger:hover {
+  opacity: 1;
+}
+
+/* 分页条 */
+.table-pagination-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px 0 4px;
+}
+.pagination-summary {
+  color: var(--arl-text-color);
+  opacity: 0.65;
+  font-size: 13px;
+}
+
+/* 左侧集团侧边栏样式 */
+.sidebar-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--arl-border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.sidebar-total-badge {
+  font-size: 11px;
+  color: var(--arl-text-color);
+  opacity: 0.55;
+  background: var(--arl-bg-light);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+.sidebar-add-btn {
+  color: var(--arl-text-color);
+  opacity: 0.65;
+  transition: all 0.2s;
+}
+.sidebar-add-btn:hover {
+  opacity: 1;
+  color: var(--arl-theme-color);
+  background: var(--arl-bg-light);
+}
+.sidebar-search-container {
+  padding: 10px 12px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--arl-border-color);
+}
+.sidebar-scope-pill {
+  font-size: 11px;
+  color: var(--arl-text-color);
+  opacity: 0.6;
+  background: var(--arl-bg-light, #f1f5f9);
+  padding: 0 6px;
+  border-radius: 10px;
+  line-height: 18px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.sidebar-group-menu :deep(.ant-menu-item) {
+  margin: 2px 8px !important;
+  width: calc(100% - 16px) !important;
+  border-radius: 6px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  transition: all 0.2s ease !important;
+}
+.sidebar-group-menu :deep(.ant-menu-item-selected) {
+  background-color: rgba(250, 84, 28, 0.08) !important;
+  color: var(--arl-theme-color) !important;
+  font-weight: 600 !important;
+}
+.sidebar-group-menu :deep(.ant-menu-item-selected) .sidebar-scope-pill {
+  background-color: var(--arl-bg-white) !important;
+  color: var(--arl-theme-color) !important;
+  opacity: 0.9;
+}
+.group-action-icon {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0.45;
+  transition: opacity 0.2s;
+}
+.group-action-icon:hover {
+  opacity: 1;
+  color: var(--arl-theme-color);
 }
 </style>
