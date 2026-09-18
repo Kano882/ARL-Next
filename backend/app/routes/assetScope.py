@@ -75,6 +75,53 @@ class ARLAssetScope(ARLResource):
             item["domain_status"] = domain_status
             item["domain_stat"] = domain_stat
 
+        items = data.get("items", [])
+        if items:
+            scope_id_strs = [str(item.get('_id')) for item in items if item.get('_id')]
+            synced_task_ids = []
+            for item in items:
+                stid = item.get('synced_icp_task_id')
+                if stid:
+                    try:
+                        synced_task_ids.append(ObjectId(stid))
+                    except Exception:
+                        pass
+
+            task_query = []
+            if scope_id_strs:
+                task_query.append({"synced_scope_id": {"$in": scope_id_strs}})
+            if synced_task_ids:
+                task_query.append({"_id": {"$in": synced_task_ids}})
+
+            if task_query:
+                try:
+                    tasks = list(utils.conn_db('icp_task').find({"$or": task_query}))
+                    task_by_scope = {}
+                    task_by_id = {}
+                    for t in tasks:
+                        task_by_id[str(t['_id'])] = t
+                        if t.get('synced_scope_id'):
+                            task_by_scope[t.get('synced_scope_id')] = t
+
+                    for item in items:
+                        sid_str = str(item.get('_id'))
+                        t = None
+                        if item.get('synced_icp_task_id') and str(item['synced_icp_task_id']) in task_by_id:
+                            t = task_by_id[str(item['synced_icp_task_id'])]
+                        elif sid_str in task_by_scope:
+                            t = task_by_scope[sid_str]
+
+                        if t:
+                            item['synced_icp_task_id'] = str(t['_id'])
+                            if t.get('task_type') == 'tyc' or str(t.get('target', '')).startswith('TYC_'):
+                                ent_name = t.get('synced_scope_name') or t.get('name', '').replace('企业测绘', '').strip()
+                                item['enterprise_name'] = ent_name or t.get('target')
+                            else:
+                                item['enterprise_name'] = t.get('target') or t.get('name')
+                            item['has_increment'] = t.get('has_increment', False)
+                except Exception as e:
+                    logger.error(f"enrich scope with icp_task failed: {e}")
+
         return data
 
     @auth
@@ -587,3 +634,58 @@ class BatchMoveGroupScope(ARLResource):
             )
             
         return utils.build_ret(ErrorMsg.Success, {"count": len(obj_ids)})
+
+
+# ==========================================
+# 接口模块：绑定资产组至企业测绘任务 (POST /bind_enterprise/)
+# ==========================================
+bind_enterprise_fields = ns.model('BindEnterpriseScope', {
+    'scope_id': fields.String(description="资产组ID", required=True),
+    'task_id': fields.String(description="企业测绘任务ID", required=True)
+})
+
+@ns.route('/bind_enterprise/')
+class BindEnterpriseScope(ARLResource):
+    @auth
+    @ns.expect(bind_enterprise_fields)
+    def post(self):
+        """
+        将资产组绑定至企业测绘任务并双向关联
+        """
+        args = self.parse_args(bind_enterprise_fields)
+        scope_id = args.get('scope_id')
+        task_id = args.get('task_id')
+        try:
+            scope_obj_id = ObjectId(scope_id)
+            task_obj_id = ObjectId(task_id)
+        except Exception:
+            return utils.build_ret("参数错误", {"error": "无效的ID格式"})
+
+        task = utils.conn_db('icp_task').find_one({'_id': task_obj_id})
+        if not task:
+            return utils.build_ret(ErrorMsg.NotFoundTask, {"task_id": task_id})
+
+        scope = utils.conn_db('asset_scope').find_one({'_id': scope_obj_id})
+        if not scope:
+            return utils.build_ret("参数错误", {"error": "资产组不存在"})
+
+        if task.get('task_type') == 'tyc' or str(task.get('target', '')).startswith('TYC_'):
+            ent_name = scope.get('name') or task.get('synced_scope_name') or task.get('name', '').replace('企业测绘', '').strip() or task.get('target')
+        else:
+            ent_name = task.get('target') or task.get('name')
+
+        utils.conn_db('asset_scope').update_one(
+            {'_id': scope_obj_id},
+            {'$set': {
+                'synced_icp_task_id': str(task_obj_id),
+                'enterprise_name': ent_name
+            }}
+        )
+        utils.conn_db('icp_task').update_one(
+            {'_id': task_obj_id},
+            {'$set': {
+                'synced_scope_id': str(scope_obj_id),
+                'synced_scope_name': scope.get('name')
+            }}
+        )
+        return utils.build_ret(ErrorMsg.Success, {"scope_id": scope_id, "task_id": task_id})

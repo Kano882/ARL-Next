@@ -4,14 +4,43 @@
 
     <a-page-header
       @back="() => $router.push('/group')"
-      style="padding: 0 0 24px 0;"
+      style="padding: 0 0 16px 0;"
     >
       <template #title>
-        <span>{{ targetName }}相关资产</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span>{{ targetName }}相关资产</span>
+          <a-tag v-if="scopeEnterpriseName" color="cyan" style="font-weight: normal; font-size: 13px;">
+            <BankOutlined /> {{ scopeEnterpriseName }}
+          </a-tag>
+        </div>
       </template>
     </a-page-header>
 
-        <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" style="margin-bottom: 16px;">
+    <!-- 顶部双视角切换器 -->
+    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--arl-bg-white); padding: 8px 16px; border-radius: 6px; border: 1px solid var(--arl-border-color);">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <a-radio-group v-model:value="currentView" button-style="solid" size="small">
+          <a-radio-button value="asm">
+            <GlobalOutlined style="margin-right: 6px;" />网络暴露面 (ASM)
+          </a-radio-button>
+          <a-radio-button value="osint">
+            <BankOutlined style="margin-right: 6px;" />企业生态资产 (OSINT)
+            <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px', marginLeft: '6px' }" />
+          </a-radio-button>
+        </a-radio-group>
+        <span v-if="scopeEnterpriseName" style="font-size: 13px; color: var(--arl-text-color); opacity: 0.85;">
+          关联企业: <b style="color: var(--arl-theme-color);">{{ scopeEnterpriseName }}</b>
+        </span>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <a-button v-if="!boundIcpTaskId" type="primary" size="small" @click="openBindModal">
+          <LinkOutlined /> 绑定企业主体
+        </a-button>
+      </div>
+    </div>
+
+    <div v-show="currentView === 'asm'">
+      <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" style="margin-bottom: 16px;">
       <a-tab-pane key="site_chain" tab="全链路画像"></a-tab-pane>
       <a-tab-pane key="site" tab="站点"></a-tab-pane>
       <a-tab-pane key="domain" tab="子域名"></a-tab-pane>
@@ -149,7 +178,9 @@
       <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">风险任务下发</a-button>
     </div>
     </div>
+    </div>
 
+    <div v-show="currentView === 'asm'">
     <a-table v-if="activeTab !== 'site_chain'" :sticky="stickyConfig" :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }" :loading="loading" :dataSource="dataSource" :columns="columns" :pagination="false" :scroll="{ x: 'max-content' }" size="middle" :rowKey="(record) => record._id || record.id">
       <template #bodyCell="{ column, record, index }">
 
@@ -1021,6 +1052,28 @@
       <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
       <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" />
     </div>
+  </div>
+
+  <!-- OSINT 企业生态资产视角 -->
+  <div v-show="currentView === 'osint'" style="margin-top: 16px;">
+    <EnterpriseOsintPanel
+      v-if="boundIcpTaskId"
+      :task-id="boundIcpTaskId"
+      :scope-id="scope_id"
+      :enterprise-name="scopeEnterpriseName"
+      @synced="handleOsintSynced"
+    />
+    <div v-else style="background: var(--arl-bg-white); border: 1px dashed var(--arl-border-color); border-radius: 8px; padding: 60px 24px; text-align: center; margin-top: 16px;">
+      <BankOutlined style="font-size: 48px; color: var(--arl-theme-color); opacity: 0.6; margin-bottom: 16px;" />
+      <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">当前资产组尚未关联企业主体</div>
+      <div style="color: var(--arl-text-color); opacity: 0.65; max-width: 480px; margin: 0 auto 24px auto; font-size: 13px;">
+        绑定企业主体后，系统可自动拉取天眼查工商画像、对外投资控股树、工信部ICP备案、移动APP、微信小程序与公众号等全域数字资产。
+      </div>
+      <a-button type="primary" @click="openBindModal">
+        <LinkOutlined /> 立即绑定企业主体并测绘
+      </a-button>
+    </div>
+  </div>
 
     <a-modal v-model:open="addSiteVisible" title="添加站点" @ok="submitAddSite" :confirmLoading="addSiteLoading" width="520px" okText="确 定" cancelText="取 消" destroyOnClose>
       <a-form ref="addSiteFormRef" :model="addSiteForm" :rules="addSiteRules" :label-col="{ span: 4 }" :wrapper-col="{ span: 19 }" style="margin-top: 20px;">
@@ -1070,6 +1123,71 @@
       </a-form>
     </a-modal>
 
+    <!-- 绑定企业主体弹窗 -->
+    <a-modal
+      v-model:open="bindModalVisible"
+      title="绑定企业主体"
+      @ok="handleBindSubmit"
+      :confirmLoading="bindLoading"
+      width="540px"
+      wrapClassName="arl-theme-modal"
+      okText="确 定"
+      cancelText="取 消"
+      destroyOnClose
+    >
+      <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
+        <a-form-item label="绑定方式">
+          <a-radio-group v-model:value="bindMode">
+            <a-radio value="existing">选择已有测绘任务</a-radio>
+            <a-radio value="new">发起新企业测绘</a-radio>
+          </a-radio-group>
+        </a-form-item>
+
+        <template v-if="bindMode === 'existing'">
+          <a-form-item label="企业测绘" required>
+            <a-select
+              v-model:value="selectedBindTaskId"
+              placeholder="请选择已有的企业测绘任务"
+              show-search
+              option-filter-prop="label"
+              :options="completedIcpTasks.map(t => ({
+                value: t._id,
+                label: t.task_type === 'tyc'
+                  ? `${t.name || t.target} [TYC: ${t.gid || (t.target ? t.target.replace(/^TYC_/, '') : '')}]`
+                  : `${t.target || t.name} (ICP)`
+              }))"
+            />
+          </a-form-item>
+        </template>
+
+        <template v-else>
+          <a-form-item label="测绘类型">
+            <a-radio-group v-model:value="newEnterpriseEngine">
+              <a-radio value="tyc">天眼查工商测绘</a-radio>
+              <a-radio value="icp">工信部ICP备案</a-radio>
+            </a-radio-group>
+          </a-form-item>
+
+          <a-form-item
+            v-if="newEnterpriseEngine === 'tyc'"
+            label="公司ID (TYC_id)"
+            required
+            tooltip="可在天眼查详情页URL中获取，例如 https://www.tianyancha.com/company/25174642 中的 25174642"
+          >
+            <a-input v-model:value="newEnterpriseTarget" placeholder="请输入天眼查公司 ID（纯数字/字母，例如：25174642）" />
+          </a-form-item>
+
+          <a-form-item
+            v-else
+            label="企业目标"
+            required
+          >
+            <a-input v-model:value="newEnterpriseTarget" placeholder="输入企业全称或主域名（如：腾讯科技 或 qq.com）" />
+          </a-form-item>
+        </template>
+      </a-form>
+    </a-modal>
+
   </div>
 </template>
 
@@ -1088,6 +1206,7 @@ import * as echarts from 'echarts';
 import dayjs from 'dayjs';
 import CidrDetailModal from '../components/CidrDetailModal.vue';
 import ServiceDetailModal from '../components/ServiceDetailModal.vue';
+import EnterpriseOsintPanel from '../components/EnterpriseOsintPanel.vue';
 import {
   SearchOutlined,
   ExclamationCircleOutlined,
@@ -1101,7 +1220,9 @@ import {
   ClusterOutlined,
   LinkOutlined,
   DownloadOutlined,
-  CloseOutlined
+  CloseOutlined,
+  BankOutlined,
+  SyncOutlined
 } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { createTabStateCache } from '../utils/useTabStateCache';
@@ -1111,6 +1232,132 @@ const router = useRouter();
 // 🚨 修复 1：使用 computed，让路由参数具备真正的响应式
 const scope_id = computed(() => route.query.scope_id || '');
 const targetName = computed(() => route.query.targetName || '未知资产');
+
+// 双视角状态 (ASM vs OSINT)
+const currentView = ref(route.query.view === 'osint' ? 'osint' : 'asm');
+const boundIcpTaskId = ref('');
+const scopeEnterpriseName = ref('');
+const scopeHasIncrement = ref(false);
+
+const bindModalVisible = ref(false);
+const bindLoading = ref(false);
+const bindMode = ref('existing');
+const selectedBindTaskId = ref(undefined);
+const completedIcpTasks = ref([]);
+const newEnterpriseTarget = ref('');
+const newEnterpriseEngine = ref('tyc');
+
+const fetchScopeMeta = async () => {
+  if (!scope_id.value) return;
+  try {
+    const res = await request.get('/asset_scope/', { params: { _id: scope_id.value } });
+    if (res && res.code === 200 && res.items && res.items.length > 0) {
+      const item = res.items[0];
+      boundIcpTaskId.value = item.synced_icp_task_id || '';
+      scopeEnterpriseName.value = item.enterprise_name || '';
+      scopeHasIncrement.value = !!item.has_increment;
+    }
+  } catch (err) {
+    console.error('获取资产组企业元信息失败', err);
+  }
+};
+
+const openBindModal = async () => {
+  bindModalVisible.value = true;
+  selectedBindTaskId.value = undefined;
+  newEnterpriseTarget.value = '';
+  bindMode.value = 'existing';
+  try {
+    const res = await request.get('/icp/task', { params: { size: 100 } });
+    if (res && res.code === 200) {
+      completedIcpTasks.value = res.items || [];
+    }
+  } catch (err) {
+    console.error('获取已完成测绘任务失败', err);
+  }
+};
+
+const handleBindSubmit = async () => {
+  if (bindMode.value === 'existing') {
+    if (!selectedBindTaskId.value) {
+      message.warning('请选择要绑定的测绘任务');
+      return;
+    }
+    bindLoading.value = true;
+    try {
+      const res = await request.post('/asset_scope/bind_enterprise/', {
+        scope_id: scope_id.value,
+        task_id: selectedBindTaskId.value
+      });
+      if (res && res.code === 200) {
+        message.success('绑定企业主体成功');
+        bindModalVisible.value = false;
+        fetchScopeMeta();
+        currentView.value = 'osint';
+      } else {
+        message.error(res.message || '绑定失败');
+      }
+    } catch (err) {
+      message.error('网络请求失败');
+    } finally {
+      bindLoading.value = false;
+    }
+  } else {
+    const targetVal = newEnterpriseTarget.value.trim();
+    if (!targetVal) {
+      message.warning(newEnterpriseEngine.value === 'tyc' ? '请输入天眼查公司 ID (TYC_id)' : '请输入企业全称或主域名');
+      return;
+    }
+    if (newEnterpriseEngine.value === 'tyc' && !/^[a-zA-Z0-9]+$/.test(targetVal)) {
+      message.warning('天眼查公司 ID 格式不正确，请输入纯数字/字母 ID（例如：25174642）');
+      return;
+    }
+    bindLoading.value = true;
+    try {
+      let createRes;
+      if (newEnterpriseEngine.value === 'tyc') {
+        createRes = await request.post('/icp/tyc_task', {
+          name: `${targetName.value}企业测绘`,
+          gid: targetVal,
+          depth: 1,
+          invest_ratio: 50,
+          query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+        });
+      } else {
+        createRes = await request.post('/icp/task', {
+          name: `${targetName.value}ICP查询`,
+          target: targetVal,
+          query_type: ['web', 'app', 'mapp']
+        });
+      }
+
+      if (createRes && createRes.code === 200) {
+        const newTaskId = createRes.data?.task_id || createRes.data?._id || createRes.task_id;
+        if (newTaskId) {
+          await request.post('/asset_scope/bind_enterprise/', {
+            scope_id: scope_id.value,
+            task_id: newTaskId
+          });
+        }
+        message.success('已成功发起企业测绘并绑定');
+        bindModalVisible.value = false;
+        fetchScopeMeta();
+        currentView.value = 'osint';
+      } else {
+        message.error(createRes.message || '创建测绘任务失败');
+      }
+    } catch (err) {
+      message.error('网络请求失败');
+    } finally {
+      bindLoading.value = false;
+    }
+  }
+};
+
+const handleOsintSynced = () => {
+  fetchScopeMeta();
+  if (fetchData) fetchData();
+};
 
 const isScopeSwitching = ref(false);
 const activeTab = ref('site');
@@ -2011,6 +2258,7 @@ watch(activeTab, (newVal, oldVal) => {
 // 🚨 修复 3：监听 scope_id 的变化，无论是初次进入还是组件复用，只要 ID 变了就刷新数据！
 watch(scope_id, (newId) => {
   if (newId) {
+    fetchScopeMeta();
     isScopeSwitching.value = true;
     dataSource.value = [];
     selectedRowKeys.value = [];

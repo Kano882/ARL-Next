@@ -76,9 +76,43 @@
             <a-badge v-if="record.statistic.invest_cnt !== undefined" :count="record.statistic.invest_cnt" title="对外投资" :number-style="{ backgroundColor: '#52c41a' }" />
           </div>
         </template>
+        <template v-else-if="column.key === 'sync_status'">
+          <!-- 1. 无网站资产 -->
+          <span v-if="record.sync_badge_status === 'no_web'" style="color: var(--arl-text-color); opacity: 0.35; font-size: 12px;">
+            无网站资产
+          </span>
+          <!-- 2. 已同步 (可附带有增量标签) -->
+          <div v-else-if="record.synced_scope_id" style="display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+            <a-tag
+              color="blue"
+              style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin-right: 0;"
+              @click="goToScope(record.synced_scope_id)"
+              title="点击前往该资产分组"
+            >
+              <export-outlined />
+              <span>{{ record.synced_scope_name || '已同步' }}</span>
+            </a-tag>
+            <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+          </div>
+          <!-- 3. 未同步 -->
+          <span v-else style="color: #faad14; font-size: 12px; font-weight: 500;">
+            ● 未同步
+          </span>
+        </template>
         <template v-else-if="column.key === 'action'">
           <a-space size="small">
-            <a-button type="link" size="small" @click="handleSync(record)" :disabled="record.status !== 'done' && record.status !== 'stop'">同步</a-button>
+            <a-tooltip v-if="record.sync_badge_status === 'no_web'" title="当前任务无网站资产可同步">
+              <a-button type="link" size="small" disabled>同步</a-button>
+            </a-tooltip>
+            <a-button
+              v-else
+              type="link"
+              size="small"
+              @click="handleSync(record)"
+              :disabled="record.status !== 'done' && record.status !== 'stop'"
+            >
+              {{ record.synced_scope_id ? (record.has_increment ? '同步增量' : '再次同步') : '同步' }}
+            </a-button>
             <a-button type="link" size="small" @click="handleExport(record)">导出</a-button>
             <a-button type="link" size="small" @click="handleStop(record)" :disabled="record.status === 'done' || record.status === 'stop' || record.status === 'error'">停止</a-button>
             <a-button type="link" size="small" @click="handleRestart(record)" :disabled="record.status === 'running' || record.status === 'waiting'">重启</a-button>
@@ -175,8 +209,16 @@
         <a-input v-model:value="tycFormState.name" placeholder="请输入任务名称" />
       </a-form-item>
 
-      <a-form-item label="公司 ID" name="gid" :rules="[{ required: true, message: '请输入天眼查公司 ID' }]">
-        <a-input v-model:value="tycFormState.gid" placeholder="例如：25174642" />
+      <a-form-item
+        label="公司 ID"
+        name="gid"
+        :rules="[
+          { required: true, message: '请输入天眼查公司 ID' },
+          { pattern: /^[a-zA-Z0-9]+$/, message: '公司 ID 格式不正确，请输入纯数字/字母 ID' }
+        ]"
+        tooltip="可在天眼查详情页URL中获取，例如 https://www.tianyancha.com/company/25174642 中的 25174642"
+      >
+        <a-input v-model:value="tycFormState.gid" placeholder="请输入天眼查公司 ID（纯数字/字母，例如：25174642）" />
       </a-form-item>
 
       <a-form-item label="查询层数" name="depth" tooltip="1 表示查询当前目标企业自身资产，2 表示穿透其对外投资子公司，以此类推">
@@ -201,97 +243,11 @@
     </a-form>
   </a-modal>
 
-  <a-modal
-      v-model:open="syncModalVisible"
-      title="同步资产至资产分组"
-      @ok="submitSync"
-      wrapClassName="arl-theme-modal"
-      okText="同 步"
-      cancelText="取 消"
-      width="580px"
-      :confirmLoading="syncLoading"
-      :okButtonProps="{ disabled: modalDataLoading || syncLoading }"
-  >
-    <a-spin :spinning="modalDataLoading" tip="正在加载资产组及预检数据...">
-      <a-form :label-col="{ style: { width: '100px' } }" :wrapper-col="{ style: { width: 'calc(100% - 100px)' } }">
-        <a-form-item label="同步方式">
-          <a-radio-group v-model:value="syncFormState.mode" @change="onSyncScopeChange">
-            <a-radio value="existing">关联已有资产组</a-radio>
-            <a-radio value="new">新建资产组</a-radio>
-          </a-radio-group>
-        </a-form-item>
-
-        <a-form-item v-if="syncFormState.mode === 'existing'" label="选择资产组" :rules="[{ required: true, message: '请选择资产组' }]">
-          <a-select
-            v-model:value="syncFormState.scope_id"
-            placeholder="请选择资产组"
-            show-search
-            option-filter-prop="label"
-            @change="onSyncScopeChange"
-          >
-            <a-select-option v-for="scope in assetScopes" :key="scope._id" :value="scope._id" :label="scope.name">
-              {{ scope.name }}
-            </a-select-option>
-          </a-select>
-        </a-form-item>
-
-        <a-form-item v-if="syncFormState.mode === 'new'" label="资产组名称" :rules="[{ required: true, message: '请输入资产组名称' }]">
-          <a-input v-model:value="syncFormState.target_name" placeholder="请输入资产组名称" @input="onSyncScopeChange" />
-        </a-form-item>
-
-        <!-- 增量预检提示 -->
-        <a-alert
-          v-if="syncDiffInfo.show"
-          style="margin-bottom: 16px; margin-left: 20px; margin-right: 20px;"
-          type="info"
-          show-icon
-        >
-          <template #message>
-            <div style="font-size: 13px;">
-              本次任务共包含 <b>{{ syncDiffInfo.totalCount }}</b> 个网站域名：
-              <span style="color: #1890ff; font-weight: bold;">{{ syncDiffInfo.newCount }} 个全新域名</span>，
-              <span style="color: #8c8c8c;">{{ syncDiffInfo.duplicateCount }} 个已存在</span>。
-            </div>
-          </template>
-        </a-alert>
-
-        <a-divider style="margin: 12px 0 16px 0;" dashed />
-
-        <a-form-item label="任务下发">
-          <a-checkbox v-model:checked="syncFormState.auto_scan">
-            立即对新发现域名发起探测任务
-          </a-checkbox>
-        </a-form-item>
-
-        <template v-if="syncFormState.auto_scan">
-          <a-form-item label="任务类型">
-            <a-radio-group v-model:value="syncFormState.task_type">
-              <a-radio value="oneshot">一次性扫描 (立刻深度探测并入库)</a-radio>
-              <a-radio value="periodic">周期性监控 (定时自动化巡航)</a-radio>
-            </a-radio-group>
-          </a-form-item>
-
-          <a-form-item label="扫描策略" :rules="[{ required: true, message: '请选择扫描策略' }]">
-            <a-select
-              v-model:value="syncFormState.policy_id"
-              placeholder="请选择扫描策略"
-              :options="policyList.map(p => ({ value: p._id, label: p.name }))"
-            />
-          </a-form-item>
-
-          <a-form-item v-if="syncFormState.task_type === 'periodic'" label="运行间隔">
-            <a-input-number
-              v-model:value="syncFormState.interval_hours"
-              :min="6"
-              :max="720"
-              style="width: 160px;"
-              addon-after="小时"
-            />
-          </a-form-item>
-        </template>
-      </a-form>
-    </a-spin>
-  </a-modal>
+  <SyncToScopeModal
+    v-model:open="syncModalVisible"
+    :task="currentSyncTask"
+    @success="handleSyncSuccess"
+  />
 </template>
 
 <script setup>
@@ -305,7 +261,8 @@ const { stickyConfig } = useSticky(actionBarRef);
 
 import { message, Modal } from 'ant-design-vue';
 import { useRouter } from 'vue-router';
-import { SearchOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, ExportOutlined } from '@ant-design/icons-vue';
+import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 import request from '../utils/request';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 
@@ -329,28 +286,26 @@ const onSelectChange = (keys) => {
 };
 
 const syncModalVisible = ref(false);
-const syncLoading = ref(false);
-const modalDataLoading = ref(false);
 const currentSyncTask = ref(null);
-const assetScopes = ref([]);
-const policyList = ref([]);
-const currentTaskWebDomains = ref([]);
-const syncDiffInfo = reactive({
-  show: false,
-  totalCount: 0,
-  newCount: 0,
-  duplicateCount: 0
-});
 
-const syncFormState = reactive({
-  mode: 'existing',
-  scope_id: undefined,
-  target_name: '',
-  auto_scan: false,
-  task_type: 'oneshot',
-  policy_id: undefined,
-  interval_hours: 24
-});
+const handleSync = (record) => {
+  currentSyncTask.value = record;
+  syncModalVisible.value = true;
+};
+
+const handleSyncSuccess = (result) => {
+  if (currentSyncTask.value) {
+    currentSyncTask.value.synced_scope_id = result.scope_id;
+    currentSyncTask.value.synced_scope_name = result.target_name;
+  }
+  fetchTasks(pagination.current, pagination.pageSize, true);
+};
+
+const goToScope = (scopeId) => {
+  if (scopeId) {
+    router.push({ path: '/group', query: { scope_id: scopeId } });
+  }
+};
 
 const rangePresets = ref([
   { label: '今天', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
@@ -376,6 +331,7 @@ const columns = [
   { title: '查询类型', dataIndex: 'query_type', key: 'query_type', width: 180 },
   { title: '资产数量', dataIndex: 'statistic', key: 'statistic', width: 100 },
   { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
+  { title: '同步分组', key: 'sync_status', width: 150 },
   { title: '开始时间', dataIndex: 'start_time', key: 'start_time', width: 160 },
   { title: '结束时间', dataIndex: 'end_time', key: 'end_time', width: 160 },
   { title: '任务 ID', dataIndex: '_id', key: '_id', width: 220 },
@@ -631,148 +587,6 @@ const handleBatchExport = async () => {
   }
 };
 
-const onSyncScopeChange = () => {
-  if (!currentTaskWebDomains.value || currentTaskWebDomains.value.length === 0) {
-    syncDiffInfo.show = false;
-    return;
-  }
-
-  const total = currentTaskWebDomains.value.length;
-  if (syncFormState.mode === 'existing') {
-    if (!syncFormState.scope_id) {
-      syncDiffInfo.show = false;
-      return;
-    }
-    const targetScope = assetScopes.value.find(s => s._id === syncFormState.scope_id);
-    const scopeDomainArray = (targetScope?.domain_array || targetScope?.scope_array || []).map(d => d.toLowerCase().trim());
-    const duplicates = currentTaskWebDomains.value.filter(d => scopeDomainArray.includes(d.toLowerCase().trim()));
-    const newDomains = currentTaskWebDomains.value.filter(d => !scopeDomainArray.includes(d.toLowerCase().trim()));
-
-    syncDiffInfo.show = true;
-    syncDiffInfo.totalCount = total;
-    syncDiffInfo.duplicateCount = duplicates.length;
-    syncDiffInfo.newCount = newDomains.length;
-  } else {
-    // 新建模式：若同名则比对，若不同名则全是新增
-    const targetScope = assetScopes.value.find(s => s.name === syncFormState.target_name?.trim());
-    if (targetScope) {
-      const scopeDomainArray = (targetScope.domain_array || targetScope.scope_array || []).map(d => d.toLowerCase().trim());
-      const duplicates = currentTaskWebDomains.value.filter(d => scopeDomainArray.includes(d.toLowerCase().trim()));
-      const newDomains = currentTaskWebDomains.value.filter(d => !scopeDomainArray.includes(d.toLowerCase().trim()));
-      syncDiffInfo.show = true;
-      syncDiffInfo.totalCount = total;
-      syncDiffInfo.duplicateCount = duplicates.length;
-      syncDiffInfo.newCount = newDomains.length;
-    } else {
-      syncDiffInfo.show = true;
-      syncDiffInfo.totalCount = total;
-      syncDiffInfo.duplicateCount = 0;
-      syncDiffInfo.newCount = total;
-    }
-  }
-};
-
-const handleSync = async (record) => {
-  currentSyncTask.value = record;
-  syncFormState.mode = 'existing';
-  syncFormState.scope_id = undefined;
-  syncFormState.target_name = record.name;
-  syncFormState.auto_scan = false;
-  syncFormState.task_type = 'oneshot';
-  syncFormState.interval_hours = 24;
-  syncDiffInfo.show = false;
-  currentTaskWebDomains.value = [];
-
-  // 第一时间展示弹窗，消除用户点击延迟感
-  syncModalVisible.value = true;
-  modalDataLoading.value = true;
-
-  try {
-    const [scopeRes, policyRes, assetRes] = await Promise.all([
-      request.get('/asset_scope/', { params: { size: 1000 } }),
-      policyList.value.length === 0 ? request.get('/policy/', { params: { size: 1000 } }) : Promise.resolve({ code: 200, items: policyList.value }),
-      request.get('/icp/asset', { params: { task_id: record._id, query_type: 'web', size: 10000 } })
-    ]);
-
-    if (scopeRes.code === 200) {
-      assetScopes.value = scopeRes.items || scopeRes.data?.items || [];
-    }
-    if (policyRes.code === 200 && policyRes.items) {
-      policyList.value = policyRes.items || [];
-      if (!syncFormState.policy_id && policyList.value.length > 0) {
-        syncFormState.policy_id = policyList.value[0]._id;
-      }
-    }
-    if (assetRes.code === 200) {
-      const items = assetRes.items || assetRes.data?.items || [];
-      const domains = new Set();
-      items.forEach(item => {
-        const d = item.domain || item.ym;
-        if (d && typeof d === 'string') {
-          domains.add(d.trim());
-        }
-      });
-      currentTaskWebDomains.value = Array.from(domains);
-    }
-    // 异步加载完成后计算增量比对数据
-    onSyncScopeChange();
-  } catch (error) {
-    console.error('获取同步预检数据失败', error);
-  } finally {
-    modalDataLoading.value = false;
-  }
-};
-
-const submitSync = async () => {
-  if (syncFormState.mode === 'existing' && !syncFormState.scope_id) {
-    message.error('请选择关联的资产组');
-    return;
-  }
-  if (syncFormState.mode === 'new' && !syncFormState.target_name) {
-    message.error('请输入资产组名称');
-    return;
-  }
-  if (syncFormState.auto_scan && !syncFormState.policy_id) {
-    message.error('请选择扫描策略');
-    return;
-  }
-
-  try {
-    syncLoading.value = true;
-    const payload = {
-      mode: syncFormState.mode,
-      target_name: syncFormState.target_name,
-      scope_id: syncFormState.scope_id,
-      auto_scan: syncFormState.auto_scan,
-      task_type: syncFormState.task_type,
-      policy_id: syncFormState.policy_id,
-      interval_hours: syncFormState.interval_hours
-    };
-    const res = await request.post(`/icp/sync/${currentSyncTask.value._id}`, payload);
-    if (res.code === 200) {
-      const data = res.data || res;
-      const insertCount = data.insert_count || 0;
-      const duplicateCount = data.duplicate_count || 0;
-      const targetName = data.target_name || payload.target_name;
-      const taskTriggeredCount = data.task_triggered_count || 0;
-      
-      let successMsg = `同步成功，同步新增域名 ${insertCount} 条、重复 ${duplicateCount} 条`;
-      if (taskTriggeredCount > 0) {
-        successMsg += `，已成功下发 ${taskTriggeredCount} 个资产探测任务！`;
-      }
-      
-      message.success({ content: successMsg, key: 'syncIcp', duration: 4 });
-      syncModalVisible.value = false;
-    } else {
-      message.error({ content: res.message || '同步失败', key: 'syncIcp', duration: 2 });
-    }
-  } catch (error) {
-    console.error('同步失败', error);
-    message.error({ content: '网络错误，同步失败', key: 'syncIcp', duration: 2 });
-  } finally {
-    syncLoading.value = false;
-  }
-};
 
 const handleBatchDelete = async () => {
   if (!selectedRowKeys.value.length) return;

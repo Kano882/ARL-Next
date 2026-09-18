@@ -51,6 +51,65 @@ class IcpTask(ARLResource):
         """
         args = self.parser.parse_args()
         data = self.build_data(args=args, collection='icp_task')
+        items = data.get('items', [])
+        if items:
+            scope_col = conn_db('asset_scope')
+            scope_names = [t.get('synced_scope_name') or t.get('name') for t in items if t.get('name')]
+            scope_ids = []
+            for t in items:
+                sid = t.get('synced_scope_id')
+                if sid:
+                    try:
+                        scope_ids.append(bson.ObjectId(sid))
+                    except Exception:
+                        pass
+
+            query_or = []
+            if scope_ids:
+                query_or.append({"_id": {"$in": scope_ids}})
+            if scope_names:
+                query_or.append({"name": {"$in": scope_names}})
+
+            matched_scopes = []
+            if query_or:
+                matched_scopes = list(scope_col.find(
+                    {"$or": query_or},
+                    {"_id": 1, "name": 1, "group_name": 1, "domain_array": 1, "scope_array": 1}
+                ))
+
+            scope_by_id = {str(s["_id"]): s for s in matched_scopes}
+            scope_by_name = {s["name"]: s for s in matched_scopes}
+
+            for item in items:
+                stat = item.get('statistic') or {}
+                web_cnt = stat.get('web_cnt', 0)
+
+                # 1. 检查是否完全无网站资产
+                if web_cnt == 0:
+                    item['sync_badge_status'] = 'no_web'
+                    item['has_increment'] = False
+                    continue
+
+                # 2. 匹配对应资产组（优先按已存储的 synced_scope_id，次选按同名匹配兜底自愈）
+                scope = None
+                if item.get('synced_scope_id'):
+                    scope = scope_by_id.get(str(item['synced_scope_id']))
+                if not scope and item.get('name'):
+                    scope = scope_by_name.get(item['name'])
+                    if scope:
+                        # 动态装配返回字段，即刻展示关联状态
+                        item['synced_scope_id'] = str(scope['_id'])
+                        item['synced_scope_name'] = scope.get('name', '')
+                        item['synced_group_name'] = scope.get('group_name', '')
+
+                if scope:
+                    item['sync_badge_status'] = 'synced'
+                    scope_domains = set((scope.get('domain_array') or scope.get('scope_array') or []))
+                    item['has_increment'] = bool(web_cnt > len(scope_domains))
+                else:
+                    item['sync_badge_status'] = 'unsynced'
+                    item['has_increment'] = False
+
         return data
 
     @auth
@@ -549,6 +608,8 @@ class IcpTaskSync(ARLResource):
             mode = args.get('mode', 'new') # 'new' or 'existing'
             target_name = args.get('target_name', '').strip()
             scope_id = args.get('scope_id')
+            group_id = args.get('group_id', '').strip()
+            selected_domains = args.get('selected_domains')
             auto_scan = args.get('auto_scan', False)
             task_type = args.get('task_type', 'oneshot')
             policy_id = args.get('policy_id', '')
@@ -558,6 +619,20 @@ class IcpTaskSync(ARLResource):
             if not task:
                 return build_ret(ErrorMsg.NotFoundTask, {"task_id": task_id})
 
+            task_name = task.get('name', 'ICP查询任务')
+
+            # 校验所属集团
+            group_name = ""
+            if group_id:
+                try:
+                    group = conn_db('asset_group').find_one({"_id": bson.ObjectId(group_id)})
+                    if group:
+                        group_name = group.get('name', '')
+                    else:
+                        group_id = ""
+                except Exception:
+                    group_id = ""
+
             # 查出当前任务下所有 web 查询的资产 (只取网站)
             assets = list(conn_db('icp_asset').find({"task_id": task_id, "query_type": "web"}))
             domains = set()
@@ -566,11 +641,28 @@ class IcpTaskSync(ARLResource):
                 if d and isinstance(d, str):
                     domains.add(d.strip())
 
+            # 若前端指定了勾选的特定域名列表，则精准过滤
+            if isinstance(selected_domains, list) and len(selected_domains) > 0:
+                selected_set = {str(d).strip().lower() for d in selected_domains if str(d).strip()}
+                domains = {d for d in domains if d.lower() in selected_set}
+
             if not domains:
-                return build_ret(ErrorMsg.Error, {"error": "未发现网站资产，无法同步"})
+                return build_ret(ErrorMsg.Error, {"error": "未发现匹配的网站资产，无法同步"})
 
             final_scope_id = None
             task_triggered_count = 0
+
+            # 封装生成 domain_status 的元数据辅助函数
+            def build_domain_meta(existing_meta=None):
+                meta = existing_meta if isinstance(existing_meta, dict) else {}
+                meta.update({
+                    "status": meta.get("status", "unprobed"),
+                    "sync_source": "icp",
+                    "task_id": str(task["_id"]),
+                    "task_name": task_name,
+                    "sync_time": curr_date()
+                })
+                return meta
 
             if mode == 'existing' and scope_id:
                 # 关联已有资产
@@ -597,28 +689,31 @@ class IcpTaskSync(ARLResource):
                 if not isinstance(domain_status, dict):
                     domain_status = {}
 
-                for d in new_additions:
-                    if d not in domain_status:
-                        domain_status[d] = {
-                            "status": "unprobed",
-                            "sync_source": "icp",
-                            "sync_time": curr_date()
-                        }
+                for d in domains:
+                    domain_status[d] = build_domain_meta(domain_status.get(d))
+
+                update_fields = {
+                    "scope_array": new_array,
+                    "scope": ",".join(new_array),
+                    "domain_array": new_domain_array,
+                    "domain_status": domain_status
+                }
+                # 若已有资产组未分配集团，且同步时指定了集团，则补充绑定
+                if group_id and not scope.get('group_id'):
+                    update_fields["group_id"] = group_id
+                    update_fields["group_name"] = group_name
 
                 conn_db('asset_scope').update_one(
                     {"_id": scope["_id"]},
-                    {"$set": {
-                        "scope_array": new_array,
-                        "scope": ",".join(new_array),
-                        "domain_array": new_domain_array,
-                        "domain_status": domain_status
-                    }}
+                    {"$set": update_fields}
                 )
                 target_name = scope.get('name')
+                if not group_name:
+                    group_name = scope.get('group_name', '')
             else:
                 # 新建资产组
                 if not target_name:
-                    target_name = task.get('name', '未知任务')
+                    target_name = task_name
 
                 # 检查是否同名，不再限制 scope_type
                 scope = conn_db('asset_scope').find_one({"name": target_name})
@@ -642,23 +737,25 @@ class IcpTaskSync(ARLResource):
                     if not isinstance(domain_status, dict):
                         domain_status = {}
 
-                    for d in new_additions:
-                        if d not in domain_status:
-                            domain_status[d] = {
-                                "status": "unprobed",
-                                "sync_source": "icp",
-                                "sync_time": curr_date()
-                            }
+                    for d in domains:
+                        domain_status[d] = build_domain_meta(domain_status.get(d))
+
+                    update_fields = {
+                        "scope_array": new_array,
+                        "scope": ",".join(new_array),
+                        "domain_array": new_domain_array,
+                        "domain_status": domain_status
+                    }
+                    if group_id and not scope.get('group_id'):
+                        update_fields["group_id"] = group_id
+                        update_fields["group_name"] = group_name
 
                     conn_db('asset_scope').update_one(
                         {"_id": scope["_id"]},
-                        {"$set": {
-                            "scope_array": new_array,
-                            "scope": ",".join(new_array),
-                            "domain_array": new_domain_array,
-                            "domain_status": domain_status
-                        }}
+                        {"$set": update_fields}
                     )
+                    if not group_name:
+                        group_name = scope.get('group_name', '')
                 else:
                     new_array = list(domains)
                     new_additions = set(domains)
@@ -667,14 +764,12 @@ class IcpTaskSync(ARLResource):
                     
                     domain_status = {}
                     for d in domains:
-                        domain_status[d] = {
-                            "status": "unprobed",
-                            "sync_source": "icp",
-                            "sync_time": curr_date()
-                        }
+                        domain_status[d] = build_domain_meta()
 
                     scope_data = {
                         "name": target_name,
+                        "group_id": group_id,
+                        "group_name": group_name,
                         "scope_type": "mixed",
                         "scope": ",".join(new_array),
                         "scope_array": new_array,
@@ -684,6 +779,17 @@ class IcpTaskSync(ARLResource):
                     }
                     insert_res = conn_db('asset_scope').insert_one(scope_data)
                     final_scope_id = str(insert_res.inserted_id)
+
+            # 回写 icp_task 最近同步状态
+            conn_db('icp_task').update_one(
+                {"_id": task["_id"]},
+                {"$set": {
+                    "synced_scope_id": final_scope_id,
+                    "synced_scope_name": target_name,
+                    "synced_group_name": group_name,
+                    "synced_at": curr_date()
+                }}
+            )
 
             # 如果用户勾选了自动下发任务且存在新增域名
             if auto_scan and policy_id and new_additions and final_scope_id:
@@ -706,6 +812,8 @@ class IcpTaskSync(ARLResource):
                 "new_domains": list(new_additions),
                 "target_name": target_name,
                 "scope_id": final_scope_id,
+                "group_id": group_id,
+                "group_name": group_name,
                 "mode": mode
             })
         except Exception as e:

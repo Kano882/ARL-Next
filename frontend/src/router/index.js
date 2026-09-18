@@ -128,8 +128,9 @@ const routes = [
             {
                 path: '/assetRecon',
                 name: 'AssetRecon',
-                component: () => import('../views/AssetRecon.vue'),
-                meta: { title: '企业资产查询' }
+                redirect: to => {
+                    return { path: '/group', query: { drawer: 'reconHistory', ...to.query } };
+                }
             },
             {
                 path: '/assetRecon/assetDetail',

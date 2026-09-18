@@ -26,7 +26,7 @@ def create_index():
         "service": "task_id",
         "url": "task_id",
         "task": ["status", "start_time"],
-        "icp_task": ["status", "start_time", "end_time"],
+        "icp_task": ["status", "start_time", "end_time", "synced_scope_id"],
         "vuln": ["task_id", "save_date"],
         "nuclei_result": ["task_id", "vuln_severity", "save_date"],
         "asset_ip": "scope_id",
@@ -930,6 +930,65 @@ def heal_polluted_site_fingers():
     t.start()
 
 
+def backfill_icp_task_synced_scopes():
+    """
+    自动对齐并自愈历史存量已同步 ICP 任务：
+    若历史任务存在同名 asset_scope，自动补齐 synced_scope_id 与 synced_scope_name，
+    并补全 asset_scope.domain_status 中对应域名的 task_id 与 task_name 溯源信息。
+    """
+    try:
+        icp_task_col = conn_db('icp_task')
+        scope_col = conn_db('asset_scope')
+
+        tasks = list(icp_task_col.find({
+            "$or": [
+                {"synced_scope_id": {"$in": [None, ""]}},
+                {"synced_scope_id": {"$exists": False}}
+            ]
+        }))
+        if not tasks:
+            return
+
+        scopes = list(scope_col.find({}, {"_id": 1, "name": 1, "group_name": 1, "domain_status": 1}))
+        scope_by_name = {s["name"].strip(): s for s in scopes if s.get("name")}
+
+        for task in tasks:
+            task_name = (task.get("name") or "").strip()
+            matched_scope = scope_by_name.get(task_name)
+            if matched_scope:
+                scope_id_str = str(matched_scope["_id"])
+                scope_name = matched_scope.get("name", "")
+                group_name = matched_scope.get("group_name", "")
+
+                # 回写 icp_task 关联
+                icp_task_col.update_one(
+                    {"_id": task["_id"]},
+                    {"$set": {
+                        "synced_scope_id": scope_id_str,
+                        "synced_scope_name": scope_name,
+                        "synced_group_name": group_name
+                    }}
+                )
+
+                # 补全 matched_scope 中遗漏 task_id 的 icp 域名溯源信息
+                domain_status = matched_scope.get("domain_status", {})
+                updated_ds = False
+                if isinstance(domain_status, dict):
+                    for d, meta in domain_status.items():
+                        if isinstance(meta, dict) and meta.get("sync_source") == "icp" and not meta.get("task_id"):
+                            meta["task_id"] = str(task["_id"])
+                            meta["task_name"] = task_name
+                            updated_ds = True
+                if updated_ds:
+                    scope_col.update_one(
+                        {"_id": matched_scope["_id"]},
+                        {"$set": {"domain_status": domain_status}}
+                    )
+    except Exception as e:
+        import logging
+        logging.getLogger().error(f"backfill_icp_task_synced_scopes failed: {e}")
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -997,6 +1056,7 @@ def arl_update():
         _run_step("migrate_geo_ip_data", migrate_geo_ip_data)
         _run_step("heal_polluted_site_fingers", heal_polluted_site_fingers)
         _run_step("cleanup_zombie_tasks", cleanup_zombie_tasks)
+        _run_step("backfill_icp_task_synced_scopes", backfill_icp_task_synced_scopes)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:
         import logging

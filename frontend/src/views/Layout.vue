@@ -8,7 +8,6 @@
 
       <a-menu :style="{ opacity: isUIHidden ? 0 : 1, pointerEvents: isUIHidden ? 'none' : 'auto', transition: 'opacity 0.5s' }" v-model:selectedKeys="selectedKeys" theme="dark" mode="inline" @click="handleMenuClick">
         <a-menu-item key="/dashboard"><DashboardOutlined /><span>仪表盘</span></a-menu-item>
-        <a-menu-item key="/assetRecon"><SearchOutlined /><span>企业资产查询</span></a-menu-item>
         <a-menu-item key="/group"><AppstoreOutlined /><span>资产分组</span></a-menu-item>
         <a-menu-item key="/taskList"><GlobalOutlined /><span>任务管理</span></a-menu-item>
         <a-menu-item key="/asset-search"><SearchOutlined /><span>资产搜索</span></a-menu-item>
@@ -388,9 +387,7 @@ watch(() => route.path, (newPath) => {
   // 如果当前在详情页，依然让相应的菜单亮起
   if (newPath.startsWith('/taskList')) {
     selectedKeys.value = ['/taskList'];
-  } else if (newPath.startsWith('/assetRecon')) {
-    selectedKeys.value = ['/assetRecon'];
-  } else if (newPath.startsWith('/group')) {
+  } else if (newPath.startsWith('/group') || newPath.startsWith('/assetRecon')) {
     selectedKeys.value = ['/group'];
   } else {
     selectedKeys.value = [newPath];

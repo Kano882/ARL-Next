@@ -165,7 +165,12 @@
           </a-breadcrumb>
           <span v-else style="font-size: 18px; font-weight: 600;">{{ currentGroupName }}</span>
         </div>
-        <a-button type="primary" @click="openAddModal">新建资产分组</a-button>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <a-button @click="reconDrawerVisible = true">
+            <ProfileOutlined /> 测绘任务历史
+          </a-button>
+          <a-button type="primary" @click="openAddModal">新建资产分组</a-button>
+        </div>
       </div>
 
       <div style="margin-bottom: 16px;">
@@ -230,8 +235,16 @@
       <template #bodyCell="{ column, record }">
 
         <template v-if="column.key === 'name'">
-          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-            <a style="font-weight: 500;" @click="goToDetail(record)">{{ record.name }}</a>
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <a style="font-weight: 500;" @click="goToDetail(record)">{{ record.name }}</a>
+              <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+            </div>
+            <div v-if="record.enterprise_name" style="display: flex; align-items: center; gap: 4px;">
+              <a-tag color="cyan" size="small" style="font-size: 11px; cursor: pointer; margin-right: 0;" @click.stop="goToOsintDetail(record)">
+                <BankOutlined style="margin-right: 2px;" />{{ record.enterprise_name }}
+              </a-tag>
+            </div>
           </div>
         </template>
 
@@ -247,8 +260,28 @@
             <a-tooltip
               v-for="(item, idx) in (record._sorted_scopes || record.scope_array || []).slice(0, 5)"
               :key="idx"
-              :title="getDomainTooltip(record, item)"
+              placement="topLeft"
+              :getPopupContainer="getBodyContainer"
             >
+              <template #title>
+                <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
+                  <div><b>目标:</b> {{ item }}</div>
+                  <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
+                  <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
+                    <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
+                    <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
+                    <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
+                    <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
+                      <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
+                        查看企业资产任务详情 &rarr;
+                      </a>
+                    </div>
+                  </template>
+                  <div v-else-if="record.domain_status?.[item]?.sync_time">
+                    <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
+                  </div>
+                </div>
+              </template>
               <a-tag
                 closable
                 @close="(e) => { e.preventDefault(); handleRemoveSingleScope(record, item); }"
@@ -256,6 +289,7 @@
               >
                 <span v-if="getDomainStatus(record, item) === 'unprobed'" style="color: #faad14; font-weight: bold; margin-right: 2px;">●</span>
                 <span v-else-if="getDomainStatus(record, item) === 'scanning'" style="color: #1890ff; font-weight: bold; margin-right: 2px;">◌</span>
+                <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: #1890ff; margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
                 {{ item }}
               </a-tag>
             </a-tooltip>
@@ -265,8 +299,28 @@
                   <a-tooltip
                     v-for="(item, idx) in (record._sorted_scopes || record.scope_array || []).slice(5)"
                     :key="idx"
-                    :title="getDomainTooltip(record, item)"
+                    placement="topLeft"
+                    :getPopupContainer="getBodyContainer"
                   >
+                    <template #title>
+                      <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
+                        <div><b>目标:</b> {{ item }}</div>
+                        <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
+                        <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
+                          <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
+                          <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
+                          <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
+                          <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
+                            <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
+                              查看企业资产任务详情 &rarr;
+                            </a>
+                          </div>
+                        </template>
+                        <div v-else-if="record.domain_status?.[item]?.sync_time">
+                          <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
+                        </div>
+                      </div>
+                    </template>
                     <a-tag
                       closable
                       @close="(e) => { e.preventDefault(); handleRemoveSingleScope(record, item); }"
@@ -274,6 +328,7 @@
                     >
                       <span v-if="getDomainStatus(record, item) === 'unprobed'" style="color: #faad14; font-weight: bold; margin-right: 2px;">●</span>
                       <span v-else-if="getDomainStatus(record, item) === 'scanning'" style="color: #1890ff; font-weight: bold; margin-right: 2px;">◌</span>
+                      <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: #1890ff; margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
                       {{ item }}
                     </a-tag>
                   </a-tooltip>
@@ -347,6 +402,9 @@
         <template v-else-if="column.key === 'action'">
           <a-space size="small">
             <a-button type="link" size="small" style="padding: 0 4px;" @click="openEditGroupModal(record)">编辑</a-button>
+            <a-button v-if="record.has_increment" type="link" size="small" style="padding: 0 4px; color: #52c41a; font-weight: bold;" @click="openSyncIncrement(record)">同步增量</a-button>
+            <a-button v-else-if="record.synced_icp_task_id" type="link" size="small" style="padding: 0 4px;" @click="handleRefreshScopeEnterprise(record)">刷新企业</a-button>
+            <a-button v-else type="link" size="small" style="padding: 0 4px; color: var(--arl-theme-color);" @click="openBindEnterprise(record)">绑定企业</a-button>
             <a-button type="link" size="small" style="padding: 0 4px;" @click="openAddMonitorModal(record)">资产监控</a-button>
             <a-button type="link" size="small" style="padding: 0 4px;" @click="openAddSiteMonitorModal(record)">站点监控</a-button>
             <a-button type="link" size="small" style="padding: 0 4px;" @click="openAddWihMonitorModal(record)">WIH</a-button>
@@ -374,22 +432,32 @@
     <a-modal
       v-model:open="addModalVisible"
       title="新建资产分组"
-      @ok="handleAddSubmit"
-      :confirmLoading="addLoading"
-      width="560px"
+      :width="creationMode === 'wizard' && wizardStep === 2 ? '780px' : '580px'"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
+      :footer="creationMode === 'wizard' ? null : undefined"
+      @ok="handleAddSubmit"
+      :confirmLoading="addLoading"
       okText="确 定"
       cancelText="取 消"
       destroyOnClose
     >
+      <div style="margin-bottom: 20px; text-align: center;">
+        <a-radio-group v-model:value="creationMode" button-style="solid" size="middle">
+          <a-radio-button value="wizard">🏢 企业自动测绘生成 (向导)</a-radio-button>
+          <a-radio-button value="manual">✍️ 手工录入资产 (传统)</a-radio-button>
+        </a-radio-group>
+      </div>
+
+      <!-- 手工录入模式 -->
       <a-form
+        v-if="creationMode === 'manual'"
         ref="addFormRef"
         :model="addForm"
         :rules="addRules"
         :label-col="{ span: 5 }"
         :wrapper-col="{ span: 18 }"
-        style="margin-top: 20px;"
+        style="margin-top: 10px;"
       >
         <a-form-item label="所属集团" name="group_id">
           <a-select v-model:value="addForm.group_id" placeholder="请选择所属集团（可选）" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
@@ -402,6 +470,12 @@
         </a-form-item>
 
         <a-form-item label="资产范围" name="scope">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.65;">输入目标或从已有任务导入</span>
+            <a-button type="link" size="small" style="padding: 0; height: auto;" @click="openIcpImportModal('add')">
+              <cloud-download-outlined /> 从企业资产任务导入
+            </a-button>
+          </div>
           <a-textarea
             v-model:value="addForm.scope"
             :rows="5"
@@ -410,6 +484,147 @@
           />
         </a-form-item>
       </a-form>
+
+      <!-- 企业测绘向导模式 -->
+      <div v-else-if="creationMode === 'wizard'">
+        <!-- Stage 1: 测绘检索表单 -->
+        <div v-if="wizardStep === 1">
+          <a-spin :spinning="wizardLoading" :tip="wizardLoadingTip">
+            <a-form
+              ref="wizardFormRef"
+              :model="wizardForm"
+              :label-col="{ span: 5 }"
+              :wrapper-col="{ span: 18 }"
+              style="margin-top: 10px;"
+            >
+              <a-form-item label="测绘引擎">
+                <a-radio-group v-model:value="wizardForm.engine">
+                  <a-radio value="tyc">天眼查工商测绘 (推荐)</a-radio>
+                  <a-radio value="icp">工信部ICP备案</a-radio>
+                </a-radio-group>
+              </a-form-item>
+
+              <a-form-item
+                v-if="wizardForm.engine === 'tyc'"
+                label="公司ID (TYC_id)"
+                required
+                tooltip="可在天眼查企业详情页 URL 中获取，例如 https://www.tianyancha.com/company/25174642 中的 25174642"
+              >
+                <a-input
+                  v-model:value="wizardForm.target"
+                  placeholder="请输入天眼查公司 ID（纯数字/字母，例如：25174642）"
+                  @pressEnter="startWizardRecon"
+                />
+              </a-form-item>
+
+              <a-form-item
+                v-else
+                label="企业目标"
+                required
+              >
+                <a-input
+                  v-model:value="wizardForm.target"
+                  placeholder="请输入企业全称或主域名（如：腾讯科技 或 qq.com）"
+                  @pressEnter="startWizardRecon"
+                />
+              </a-form-item>
+
+              <a-form-item
+                label="分组名称"
+                :required="wizardForm.engine === 'tyc'"
+              >
+                <a-input
+                  v-model:value="wizardForm.name"
+                  :placeholder="wizardForm.engine === 'tyc' ? '请输入分组/企业名称（如：腾讯科技）' : (wizardForm.target ? wizardForm.target : '若留空则自动采用企业目标名称')"
+                />
+              </a-form-item>
+
+              <a-form-item label="所属集团">
+                <a-select v-model:value="wizardForm.group_id" placeholder="请选择所属集团（可选）" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
+                  <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
+                </a-select>
+              </a-form-item>
+
+              <template v-if="wizardForm.engine === 'tyc'">
+                <a-form-item label="投资层级">
+                  <a-input-number v-model:value="wizardForm.depth" :min="1" :max="3" style="width: 120px;" addon-after="层" />
+                </a-form-item>
+                <a-form-item label="投资比例">
+                  <a-input-number v-model:value="wizardForm.invest_ratio" :min="1" :max="100" style="width: 120px;" addon-after="%" />
+                </a-form-item>
+              </template>
+
+              <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
+                <a-button @click="addModalVisible = false">取 消</a-button>
+                <a-button type="primary" :loading="wizardLoading" @click="startWizardRecon">
+                  开始检索并解析 &rarr;
+                </a-button>
+              </div>
+            </a-form>
+          </a-spin>
+        </div>
+
+        <!-- Stage 2: 域名挑选与创建入库 -->
+        <div v-else-if="wizardStep === 2">
+          <div style="margin-bottom: 14px;">
+            <a-alert
+              type="success"
+              show-icon
+              :message="`企业测绘检索完成！共发现 ${wizardDomains.length} 个网站域名`"
+              :description="`所属集团：${getGroupName(wizardForm.group_id) || '未分组'} | 资产组名称：${wizardForm.name.trim() || (wizardForm.engine === 'tyc' ? 'TYC_' + wizardForm.target.trim() : wizardForm.target.trim())}`"
+            />
+          </div>
+
+          <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <a-input v-model:value="wizardDomainSearch" placeholder="过滤域名..." size="small" style="width: 160px;" allowClear />
+              <a-button size="small" @click="selectAllWizardDomains">全选</a-button>
+              <a-button size="small" @click="selectedWizardDomains = []">清空</a-button>
+            </div>
+            <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7;">
+              已勾选 <b style="color: var(--arl-theme-color);">{{ selectedWizardDomains.length }}</b> / {{ wizardDomains.length }} 项
+            </span>
+          </div>
+
+          <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 8px; background: var(--arl-bg-light); display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px;">
+            <div v-for="d in filteredWizardDomains" :key="d" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: var(--arl-bg-white); border-radius: 4px; font-family: monospace; font-size: 12px;">
+              <a-checkbox :checked="selectedWizardDomains.includes(d)" @change="e => toggleWizardDomain(d, e.target.checked)">
+                {{ d }}
+              </a-checkbox>
+            </div>
+            <div v-if="filteredWizardDomains.length === 0" style="text-align: center; color: #bfbfbf; padding: 16px; font-size: 12px;">
+              未发现匹配的域名
+            </div>
+          </div>
+
+          <div style="background: var(--arl-bg-light); padding: 12px; border-radius: 6px; border: 1px solid var(--arl-border-color); margin-bottom: 20px;">
+            <a-form-item label="自动探测" style="margin-bottom: 8px;">
+              <a-checkbox v-model:checked="wizardAutoScan">立即对勾选域名发起主动探测扫描</a-checkbox>
+            </a-form-item>
+            <template v-if="wizardAutoScan">
+              <a-form-item label="任务类型" style="margin-bottom: 8px;">
+                <a-radio-group v-model:value="wizardTaskType">
+                  <a-radio value="oneshot">一次性扫描</a-radio>
+                  <a-radio value="periodic">周期性监控</a-radio>
+                </a-radio-group>
+              </a-form-item>
+              <a-form-item label="扫描策略" style="margin-bottom: 0;" required>
+                <a-select v-model:value="wizardPolicyId" placeholder="请选择扫描策略" :options="policyList.map(p => ({ value: p._id, label: p.name }))" />
+              </a-form-item>
+            </template>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <a-button @click="wizardStep = 1">&larr; 返回修改</a-button>
+            <div style="display: flex; gap: 8px;">
+              <a-button @click="addModalVisible = false">取 消</a-button>
+              <a-button type="primary" :loading="wizardSubmitting" :disabled="selectedWizardDomains.length === 0" @click="submitWizardSync">
+                确认建组并入库 ({{ selectedWizardDomains.length }} 项)
+              </a-button>
+            </div>
+          </div>
+        </div>
+      </div>
     </a-modal>
 
     <!-- 编辑资产分组弹窗 -->
@@ -453,6 +668,14 @@
               </span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
+              <a-button 
+                type="link" 
+                size="small" 
+                style="padding: 0; height: auto;" 
+                @click="openIcpImportModal('edit')"
+              >
+                <cloud-download-outlined style="margin-right: 4px;" />从企业资产导入
+              </a-button>
               <a-button 
                 type="link" 
                 size="small" 
@@ -720,6 +943,102 @@
       </a-form>
     </a-modal>
 
+    <!-- 从企业资产任务导入弹窗 -->
+    <a-modal
+      v-model:open="icpImportModalVisible"
+      title="从企业资产查询导入资产"
+      :footer="null"
+      width="720px"
+      wrapClassName="arl-theme-modal"
+      rootClassName="arl-theme-modal"
+      destroyOnClose
+    >
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <a-input
+          v-model:value="icpImportSearchKey"
+          placeholder="搜索任务名称或目标企业..."
+          allowClear
+          style="width: 280px;"
+        >
+          <template #prefix><search-outlined style="color: #bfbfbf;" /></template>
+        </a-input>
+        <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.65;">
+          展示已完成的企业资产/ICP查询任务
+        </span>
+      </div>
+
+      <a-table
+        :dataSource="filteredIcpTasks"
+        :columns="icpImportColumns"
+        :loading="icpImportLoading"
+        :pagination="{ pageSize: 5, size: 'small' }"
+        size="small"
+        :rowKey="r => r._id"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'statistic'">
+            <span>{{ (record.statistic?.web_cnt !== undefined ? record.statistic.web_cnt : (record.statistic?.asset_cnt || 0)) }} 个网站</span>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <a-button
+              type="primary"
+              size="small"
+              :loading="importingTaskId === record._id"
+              @click="handleImportFromTask(record)"
+            >
+              导入该任务资产
+            </a-button>
+          </template>
+        </template>
+      </a-table>
+    </a-modal>
+
+    <!-- 测绘任务历史抽屉组件 -->
+    <ReconTaskDrawer
+      v-model:open="reconDrawerVisible"
+      @synced="handleReconDrawerSynced"
+    />
+
+    <!-- 同步增量弹窗 -->
+    <SyncToScopeModal
+      v-model:open="syncIncrementModalVisible"
+      :task="currentIncrementTask"
+      @success="handleIncrementSyncSuccess"
+    />
+
+    <!-- 列表操作栏：绑定企业主体弹窗 -->
+    <a-modal
+      v-model:open="bindScopeModalVisible"
+      title="资产组绑定企业主体"
+      @ok="submitBindScopeEnterprise"
+      :confirmLoading="bindScopeLoading"
+      width="540px"
+      wrapClassName="arl-theme-modal"
+      okText="确 定"
+      cancelText="取 消"
+      destroyOnClose
+    >
+      <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
+        <a-form-item label="当前资产组">
+          <span style="font-weight: 500;">{{ currentBindingScope?.name }}</span>
+        </a-form-item>
+        <a-form-item label="企业测绘" required>
+          <a-select
+            v-model:value="selectedBindScopeTaskId"
+            placeholder="请选择已完成的企业测绘任务"
+            show-search
+            option-filter-prop="label"
+            :options="completedIcpTasks.map(t => ({
+              value: t._id,
+              label: t.task_type === 'tyc'
+                ? `${t.name || t.target} [TYC: ${t.gid || (t.target ? t.target.replace(/^TYC_/, '') : '')}]`
+                : `${t.target || t.name} (ICP)`
+            }))"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
   </div>
   <!-- Close Root wrapper div added at step 1 -->
   </div>
@@ -747,6 +1066,8 @@ const { stickyConfig } = useSticky(actionBarRef);
 
 import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
+import ReconTaskDrawer from '../components/ReconTaskDrawer.vue';
+import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 import { 
   SearchOutlined, 
   DownOutlined, 
@@ -761,7 +1082,11 @@ import {
   InboxOutlined,
   MoreOutlined,
   RightOutlined,
-  LeftOutlined
+  LeftOutlined,
+  CloudDownloadOutlined,
+  ProfileOutlined,
+  BankOutlined,
+  SyncOutlined
 } from '@ant-design/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
@@ -1200,7 +1525,313 @@ const addRules = {
   scope: [{ required: true, message: '请输入资产范围', trigger: 'blur' }]
 };
 
+// ================= 测绘任务历史抽屉与向导建组状态 =================
+const reconDrawerVisible = ref(false);
+const handleReconDrawerSynced = () => {
+  fetchData();
+};
+
+watch(() => route.query.drawer, (d) => {
+  if (d === 'reconHistory') {
+    reconDrawerVisible.value = true;
+  }
+}, { immediate: true });
+
+// 新建资产分组模式与向导状态
+const creationMode = ref('wizard'); // 'wizard' | 'manual'
+const wizardStep = ref(1);
+const wizardLoading = ref(false);
+const wizardLoadingTip = ref('正在发起企业测绘...');
+const wizardTaskId = ref('');
+const wizardDomains = ref([]);
+const selectedWizardDomains = ref([]);
+const wizardDomainSearch = ref('');
+const wizardAutoScan = ref(false);
+const wizardTaskType = ref('oneshot');
+const wizardPolicyId = ref('');
+const wizardSubmitting = ref(false);
+const policyList = ref([]);
+
+const wizardForm = reactive({
+  group_id: undefined,
+  target: '',
+  name: '',
+  engine: 'tyc',
+  depth: 1,
+  invest_ratio: 50
+});
+
+const getGroupName = (gid) => {
+  const g = groupList.value.find(item => item._id === gid);
+  return g ? g.name : '';
+};
+
+const filteredWizardDomains = computed(() => {
+  if (!wizardDomainSearch.value.trim()) return wizardDomains.value;
+  return wizardDomains.value.filter(d => d.includes(wizardDomainSearch.value.trim().toLowerCase()));
+});
+
+const toggleWizardDomain = (d, checked) => {
+  if (checked) {
+    if (!selectedWizardDomains.value.includes(d)) selectedWizardDomains.value.push(d);
+  } else {
+    selectedWizardDomains.value = selectedWizardDomains.value.filter(item => item !== d);
+  }
+};
+
+const selectAllWizardDomains = () => {
+  selectedWizardDomains.value = wizardDomains.value.slice();
+};
+
+const startWizardRecon = async () => {
+  const target = (wizardForm.target || '').trim();
+  const name = (wizardForm.name || '').trim();
+
+  if (wizardForm.engine === 'tyc') {
+    if (!target) {
+      message.warning('请输入天眼查公司 ID (TYC_id)');
+      return;
+    }
+    if (!/^[a-zA-Z0-9]+$/.test(target)) {
+      message.warning('天眼查公司 ID 格式不正确，请输入纯数字/字母 ID（例如：25174642）');
+      return;
+    }
+    if (!name) {
+      message.warning('使用天眼查测绘时，请输入分组名称（如：腾讯科技）');
+      return;
+    }
+  } else {
+    if (!target) {
+      message.warning('请输入企业全称或主域名');
+      return;
+    }
+  }
+
+  wizardLoading.value = true;
+  wizardLoadingTip.value = '正在检索企业工商与备案资产，预计需 5~15 秒...';
+  try {
+    let taskRes;
+    const tName = (name || target) + '企业测绘';
+    if (wizardForm.engine === 'tyc') {
+      taskRes = await request.post('/icp/tyc_task', {
+        name: tName,
+        gid: target,
+        depth: wizardForm.depth || 1,
+        invest_ratio: wizardForm.invest_ratio || 50,
+        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+      });
+    } else {
+      taskRes = await request.post('/icp/task', {
+        name: tName,
+        target: target,
+        query_type: ['web', 'app', 'mapp']
+      });
+    }
+
+    if (!taskRes || taskRes.code !== 200) {
+      message.error(taskRes?.message || '发起测绘失败');
+      wizardLoading.value = false;
+      return;
+    }
+
+    const taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
+    wizardTaskId.value = taskId;
+
+    // 获取可用策略列表
+    if (policyList.value.length === 0) {
+      const pRes = await request.get('/policy/', { params: { size: 100 } });
+      if (pRes.code === 200) {
+        policyList.value = pRes.items || [];
+        if (policyList.value.length > 0) {
+          wizardPolicyId.value = policyList.value[0]._id;
+        }
+      }
+    }
+
+    let attempts = 0;
+    const maxAttempts = 30;
+    const pollInterval = 2000;
+
+    const pollTask = async () => {
+      attempts++;
+      try {
+        const checkRes = await request.get('/icp/task', { params: { _id: taskId } });
+        if (checkRes.code === 200 && checkRes.items && checkRes.items.length > 0) {
+          const taskObj = checkRes.items[0];
+          if (taskObj.status === 'done' || taskObj.status === 'stop') {
+            const assetRes = await request.get('/icp/asset', { params: { task_id: taskId, query_type: 'web', size: 5000 } });
+            const domainSet = new Set();
+            if (assetRes.code === 200 && assetRes.items) {
+              assetRes.items.forEach(item => {
+                const d = item.domain || item.ym;
+                if (d && typeof d === 'string') domainSet.add(d.trim().toLowerCase());
+              });
+            }
+            wizardDomains.value = Array.from(domainSet);
+            selectedWizardDomains.value = Array.from(domainSet);
+            wizardStep.value = 2;
+            wizardLoading.value = false;
+            return;
+          } else if (taskObj.status === 'error') {
+            message.error('测绘任务执行异常');
+            wizardLoading.value = false;
+            return;
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(pollTask, pollInterval);
+      } else {
+        message.info('测绘数据量较大，已转入后台运行。您可稍后在【测绘任务历史】中查看。');
+        wizardLoading.value = false;
+        addModalVisible.value = false;
+      }
+    };
+
+    setTimeout(pollTask, pollInterval);
+  } catch (err) {
+    message.error('请求网络错误');
+    wizardLoading.value = false;
+  }
+};
+
+const submitWizardSync = async () => {
+  if (selectedWizardDomains.value.length === 0) {
+    message.warning('请至少勾选一个入库域名');
+    return;
+  }
+  wizardSubmitting.value = true;
+  try {
+    const payload = {
+      mode: 'new',
+      target_name: wizardForm.name.trim() || wizardForm.target.trim(),
+      group_id: wizardForm.group_id || '',
+      selected_domains: selectedWizardDomains.value,
+      auto_scan: wizardAutoScan.value,
+      task_type: wizardTaskType.value,
+      policy_id: wizardPolicyId.value
+    };
+    const res = await request.post(`/icp/sync/${wizardTaskId.value}`, payload);
+    if (res.code === 200) {
+      message.success('资产组创建成功并已导入资产');
+      addModalVisible.value = false;
+      fetchData();
+    } else {
+      message.error(res.message || '入库失败');
+    }
+  } catch (err) {
+    message.error('网络请求失败');
+  } finally {
+    wizardSubmitting.value = false;
+  }
+};
+
+// 增量同步弹窗
+const syncIncrementModalVisible = ref(false);
+const currentIncrementTask = ref(null);
+
+const openSyncIncrement = async (record) => {
+  if (!record.synced_icp_task_id) return;
+  try {
+    const res = await request.get('/icp/task', { params: { _id: record.synced_icp_task_id } });
+    if (res.code === 200 && res.items && res.items.length > 0) {
+      currentIncrementTask.value = res.items[0];
+      syncIncrementModalVisible.value = true;
+    } else {
+      message.error('未找到关联的企业测绘任务');
+    }
+  } catch (err) {
+    message.error('加载任务失败');
+  }
+};
+
+const handleIncrementSyncSuccess = () => {
+  fetchData();
+};
+
+const handleRefreshScopeEnterprise = async (record) => {
+  if (!record.synced_icp_task_id) return;
+  try {
+    const res = await request.get(`/icp/restart/${record.synced_icp_task_id}`);
+    if (res.code === 200) {
+      message.success('已触发企业增量更新任务');
+      fetchData();
+    } else {
+      message.error(res.message || '触发失败');
+    }
+  } catch (err) {
+    message.error('网络请求失败');
+  }
+};
+
+// 资产组绑定已有企业主体
+const bindScopeModalVisible = ref(false);
+const bindScopeLoading = ref(false);
+const currentBindingScope = ref(null);
+const selectedBindScopeTaskId = ref(undefined);
+const completedIcpTasks = ref([]);
+
+const openBindEnterprise = async (record) => {
+  currentBindingScope.value = record;
+  selectedBindScopeTaskId.value = undefined;
+  bindScopeModalVisible.value = true;
+  try {
+    const res = await request.get('/icp/task', { params: { size: 100 } });
+    if (res.code === 200) {
+      completedIcpTasks.value = res.items || [];
+    }
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const submitBindScopeEnterprise = async () => {
+  if (!selectedBindScopeTaskId.value) {
+    message.warning('请选择要绑定的企业测绘任务');
+    return;
+  }
+  bindScopeLoading.value = true;
+  try {
+    const res = await request.post('/asset_scope/bind_enterprise/', {
+      scope_id: currentBindingScope.value._id,
+      task_id: selectedBindScopeTaskId.value
+    });
+    if (res && res.code === 200) {
+      message.success('绑定企业主体成功');
+      bindScopeModalVisible.value = false;
+      fetchData();
+    } else {
+      message.error(res.message || '绑定失败');
+    }
+  } catch (err) {
+    message.error('网络请求失败');
+  } finally {
+    bindScopeLoading.value = false;
+  }
+};
+
+const goToOsintDetail = (record) => {
+  router.push({
+    path: '/groupAssetsManagement/groupAssetsDetail',
+    query: { scope_id: record._id, targetName: record.name, view: 'osint' }
+  });
+};
+
 const openAddModal = () => {
+  creationMode.value = 'wizard';
+  wizardStep.value = 1;
+  wizardForm.group_id = activeGroupId.value === 'all' || activeGroupId.value === 'unassigned' ? undefined : activeGroupId.value;
+  wizardForm.target = '';
+  wizardForm.name = '';
+  wizardForm.engine = 'tyc';
+  wizardDomains.value = [];
+  selectedWizardDomains.value = [];
+  wizardDomainSearch.value = '';
+  wizardAutoScan.value = false;
+
   addForm.group_id = activeGroupId.value === 'all' || activeGroupId.value === 'unassigned' ? undefined : activeGroupId.value;
   addForm.name = '';
   addForm.scope = '';
@@ -1749,10 +2380,113 @@ const submitAddWihMonitor = async () => {
 
 // 监听路由参数联动
 watch(() => route.query.scope_id, (newScopeId) => {
-  searchForm.value._id = newScopeId || undefined;
-  pagination.current = 1;
-  fetchData();
+  if (newScopeId) {
+    activeGroupId.value = 'all';
+    searchForm.value._id = newScopeId;
+    pagination.current = 1;
+    fetchData();
+  } else if (searchForm.value._id) {
+    searchForm.value._id = undefined;
+    pagination.current = 1;
+    fetchData();
+  }
 }, { immediate: true });
+
+const goToReconDetail = (taskId) => {
+  if (taskId) {
+    router.push({
+      path: '/assetRecon/assetDetail',
+      query: { task_id: taskId }
+    });
+  }
+};
+
+// ================= 从企业资产任务导入逻辑 =================
+const icpImportModalVisible = ref(false);
+const icpImportLoading = ref(false);
+const importingTaskId = ref('');
+const icpImportSearchKey = ref('');
+const icpTaskList = ref([]);
+const icpImportTarget = ref('add'); // 'add' | 'edit'
+
+const icpImportColumns = [
+  { title: '任务名称', dataIndex: 'name', key: 'name', ellipsis: true },
+  { title: '查询目标', dataIndex: 'target', key: 'target', ellipsis: true },
+  { title: '网站资产数', key: 'statistic', width: 120 },
+  { title: '完成时间', dataIndex: 'end_time', key: 'end_time', width: 160 },
+  { title: '操作', key: 'action', width: 130, align: 'center' }
+];
+
+const filteredIcpTasks = computed(() => {
+  if (!icpImportSearchKey.value.trim()) return icpTaskList.value;
+  const kw = icpImportSearchKey.value.trim().toLowerCase();
+  return icpTaskList.value.filter(t =>
+    (t.name && t.name.toLowerCase().includes(kw)) ||
+    (t.target && t.target.toLowerCase().includes(kw))
+  );
+});
+
+const openIcpImportModal = async (target = 'add') => {
+  icpImportTarget.value = target;
+  icpImportModalVisible.value = true;
+  icpImportSearchKey.value = '';
+  icpImportLoading.value = true;
+  try {
+    const res = await request.get('/icp/task', { params: { size: 50, status: 'done' } });
+    if (res.code === 200) {
+      icpTaskList.value = res.items || [];
+    }
+  } catch (err) {
+    console.error('获取企业资产任务列表失败', err);
+  } finally {
+    icpImportLoading.value = false;
+  }
+};
+
+const handleImportFromTask = async (task) => {
+  importingTaskId.value = task._id;
+  try {
+    const res = await request.get('/icp/asset', { params: { task_id: task._id, query_type: 'web', size: 10000 } });
+    const items = res.items || res.data?.items || [];
+    const domainSet = new Set();
+    items.forEach(item => {
+      const d = item.domain || item.ym;
+      if (d && typeof d === 'string') domainSet.add(d.trim().toLowerCase());
+    });
+    const domainList = Array.from(domainSet);
+
+    if (domainList.length === 0) {
+      message.warning('该任务未发现可导入的网站资产');
+      return;
+    }
+
+    if (icpImportTarget.value === 'add') {
+      if (!addForm.name.trim()) {
+        addForm.name = task.name || task.target || '';
+      }
+      const existing = parseScopeList(addForm.scope);
+      const merged = Array.from(new Set([...existing, ...domainList]));
+      addForm.scope = merged.join('\n');
+    } else {
+      if (editGroupMode.value === 'visual') {
+        const merged = Array.from(new Set([...editGroupScopeList.value, ...domainList]));
+        editGroupScopeList.value = merged;
+      } else {
+        const existing = parseScopeList(editGroupForm.scope);
+        const merged = Array.from(new Set([...existing, ...domainList]));
+        editGroupForm.scope = merged.join('\n');
+      }
+    }
+
+    message.success(`成功从任务【${task.name || task.target}】导入 ${domainList.length} 个资产域名！`);
+    icpImportModalVisible.value = false;
+  } catch (err) {
+    console.error('导入资产失败', err);
+    message.error('导入失败，请稍后重试');
+  } finally {
+    importingTaskId.value = '';
+  }
+};
 
 
 

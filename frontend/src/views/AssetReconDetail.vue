@@ -19,7 +19,32 @@
             </a-tooltip>
             <a-tag v-if="taskTypeLabel" color="blue">{{ taskTypeLabel }}</a-tag>
             <a-tag v-if="taskStatusLabel" :color="taskStatusColor">{{ taskStatusLabel }}</a-tag>
+            <a-tag
+              v-if="taskRecord.synced_scope_id"
+              color="blue"
+              style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"
+              @click="goToScope(taskRecord.synced_scope_id)"
+              title="点击前往该资产分组"
+            >
+              <export-outlined />
+              <span>已同步至: {{ taskRecord.synced_scope_name || '资产分组' }}</span>
+            </a-tag>
           </div>
+        </template>
+        <template #extra>
+          <a-tooltip v-if="taskStatus === 'done' && (taskRecord.statistic?.web_cnt === 0)" title="当前任务无网站资产可同步">
+            <a-button type="primary" disabled>
+              <cloud-sync-outlined /> 同步至资产分组
+            </a-button>
+          </a-tooltip>
+          <a-button
+            v-else
+            type="primary"
+            @click="openSyncModal"
+            :disabled="taskStatus !== 'done' && taskStatus !== 'stop'"
+          >
+            <cloud-sync-outlined /> {{ taskRecord.synced_scope_id ? (taskRecord.has_increment ? '同步增量至分组' : '再次同步至分组') : '同步至资产分组' }}
+          </a-button>
         </template>
       </a-page-header>
 
@@ -53,11 +78,18 @@
             </template>
           </a-form>
         </div>
-        <div>
-          <a-button style="margin-right: 16px;" @click="resetSearch">清 除</a-button>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <a-button @click="resetSearch">清 除</a-button>
           <a-button type="primary" :loading="exportLoading" @click="handleExport">
             <template #icon><download-outlined /></template>
             导出数据
+          </a-button>
+          <a-button
+            v-if="activeTab === 'web' && selectedWebRowKeys.length > 0"
+            type="dashed"
+            @click="openSyncModalWithSelected"
+          >
+            <cloud-sync-outlined /> 同步勾选域名 ({{ selectedWebRowKeys.length }})
           </a-button>
         </div>
       </div>
@@ -70,9 +102,10 @@
         :columns="dynamicColumns"
         :loading="loading"
         :pagination="false"
+        :row-selection="activeTab === 'web' ? { selectedRowKeys: selectedWebRowKeys, onChange: onWebSelectChange } : null"
         :scroll="pagination.pageSize >= 100 ? { y: 'calc(100vh - 380px)', x: 'max-content' } : { x: 'max-content' }"
         :virtual="pagination.pageSize >= 100"
-        :rowKey="(record) => record._id || record.id || Math.random()"
+        :rowKey="(record) => record._id || record.id || record.domain || record.ym || Math.random()"
         size="middle"
         style="margin-bottom: 16px;"
         @change="handleTableChange"
@@ -127,13 +160,21 @@
         </div>
       </div>
     </div>
+
+    <SyncToScopeModal
+      v-model:open="syncModalVisible"
+      :task="taskRecord"
+      :preSelectedDomains="selectedWebDomains"
+      @success="handleSyncSuccess"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, DownloadOutlined, CloudSyncOutlined, ExportOutlined } from '@ant-design/icons-vue';
+import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 import { message } from 'ant-design-vue';
 import request from '../utils/request';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
@@ -148,6 +189,42 @@ const taskName = ref(query.name || '');
 const taskTarget = ref(query.target || '');
 const taskType = ref(query.task_type || '');
 const taskStatus = ref('');
+const taskRecord = ref({});
+
+const syncModalVisible = ref(false);
+const selectedWebRowKeys = ref([]);
+const selectedWebDomains = ref([]);
+
+const onWebSelectChange = (keys, rows) => {
+  selectedWebRowKeys.value = keys;
+  const domains = [];
+  rows.forEach(r => {
+    const d = r.domain || r.ym;
+    if (d && typeof d === 'string') domains.push(d.trim());
+  });
+  selectedWebDomains.value = domains;
+};
+
+const openSyncModal = () => {
+  selectedWebDomains.value = [];
+  syncModalVisible.value = true;
+};
+
+const openSyncModalWithSelected = () => {
+  syncModalVisible.value = true;
+};
+
+const handleSyncSuccess = (res) => {
+  taskRecord.value.synced_scope_id = res.scope_id;
+  taskRecord.value.synced_scope_name = res.target_name;
+  fetchTaskStatistic();
+};
+
+const goToScope = (scopeId) => {
+  if (scopeId) {
+    router.push({ path: '/group', query: { scope_id: scopeId } });
+  }
+};
 
 const targetList = computed(() => {
   const t = taskTarget.value || taskName.value || taskId || '未知目标';
@@ -536,6 +613,7 @@ const fetchTaskStatistic = async () => {
     const res = await request.get('/icp/task', { params: { _id: taskId, _t: Date.now() } });
     if (res.code === 200 && res.items && res.items.length > 0) {
       const taskData = res.items[0];
+      taskRecord.value = taskData;
       if (taskData.name) taskName.value = taskData.name;
       if (taskData.target) taskTarget.value = taskData.target;
       if (taskData.task_type) taskType.value = taskData.task_type;
