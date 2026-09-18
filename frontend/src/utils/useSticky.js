@@ -1,6 +1,6 @@
-import { ref, computed, onMounted, onUnmounted, isRef } from 'vue';
+import { ref, computed, onMounted, onUnmounted, isRef, watch } from 'vue';
 
-export function useSticky(actionBarRef, offsetModifier = 24, customContainerRef = null) {
+export function useSticky(actionBarRef, offsetModifier = 24, customContainerRef = null, offsetScroll = 0) {
   const stickyTopNumber = ref(180);
   const actionBarHeight = ref(180);
   const scrollContainer = ref(null);
@@ -10,6 +10,7 @@ export function useSticky(actionBarRef, offsetModifier = 24, customContainerRef 
     if (!scrollContainer.value) return false;
     return {
       offsetHeader: stickyTopNumber.value,
+      offsetScroll: typeof offsetScroll === 'number' ? offsetScroll : 0,
       getContainer: () => scrollContainer.value
     };
   });
@@ -23,14 +24,29 @@ export function useSticky(actionBarRef, offsetModifier = 24, customContainerRef 
       const el = getTargetEl();
       if (el && typeof el.getBoundingClientRect === 'function') {
         const rect = el.getBoundingClientRect();
-        stickyTopNumber.value = rect.height;
-        actionBarHeight.value = rect.height;
+        if (rect.height > 0) {
+          stickyTopNumber.value = rect.height;
+          actionBarHeight.value = rect.height;
+        }
       }
     };
     resizeObserver = new ResizeObserver(updateSticky);
     const targetEl = getTargetEl();
     if (targetEl) resizeObserver.observe(targetEl);
     updateSticky();
+
+    if (isRef(actionBarRef)) {
+      watch(
+        () => actionBarRef.value,
+        (newEl, oldEl) => {
+          if (oldEl && resizeObserver) resizeObserver.unobserve(oldEl);
+          if (newEl && resizeObserver) {
+            resizeObserver.observe(newEl);
+            updateSticky();
+          }
+        }
+      );
+    }
   });
 
   onUnmounted(() => {

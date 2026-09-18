@@ -23,9 +23,14 @@
       </div>
     </div>
 
-    <!-- 维度 Tabs 导航 -->
-    <div v-if="taskId">
-      <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" :style="activeTab === 'log' ? 'margin-bottom: 0;' : 'margin-bottom: 16px;'" @change="onTabChange">
+    <!-- 维度 Tabs 导航与搜索操作栏 (吸附在 Hero 顶栏正下方) -->
+    <div
+      v-if="taskId"
+      ref="osintControlRef"
+      class="osint-sticky-control-box"
+      :style="{ top: (props.stickyTopOffset || 0) + 'px' }"
+    >
+      <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs osint-tabs-nav" :style="activeTab === 'log' ? 'margin-bottom: 0;' : 'margin-bottom: 12px;'" @change="onTabChange">
         <a-tab-pane key="web" :tab="`网站备案 (${queryCounts.web})`"></a-tab-pane>
         <a-tab-pane key="app" :tab="`移动 APP (${queryCounts.app})`"></a-tab-pane>
         <a-tab-pane key="mapp" :tab="`微信小程序 (${queryCounts.mapp})`"></a-tab-pane>
@@ -59,7 +64,7 @@
             </template>
           </a-form>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <a-button size="small" @click="resetSearch">重 置</a-button>
           <a-button size="small" type="primary" :loading="exportLoading" @click="handleExport">
             <template #icon><download-outlined /></template>
@@ -76,6 +81,7 @@
     <!-- 资产表格 -->
     <div v-if="taskId && activeTab !== 'log'">
       <a-table
+        :sticky="osintStickyConfig"
         :dataSource="assetList"
         :columns="dynamicColumns"
         :loading="loading"
@@ -292,7 +298,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { message } from 'ant-design-vue';
 import {
   SearchOutlined,
@@ -324,7 +330,47 @@ const props = defineProps({
   hideHeader: {
     type: Boolean,
     default: false
+  },
+  stickyTopOffset: {
+    type: Number,
+    default: 120
   }
+});
+
+const osintControlRef = ref(null);
+const osintControlHeight = ref(120);
+const scrollContainer = ref(null);
+let osintResizeObserver = null;
+
+const updateOsintHeight = () => {
+  if (osintControlRef.value && typeof osintControlRef.value.getBoundingClientRect === 'function') {
+    const rect = osintControlRef.value.getBoundingClientRect();
+    if (rect.height > 0) {
+      osintControlHeight.value = Math.round(rect.height);
+    }
+  }
+};
+
+const totalOsintOffsetHeader = computed(() => {
+  return (props.stickyTopOffset || 0) + osintControlHeight.value;
+});
+
+const osintStickyConfig = computed(() => {
+  if (!scrollContainer.value) return false;
+  return {
+    offsetHeader: totalOsintOffsetHeader.value,
+    offsetScroll: 0,
+    getContainer: () => scrollContainer.value
+  };
+});
+
+onMounted(() => {
+  scrollContainer.value = document.querySelector('.ant-layout-content');
+  osintResizeObserver = new ResizeObserver(updateOsintHeight);
+  if (osintControlRef.value) {
+    osintResizeObserver.observe(osintControlRef.value);
+  }
+  updateOsintHeight();
 });
 
 const emit = defineEmits(['synced', 'refreshed', 'taskLoaded']);
@@ -698,12 +744,14 @@ const stopLogPolling = () => {
 
 onUnmounted(() => {
   stopLogPolling();
+  if (osintResizeObserver) osintResizeObserver.disconnect();
 });
 
 const onTabChange = (key) => {
   pagination.current = 1;
   selectedWebRowKeys.value = [];
   selectedWebDomains.value = [];
+  nextTick(() => { updateOsintHeight(); });
   if (key === 'log') {
     fetchLogs(true);
     startLogPolling();
@@ -775,6 +823,22 @@ defineExpose({
 </script>
 
 <style scoped>
+.osint-sticky-control-box {
+  position: sticky;
+  z-index: 11;
+  background: var(--arl-bg-white);
+  border-radius: 8px;
+  border: 1px solid var(--arl-border-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  padding: 14px 16px 12px 16px;
+  margin-bottom: 16px;
+  transition: box-shadow 0.2s ease;
+}
+
+.osint-tabs-nav :deep(.ant-tabs-nav) {
+  margin-bottom: 0 !important;
+}
+
 .enterprise-osint-panel :deep(.ant-tabs-nav) {
   margin-bottom: 12px;
 }

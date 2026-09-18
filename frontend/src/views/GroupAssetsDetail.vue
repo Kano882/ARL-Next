@@ -1,9 +1,7 @@
 <template>
   <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <div ref="actionBarRef" class="detail-sticky-wrapper">
-
-      <!-- 1. 一体化资产画像 Hero 头部卡片 -->
-      <div class="arl-hero-card">
+    <!-- 1. 一体化资产画像 Hero 头部卡片 (常驻吸附在页面最顶部 top: 0) -->
+    <div ref="heroRef" class="arl-hero-card hero-sticky-card">
         <div class="hero-top-row">
           <div class="hero-title-area">
             <a-button type="text" class="hero-back-btn" @click="() => $router.push('/group')">
@@ -100,8 +98,8 @@
         </div>
       </div>
 
-      <!-- 2. 网络暴露面 (ASM) 专属控制与筛选区 -->
-      <div v-show="currentView === 'asm'" class="asm-control-box">
+      <!-- 2. 网络暴露面 (ASM) 专属控制与筛选区 (吸附于 Hero 头部正下方) -->
+      <div v-show="currentView === 'asm'" ref="asmControlRef" class="asm-control-box" :style="{ top: heroHeight + 'px' }">
         <!-- 维度 Tabs 导航 (带数量徽标与平滑滚动) -->
         <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs asm-tabs-nav">
           <a-tab-pane key="site_chain">
@@ -167,32 +165,14 @@
           </div>
         </div>
 
-        <!-- 普通资产列表检索与操作工具栏 (收敛为主搜 + 高级筛选折叠) -->
+        <!-- 普通资产列表检索与操作工具栏 (上下分层：业务操作行 + 直接平铺紧凑检索卡片) -->
         <div v-else class="asm-toolbar-container">
           <div class="toolbar-row">
             <div class="toolbar-left">
-              <a-input-search
-                v-model:value="quickSearchText"
-                :placeholder="`在${tabConfig[activeTab]?.tabName || '当前维度'}中速查...`"
-                style="width: 280px;"
-                allow-clear
-                @search="handleQuickSearch"
-                @pressEnter="handleQuickSearch"
-              />
-              <a-button
-                v-if="tabConfig[activeTab]?.searchFields?.length"
-                :type="isFilterExpanded ? 'primary' : 'default'"
-                :ghost="isFilterExpanded"
-                @click="isFilterExpanded = !isFilterExpanded"
-              >
-                <template #icon><filter-outlined /></template>
-                高级筛选
-                <span v-if="activeFilterCount > 0" class="filter-count-badge">{{ activeFilterCount }}</span>
-                <down-outlined :style="{ fontSize: '10px', transform: isFilterExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }" />
-              </a-button>
-              <a-button v-if="activeFilterCount > 0 || quickSearchText" type="link" size="small" @click="resetSearch">
-                清空筛选
-              </a-button>
+              <span class="toolbar-title-text">{{ tabConfig[activeTab]?.tabName || '资产' }}维度</span>
+              <span class="toolbar-meta-count">
+                共 <b class="font-mono">{{ asmCounts[activeTab] || 0 }}</b> 条记录
+              </span>
             </div>
 
             <div class="toolbar-right">
@@ -223,81 +203,125 @@
             </div>
           </div>
 
-          <!-- 折叠高级筛选面板 (响应式网格布局，杜绝截断) -->
-          <div v-show="isFilterExpanded && tabConfig[activeTab]?.searchFields?.length" class="advanced-filter-panel">
-            <a-form :model="searchForm" layout="vertical">
-              <a-row :gutter="[16, 12]">
+          <!-- 直接平铺展示搜索字段的紧凑栅格卡片 (无需展开/折叠，美观微质感) -->
+          <div v-if="tabConfig[activeTab]?.searchFields?.length" class="asm-filter-card">
+            <a-form :model="searchForm" class="filter-grid-form">
+              <a-row :gutter="[16, 10]">
                 <a-col
                   v-for="field in tabConfig[activeTab].searchFields"
                   :key="field.key"
                   :xs="24" :sm="12" :md="8" :lg="6"
                 >
-                  <a-form-item :label="field.label" style="margin-bottom: 0;">
-                    <a-select
-                      v-if="field.type === 'select'"
-                      v-model:value="searchForm[field.key]"
-                      :placeholder="`请选择${field.label}`"
-                      style="width: 100%;"
-                      allowClear
-                      @change="onSearch"
-                    >
-                      <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
-                    </a-select>
-
-                    <a-range-picker
-                      v-else-if="field.type === 'dateRange'"
-                      v-model:value="searchForm[field.key]"
-                      :placeholder="['开始日期', '结束日期']"
-                      style="width: 100%;"
-                      @change="onSearch"
-                    />
-
-                    <div
-                      v-else-if="field.hasOperatorSelect"
-                      class="filter-operator-group"
-                    >
-                      <a-input
-                        v-model:value="searchForm[field.key]"
-                        :placeholder="`请输入${field.label}`"
-                        :bordered="false"
-                        style="flex: 1; box-shadow: none;"
-                        allowClear
-                        @pressEnter="onSearch"
-                      />
-                      <div class="filter-divider"></div>
+                  <div class="filter-field-cell">
+                    <span class="filter-field-label" :title="field.label">{{ field.label }}</span>
+                    <div class="filter-field-widget">
+                      <!-- 下拉选择 -->
                       <a-select
-                        v-model:value="field.operator"
-                        :bordered="false"
-                        style="width: 85px; box-shadow: none;"
+                        v-if="field.type === 'select'"
+                        v-model:value="searchForm[field.key]"
+                        :placeholder="`请选择${field.label}`"
+                        style="width: 100%;"
+                        allowClear
                         @change="onSearch"
                       >
-                        <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op }}</a-select-option>
+                        <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
                       </a-select>
-                    </div>
 
-                    <a-input
-                      v-else
-                      v-model:value="searchForm[field.key]"
-                      :placeholder="`请输入${field.label}`"
-                      style="width: 100%;"
-                      allowClear
-                      @pressEnter="onSearch"
-                    />
-                  </a-form-item>
+                      <!-- 日期区间选择 -->
+                      <a-range-picker
+                        v-else-if="field.type === 'dateRange'"
+                        v-model:value="searchForm[field.key]"
+                        :placeholder="['开始日期', '结束日期']"
+                        style="width: 100%;"
+                        @change="onSearch"
+                      />
+
+                      <!-- 组合操作符输入框 (如 等于/不等于) -->
+                      <div
+                        v-else-if="field.hasOperatorSelect"
+                        class="filter-operator-box"
+                      >
+                        <a-input
+                          v-model:value="searchForm[field.key]"
+                          :placeholder="`请输入${field.label}`"
+                          :bordered="false"
+                          class="operator-text-input"
+                          allowClear
+                          @pressEnter="onSearch"
+                        >
+                          <template #suffix>
+                            <search-outlined class="filter-search-icon" @click="onSearch" />
+                          </template>
+                        </a-input>
+                        <div class="operator-divider"></div>
+                        <a-select
+                          v-model:value="field.operator"
+                          :bordered="false"
+                          class="operator-op-select"
+                          @change="onSearch"
+                        >
+                          <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op }}</a-select-option>
+                        </a-select>
+                      </div>
+
+                      <!-- 普通文本输入框 -->
+                      <a-input
+                        v-else
+                        v-model:value="searchForm[field.key]"
+                        :placeholder="`请输入${field.label}`"
+                        style="width: 100%;"
+                        allowClear
+                        @pressEnter="onSearch"
+                      >
+                        <template #suffix>
+                          <search-outlined class="filter-search-icon" @click="onSearch" />
+                        </template>
+                      </a-input>
+                    </div>
+                  </div>
                 </a-col>
               </a-row>
-              <div class="advanced-filter-actions">
-                <a-button size="small" @click="resetSearch">重置全部</a-button>
-                <a-button type="primary" size="small" @click="onSearch">应用筛选</a-button>
+
+              <!-- 底部操作与状态条 -->
+              <div class="filter-footer-row">
+                <div class="filter-badge-status">
+                  <template v-if="activeFilterCount > 0">
+                    <span class="active-indicator-dot"></span>
+                    <span>已应用 <b class="font-mono" style="color: var(--arl-theme-color);">{{ activeFilterCount }}</b> 项筛选条件</span>
+                  </template>
+                  <span v-else class="filter-idle-text">支持回车或点击放大镜图标快速检索</span>
+                </div>
+                <div class="filter-action-btns">
+                  <a-button size="small" @click="resetSearch">
+                    <template #icon><redo-outlined /></template>
+                    重 置
+                  </a-button>
+                  <a-button type="primary" size="small" @click="onSearch">
+                    <template #icon><search-outlined /></template>
+                    查 询
+                  </a-button>
+                </div>
               </div>
             </a-form>
           </div>
         </div>
       </div>
-    </div>
 
     <div v-show="currentView === 'asm'">
-    <a-table v-if="activeTab !== 'site_chain'" :sticky="stickyConfig" :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }" :loading="loading" :dataSource="dataSource" :columns="columns" :pagination="false" :scroll="{ x: 'max-content' }" size="middle" :rowKey="(record) => record._id || record.id">
+    <a-table
+      v-if="activeTab !== 'site_chain'"
+      :sticky="pagination.pageSize >= 100 ? false : asmStickyConfig"
+      :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
+      :loading="loading"
+      :dataSource="dataSource"
+      :columns="columns"
+      :pagination="false"
+      :scroll="pagination.pageSize >= 100 ? { y: tableScrollY, x: 'max-content' } : { x: 'max-content' }"
+      :virtual="pagination.pageSize >= 100"
+      bordered
+      size="middle"
+      :rowKey="(record) => record._id || record.id"
+    >
       <template #bodyCell="{ column, record, index }">
 
         <template v-if="column.key === 'index'">
@@ -1222,7 +1246,7 @@
 
     <div v-if="tabConfig[activeTab] && activeTab !== 'site_chain'" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; margin-top: 16px;">
       <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-      <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" />
+      <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
     </div>
 
     <!-- 悬浮浮动批处理条 (Floating Action Bar) -->
@@ -1256,6 +1280,7 @@
       :scope-id="scope_id"
       :enterprise-name="scopeEnterpriseName"
       :hide-header="true"
+      :sticky-top-offset="heroHeight"
       @taskLoaded="handleOsintLoaded"
       @synced="handleOsintSynced"
     />
@@ -1403,9 +1428,80 @@
 <script setup>
 
 import { ref, onMounted, reactive, watch, computed, createVNode, onUnmounted, nextTick } from 'vue';
-import { useSticky } from '../utils/useSticky';
-const actionBarRef = ref(null);
-const { stickyConfig } = useSticky(actionBarRef);
+const heroRef = ref(null);
+const asmControlRef = ref(null);
+const heroHeight = ref(120);
+const asmControlHeight = ref(180);
+const scrollContainer = ref(null);
+
+let heroResizeObserver = null;
+let asmResizeObserver = null;
+
+const updateHeroHeight = () => {
+  if (heroRef.value && typeof heroRef.value.getBoundingClientRect === 'function') {
+    const rect = heroRef.value.getBoundingClientRect();
+    if (rect.height > 0) {
+      heroHeight.value = Math.round(rect.height);
+    }
+  }
+};
+
+const updateAsmControlHeight = () => {
+  if (asmControlRef.value && typeof asmControlRef.value.getBoundingClientRect === 'function') {
+    const rect = asmControlRef.value.getBoundingClientRect();
+    if (rect.height > 0) {
+      asmControlHeight.value = Math.round(rect.height);
+    }
+  }
+};
+
+const totalAsmOffsetHeader = computed(() => {
+  return heroHeight.value + asmControlHeight.value;
+});
+
+const asmStickyConfig = computed(() => {
+  if (!scrollContainer.value) return false;
+  return {
+    offsetHeader: totalAsmOffsetHeader.value,
+    offsetScroll: 0,
+    getContainer: () => scrollContainer.value
+  };
+});
+
+const windowHeight = ref(typeof window !== 'undefined' ? window.innerHeight : 800);
+const onWindowResize = () => {
+  windowHeight.value = window.innerHeight;
+};
+
+// 当 pageSize >= 100 开启虚拟滚动时，动态计算 tableScrollY 可视滚动区域高度
+const tableScrollY = computed(() => {
+  const barHeight = totalAsmOffsetHeader.value || 300;
+  const available = windowHeight.value - barHeight - 160;
+  return Math.max(300, available);
+});
+
+onMounted(() => {
+  scrollContainer.value = document.querySelector('.ant-layout-content');
+  window.addEventListener('resize', onWindowResize);
+
+  heroResizeObserver = new ResizeObserver(updateHeroHeight);
+  if (heroRef.value) {
+    heroResizeObserver.observe(heroRef.value);
+  }
+  updateHeroHeight();
+
+  asmResizeObserver = new ResizeObserver(updateAsmControlHeight);
+  if (asmControlRef.value) {
+    asmResizeObserver.observe(asmControlRef.value);
+  }
+  updateAsmControlHeight();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onWindowResize);
+  if (heroResizeObserver) heroResizeObserver.disconnect();
+  if (asmResizeObserver) asmResizeObserver.disconnect();
+});
 
 import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
@@ -1443,7 +1539,8 @@ import {
   CheckCircleFilled,
   DeleteOutlined,
   RocketOutlined,
-  PlusOutlined
+  PlusOutlined,
+  RedoOutlined
 } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { createTabStateCache } from '../utils/useTabStateCache';
@@ -1534,39 +1631,14 @@ const asmTotalCount = computed(() => {
   return Object.values(asmCounts).reduce((acc, cur) => acc + (Number(cur) || 0), 0);
 });
 
-const quickSearchText = ref('');
-const isFilterExpanded = ref(false);
-
-const primarySearchKeys = {
-  site: 'site',
-  domain: 'domain',
-  ip: 'ip',
-  cert: 'cert.subject_dn',
-  service: 'service_name',
-  fileleak: 'url',
-  url: 'url',
-  vuln: 'vul_name',
-  npoc_service: 'target',
-  cip: 'cidr_ip',
-  nuclei_result: 'target',
-  stat_finger: 'name',
-  wih: 'content'
-};
-
-const handleQuickSearch = () => {
-  const primaryKey = primarySearchKeys[activeTab.value] || 'site';
-  if (quickSearchText.value && quickSearchText.value.trim()) {
-    searchForm.value[primaryKey] = quickSearchText.value.trim();
-  } else {
-    delete searchForm.value[primaryKey];
-  }
-  onSearch();
-};
-
 const activeFilterCount = computed(() => {
   let cnt = 0;
   for (const k in searchForm.value) {
-    if (searchForm.value[k] !== '' && searchForm.value[k] != null) cnt++;
+    const val = searchForm.value[k];
+    if (val !== '' && val != null) {
+      if (Array.isArray(val) && val.length === 0) continue;
+      cnt++;
+    }
   }
   return cnt;
 });
@@ -3440,13 +3512,26 @@ const submitAddDomain = async () => {
   margin-left: 2px;
 }
 
+/* ================= 一体化资产画像 Hero 头部卡片常驻吸附 ================= */
+.hero-sticky-card {
+  position: sticky;
+  top: 0px;
+  z-index: 12;
+  background: var(--arl-bg-white);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  margin-bottom: 12px !important;
+}
+
 /* ================= ASM 网络暴露面专属控制区 ================= */
 .asm-control-box {
+  position: sticky;
+  z-index: 11;
   background: var(--arl-bg-white);
   border-radius: 8px;
   border: 1px solid var(--arl-border-color);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
   margin-bottom: 16px;
+  transition: box-shadow 0.2s ease;
 }
 
 .asm-tabs-nav {
@@ -3557,7 +3642,7 @@ const submitAddDomain = async () => {
   margin-left: 8px;
 }
 
-/* 普通资产列表工具栏 */
+/* 普通资产列表工具栏与平铺检索区 */
 .asm-toolbar-container {
   padding: 12px 16px;
   border-top: 1px solid var(--arl-border-color);
@@ -3575,8 +3660,23 @@ const submitAddDomain = async () => {
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
+}
+
+.toolbar-title-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+}
+
+.toolbar-meta-count {
+  font-size: 12px;
+  color: var(--arl-text-secondary);
+  background: var(--arl-bg-light);
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--arl-border-color);
 }
 
 .toolbar-right {
@@ -3586,35 +3686,131 @@ const submitAddDomain = async () => {
   flex-wrap: wrap;
 }
 
-.filter-count-badge {
-  background: var(--arl-theme-color);
-  color: #fff;
-  border-radius: 8px;
-  padding: 0 6px;
-  font-size: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-weight: 600;
-  margin: 0 2px;
-  line-height: 16px;
-}
-
-.advanced-filter-panel {
+/* 直接平铺的紧凑栅格筛选卡片 */
+.asm-filter-card {
   margin-top: 12px;
-  padding: 16px;
+  padding: 14px 16px 10px 16px;
   background: var(--arl-bg-light);
   border: 1px solid var(--arl-border-color);
   border-radius: 6px;
 }
 
-.filter-operator-group {
-  display: flex;
-  align-items: center;
+.filter-grid-form {
   width: 100%;
 }
 
-.filter-divider {
-  margin: 12px 0;
-  border-top: 1px dashed var(--arl-border-color);
+.filter-field-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.filter-field-label {
+  width: 80px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 12px;
+  color: var(--arl-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.filter-field-widget {
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-search-icon {
+  color: var(--arl-text-secondary);
+  opacity: 0.45;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+}
+.filter-search-icon:hover {
+  color: var(--arl-theme-color);
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+/* 操作符组合输入框 (如 等于/不等于) */
+.filter-operator-box {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--arl-border-color);
+  border-radius: 6px;
+  background: var(--arl-bg-white);
+  height: 32px;
+  transition: all 0.2s;
+  overflow: hidden;
+}
+.filter-operator-box:hover,
+.filter-operator-box:focus-within {
+  border-color: var(--arl-theme-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--arl-theme-color) 20%, transparent);
+}
+.operator-text-input {
+  flex: 1;
+  min-width: 0;
+  box-shadow: none !important;
+}
+.operator-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--arl-border-color);
+  flex-shrink: 0;
+}
+.operator-op-select {
+  width: 82px;
+  flex-shrink: 0;
+  box-shadow: none !important;
+}
+
+/* 底部操作行与状态提示 */
+.filter-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--arl-border-color) 80%, transparent);
+}
+
+.filter-badge-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--arl-text-secondary);
+}
+
+.active-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--arl-theme-color);
+  animation: filter-dot-pulse 2s infinite;
+}
+
+@keyframes filter-dot-pulse {
+  0% { opacity: 0.6; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0.6; transform: scale(0.9); }
+}
+
+.filter-idle-text {
+  color: var(--arl-text-secondary);
+  opacity: 0.7;
+}
+
+.filter-action-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ================= 可行动的空状态引导 (Actionable Empty State) ================= */
