@@ -47,6 +47,7 @@ def create_index():
         "asset_wih": ["scope_id", "record_type", "fnv_hash"],
         "dict_upload_task": "task_id",
         "asset_scope": "group_id",
+        "asset_group": "sort_order",
     }
     for table in index_map:
         if isinstance(index_map[table], list):
@@ -989,6 +990,23 @@ def backfill_icp_task_synced_scopes():
         logging.getLogger().error(f"backfill_icp_task_synced_scopes failed: {e}")
 
 
+def migrate_asset_group_sort_order():
+    """
+    平滑补齐 asset_group 存量数据的 sort_order 字段，确保向下兼容与排序稳定性
+    """
+    try:
+        col = conn_db('asset_group')
+        missing_docs = list(col.find({'sort_order': {'$exists': False}}).sort('_id', 1))
+        if missing_docs:
+            max_doc = col.find_one({'sort_order': {'$exists': True}}, sort=[('sort_order', -1)])
+            current_max = (max_doc.get('sort_order', -1) if max_doc else -1) + 1
+            for idx, doc in enumerate(missing_docs):
+                col.update_one({'_id': doc['_id']}, {'$set': {'sort_order': current_max + idx}})
+    except Exception as e:
+        import logging
+        logging.getLogger().error(f"migrate_asset_group_sort_order failed: {e}")
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -1057,6 +1075,7 @@ def arl_update():
         _run_step("heal_polluted_site_fingers", heal_polluted_site_fingers)
         _run_step("cleanup_zombie_tasks", cleanup_zombie_tasks)
         _run_step("backfill_icp_task_synced_scopes", backfill_icp_task_synced_scopes)
+        _run_step("migrate_asset_group_sort_order", migrate_asset_group_sort_order)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:
         import logging

@@ -43,7 +43,7 @@
       <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 6px 0;">
         <a-menu
           mode="inline"
-          :selectedKeys="[activeGroupId]"
+          :selectedKeys="['all', 'unassigned'].includes(activeGroupId) ? [activeGroupId] : []"
           @click="handleGroupSwitch"
           class="sidebar-group-menu"
           style="border-right: none;"
@@ -56,27 +56,55 @@
             <template #icon><inbox-outlined /></template>
             未分组
           </a-menu-item>
-          <a-menu-divider style="margin: 4px 12px;" />
-          <a-menu-item v-for="group in filteredGroupList" :key="group._id">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-              <span class="group-name-text" :title="group.name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; margin-right: 8px;">{{ group.name }}</span>
-              <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
-                <span class="sidebar-scope-pill">
-                  {{ group.scope_count || 0 }}
-                </span>
-                <a-dropdown :trigger="['click']" :getPopupContainer="getBodyContainer">
-                  <span class="group-action-icon" @click.stop><more-outlined /></span>
-                  <template #overlay>
-                    <a-menu @click="(e) => handleGroupAction(e, group)">
-                      <a-menu-item key="edit">重命名</a-menu-item>
-                      <a-menu-item key="delete" style="color: #ff4d4f;">删除</a-menu-item>
-                    </a-menu>
-                  </template>
-                </a-dropdown>
-              </div>
-            </div>
-          </a-menu-item>
         </a-menu>
+        
+        <div class="sidebar-group-divider"></div>
+
+        <!-- 可拖拽自定义集团列表容器 -->
+        <div ref="draggableGroupListRef" class="sidebar-group-draggable-list">
+          <div
+            v-for="group in filteredGroupList"
+            :key="group._id"
+            :data-id="group._id"
+            class="group-nav-item"
+            :class="{ 'group-nav-item-active': activeGroupId === group._id }"
+            @click="handleGroupSwitch(group._id)"
+          >
+            <div style="display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;">
+              <a-tooltip :title="groupSearchKey ? '搜索筛选中已禁用排序' : '按住拖动调整顺序'" placement="left" :mouseEnterDelay="0.4">
+                <span
+                  class="group-drag-handle"
+                  :class="{ 'group-drag-handle-disabled': !!groupSearchKey }"
+                  @click.stop
+                >
+                  <holder-outlined />
+                </span>
+              </a-tooltip>
+              <span
+                class="group-name-text"
+                :title="group.name"
+                style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;"
+              >
+                {{ group.name }}
+              </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+              <span class="sidebar-scope-pill">
+                {{ group.scope_count || 0 }}
+              </span>
+              <a-dropdown :trigger="['click']" :getPopupContainer="getBodyContainer">
+                <span class="group-action-icon" @click.stop><more-outlined /></span>
+                <template #overlay>
+                  <a-menu @click="(e) => handleGroupAction(e, group)">
+                    <a-menu-item key="edit">重命名</a-menu-item>
+                    <a-menu-item key="delete" style="color: #ff4d4f;">删除</a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
+            </div>
+          </div>
+        </div>
+
         <div v-if="groupSearchKey && filteredGroupList.length === 0" style="padding: 24px 16px; text-align: center; color: var(--arl-text-color); opacity: 0.5; font-size: 12px;">
           <div>未找到匹配集团</div>
           <a-button type="link" size="small" style="font-size: 11px; padding: 0; margin-top: 4px;" @click="groupSearchKey = ''">清空搜索</a-button>
@@ -1083,7 +1111,8 @@
 <script setup>
 defineOptions({ name: 'AssetScope' });
 
-import { ref, reactive, computed, createVNode, watch, onActivated, onDeactivated, onUnmounted, onMounted } from 'vue';
+import { ref, reactive, computed, createVNode, watch, onActivated, onDeactivated, onUnmounted, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import Sortable from 'sortablejs';
 import { useSticky } from '../utils/useSticky';
 const sidebarAnchorRef = ref(null);
 const sidebarLeft = ref(186);
@@ -1132,7 +1161,8 @@ import {
   RadarChartOutlined,
   HistoryOutlined,
   ApartmentOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
+  HolderOutlined
 } from '@ant-design/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
@@ -1342,19 +1372,95 @@ const currentGroupName = computed(() => {
   return g ? g.name : '未知分组';
 });
 
+// Sortable 拖拽排序逻辑
+const draggableGroupListRef = ref(null);
+let sortableInstance = null;
+let originalListSnapshot = null;
+let saveOrderTimer = null;
+
+const initSortable = () => {
+  if (!draggableGroupListRef.value) return;
+  if (sortableInstance) {
+    sortableInstance.destroy();
+    sortableInstance = null;
+  }
+  sortableInstance = new Sortable(draggableGroupListRef.value, {
+    animation: 150,
+    handle: '.group-drag-handle',
+    ghostClass: 'group-drag-ghost',
+    chosenClass: 'group-drag-chosen',
+    dragClass: 'group-drag-active',
+    filter: '.group-action-icon, .ant-dropdown-trigger, .group-drag-handle-disabled',
+    preventOnFilter: false,
+    disabled: !!groupSearchKey.value,
+    onEnd: (evt) => {
+      const { oldIndex, newIndex } = evt;
+      if (oldIndex === newIndex || oldIndex == null || newIndex == null) return;
+      
+      // 记录首轮拖动前的原始快照（用于故障原子回滚）
+      if (!originalListSnapshot) {
+        originalListSnapshot = [...groupList.value];
+      }
+      
+      // 乐观重排前端响应式数据
+      const movedItem = groupList.value.splice(oldIndex, 1)[0];
+      groupList.value.splice(newIndex, 0, movedItem);
+      
+      // 防抖触发持久化保存
+      triggerSaveOrder();
+    }
+  });
+};
+
+const triggerSaveOrder = () => {
+  if (saveOrderTimer) clearTimeout(saveOrderTimer);
+  saveOrderTimer = setTimeout(async () => {
+    const rollbackSnapshot = originalListSnapshot;
+    originalListSnapshot = null;
+    try {
+      const orderIds = groupList.value.map(g => g._id);
+      const res = await request.post('/asset_group/reorder/', { order_ids: orderIds });
+      if (res.code === 200) {
+        groupList.value.forEach((g, idx) => {
+          g.sort_order = idx;
+        });
+      } else {
+        message.error(res.message || '排序保存失败，已自动恢复');
+        if (rollbackSnapshot) {
+          groupList.value = rollbackSnapshot;
+        }
+      }
+    } catch (err) {
+      message.error('网络请求异常，排序已自动恢复');
+      if (rollbackSnapshot) {
+        groupList.value = rollbackSnapshot;
+      }
+    }
+  }, 400);
+};
+
+watch(groupSearchKey, (newVal) => {
+  if (sortableInstance) {
+    sortableInstance.option('disabled', !!newVal);
+  }
+});
+
 // fetch groups
 const fetchGroups = async () => {
   try {
-    const res = await request.get('/asset_group/');
+    const res = await request.get('/asset_group/', { params: { size: 1000 } });
     if (res.code === 200) {
       groupList.value = res.items || [];
+      nextTick(() => {
+        initSortable();
+      });
     }
   } catch (err) {}
 };
 
 // handle group switch with confirmation guard
 const handleGroupSwitch = (info) => {
-  const newKey = info.key;
+  const newKey = (info && typeof info === 'object' && info.key) ? info.key : info;
   if (newKey === activeGroupId.value) return;
   
   if (selectedRowKeys.value.length > 0) {
@@ -2507,6 +2613,13 @@ onUnmounted(() => {
     siderEl.removeEventListener('transitionend', updateSidebarLeft);
   }
   if (siderObserver) siderObserver.disconnect();
+  if (sortableInstance) {
+    sortableInstance.destroy();
+    sortableInstance = null;
+  }
+  if (saveOrderTimer) {
+    clearTimeout(saveOrderTimer);
+  }
   stopPoll();
 });
 
@@ -3015,5 +3128,120 @@ onUnmounted(() => {
 .group-action-icon:hover {
   opacity: 1;
   color: var(--arl-theme-color);
+}
+
+.sidebar-group-divider {
+  margin: 6px 12px;
+  height: 1px;
+  background: var(--arl-border-color);
+  opacity: 0.6;
+}
+
+.sidebar-group-draggable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+}
+
+.group-nav-item {
+  margin: 2px 8px;
+  padding: 0 10px 0 6px;
+  border-radius: 6px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--arl-text-color);
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  user-select: none;
+  position: relative;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.group-nav-item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.group-nav-item-active {
+  background-color: rgba(250, 84, 28, 0.08) !important;
+  color: var(--arl-theme-color) !important;
+  font-weight: 600 !important;
+}
+
+.group-nav-item-active .sidebar-scope-pill {
+  background-color: var(--arl-bg-white) !important;
+  color: var(--arl-theme-color) !important;
+  opacity: 0.9;
+}
+
+/* 拖拽微动抓手 */
+.group-drag-handle {
+  cursor: grab;
+  color: var(--arl-text-color);
+  opacity: 0.35;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 24px;
+  font-size: 13px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.group-nav-item:hover .group-drag-handle {
+  opacity: 0.85;
+  color: var(--arl-theme-color);
+}
+
+.group-drag-handle:hover {
+  opacity: 1 !important;
+  background: rgba(250, 84, 28, 0.1);
+}
+
+.group-drag-handle:active {
+  cursor: grabbing;
+}
+
+.group-drag-handle-disabled {
+  cursor: not-allowed !important;
+  opacity: 0.15 !important;
+}
+
+.group-drag-handle-disabled:hover {
+  background: transparent !important;
+  color: var(--arl-text-color) !important;
+}
+
+/* Sortable 正在被拖动的元素浮动预览状态 (Drag Class) */
+.group-drag-active {
+  opacity: 0.96 !important;
+  background: var(--arl-bg-white) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(250, 84, 28, 0.12) !important;
+  border: 1px solid var(--arl-theme-color) !important;
+  border-radius: 6px !important;
+  transform: scale(1.02);
+  z-index: 1000 !important;
+  cursor: grabbing !important;
+}
+
+/* 目标位置的幽灵占位符状态 (Ghost Class) */
+.group-drag-ghost {
+  opacity: 0.55 !important;
+  background: rgba(250, 84, 28, 0.06) !important;
+  border: 1px dashed var(--arl-theme-color) !important;
+  border-radius: 6px !important;
+  box-shadow: inset 0 0 8px rgba(250, 84, 28, 0.08) !important;
+}
+
+/* 选中但未开始移动状态 (Chosen Class) */
+.group-drag-chosen {
+  cursor: grabbing !important;
 }
 </style>

@@ -1,4 +1,5 @@
 from bson import ObjectId
+from pymongo import UpdateOne
 from flask_restx import fields, Namespace
 from app.utils import get_logger, auth
 from app import utils
@@ -10,7 +11,8 @@ logger = get_logger()
 
 base_fields = {
     'name': fields.String(description="集团名称", required=True),
-    'description': fields.String(description="集团描述")
+    'description': fields.String(description="集团描述"),
+    'sort_order': fields.Integer(description="排序序号")
 }
 
 add_asset_group_fields = ns.model('addAssetGroup', base_fields)
@@ -23,6 +25,10 @@ edit_asset_group_fields = ns.model('editAssetGroup', edit_base_fields)
 
 delete_asset_group_fields = ns.model('deleteAssetGroup', {
     '_id': fields.String(description="集团ID", required=True)
+})
+
+reorder_asset_group_fields = ns.model('reorderAssetGroup', {
+    'order_ids': fields.List(fields.String, description="按顺序排列的集团ID列表", required=True)
 })
 
 get_asset_group_fields = base_query_fields.copy()
@@ -41,6 +47,10 @@ class ARLAssetGroup(ARLResource):
         获取全部集团列表，并统计 scope_count
         """
         args = self.parser.parse_args()
+        if not args.get('order'):
+            args['order'] = '+sort_order,-_id'
+        if not args.get('size'):
+            args['size'] = 1000
         data = self.build_data(args=args, collection='asset_group')
         
         # Calculate scope_count for each group
@@ -71,10 +81,15 @@ class ARLAssetGroup(ARLResource):
         if existing:
             return utils.build_ret("参数错误", {"error": "集团名称已存在"})
             
+        # 自动计算下一个 sort_order
+        max_doc = utils.conn_db('asset_group').find_one({'sort_order': {'$exists': True}}, sort=[('sort_order', -1)])
+        next_order = (max_doc.get('sort_order', -1) if max_doc else -1) + 1
+
         now = utils.curr_date()
         insert_data = {
             "name": name,
             "description": description,
+            "sort_order": next_order,
             "created_at": now,
             "updated_at": now
         }
@@ -167,3 +182,47 @@ class DeleteARLAssetGroup(ARLResource):
         except Exception as e:
             logger.error(f"delete asset_group error, detail={e}")
             return utils.build_ret(ErrorMsg.Error, {"error": "数据库删除异常"})
+
+
+@ns.route('/reorder/')
+class ReorderARLAssetGroup(ARLResource):
+
+    @auth
+    @ns.expect(reorder_asset_group_fields)
+    def post(self):
+        """
+        批量更新集团分组排序
+        """
+        args = self.parse_args(reorder_asset_group_fields)
+        order_ids = args.get('order_ids') or []
+        
+        if not isinstance(order_ids, list) or len(order_ids) == 0:
+            return utils.build_ret("参数错误", {"error": "order_ids 不能为空且必须为列表"})
+            
+        operations = []
+        now = utils.curr_date()
+        for idx, gid in enumerate(order_ids):
+            try:
+                obj_id = ObjectId(gid)
+                operations.append(
+                    UpdateOne(
+                        {'_id': obj_id},
+                        {'$set': {'sort_order': idx, 'updated_at': now}}
+                    )
+                )
+            except Exception:
+                continue
+                
+        if not operations:
+            return utils.build_ret("参数错误", {"error": "未包含有效的集团ID"})
+            
+        try:
+            result = utils.conn_db('asset_group').bulk_write(operations, ordered=False)
+            return utils.build_ret(ErrorMsg.Success, {
+                "matched_count": result.matched_count,
+                "modified_count": result.modified_count
+            })
+        except Exception as e:
+            logger.error(f"reorder asset_group error, detail={e}")
+            return utils.build_ret(ErrorMsg.Error, {"error": "数据库批量写入异常"})
+
