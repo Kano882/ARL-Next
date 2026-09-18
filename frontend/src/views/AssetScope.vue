@@ -444,8 +444,8 @@
     >
       <div style="margin-bottom: 20px; text-align: center;">
         <a-radio-group v-model:value="creationMode" button-style="solid" size="middle">
-          <a-radio-button value="wizard">🏢 企业自动测绘生成 (向导)</a-radio-button>
-          <a-radio-button value="manual">✍️ 手工录入资产 (传统)</a-radio-button>
+          <a-radio-button value="manual">✍️ 手工录入</a-radio-button>
+          <a-radio-button value="wizard">🏢 自动测绘</a-radio-button>
         </a-radio-group>
       </div>
 
@@ -1538,7 +1538,7 @@ watch(() => route.query.drawer, (d) => {
 }, { immediate: true });
 
 // 新建资产分组模式与向导状态
-const creationMode = ref('wizard'); // 'wizard' | 'manual'
+const creationMode = ref('manual'); // 'manual' | 'wizard'
 const wizardStep = ref(1);
 const wizardLoading = ref(false);
 const wizardLoadingTip = ref('正在发起企业测绘...');
@@ -1821,7 +1821,7 @@ const goToOsintDetail = (record) => {
 };
 
 const openAddModal = () => {
-  creationMode.value = 'wizard';
+  creationMode.value = 'manual';
   wizardStep.value = 1;
   wizardForm.group_id = activeGroupId.value === 'all' || activeGroupId.value === 'unassigned' ? undefined : activeGroupId.value;
   wizardForm.target = '';
