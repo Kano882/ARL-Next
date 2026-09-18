@@ -429,10 +429,7 @@
                 <a-button v-if="record.has_increment" type="link" size="small" class="grid-action-btn btn-success" @click="openSyncIncrement(record)">
                   <SyncOutlined />增量
                 </a-button>
-                <a-button v-else-if="record.synced_icp_task_id" type="link" size="small" class="grid-action-btn btn-theme" @click="handleRefreshScopeEnterprise(record)">
-                  <ReloadOutlined />刷新企业
-                </a-button>
-                <a-button v-else type="link" size="small" class="grid-action-btn btn-theme" @click="openBindEnterprise(record)">
+                <a-button v-else-if="!record.synced_icp_task_id" type="link" size="small" class="grid-action-btn btn-theme" @click="openBindEnterprise(record)">
                   <LinkOutlined />绑定企业
                 </a-button>
                 <a-button type="link" size="small" class="grid-action-btn" @click="openAddMonitorModal(record)">
@@ -1775,20 +1772,6 @@ const handleIncrementSyncSuccess = () => {
   fetchData();
 };
 
-const handleRefreshScopeEnterprise = async (record) => {
-  if (!record.synced_icp_task_id) return;
-  try {
-    const res = await request.get(`/icp/restart/${record.synced_icp_task_id}`);
-    if (res.code === 200) {
-      message.success('已触发企业增量更新任务');
-      fetchData();
-    } else {
-      message.error(res.message || '触发失败');
-    }
-  } catch (err) {
-    message.error('网络请求失败');
-  }
-};
 
 // 资产组绑定已有企业主体
 const bindScopeModalVisible = ref(false);
