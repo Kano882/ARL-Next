@@ -1,7 +1,7 @@
 <template>
   <div class="enterprise-osint-panel">
-    <!-- 顶部摘要与操作栏 (仅当有任务时渲染) -->
-    <div v-if="taskId" style="margin-bottom: 16px;">
+    <!-- 顶部摘要与操作栏 (仅当有任务且未隐藏 Header 时渲染) -->
+    <div v-if="taskId && !hideHeader" style="margin-bottom: 16px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">{{ displayName }}</span>
@@ -21,7 +21,10 @@
           </a-button>
         </div>
       </div>
+    </div>
 
+    <!-- 维度 Tabs 导航 -->
+    <div v-if="taskId">
       <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" :style="activeTab === 'log' ? 'margin-bottom: 0;' : 'margin-bottom: 16px;'" @change="onTabChange">
         <a-tab-pane key="web" :tab="`网站备案 (${queryCounts.web})`"></a-tab-pane>
         <a-tab-pane key="app" :tab="`移动 APP (${queryCounts.app})`"></a-tab-pane>
@@ -45,22 +48,26 @@
               >
                 <a-input-group compact v-if="['amount', 'percent'].includes(col.dataIndex)">
                   <a-select v-model:value="searchFormOp[col.dataIndex]" style="width: 65px" :options="[{value:'eq',label:'='},{value:'gt',label:'>'},{value:'lt',label:'<'}]" />
-                  <a-input v-model:value="searchForm[col.dataIndex]" style="width: 120px" :placeholder="'输入' + col.title" @pressEnter="onSearch">
+                  <a-input v-model:value="searchForm[col.dataIndex]" style="width: 140px" :placeholder="'输入' + col.title" @pressEnter="onSearch">
                     <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
                   </a-input>
                 </a-input-group>
-                <a-input v-else v-model:value="searchForm[col.dataIndex]" :placeholder="'请输入' + col.title" style="width: 160px;" allowClear @pressEnter="onSearch">
+                <a-input v-else v-model:value="searchForm[col.dataIndex]" :placeholder="'请输入' + col.title" style="width: 180px;" allowClear @pressEnter="onSearch">
                   <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
                 </a-input>
               </a-form-item>
             </template>
           </a-form>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
           <a-button size="small" @click="resetSearch">重 置</a-button>
           <a-button size="small" type="primary" :loading="exportLoading" @click="handleExport">
             <template #icon><download-outlined /></template>
             导出当前维度表格
+          </a-button>
+          <a-button v-if="activeTab === 'web' && selectedWebRowKeys.length > 0" type="primary" ghost size="small" @click="openSyncModalWithSelected">
+            <template #icon><cloud-sync-outlined /></template>
+            同步勾选域名 ({{ selectedWebRowKeys.length }})
           </a-button>
         </div>
       </div>
@@ -91,20 +98,34 @@
             <span v-else style="color: #bfbfbf;">-</span>
           </template>
 
-          <!-- 域名可点击外链 -->
+          <!-- 域名可点击外链与快捷复制 -->
           <template v-else-if="column.key === 'domain'">
-            <a v-if="record.domain || record.ym" :href="(record.domain || record.ym).startsWith('http') ? (record.domain || record.ym) : ('http://' + (record.domain || record.ym))" target="_blank" rel="noopener noreferrer" style="color: var(--arl-theme-color);">
-              {{ record.domain || record.ym }} <export-outlined style="font-size: 11px;" />
-            </a>
-            <span v-else>-</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+              <a v-if="record.domain || record.ym" :href="(record.domain || record.ym).startsWith('http') ? (record.domain || record.ym) : ('http://' + (record.domain || record.ym))" target="_blank" rel="noopener noreferrer" style="color: var(--arl-theme-color); word-break: break-all;">
+                {{ record.domain || record.ym }} <export-outlined style="font-size: 11px;" />
+              </a>
+              <span v-else>-</span>
+              <a-tooltip title="复制域名" v-if="record.domain || record.ym">
+                <a-button type="text" size="small" style="padding: 0 4px; height: 22px;" @click.stop="handleCopyText(record.domain || record.ym)">
+                  <copy-outlined style="font-size: 12px; opacity: 0.65;" />
+                </a-button>
+              </a-tooltip>
+            </div>
           </template>
 
-          <!-- 首页网址外链 -->
+          <!-- 首页网址外链与快捷复制 -->
           <template v-else-if="column.key === 'homeUrl'">
-            <a v-if="getAssetHomeUrl(record)" :href="getAssetHomeUrl(record)" target="_blank" rel="noopener noreferrer" style="color: var(--arl-theme-color);">
-              {{ getAssetHomeUrl(record) }} <export-outlined style="font-size: 11px;" />
-            </a>
-            <span v-else>-</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+              <a v-if="getAssetHomeUrl(record)" :href="getAssetHomeUrl(record)" target="_blank" rel="noopener noreferrer" style="color: var(--arl-theme-color); word-break: break-all;">
+                {{ getAssetHomeUrl(record) }} <export-outlined style="font-size: 11px;" />
+              </a>
+              <span v-else>-</span>
+              <a-tooltip title="复制网址" v-if="getAssetHomeUrl(record)">
+                <a-button type="text" size="small" style="padding: 0 4px; height: 22px;" @click.stop="handleCopyText(getAssetHomeUrl(record))">
+                  <copy-outlined style="font-size: 12px; opacity: 0.65;" />
+                </a-button>
+              </a-tooltip>
+            </div>
           </template>
 
           <!-- 微博主页外链 -->
@@ -200,16 +221,9 @@
             </div>
           </template>
 
-          <!-- 原始 JSON 抽屉/浮层 -->
+          <!-- 原始 JSON 抽屉 -->
           <template v-else-if="column.key === 'raw'">
-            <a-popover title="原始数据" trigger="click" placement="left">
-              <template #content>
-                <div style="max-width: 480px; max-height: 400px; overflow: auto;">
-                  <pre style="font-size: 11px; margin: 0;">{{ JSON.stringify(record, null, 2) }}</pre>
-                </div>
-              </template>
-              <a-button type="link" size="small" style="padding: 0;">查看JSON</a-button>
-            </a-popover>
+            <a-button type="link" size="small" style="padding: 0;" @click="openRawDrawer(record)">查看JSON</a-button>
           </template>
 
           <template v-else>
@@ -268,6 +282,12 @@
       :preSelectedDomains="selectedWebDomains"
       @success="handleSyncSuccess"
     />
+
+    <!-- 原始数据 JSON 抽屉 -->
+    <RawDataDrawer
+      v-model:open="rawDrawerVisible"
+      :data="currentRawRecord"
+    />
   </div>
 </template>
 
@@ -280,10 +300,13 @@ import {
   CloudSyncOutlined,
   SyncOutlined,
   ExportOutlined,
-  QrcodeOutlined
+  QrcodeOutlined,
+  CopyOutlined
 } from '@ant-design/icons-vue';
 import request from '../utils/request';
+import { copyText } from '../utils/clipboard';
 import SyncToScopeModal from './SyncToScopeModal.vue';
+import RawDataDrawer from './RawDataDrawer.vue';
 
 const props = defineProps({
   taskId: {
@@ -297,10 +320,27 @@ const props = defineProps({
   enterpriseName: {
     type: String,
     default: ''
+  },
+  hideHeader: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['synced', 'refreshed']);
+const emit = defineEmits(['synced', 'refreshed', 'taskLoaded']);
+
+const rawDrawerVisible = ref(false);
+const currentRawRecord = ref({});
+
+const openRawDrawer = (record) => {
+  currentRawRecord.value = record;
+  rawDrawerVisible.value = true;
+};
+
+const handleCopyText = async (text) => {
+  const ok = await copyText(text);
+  if (ok) message.success('已复制: ' + text);
+};
 
 const activeTab = ref('web');
 const loading = ref(false);
@@ -549,6 +589,20 @@ const fetchTaskDetail = async () => {
       if (task.status === 'done' || task.status === 'error') {
         stopLogPolling();
       }
+
+      emit('taskLoaded', {
+        task,
+        taskName: taskName.value,
+        taskTarget: taskTarget.value,
+        taskType: taskType.value,
+        taskTypeLabel: taskTypeLabel.value,
+        taskStatus: taskStatus.value,
+        taskStatusLabel: taskStatusLabel.value,
+        taskStatusColor: taskStatusColor.value,
+        hasIncrement: hasIncrement.value,
+        queryCounts: { ...queryCounts },
+        totalCount: Object.values(queryCounts).reduce((a, b) => a + (Number(b) || 0), 0)
+      });
     }
   } catch (err) {
     console.error('获取任务详情失败', err);
@@ -710,6 +764,14 @@ watch(() => props.taskId, (newVal) => {
     }
   }
 }, { immediate: true });
+
+defineExpose({
+  handleRefreshTask,
+  refreshLoading,
+  queryCounts,
+  taskRecord,
+  fetchTaskDetail
+});
 </script>
 
 <style scoped>

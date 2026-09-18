@@ -1,183 +1,306 @@
 <template>
   <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+    <div ref="actionBarRef" class="detail-sticky-wrapper">
 
-    <a-page-header
-      @back="() => $router.push('/group')"
-      style="padding: 0 0 16px 0;"
-    >
-      <template #title>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span>{{ targetName }}相关资产</span>
-          <a-tag v-if="scopeEnterpriseName && scopeEnterpriseName !== targetName" color="cyan" style="font-weight: normal; font-size: 13px;">
-            <BankOutlined /> {{ scopeEnterpriseName }}
-          </a-tag>
-        </div>
-      </template>
-    </a-page-header>
+      <!-- 1. 一体化资产画像 Hero 头部卡片 -->
+      <div class="arl-hero-card">
+        <div class="hero-top-row">
+          <div class="hero-title-area">
+            <a-button type="text" class="hero-back-btn" @click="() => $router.push('/group')">
+              <template #icon><arrow-left-outlined style="font-size: 16px;" /></template>
+            </a-button>
+            <div class="hero-title-group">
+              <div class="hero-title-main">
+                <span class="hero-title-text">{{ targetName }}</span>
+                <a-tag v-if="scopeGroupName" color="orange" class="hero-scope-tag">
+                  <cluster-outlined /> {{ scopeGroupName }}
+                </a-tag>
+                <a-tag v-if="scopeType" color="blue" class="hero-scope-tag">
+                  {{ scopeType.toUpperCase() }}
+                </a-tag>
+              </div>
+              <div class="hero-meta-row">
+                <template v-if="boundIcpTaskId">
+                  <span class="hero-enterprise-label">
+                    <bank-outlined style="color: var(--arl-theme-color); margin-right: 4px;" />
+                    关联主体: <b>{{ scopeEnterpriseName || targetName }}</b>
+                  </span>
+                  <a-tag v-if="taskTarget && taskTarget.startsWith('TYC_')" color="cyan" class="hero-mini-tag">
+                    {{ taskTarget }}
+                  </a-tag>
+                  <a-tag v-if="taskTypeLabel" color="geekblue" class="hero-mini-tag">
+                    {{ taskTypeLabel }}
+                  </a-tag>
+                  <a-tag v-if="taskStatusLabel" :color="taskStatusColor" class="hero-mini-tag">
+                    {{ taskStatusLabel }}
+                  </a-tag>
+                  <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+                </template>
+                <template v-else>
+                  <span class="hero-unbound-label">尚未关联企业主体（点击右侧绑定自动拉取工商资产）</span>
+                </template>
+              </div>
+            </div>
+          </div>
 
-    <!-- 顶部双视角切换器 -->
-    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--arl-bg-white); padding: 8px 16px; border-radius: 6px; border: 1px solid var(--arl-border-color);">
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <a-radio-group v-model:value="currentView" button-style="solid" size="small">
-          <a-radio-button value="osint">
-            <BankOutlined style="margin-right: 6px;" />企业生态资产 (OSINT)
-            <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px', marginLeft: '6px' }" />
-          </a-radio-button>
-          <a-radio-button value="asm">
-            <GlobalOutlined style="margin-right: 6px;" />网络暴露面 (ASM)
-          </a-radio-button>
-        </a-radio-group>
-        <span v-if="scopeEnterpriseName" style="font-size: 13px; color: var(--arl-text-color); opacity: 0.85;">
-          关联企业: <b style="color: var(--arl-theme-color);">{{ scopeEnterpriseName }}</b>
-        </span>
-      </div>
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <a-button v-if="!boundIcpTaskId" type="primary" size="small" @click="openBindModal">
-          <LinkOutlined /> 绑定企业主体
-        </a-button>
-      </div>
-    </div>
-
-    <div v-show="currentView === 'asm'">
-      <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" style="margin-bottom: 16px;">
-      <a-tab-pane key="site_chain" tab="全链路画像"></a-tab-pane>
-      <a-tab-pane key="site" tab="站点"></a-tab-pane>
-      <a-tab-pane key="domain" tab="子域名"></a-tab-pane>
-      <a-tab-pane key="ip" tab="IP"></a-tab-pane>
-      <a-tab-pane key="cert" tab="SSL证书"></a-tab-pane>
-      <a-tab-pane key="service" tab="服务"></a-tab-pane>
-      <a-tab-pane key="fileleak" tab="文件泄露"></a-tab-pane>
-      <a-tab-pane key="url" tab="URL信息"></a-tab-pane>
-      <a-tab-pane key="cip" tab="C段"></a-tab-pane>
-      <a-tab-pane key="stat_finger" tab="指纹统计"></a-tab-pane>
-      <a-tab-pane key="wih" tab="WIH"></a-tab-pane>
-      <a-tab-pane key="vuln" tab="风险"></a-tab-pane>
-      <a-tab-pane key="npoc_service" tab="服务（python）"></a-tab-pane>
-      <a-tab-pane key="nuclei_result" tab="nuclei"></a-tab-pane>
-    </a-tabs>
-
-    <!-- 全链路画像专属搜索栏 -->
-    <div v-if="activeTab === 'site_chain'" style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-      <span style="font-weight: 500; font-size: 14px; color: var(--arl-text-color);">子域名/IP 查询：</span>
-      <a-auto-complete
-        v-model:value="chainSearchDomain"
-        :options="domainSuggestions"
-        style="width: 360px;"
-        placeholder="请输入或选择子域名/IP（回车直接搜索）"
-        allow-clear
-        @select="(val) => handleChainSearch(val)"
-        @search="handleDomainSearchInput"
-        @pressEnter="() => handleChainSearch()"
-      />
-      <a-button type="primary" :loading="chainLoading" @click="() => handleChainSearch()">
-        <template #icon><search-outlined /></template>
-        查 询
-      </a-button>
-      <a-button @click="resetChainSearch">清 除</a-button>
-      <a-button v-if="chainData" @click="downloadChainJson">
-        <template #icon><download-outlined /></template>
-        导出画像 (JSON)
-      </a-button>
-      <span v-if="chainData" style="font-size: 13px; color: var(--arl-text-secondary); margin-left: 8px;">
-        已命中关联 IP: <b style="color: var(--arl-primary-color); font-family: monospace;">{{ chainData.resolved_ips?.length || 0 }}</b> 个
-      </span>
-    </div>
-
-    <div v-if="tabConfig[activeTab]?.searchFields" style="margin-bottom: 16px;">
-      <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
-      <a-form-item v-for="field in tabConfig[activeTab].searchFields" :key="field.key" :label="field.label + '：'">
-                <a-select
-            v-if="field.type === 'select'"
-            v-model:value="searchForm[field.key]"
-            :placeholder="`请选择${field.label}进行搜索`"
-            style="width: 180px;"
-            allowClear
-            @change="onSearch"
-        >
-          <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
-        </a-select>
-
-        <a-range-picker
-            v-else-if="field.type === 'dateRange'"
-            v-model:value="searchForm[field.key]"
-            :placeholder="['开始日期', '结束日期']"
-            style="width: 260px;"
-            @change="onSearch"
-        />
-
-        <div
-            v-else-if="field.hasOperatorSelect"
-            style="display: flex; align-items: center; border: 1px solid var(--arl-border-color); border-radius: 2px; width: 280px; background: var(--arl-bg-white);"
-        >
-          <template v-if="field.type === 'select'">
-            <a-select
-                v-model:value="searchForm[field.key]"
-                :placeholder="`请选择${field.label}`"
-                :bordered="false"
-                style="flex: 1; box-shadow: none;"
-                allowClear
-                @change="onSearch"
+          <div class="hero-actions">
+            <a-button
+              v-if="boundIcpTaskId"
+              type="primary"
+              size="middle"
+              :loading="osintRefreshLoading"
+              @click="triggerOsintRefresh"
             >
-              <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </a-select-option>
-            </a-select>
-          </template>
-          <template v-else>
-            <a-input
-                v-model:value="searchForm[field.key]"
-                :placeholder="`请输入${field.label}`"
-                :bordered="false"
-                style="flex: 1; box-shadow: none;"
-                allowClear
-                @pressEnter="onSearch"
+              <template #icon><sync-outlined :spin="osintRefreshLoading" /></template>
+              增量更新测绘
+            </a-button>
+            <a-button
+              v-else
+              type="primary"
+              size="middle"
+              @click="openBindModal"
             >
-              <template #suffix>
-                <search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" />
+              <template #icon><link-outlined /></template>
+              绑定企业主体
+            </a-button>
+            <a-dropdown>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="bind" v-if="boundIcpTaskId" @click="openBindModal">
+                    <link-outlined /> 重新绑定企业主体
+                  </a-menu-item>
+                  <a-menu-item key="risk" v-if="currentView === 'asm' && activeTab === 'site'" @click="openRiskModal">
+                    <bug-outlined /> 风险任务下发
+                  </a-menu-item>
+                </a-menu>
               </template>
-            </a-input>
-          </template>
-          <div style="width: 1px; height: 16px; background-color: var(--arl-border-color);"></div>
-          <a-select
-              v-model:value="field.operator"
-              :bordered="false"
-              style="width: 90px; box-shadow: none;"
-              @change="onSearch"
-          >
-            <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op }}</a-select-option>
-          </a-select>
+              <a-button size="middle">
+                更多 <down-outlined style="font-size: 10px;" />
+              </a-button>
+            </a-dropdown>
+          </div>
         </div>
 
-        <a-input
-            v-else
-            v-model:value="searchForm[field.key]"
-            :placeholder="`请输入${field.label}进行搜索`"
-            style="width: 180px;"
-            allowClear
-            @pressEnter="onSearch"
-        >
-          <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-        </a-input>
-      </a-form-item>
-      </a-form>
-    </div>
+        <!-- 底部胶囊双视角切换器 -->
+        <div class="hero-view-switcher">
+          <div class="capsule-switcher">
+            <button
+              class="capsule-btn"
+              :class="{ active: currentView === 'osint' }"
+              @click="currentView = 'osint'"
+            >
+              <bank-outlined class="capsule-icon" />
+              <span>企业生态资产 (OSINT)</span>
+              <span class="capsule-count" v-if="osintTotalCount > 0">{{ osintTotalCount }}</span>
+              <span v-if="scopeHasIncrement" class="capsule-dot"></span>
+            </button>
+            <button
+              class="capsule-btn"
+              :class="{ active: currentView === 'asm' }"
+              @click="currentView = 'asm'"
+            >
+              <global-outlined class="capsule-icon" />
+              <span>网络暴露面 (ASM)</span>
+              <span class="capsule-count" v-if="asmTotalCount > 0">{{ asmTotalCount }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
-    <div v-if="activeTab !== 'site_chain'" style="margin-bottom: 16px; display: flex; gap: 8px;">
-      <a-button @click="resetSearch">清 除</a-button>
-      <a-button :disabled="!hasSelected" @click="handleBatchDelete">批量删除</a-button>
-      <a-button v-if="activeTab === 'site'" type="primary" @click="openAddSiteModal">添加站点</a-button>
-      <a-button v-if="activeTab === 'domain'" type="primary" @click="openAddDomainModal">添加子域名</a-button>
+      <!-- 2. 网络暴露面 (ASM) 专属控制与筛选区 -->
+      <div v-show="currentView === 'asm'" class="asm-control-box">
+        <!-- 维度 Tabs 导航 (带数量徽标与平滑滚动) -->
+        <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs asm-tabs-nav">
+          <a-tab-pane key="site_chain">
+            <template #tab>
+              <span class="chain-tab-pill">
+                <compass-outlined /> 全链路画像
+              </span>
+            </template>
+          </a-tab-pane>
+          <a-tab-pane v-for="t in asmTabList" :key="t.key">
+            <template #tab>
+              <span class="asm-tab-item">
+                <span>{{ t.label }}</span>
+                <span class="asm-tab-badge" :class="{ 'has-data': asmCounts[t.key] > 0 }">
+                  {{ asmCounts[t.key] || 0 }}
+                </span>
+              </span>
+            </template>
+          </a-tab-pane>
+        </a-tabs>
 
-      <a-button v-if="activeTab !== 'ip' && tabConfig[activeTab]?.exportUrl" type="primary" @click="handleExport">导出{{ tabConfig[activeTab].tabName }}</a-button>
-      <template v-if="activeTab === 'ip'">
-        <a-button type="primary" @click="handleIPExport('port')">导出 IP 端口</a-button>
-        <a-button type="primary" @click="handleIPExport('domain')">导出域名</a-button>
-        <a-button type="primary" @click="handleIPExport('ip')">导出IP</a-button>
-      </template>
-      <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">风险任务下发</a-button>
-    </div>
-    </div>
+        <!-- 全链路画像专属检索与快捷 Chips -->
+        <div v-if="activeTab === 'site_chain'" class="chain-search-container">
+          <div v-if="scopeDomainList && scopeDomainList.length > 0" class="chain-quick-chips">
+            <span class="chips-label"><rocket-outlined /> 快捷透视本组资产：</span>
+            <div class="chips-list">
+              <a-tag
+                v-for="d in scopeDomainList.slice(0, 8)"
+                :key="d"
+                color="blue"
+                class="quick-chip-tag"
+                @click="() => { chainSearchDomain = d; handleChainSearch(d); }"
+              >
+                {{ d }}
+              </a-tag>
+            </div>
+          </div>
+
+          <div class="chain-search-row">
+            <span class="chain-search-label">目标域名/IP：</span>
+            <a-auto-complete
+              v-model:value="chainSearchDomain"
+              :options="domainSuggestions"
+              style="width: 360px;"
+              placeholder="请输入或选择子域名/IP（回车直接搜索）"
+              allow-clear
+              @select="(val) => handleChainSearch(val)"
+              @search="handleDomainSearchInput"
+              @pressEnter="() => handleChainSearch()"
+            />
+            <a-button type="primary" :loading="chainLoading" @click="() => handleChainSearch()">
+              <template #icon><search-outlined /></template>
+              查 询
+            </a-button>
+            <a-button @click="resetChainSearch">清 除</a-button>
+            <a-button v-if="chainData" @click="downloadChainJson">
+              <template #icon><download-outlined /></template>
+              导出画像 (JSON)
+            </a-button>
+            <span v-if="chainData" class="chain-result-stat">
+              已命中关联 IP: <b class="font-mono">{{ chainData.resolved_ips?.length || 0 }}</b> 个
+            </span>
+          </div>
+        </div>
+
+        <!-- 普通资产列表检索与操作工具栏 (收敛为主搜 + 高级筛选折叠) -->
+        <div v-else class="asm-toolbar-container">
+          <div class="toolbar-row">
+            <div class="toolbar-left">
+              <a-input-search
+                v-model:value="quickSearchText"
+                :placeholder="`在${tabConfig[activeTab]?.tabName || '当前维度'}中速查...`"
+                style="width: 280px;"
+                allow-clear
+                @search="handleQuickSearch"
+                @pressEnter="handleQuickSearch"
+              />
+              <a-button
+                v-if="tabConfig[activeTab]?.searchFields?.length"
+                :type="isFilterExpanded ? 'primary' : 'default'"
+                :ghost="isFilterExpanded"
+                @click="isFilterExpanded = !isFilterExpanded"
+              >
+                <template #icon><filter-outlined /></template>
+                高级筛选
+                <span v-if="activeFilterCount > 0" class="filter-count-badge">{{ activeFilterCount }}</span>
+                <down-outlined :style="{ fontSize: '10px', transform: isFilterExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }" />
+              </a-button>
+              <a-button v-if="activeFilterCount > 0 || quickSearchText" type="link" size="small" @click="resetSearch">
+                清空筛选
+              </a-button>
+            </div>
+
+            <div class="toolbar-right">
+              <a-button v-if="activeTab === 'site'" type="primary" @click="openAddSiteModal">
+                <template #icon><plus-outlined /></template>
+                添加站点
+              </a-button>
+              <a-button v-if="activeTab === 'domain'" type="primary" @click="openAddDomainModal">
+                <template #icon><plus-outlined /></template>
+                添加子域名
+              </a-button>
+              <a-button v-if="activeTab !== 'ip' && tabConfig[activeTab]?.exportUrl" @click="handleExport">
+                <template #icon><download-outlined /></template>
+                导出{{ tabConfig[activeTab].tabName }}
+              </a-button>
+              <template v-if="activeTab === 'ip'">
+                <a-button @click="handleIPExport('port')">导出端口</a-button>
+                <a-button @click="handleIPExport('domain')">导出域名</a-button>
+                <a-button type="primary" ghost @click="handleIPExport('ip')">
+                  <template #icon><download-outlined /></template>
+                  导出 IP
+                </a-button>
+              </template>
+              <a-button v-if="activeTab === 'site'" type="dashed" danger @click="openRiskModal">
+                <template #icon><bug-outlined /></template>
+                风险巡航
+              </a-button>
+            </div>
+          </div>
+
+          <!-- 折叠高级筛选面板 (响应式网格布局，杜绝截断) -->
+          <div v-show="isFilterExpanded && tabConfig[activeTab]?.searchFields?.length" class="advanced-filter-panel">
+            <a-form :model="searchForm" layout="vertical">
+              <a-row :gutter="[16, 12]">
+                <a-col
+                  v-for="field in tabConfig[activeTab].searchFields"
+                  :key="field.key"
+                  :xs="24" :sm="12" :md="8" :lg="6"
+                >
+                  <a-form-item :label="field.label" style="margin-bottom: 0;">
+                    <a-select
+                      v-if="field.type === 'select'"
+                      v-model:value="searchForm[field.key]"
+                      :placeholder="`请选择${field.label}`"
+                      style="width: 100%;"
+                      allowClear
+                      @change="onSearch"
+                    >
+                      <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
+                    </a-select>
+
+                    <a-range-picker
+                      v-else-if="field.type === 'dateRange'"
+                      v-model:value="searchForm[field.key]"
+                      :placeholder="['开始日期', '结束日期']"
+                      style="width: 100%;"
+                      @change="onSearch"
+                    />
+
+                    <div
+                      v-else-if="field.hasOperatorSelect"
+                      class="filter-operator-group"
+                    >
+                      <a-input
+                        v-model:value="searchForm[field.key]"
+                        :placeholder="`请输入${field.label}`"
+                        :bordered="false"
+                        style="flex: 1; box-shadow: none;"
+                        allowClear
+                        @pressEnter="onSearch"
+                      />
+                      <div class="filter-divider"></div>
+                      <a-select
+                        v-model:value="field.operator"
+                        :bordered="false"
+                        style="width: 85px; box-shadow: none;"
+                        @change="onSearch"
+                      >
+                        <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op }}</a-select-option>
+                      </a-select>
+                    </div>
+
+                    <a-input
+                      v-else
+                      v-model:value="searchForm[field.key]"
+                      :placeholder="`请输入${field.label}`"
+                      style="width: 100%;"
+                      allowClear
+                      @pressEnter="onSearch"
+                    />
+                  </a-form-item>
+                </a-col>
+              </a-row>
+              <div class="advanced-filter-actions">
+                <a-button size="small" @click="resetSearch">重置全部</a-button>
+                <a-button type="primary" size="small" @click="onSearch">应用筛选</a-button>
+              </div>
+            </a-form>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-show="currentView === 'asm'">
@@ -191,11 +314,18 @@
         <template v-else-if="column.key === 'site'">
           <div class="site-header">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-              <a :href="record.site || record.url" target="_blank" style="font-weight: 500; word-break: break-all;">
+              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
                 <img v-if="record.favicon && record.favicon.data" :src="`data:image/png;base64,${record.favicon.data}`" class="site-img" />
-                {{ record.site || record.url }}
-              </a>
-              <a-button type="link" size="small" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="jumpToChain(record.hostname || record.site)">
+                <a :href="record.site || record.url" target="_blank" style="font-weight: 500; word-break: break-all;">
+                  {{ record.site || record.url }}
+                </a>
+                <a-tooltip title="复制站点">
+                  <a-button type="text" size="small" class="cell-copy-btn" @click.stop="handleCopyText(record.site || record.url)">
+                    <copy-outlined style="font-size: 11px; opacity: 0.65;" />
+                  </a-button>
+                </a-tooltip>
+              </div>
+              <a-button type="link" size="small" class="chain-action-btn" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="openChainDrawer(record.hostname || record.site)">
                 <compass-outlined />画像
               </a-button>
             </div>
@@ -314,8 +444,15 @@
 
         <template v-else-if="column.key === 'ip'">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-            <span style="font-weight: 500; font-family: monospace;">{{ record.ip }}</span>
-            <a-button type="link" size="small" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="jumpToChain(record.ip)">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-weight: 500; font-family: monospace;">{{ record.ip }}</span>
+              <a-tooltip title="复制 IP">
+                <a-button type="text" size="small" class="cell-copy-btn" @click.stop="handleCopyText(record.ip)">
+                  <copy-outlined style="font-size: 11px; opacity: 0.65;" />
+                </a-button>
+              </a-tooltip>
+            </div>
+            <a-button type="link" size="small" class="chain-action-btn" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="openChainDrawer(record.ip)">
               <compass-outlined />画像
             </a-button>
           </div>
@@ -329,11 +466,25 @@
         <template v-else-if="column.key === 'geo_asn'"><span>{{ record.geo_asn?.organization || '-' }}</span></template>
         <template v-else-if="column.key === 'domain'">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-            <div v-if="Array.isArray(record.domain)">
-              <div v-for="(dom, i) in record.domain" :key="i">{{ dom }}</div>
+            <div v-if="Array.isArray(record.domain)" style="display: flex; flex-direction: column; gap: 2px;">
+              <div v-for="(dom, i) in record.domain" :key="i" style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-family: monospace;">{{ dom }}</span>
+                <a-tooltip title="复制域名">
+                  <a-button type="text" size="small" class="cell-copy-btn" @click.stop="handleCopyText(dom)">
+                    <copy-outlined style="font-size: 11px; opacity: 0.65;" />
+                  </a-button>
+                </a-tooltip>
+              </div>
             </div>
-            <span v-else style="font-weight: 500;">{{ record.domain }}</span>
-            <a-button v-if="!Array.isArray(record.domain)" type="link" size="small" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="jumpToChain(record.domain)">
+            <div v-else style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-weight: 500;">{{ record.domain }}</span>
+              <a-tooltip title="复制域名">
+                <a-button type="text" size="small" class="cell-copy-btn" @click.stop="handleCopyText(record.domain)">
+                  <copy-outlined style="font-size: 11px; opacity: 0.65;" />
+                </a-button>
+              </a-tooltip>
+            </div>
+            <a-button v-if="!Array.isArray(record.domain)" type="link" size="small" class="chain-action-btn" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="openChainDrawer(record.domain)">
               <compass-outlined />画像
             </a-button>
           </div>
@@ -440,7 +591,35 @@
         <template v-else-if="column.key === 'update_date'">
           <span>{{ record.update_date || record.insert_time || '-' }}</span>
         </template>
+      </template>
 
+      <template #emptyText>
+        <div v-if="scopeDomainList && scopeDomainList.length > 0 && activeTab !== 'stat_finger'" class="empty-actionable-card">
+          <div class="empty-icon-circle">
+            <rocket-outlined class="empty-icon" />
+          </div>
+          <div class="empty-title">当前「{{ tabConfig[activeTab]?.tabName || '网络暴露面' }}」暂无探测数据</div>
+          <div class="empty-desc">
+            检测到当前资产组已关联 <b>{{ scopeDomainList.length }}</b> 个企业备案主域名（例如：<span class="font-mono">{{ scopeDomainList.slice(0, 3).join(', ') }}{{ scopeDomainList.length > 3 ? ' 等' : '' }}</span>），尚未下发探测任务。
+          </div>
+          <div class="empty-actions">
+            <a-button type="primary" size="middle" @click="openQuickRecon">
+              <template #icon><rocket-outlined /></template>
+              一键下发探测任务
+            </a-button>
+            <a-button v-if="activeTab === 'domain'" size="middle" @click="openAddDomainModal">
+              <template #icon><plus-outlined /></template>
+              手动添加子域名
+            </a-button>
+            <a-button v-else-if="activeTab === 'site'" size="middle" @click="openAddSiteModal">
+              <template #icon><plus-outlined /></template>
+              手动添加站点
+            </a-button>
+          </div>
+        </div>
+        <div v-else class="empty-default-box">
+          <a-empty description="暂无资产记录" />
+        </div>
       </template>
     </a-table>
 
@@ -1052,15 +1231,39 @@
       <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
       <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" />
     </div>
+
+    <!-- 悬浮浮动批处理条 (Floating Action Bar) -->
+    <transition name="floating-slide">
+      <div v-if="hasSelected" class="arl-floating-action-bar">
+        <div class="floating-info">
+          <check-circle-filled style="color: var(--arl-theme-color); font-size: 16px;" />
+          <span>已选中 <b style="color: var(--arl-theme-color); margin: 0 4px;">{{ selectedRowKeys.length }}</b> 项资产</span>
+        </div>
+        <div class="floating-actions">
+          <a-button danger size="middle" @click="handleBatchDelete">
+            <template #icon><delete-outlined /></template>
+            批量删除
+          </a-button>
+          <a-button v-if="activeTab === 'site'" type="primary" size="middle" @click="openRiskModal">
+            <template #icon><bug-outlined /></template>
+            下发风险巡航 ({{ selectedRowKeys.length }})
+          </a-button>
+          <a-button size="middle" @click="selectedRowKeys = []">取消选择</a-button>
+        </div>
+      </div>
+    </transition>
   </div>
 
   <!-- OSINT 企业生态资产视角 -->
   <div v-show="currentView === 'osint'" style="margin-top: 16px;">
     <EnterpriseOsintPanel
       v-if="boundIcpTaskId"
+      ref="osintPanelRef"
       :task-id="boundIcpTaskId"
       :scope-id="scope_id"
       :enterprise-name="scopeEnterpriseName"
+      :hide-header="true"
+      @taskLoaded="handleOsintLoaded"
       @synced="handleOsintSynced"
     />
     <div v-else style="background: var(--arl-bg-white); border: 1px dashed var(--arl-border-color); border-radius: 8px; padding: 60px 24px; text-align: center; margin-top: 16px;">
@@ -1188,6 +1391,19 @@
       </a-form>
     </a-modal>
 
+    <!-- 全链路画像滑出抽屉 (快速透视) -->
+    <ChainDrawer
+      v-model:open="chainDrawerVisible"
+      :target="chainDrawerTarget"
+      :scope-id="scope_id"
+      @openDedicated="handleOpenDedicatedChain"
+    />
+
+    <!-- 原始数据 JSON 抽屉 -->
+    <RawDataDrawer
+      v-model:open="rawDrawerVisible"
+      :data="currentRawRecord"
+    />
   </div>
 </template>
 
@@ -1207,6 +1423,9 @@ import dayjs from 'dayjs';
 import CidrDetailModal from '../components/CidrDetailModal.vue';
 import ServiceDetailModal from '../components/ServiceDetailModal.vue';
 import EnterpriseOsintPanel from '../components/EnterpriseOsintPanel.vue';
+import ChainDrawer from '../components/ChainDrawer.vue';
+import RawDataDrawer from '../components/RawDataDrawer.vue';
+import { copyText } from '../utils/clipboard';
 import {
   SearchOutlined,
   ExclamationCircleOutlined,
@@ -1222,7 +1441,16 @@ import {
   DownloadOutlined,
   CloseOutlined,
   BankOutlined,
-  SyncOutlined
+  SyncOutlined,
+  ArrowLeftOutlined,
+  FilterOutlined,
+  DownOutlined,
+  UpOutlined,
+  CopyOutlined,
+  CheckCircleFilled,
+  DeleteOutlined,
+  RocketOutlined,
+  PlusOutlined
 } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { createTabStateCache } from '../utils/useTabStateCache';
@@ -1262,8 +1490,220 @@ watch(() => route.query.view, (newVal) => {
     currentView.value = target;
   }
 });
+
+const osintPanelRef = ref(null);
 const boundIcpTaskId = ref('');
 const scopeHasIncrement = ref(false);
+const scopeGroupName = ref('');
+const scopeType = ref('');
+const scopeDomainList = ref([]);
+const boundTaskRecord = ref({});
+const taskTarget = ref('');
+const taskTypeLabel = ref('');
+const taskStatusLabel = ref('');
+const taskStatusColor = ref('default');
+const osintTotalCount = ref(0);
+const osintRefreshLoading = ref(false);
+
+const asmTabList = [
+  { key: 'site', label: '站点' },
+  { key: 'domain', label: '子域名' },
+  { key: 'ip', label: 'IP' },
+  { key: 'cert', label: 'SSL证书' },
+  { key: 'service', label: '服务' },
+  { key: 'fileleak', label: '文件泄露' },
+  { key: 'url', label: 'URL信息' },
+  { key: 'cip', label: 'C段' },
+  { key: 'stat_finger', label: '指纹统计' },
+  { key: 'wih', label: 'WIH' },
+  { key: 'vuln', label: '风险' },
+  { key: 'npoc_service', label: '服务(python)' },
+  { key: 'nuclei_result', label: 'nuclei' }
+];
+
+const asmCounts = reactive({
+  site: 0,
+  domain: 0,
+  ip: 0,
+  cert: 0,
+  service: 0,
+  fileleak: 0,
+  url: 0,
+  cip: 0,
+  stat_finger: 0,
+  wih: 0,
+  vuln: 0,
+  npoc_service: 0,
+  nuclei_result: 0
+});
+
+const asmTotalCount = computed(() => {
+  return Object.values(asmCounts).reduce((acc, cur) => acc + (Number(cur) || 0), 0);
+});
+
+const quickSearchText = ref('');
+const isFilterExpanded = ref(false);
+
+const primarySearchKeys = {
+  site: 'site',
+  domain: 'domain',
+  ip: 'ip',
+  cert: 'cert.subject_dn',
+  service: 'service_name',
+  fileleak: 'url',
+  url: 'url',
+  vuln: 'vul_name',
+  npoc_service: 'target',
+  cip: 'cidr_ip',
+  nuclei_result: 'target',
+  stat_finger: 'name',
+  wih: 'content'
+};
+
+const handleQuickSearch = () => {
+  const primaryKey = primarySearchKeys[activeTab.value] || 'site';
+  if (quickSearchText.value && quickSearchText.value.trim()) {
+    searchForm.value[primaryKey] = quickSearchText.value.trim();
+  } else {
+    delete searchForm.value[primaryKey];
+  }
+  onSearch();
+};
+
+const activeFilterCount = computed(() => {
+  let cnt = 0;
+  for (const k in searchForm.value) {
+    if (searchForm.value[k] !== '' && searchForm.value[k] != null) cnt++;
+  }
+  return cnt;
+});
+
+const handleCopyText = async (text) => {
+  if (!text) return;
+  const ok = await copyText(String(text).trim());
+  if (ok) message.success(`已复制: ${text}`);
+};
+
+const chainDrawerVisible = ref(false);
+const chainDrawerTarget = ref('');
+
+const openChainDrawer = (target) => {
+  if (!target) return;
+  chainDrawerTarget.value = String(target).trim();
+  chainDrawerVisible.value = true;
+};
+
+const handleOpenDedicatedChain = (target) => {
+  chainDrawerVisible.value = false;
+  activeTab.value = 'site_chain';
+  chainSearchDomain.value = target;
+  handleChainSearch(target);
+};
+
+const rawDrawerVisible = ref(false);
+const currentRawRecord = ref({});
+
+const openRawDrawer = (record) => {
+  currentRawRecord.value = record;
+  rawDrawerVisible.value = true;
+};
+
+const handleOsintLoaded = (payload) => {
+  if (!payload) return;
+  boundTaskRecord.value = payload.task || {};
+  taskTarget.value = payload.taskTarget || '';
+  taskTypeLabel.value = payload.taskTypeLabel || '';
+  taskStatusLabel.value = payload.taskStatusLabel || '';
+  taskStatusColor.value = payload.taskStatusColor || 'default';
+  osintTotalCount.value = payload.totalCount || 0;
+};
+
+const fetchBoundTaskDetail = async (taskId) => {
+  if (!taskId) return;
+  try {
+    const res = await request.get('/icp/task', { params: { _id: taskId } });
+    if (res.code === 200 && res.items && res.items.length > 0) {
+      const task = res.items[0];
+      boundTaskRecord.value = task;
+      taskTarget.value = task.target || '';
+      taskTypeLabel.value = task.task_type === 'tyc' ? '天眼查' : 'ICP备案';
+      const mapStatus = { waiting: '等待中', running: '运行中', done: '已完成', stop: '已停止', error: '执行失败' };
+      taskStatusLabel.value = mapStatus[task.status] || task.status;
+      const mapColor = { waiting: 'warning', running: 'processing', done: 'success', stop: 'default', error: 'error' };
+      taskStatusColor.value = mapColor[task.status] || 'default';
+      const stats = task.statistic || {};
+      osintTotalCount.value = (
+        (stats.web_cnt || 0) +
+        (stats.app_cnt || 0) +
+        (stats.mapp_cnt || 0) +
+        (stats.wechat_cnt || 0) +
+        (stats.weibo_cnt || 0) +
+        (stats.kapp_cnt || 0) +
+        (stats.trademark_cnt || 0) +
+        (stats.invest_cnt || 0)
+      );
+    }
+  } catch (e) {}
+};
+
+const triggerOsintRefresh = async () => {
+  if (!boundIcpTaskId.value) return;
+  osintRefreshLoading.value = true;
+  try {
+    const res = await request.get(`/icp/restart/${boundIcpTaskId.value}`);
+    if (res.code === 200) {
+      message.success('已触发增量测绘任务');
+      fetchBoundTaskDetail(boundIcpTaskId.value);
+      if (osintPanelRef.value?.fetchTaskDetail) {
+        osintPanelRef.value.fetchTaskDetail();
+      }
+    } else {
+      message.error(res.message || '触发失败');
+    }
+  } catch (e) {
+    message.error('网络请求失败');
+  } finally {
+    osintRefreshLoading.value = false;
+  }
+};
+
+const fetchAsmCounts = async () => {
+  if (!scope_id.value) return;
+  const keys = Object.keys(tabConfig).filter(k => k !== 'site_chain');
+  await Promise.allSettled(
+    keys.map(async (key) => {
+      const config = tabConfig[key];
+      if (!config || !config.url) return;
+      try {
+        const res = await request.get(config.url, {
+          params: { page: 1, size: 1, scope_id: scope_id.value }
+        });
+        if (res && res.code === 200) {
+          asmCounts[key] = res.total || 0;
+        }
+      } catch (e) {}
+    })
+  );
+};
+
+const openQuickRecon = () => {
+  if (activeTab.value === 'domain') {
+    openAddDomainModal();
+    if (scopeDomainList.value && scopeDomainList.value.length > 0) {
+      addDomainForm.domain = scopeDomainList.value.join('\n');
+    }
+  } else if (activeTab.value === 'site') {
+    openAddSiteModal();
+    if (scopeDomainList.value && scopeDomainList.value.length > 0) {
+      addSiteForm.site = scopeDomainList.value.map(d => `http://${d}\nhttps://${d}`).join('\n');
+    }
+  } else {
+    openAddDomainModal();
+    if (scopeDomainList.value && scopeDomainList.value.length > 0) {
+      addDomainForm.domain = scopeDomainList.value.join('\n');
+    }
+  }
+};
 
 const bindModalVisible = ref(false);
 const bindLoading = ref(false);
@@ -1282,6 +1722,13 @@ const fetchScopeMeta = async () => {
       boundIcpTaskId.value = item.synced_icp_task_id || '';
       scopeEnterpriseName.value = item.enterprise_name || item.name || '';
       scopeHasIncrement.value = !!item.has_increment;
+      scopeGroupName.value = item.group_name || '';
+      scopeType.value = item.scope_type || '';
+      scopeDomainList.value = item.domain_array || (item.scope ? item.scope.split(',').map(s => s.trim()).filter(Boolean) : []);
+      if (boundIcpTaskId.value) {
+        fetchBoundTaskDetail(boundIcpTaskId.value);
+      }
+      fetchAsmCounts();
     }
   } catch (err) {
     console.error('获取资产组企业元信息失败', err);
@@ -2167,6 +2614,7 @@ const fetchData = async () => {
     if (res.code === 200) {
       dataSource.value = res.items || [];
       pagination.total = res.total || 0;
+      asmCounts[activeTab.value] = res.total || 0;
       selectedRowKeys.value = [];
       // 更新当前 Tab 内存数据缓存并持久化轻量搜索状态
       tabCache.updateMemoryCache(activeTab.value, dataSource.value, pagination.total);
@@ -2752,5 +3200,500 @@ const submitAddDomain = async () => {
   color: var(--arl-text-color);
   word-break: break-all;
 }
+
+/* ================= 一体化 Hero 头部卡片 ================= */
+.arl-hero-card {
+  background: var(--arl-bg-white);
+  border-radius: 8px;
+  border: 1px solid var(--arl-border-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  margin-bottom: 16px;
+  overflow: hidden;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.hero-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px 24px 14px 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hero-title-area {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 320px;
+}
+
+.hero-back-btn {
+  padding: 4px 8px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--arl-text-secondary);
+  margin-top: 2px;
+  transition: all 0.2s;
+}
+.hero-back-btn:hover {
+  background: var(--arl-bg-light);
+  color: var(--arl-theme-color);
+}
+
+.hero-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hero-title-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hero-title-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--arl-text-color);
+  letter-spacing: -0.2px;
+  line-height: 1.3;
+}
+
+.hero-scope-tag {
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 1px 8px;
+}
+
+.hero-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--arl-text-secondary);
+}
+
+.hero-enterprise-label {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--arl-text-color);
+}
+
+.hero-unbound-label {
+  color: var(--arl-text-secondary);
+  font-size: 12px;
+}
+
+.hero-mini-tag {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 3px;
+  line-height: 18px;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ================= 胶囊双视角切换器 ================= */
+.hero-view-switcher {
+  background: var(--arl-bg-light);
+  border-top: 1px solid var(--arl-border-color);
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.capsule-switcher {
+  display: inline-flex;
+  background: var(--arl-bg-layout);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--arl-border-color);
+  gap: 4px;
+}
+
+.capsule-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--arl-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+.capsule-btn:hover {
+  color: var(--arl-text-color);
+  background: rgba(0, 0, 0, 0.03);
+}
+.capsule-btn.active {
+  background: var(--arl-bg-white);
+  color: var(--arl-theme-color);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.capsule-icon {
+  font-size: 14px;
+}
+
+.capsule-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+  background: var(--arl-bg-light);
+  color: var(--arl-text-secondary);
+  border: 1px solid var(--arl-border-color);
+  transition: all 0.2s;
+}
+.capsule-btn.active .capsule-count {
+  background: color-mix(in srgb, var(--arl-theme-color) 12%, transparent);
+  color: var(--arl-theme-color);
+  border-color: color-mix(in srgb, var(--arl-theme-color) 30%, transparent);
+}
+
+.capsule-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #52c41a;
+  margin-left: 2px;
+}
+
+/* ================= ASM 网络暴露面专属控制区 ================= */
+.asm-control-box {
+  background: var(--arl-bg-white);
+  border-radius: 8px;
+  border: 1px solid var(--arl-border-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  margin-bottom: 16px;
+}
+
+.asm-tabs-nav {
+  padding: 12px 16px 0 16px;
+  margin-bottom: 0 !important;
+}
+
+.asm-tabs-nav :deep(.ant-tabs-nav) {
+  margin-bottom: 0 !important;
+}
+
+.chain-tab-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #722ed1;
+  font-weight: 600;
+}
+
+.asm-tab-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.asm-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 500;
+  background: var(--arl-bg-light);
+  color: var(--arl-text-secondary);
+  transition: all 0.2s;
+}
+.asm-tab-badge.has-data {
+  background: color-mix(in srgb, var(--arl-theme-color) 12%, transparent);
+  color: var(--arl-theme-color);
+  font-weight: 600;
+}
+
+/* 全链路画像专属检索栏 */
+.chain-search-container {
+  padding: 14px 16px;
+  border-top: 1px solid var(--arl-border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--arl-bg-light);
+}
+
+.chain-quick-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.chips-label {
+  color: var(--arl-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.chips-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.quick-chip-tag {
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  transition: all 0.2s;
+  user-select: none;
+}
+.quick-chip-tag:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+.chain-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chain-search-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--arl-text-color);
+}
+
+.chain-result-stat {
+  font-size: 13px;
+  color: var(--arl-text-secondary);
+  margin-left: 8px;
+}
+
+/* 普通资产列表工具栏 */
+.asm-toolbar-container {
+  padding: 12px 16px;
+  border-top: 1px solid var(--arl-border-color);
+  background: var(--arl-bg-white);
+}
+
+.toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-count-badge {
+  background: var(--arl-theme-color);
+  color: #fff;
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+  margin: 0 2px;
+  line-height: 16px;
+}
+
+.advanced-filter-panel {
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--arl-bg-light);
+  border: 1px solid var(--arl-border-color);
+  border-radius: 6px;
+}
+
+.filter-operator-group {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.filter-divider {
+  margin: 12px 0;
+  border-top: 1px dashed var(--arl-border-color);
+}
+
+/* ================= 可行动的空状态引导 (Actionable Empty State) ================= */
+.empty-actionable-card {
+  background: var(--arl-bg-white);
+  border: 1px dashed var(--arl-border-color);
+  border-radius: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  max-width: 600px;
+  margin: 24px auto;
+}
+
+.empty-icon-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--arl-theme-color) 12%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: var(--arl-text-secondary);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.empty-default-box {
+  padding: 40px 0;
+}
+
+/* ================= 悬浮浮动操作条 (Floating Action Bar) ================= */
+.arl-floating-action-bar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--arl-bg-white);
+  border: 1px solid var(--arl-border-color);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  border-radius: 28px;
+  padding: 8px 20px 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.floating-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--arl-text-color);
+}
+
+.floating-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.floating-slide-enter-active,
+.floating-slide-leave-active {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-slide-enter-from,
+.floating-slide-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 24px);
+}
+
+/* ================= 表格内悬停高频操作按钮 ================= */
+.cell-copy-btn {
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+  color: var(--arl-text-secondary);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 13px;
+}
+:hover > .cell-copy-btn,
+:hover > span > .cell-copy-btn,
+div:hover > .cell-copy-btn {
+  opacity: 0.75;
+}
+.cell-copy-btn:hover {
+  opacity: 1 !important;
+  color: var(--arl-theme-color) !important;
+}
+
+.chain-action-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+  cursor: pointer;
+  margin-left: 6px;
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+:hover > .chain-action-btn,
+:hover > span > .chain-action-btn,
+div:hover > .chain-action-btn {
+  opacity: 0.85;
+}
+.chain-action-btn:hover {
+  opacity: 1 !important;
+}
+
+/* ================= 辅助工具类 ================= */
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 
 </style>
