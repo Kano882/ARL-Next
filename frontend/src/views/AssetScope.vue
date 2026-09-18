@@ -1394,12 +1394,22 @@ const initSortable = () => {
     preventOnFilter: false,
     disabled: !!groupSearchKey.value,
     onEnd: (evt) => {
-      const { oldIndex, newIndex } = evt;
+      const { oldIndex, newIndex, item, from } = evt;
       if (oldIndex === newIndex || oldIndex == null || newIndex == null) return;
       
       // 记录首轮拖动前的原始快照（用于故障原子回滚）
       if (!originalListSnapshot) {
         originalListSnapshot = [...groupList.value];
+      }
+
+      // 核心加固：撤销 Sortable 的物理 DOM 变更，使真实 DOM 树与 Vue 虚拟 DOM 现有状态对齐，杜绝高亮激活项重复插入
+      if (from && item && item.parentNode === from) {
+        from.removeChild(item);
+        if (oldIndex >= from.children.length) {
+          from.appendChild(item);
+        } else {
+          from.insertBefore(item, from.children[oldIndex]);
+        }
       }
       
       // 乐观重排前端响应式数据

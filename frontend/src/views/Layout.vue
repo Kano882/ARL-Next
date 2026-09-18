@@ -6,19 +6,29 @@
         <span class="logo-text" v-show="!collapsed" style="color: #f1f5f9; font-size: 16px; margin-left: 8px; font-weight: 500;">ARL-Next</span>
       </div>
 
-      <a-menu :style="{ opacity: isUIHidden ? 0 : 1, pointerEvents: isUIHidden ? 'none' : 'auto', transition: 'opacity 0.5s' }" v-model:selectedKeys="selectedKeys" theme="dark" mode="inline" @click="handleMenuClick">
-        <a-menu-item key="/dashboard"><DashboardOutlined /><span>仪表盘</span></a-menu-item>
-        <a-menu-item key="/group"><AppstoreOutlined /><span>资产分组</span></a-menu-item>
-        <a-menu-item key="/taskList"><GlobalOutlined /><span>任务管理</span></a-menu-item>
-        <a-menu-item key="/asset-search"><SearchOutlined /><span>资产搜索</span></a-menu-item>
-        <a-menu-item key="/assetsMonitor"><DesktopOutlined /><span>资产监控</span></a-menu-item>
-        <a-menu-item key="/planningTasks"><ClockCircleOutlined /><span>计划任务</span></a-menu-item>
-        <a-menu-item key="/GitHubTasks/GitHubTasksList"><GithubOutlined /><span>GitHub监控</span></a-menu-item>
-        <a-menu-item key="/pocList"><BugOutlined /><span>POC管理</span></a-menu-item>
-        <a-menu-item key="/fingerprint"><TagsOutlined /><span>指纹管理</span></a-menu-item>
-        <a-menu-item key="/policy"><SettingOutlined /><span>策略配置</span></a-menu-item>
-        <a-menu-item key="/systemSettings"><SettingOutlined /><span>系统设置</span></a-menu-item>
-      </a-menu>
+      <div ref="sidebarMenuWrapperRef" class="sidebar-menu-wrapper" :style="{ opacity: isUIHidden ? 0 : 1, pointerEvents: isUIHidden ? 'none' : 'auto', transition: 'opacity 0.5s' }">
+        <a-menu v-model:selectedKeys="selectedKeys" theme="dark" mode="inline" @click="handleMenuClick">
+          <a-menu-item
+            v-for="item in menuItems"
+            :key="item.key"
+            :data-key="item.key"
+            class="sidebar-sortable-menu-item"
+          >
+            <template #icon>
+              <component :is="item.icon" />
+            </template>
+            <span class="sidebar-menu-title-text">{{ item.title }}</span>
+            <span
+              v-if="!collapsed"
+              class="sidebar-menu-drag-handle"
+              @click.stop
+              title="按住拖拽调整顺序"
+            >
+              <HolderOutlined />
+            </span>
+          </a-menu-item>
+        </a-menu>
+      </div>
     </a-layout-sider>
 
     <a-layout :style="{ background: 'transparent', opacity: isUIHidden ? 0 : 1, pointerEvents: isUIHidden ? 'none' : 'auto', transition: 'opacity 0.5s', overflow: 'hidden' }">
@@ -79,8 +89,27 @@
             AI 助手接入 (MCP)
           </span>
           
-          <a-avatar style="background-color: #87d068; margin-right: 12px;" size="small"><template #icon><UserOutlined /></template></a-avatar>
-          <span style="margin-right: 24px;">{{ currentUsername }}</span>
+          <a-dropdown>
+            <span class="header-text-action" style="cursor: pointer; margin-right: 24px; display: flex; align-items: center;" title="用户设置与操作">
+              <a-avatar style="background-color: #87d068; margin-right: 8px;" size="small"><template #icon><UserOutlined /></template></a-avatar>
+              <span>{{ currentUsername }}</span>
+              <DownOutlined style="font-size: 10px; margin-left: 6px; opacity: 0.7;" />
+            </span>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item key="changePass" @click="showChangePassModal = true">
+                  <KeyOutlined style="margin-right: 8px;" />修改密码
+                </a-menu-item>
+                <a-menu-item key="resetMenuOrder" @click="handleResetMenuOrder">
+                  <ReloadOutlined style="margin-right: 8px;" />恢复默认菜单顺序
+                </a-menu-item>
+                <a-menu-divider />
+                <a-menu-item key="logout" @click="handleLogout" style="color: #ff4d4f;">
+                  <LogoutOutlined style="margin-right: 8px;" />退出登录
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
           
           <span class="header-text-action" style="cursor: pointer; margin-right: 24px;" @click="showChangePassModal = true">修改密码</span>
           
@@ -225,7 +254,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch, computed, onUnmounted, createVNode } from 'vue';
+import { ref, reactive, onMounted, watch, computed, onUnmounted, createVNode, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 // 引入 request (根据你的实际路径调整)
 import request from '@/utils/request';
@@ -235,9 +264,34 @@ import { extractDominantColor, processImageToBase64, dbHelper } from '@/utils/th
 import { message, Modal } from 'ant-design-vue';
 import SupportAuthorPopover from '@/components/SupportAuthorPopover.vue';
 import { copyText } from '@/utils/clipboard';
+import Sortable from 'sortablejs';
 
 // 补全所有需要的图标
-import { DashboardOutlined, MenuUnfoldOutlined, MenuFoldOutlined, UserOutlined, LogoutOutlined, GlobalOutlined, SearchOutlined, DesktopOutlined, AppstoreOutlined, SettingOutlined, TagsOutlined, BugOutlined, ClockCircleOutlined, GithubOutlined, DeploymentUnitOutlined, RobotOutlined, BgColorsOutlined, PictureOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
+import {
+  DashboardOutlined,
+  MenuUnfoldOutlined,
+  MenuFoldOutlined,
+  UserOutlined,
+  LogoutOutlined,
+  GlobalOutlined,
+  SearchOutlined,
+  DesktopOutlined,
+  AppstoreOutlined,
+  SettingOutlined,
+  TagsOutlined,
+  BugOutlined,
+  ClockCircleOutlined,
+  GithubOutlined,
+  DeploymentUnitOutlined,
+  RobotOutlined,
+  BgColorsOutlined,
+  PictureOutlined,
+  ExclamationCircleOutlined,
+  HolderOutlined,
+  DownOutlined,
+  KeyOutlined,
+  ReloadOutlined
+} from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -254,6 +308,138 @@ const isBasicAuthLoading = ref(false);
 
 const currentTime = ref('');
 let timeInterval = null;
+
+// ---------- 左侧边栏动态菜单与拖拽重排逻辑 ----------
+const defaultMenuItems = [
+  { key: '/dashboard', title: '仪表盘', icon: DashboardOutlined },
+  { key: '/group', title: '资产分组', icon: AppstoreOutlined },
+  { key: '/taskList', title: '任务管理', icon: GlobalOutlined },
+  { key: '/asset-search', title: '资产搜索', icon: SearchOutlined },
+  { key: '/assetsMonitor', title: '资产监控', icon: DesktopOutlined },
+  { key: '/planningTasks', title: '计划任务', icon: ClockCircleOutlined },
+  { key: '/GitHubTasks/GitHubTasksList', title: 'GitHub监控', icon: GithubOutlined },
+  { key: '/pocList', title: 'POC管理', icon: BugOutlined },
+  { key: '/fingerprint', title: '指纹管理', icon: TagsOutlined },
+  { key: '/policy', title: '策略配置', icon: SettingOutlined },
+  { key: '/systemSettings', title: '系统设置', icon: SettingOutlined },
+];
+
+const getMenuStorageKey = () => `arl_sidebar_menu_order_${currentUsername.value || 'default'}`;
+
+const loadOrderedMenuItems = () => {
+  try {
+    const raw = localStorage.getItem(getMenuStorageKey());
+    if (!raw) return [...defaultMenuItems];
+    const savedKeys = JSON.parse(raw);
+    if (!Array.isArray(savedKeys)) return [...defaultMenuItems];
+
+    const ordered = [];
+    const itemMap = new Map(defaultMenuItems.map(item => [item.key, item]));
+
+    savedKeys.forEach(k => {
+      if (itemMap.has(k)) {
+        ordered.push(itemMap.get(k));
+        itemMap.delete(k);
+      }
+    });
+    // 兼容升级：若未来系统新增菜单项，自动增量安全追加在末尾
+    defaultMenuItems.forEach(item => {
+      if (itemMap.has(item.key)) {
+        ordered.push(item);
+      }
+    });
+    return ordered;
+  } catch (e) {
+    console.error('Failed to load sidebar menu order:', e);
+    return [...defaultMenuItems];
+  }
+};
+
+const menuItems = ref(loadOrderedMenuItems());
+
+const saveMenuOrder = () => {
+  try {
+    const keys = menuItems.value.map(item => item.key);
+    localStorage.setItem(getMenuStorageKey(), JSON.stringify(keys));
+  } catch (e) {
+    console.error('Failed to save sidebar menu order:', e);
+  }
+};
+
+const handleResetMenuOrder = () => {
+  Modal.confirm({
+    title: '恢复默认菜单顺序',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: '确认要恢复左侧边栏为出厂默认的菜单排列顺序吗？',
+    okText: '确认恢复',
+    cancelText: '取消',
+    onOk: () => {
+      localStorage.removeItem(getMenuStorageKey());
+      menuItems.value = [...defaultMenuItems];
+      message.success('已恢复出厂默认菜单排序');
+      nextTick(() => {
+        initSidebarSortable();
+      });
+    }
+  });
+};
+
+const sidebarMenuWrapperRef = ref(null);
+let sidebarSortableInstance = null;
+
+const initSidebarSortable = () => {
+  if (!sidebarMenuWrapperRef.value) return;
+  const menuEl = sidebarMenuWrapperRef.value.querySelector('.ant-menu') || sidebarMenuWrapperRef.value;
+  if (!menuEl) return;
+
+  if (sidebarSortableInstance) {
+    sidebarSortableInstance.destroy();
+    sidebarSortableInstance = null;
+  }
+
+  sidebarSortableInstance = new Sortable(menuEl, {
+    animation: 150,
+    draggable: '.ant-menu-item',
+    handle: '.sidebar-menu-drag-handle',
+    ghostClass: 'sidebar-menu-ghost',
+    chosenClass: 'sidebar-menu-chosen',
+    dragClass: 'sidebar-menu-active',
+    filter: '.ant-menu-item-disabled',
+    preventOnFilter: false,
+    disabled: !!collapsed.value,
+    onEnd: (evt) => {
+      const { oldIndex, newIndex, item, from } = evt;
+      if (oldIndex === newIndex || oldIndex == null || newIndex == null) return;
+
+      // 核心加固：撤销 Sortable 的物理 DOM 变更，使真实 DOM 树与 Vue 虚拟 DOM 现有状态对齐，杜绝高亮项重复插入
+      if (from && item && item.parentNode === from) {
+        from.removeChild(item);
+        if (oldIndex >= from.children.length) {
+          from.appendChild(item);
+        } else {
+          from.insertBefore(item, from.children[oldIndex]);
+        }
+      }
+
+      // 由 Vue 3 响应式系统独占安全接管真实的 DOM 树重排与 Diff
+      const movedItem = menuItems.value.splice(oldIndex, 1)[0];
+      menuItems.value.splice(newIndex, 0, movedItem);
+
+      saveMenuOrder();
+    }
+  });
+};
+
+watch(collapsed, (newVal) => {
+  if (sidebarSortableInstance) {
+    sidebarSortableInstance.option('disabled', !!newVal);
+  }
+  if (!newVal) {
+    nextTick(() => {
+      initSidebarSortable();
+    });
+  }
+});
 
 const updateTime = () => {
   const now = new Date();
@@ -328,7 +514,13 @@ const handleBgImageEvent = (e) => {
 
 onMounted(() => {
   const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-  if (userInfo.username) currentUsername.value = userInfo.username;
+  if (userInfo.username) {
+    currentUsername.value = userInfo.username;
+    menuItems.value = loadOrderedMenuItems();
+  }
+  nextTick(() => {
+    initSidebarSortable();
+  });
   
   if (route.path.includes('/GitHubTasks/')) {
     selectedKeys.value = ['/GitHubTasks/GitHubTasksList'];
@@ -366,6 +558,10 @@ onUnmounted(() => {
   window.removeEventListener('bg-image-changed', handleBgImageEvent);
   document.removeEventListener('click', restoreUI);
   if (timeInterval) clearInterval(timeInterval);
+  if (sidebarSortableInstance) {
+    sidebarSortableInstance.destroy();
+    sidebarSortableInstance = null;
+  }
 });
 
 const handleMenuClick = (e) => router.push(e.key);
@@ -809,5 +1005,104 @@ body.dark-mode .support-author-popover-overlay .ant-popover-inner {
   background: rgba(15, 23, 42, 0.96) !important;
   border: 1px solid #1e293b !important;
   backdrop-filter: blur(16px) !important;
+}
+
+/* 侧边栏菜单拖拽重排与自适应动效 */
+.sidebar-menu-wrapper {
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: calc(100vh - 64px);
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-sortable-menu-item {
+  position: relative !important;
+  user-select: none !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease !important;
+}
+
+.sidebar-sortable-menu-item :deep(.ant-menu-title-content) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  padding-right: 2px !important;
+}
+
+.sidebar-menu-title-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 微动抓手图标 */
+.sidebar-menu-drag-handle {
+  cursor: grab;
+  color: rgba(255, 255, 255, 0.35);
+  opacity: 0;
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease, background-color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  font-size: 13px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  user-select: none;
+}
+
+.sidebar-sortable-menu-item:hover .sidebar-menu-drag-handle {
+  opacity: 0.8;
+  color: var(--arl-theme-color);
+}
+
+.sidebar-menu-drag-handle:hover {
+  opacity: 1 !important;
+  color: var(--arl-theme-color) !important;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-menu-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Sortable 正在被拖动的元素浮动预览状态 (Drag Class) */
+.sidebar-menu-active {
+  opacity: 0.96 !important;
+  background: #1e293b !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--arl-theme-color) !important;
+  border-radius: 6px !important;
+  transform: scale(1.02);
+  z-index: 1000 !important;
+  cursor: grabbing !important;
+}
+
+/* 目标位置的幽灵占位符状态 (Ghost Class) */
+.sidebar-menu-ghost {
+  opacity: 0.45 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px dashed var(--arl-theme-color) !important;
+  border-radius: 6px !important;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 选中但未开始移动状态 (Chosen Class) */
+.sidebar-menu-chosen {
+  cursor: grabbing !important;
 }
 </style>
