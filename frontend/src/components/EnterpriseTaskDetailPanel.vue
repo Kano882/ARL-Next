@@ -171,7 +171,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SearchOutlined, DownloadOutlined, CloudSyncOutlined, ExportOutlined } from '@ant-design/icons-vue';
 import SyncToScopeModal from './SyncToScopeModal.vue';
@@ -182,12 +182,11 @@ import { useSticky } from '../utils/useSticky';
 
 const route = useRoute();
 const router = useRouter();
-const query = route.query || {};
 
-const taskId = query.task_id;
-const taskName = ref(query.name || '');
-const taskTarget = ref(query.target || '');
-const taskType = ref(query.task_type || 'icp');
+const taskId = computed(() => (route.query?.task_id ? String(route.query.task_id) : ''));
+const taskName = ref(route.query?.name || '');
+const taskTarget = ref(route.query?.target || '');
+const taskType = ref(route.query?.task_type || 'icp');
 const taskStatus = ref('');
 const taskRecord = ref({});
 
@@ -196,11 +195,7 @@ const selectedWebRowKeys = ref([]);
 const selectedWebDomains = ref([]);
 
 const handleBack = () => {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push({ path: '/taskList', query: { tab: 'enterprise' } });
-  }
+  router.push({ path: '/taskList', query: { tab: 'enterprise' } });
 };
 
 const onWebSelectChange = (keys, rows) => {
@@ -280,15 +275,27 @@ const { stickyConfig } = useSticky(actionBarRef);
 
 const activeTab = ref('web');
 const queryCounts = reactive({
-  web: Number(query.web_cnt) || 0,
-  app: Number(query.app_cnt) || 0,
-  mapp: Number(query.mapp_cnt) || 0,
-  kapp: Number(query.kapp_cnt) || 0,
-  invest: Number(query.invest_cnt) || 0,
-  trademark: Number(query.trademark_cnt) || 0,
-  wechat: Number(query.wechat_cnt) || 0,
-  weibo: Number(query.weibo_cnt) || 0,
+  web: 0,
+  app: 0,
+  mapp: 0,
+  kapp: 0,
+  invest: 0,
+  trademark: 0,
+  wechat: 0,
+  weibo: 0,
 });
+
+const syncEnterpriseQueryCounts = (q = route.query) => {
+  queryCounts.web = Number(q?.web_cnt) || 0;
+  queryCounts.app = Number(q?.app_cnt) || 0;
+  queryCounts.mapp = Number(q?.mapp_cnt) || 0;
+  queryCounts.kapp = Number(q?.kapp_cnt) || 0;
+  queryCounts.invest = Number(q?.invest_cnt) || 0;
+  queryCounts.trademark = Number(q?.trademark_cnt) || 0;
+  queryCounts.wechat = Number(q?.wechat_cnt) || 0;
+  queryCounts.weibo = Number(q?.weibo_cnt) || 0;
+};
+syncEnterpriseQueryCounts();
 
 const assetList = ref([]);
 const loading = ref(false);
@@ -442,11 +449,11 @@ const dynamicColumns = computed(() => {
 
 const exportLoading = ref(false);
 const handleExport = async () => {
-  if (!taskId) return;
+  if (!taskId.value) return;
   try {
     exportLoading.value = true;
     message.loading({ content: '正在导出...', key: 'export', duration: 0 });
-    const res = await request.get(`/icp/export/${taskId}`, { responseType: 'blob' });
+    const res = await request.get(`/icp/export/${taskId.value}`, { responseType: 'blob' });
     const resData = res.data || res;
     if (resData.type === 'application/json' || (res.headers && res.headers['content-type']?.includes('application/json'))) {
       message.error({ content: '导出失败，接口返回异常', key: 'export', duration: 2 });
@@ -500,7 +507,7 @@ const fetchAssets = async (page = 1, size = 10) => {
       }
     }
 
-    const queryParams = { page, size, task_id: taskId, query_type: activeTab.value, order: orderParam };
+    const queryParams = { page, size, task_id: taskId.value, query_type: activeTab.value, order: orderParam };
     for (const [key, val] of Object.entries(searchForm)) {
       if (val !== undefined && val !== null && val !== '') {
         if (['amount', 'percent'].includes(key)) {
@@ -608,8 +615,9 @@ let taskTimer = null;
 let lastStatus = '';
 
 const fetchTaskStatistic = async () => {
+  if (!taskId.value) return;
   try {
-    const res = await request.get('/icp/task', { params: { _id: taskId, _t: Date.now() } });
+    const res = await request.get('/icp/task', { params: { _id: taskId.value, _t: Date.now() } });
     if (res.code === 200 && res.items && res.items.length > 0) {
       const taskData = res.items[0];
       taskRecord.value = taskData;
@@ -650,13 +658,43 @@ const fetchTaskStatistic = async () => {
   }
 };
 
-onMounted(() => {
-  if (taskId) {
+const loadedEnterpriseTaskId = ref('');
+
+const reloadEnterpriseTaskData = () => {
+  if (taskTimer) {
+    clearInterval(taskTimer);
+    taskTimer = null;
+  }
+  stopSyslogTimer();
+
+  loadedEnterpriseTaskId.value = taskId.value;
+  taskName.value = route.query?.name || '';
+  taskTarget.value = route.query?.target || '';
+  taskType.value = route.query?.task_type || 'icp';
+  taskStatus.value = '';
+  taskRecord.value = {};
+  selectedWebRowKeys.value = [];
+  selectedWebDomains.value = [];
+  assetList.value = [];
+  syncEnterpriseQueryCounts(route.query);
+
+  if (taskId.value) {
     resetTabSort(activeTab.value);
-    fetchAssets(pagination.current, pagination.pageSize);
+    fetchAssets(1, pagination.pageSize);
     fetchTaskStatistic();
     taskTimer = setInterval(fetchTaskStatistic, 5000);
   }
+};
+
+watch(taskId, () => {
+  if (!route.path.startsWith('/taskList/taskDetail')) return;
+  const t = route.query?.task_type;
+  if (t !== 'tyc' && t !== 'icp') return;
+  reloadEnterpriseTaskData();
+});
+
+onMounted(() => {
+  reloadEnterpriseTaskData();
 });
 
 onUnmounted(() => {
@@ -665,6 +703,31 @@ onUnmounted(() => {
   }
   if (taskTimer) {
     clearInterval(taskTimer);
+  }
+});
+
+onDeactivated(() => {
+  if (syslogTimer) {
+    clearInterval(syslogTimer);
+  }
+  if (taskTimer) {
+    clearInterval(taskTimer);
+    taskTimer = null;
+  }
+  syncModalVisible.value = false;
+  rawDetailVisible.value = false;
+});
+
+onActivated(() => {
+  const t = route.query?.task_type;
+  if (t !== 'tyc' && t !== 'icp') return;
+  if (loadedEnterpriseTaskId.value !== taskId.value) {
+    reloadEnterpriseTaskData();
+  } else if (taskId.value) {
+    fetchTaskStatistic();
+    if (!taskTimer && taskStatus.value !== 'done' && taskStatus.value !== 'error' && taskStatus.value !== 'stop') {
+      taskTimer = setInterval(fetchTaskStatistic, 5000);
+    }
   }
 });
 </script>

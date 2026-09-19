@@ -4,7 +4,7 @@
     <div v-else>
       <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
     <a-page-header
-      @back="() => router.back()"
+      @back="handleBack"
       style="padding: 0 0 24px 0;"
     >
       <template #title>
@@ -22,20 +22,20 @@
     </a-page-header>
 
     <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" style="margin-bottom: 16px;">
-      <a-tab-pane key="site" :tab="query.task_id ? `站点 - ${queryCounts.site}` : '站点'"></a-tab-pane>
-      <a-tab-pane key="domain" :tab="query.task_id ? `子域名 - ${queryCounts.domain}` : '子域名'"></a-tab-pane>
-      <a-tab-pane key="ip" :tab="query.task_id ? `IP - ${queryCounts.ip}` : 'IP'"></a-tab-pane>
-      <a-tab-pane key="cert" :tab="query.task_id ? `SSL证书 - ${queryCounts.cert}` : 'SSL证书'"></a-tab-pane>
-      <a-tab-pane key="service" :tab="query.task_id ? `服务 - ${queryCounts.service}` : '服务'"></a-tab-pane>
-      <a-tab-pane key="fileleak" :tab="query.task_id ? `文件泄露 - ${queryCounts.fileleak}` : '文件泄露'"></a-tab-pane>
-      <a-tab-pane key="url" :tab="query.task_id ? `URL信息 - ${queryCounts.url}` : 'URL信息'"></a-tab-pane>
-      <a-tab-pane key="cip" :tab="query.task_id ? `C段 - ${queryCounts.cip}` : 'C段'"></a-tab-pane>
-      <a-tab-pane key="stat_finger" :tab="query.task_id ? `指纹统计 - ${queryCounts.stat_finger}` : '指纹统计'"></a-tab-pane>
-      <a-tab-pane key="wih" :tab="query.task_id ? `WIH - ${queryCounts.wih}` : 'WIH'"></a-tab-pane>
-      <a-tab-pane key="vuln" :tab="query.task_id ? `风险 - ${queryCounts.vuln}` : '风险'"></a-tab-pane>
-      <a-tab-pane key="npoc_service" :tab="query.task_id ? `服务（python） - ${queryCounts.npoc_service}` : '服务（python）'"></a-tab-pane>
-      <a-tab-pane key="nuclei_result" :tab="query.task_id ? `nuclei - ${queryCounts.nuclei_result}` : 'nuclei'"></a-tab-pane>
-      <a-tab-pane v-if="query.task_id" key="syslog" tab="任务日志"></a-tab-pane>
+      <a-tab-pane key="site" :tab="taskId ? `站点 - ${queryCounts.site}` : '站点'"></a-tab-pane>
+      <a-tab-pane key="domain" :tab="taskId ? `子域名 - ${queryCounts.domain}` : '子域名'"></a-tab-pane>
+      <a-tab-pane key="ip" :tab="taskId ? `IP - ${queryCounts.ip}` : 'IP'"></a-tab-pane>
+      <a-tab-pane key="cert" :tab="taskId ? `SSL证书 - ${queryCounts.cert}` : 'SSL证书'"></a-tab-pane>
+      <a-tab-pane key="service" :tab="taskId ? `服务 - ${queryCounts.service}` : '服务'"></a-tab-pane>
+      <a-tab-pane key="fileleak" :tab="taskId ? `文件泄露 - ${queryCounts.fileleak}` : '文件泄露'"></a-tab-pane>
+      <a-tab-pane key="url" :tab="taskId ? `URL信息 - ${queryCounts.url}` : 'URL信息'"></a-tab-pane>
+      <a-tab-pane key="cip" :tab="taskId ? `C段 - ${queryCounts.cip}` : 'C段'"></a-tab-pane>
+      <a-tab-pane key="stat_finger" :tab="taskId ? `指纹统计 - ${queryCounts.stat_finger}` : '指纹统计'"></a-tab-pane>
+      <a-tab-pane key="wih" :tab="taskId ? `WIH - ${queryCounts.wih}` : 'WIH'"></a-tab-pane>
+      <a-tab-pane key="vuln" :tab="taskId ? `风险 - ${queryCounts.vuln}` : '风险'"></a-tab-pane>
+      <a-tab-pane key="npoc_service" :tab="taskId ? `服务（python） - ${queryCounts.npoc_service}` : '服务（python）'"></a-tab-pane>
+      <a-tab-pane key="nuclei_result" :tab="taskId ? `nuclei - ${queryCounts.nuclei_result}` : 'nuclei'"></a-tab-pane>
+      <a-tab-pane v-if="taskId" key="syslog" tab="任务日志"></a-tab-pane>
     </a-tabs>
 
     <div v-if="tabConfig[activeTab]?.searchFields && activeTab !== 'syslog'" style="margin-bottom: 16px;">
@@ -666,7 +666,7 @@ const formatDiffValue = (val) => {
 
 const route = useRoute();
 const router = useRouter();
-const query = route?.query || {};
+const taskId = computed(() => (route.query?.task_id ? String(route.query.task_id) : ''));
 
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
@@ -721,7 +721,7 @@ const openFingerModal = async (fingerName) => {
   try {
     const res = await request.get('/site/', {
       params: {
-        task_id: query.task_id,
+        task_id: taskId.value || undefined,
         finger: fingerName,
         page: 1,
         size: 100
@@ -811,7 +811,7 @@ const handleDeleteTag = async (record, tag) => {
   }
 };
 
-const targetName = ref(query.targetName || '未知目标');
+const targetName = ref(route.query?.targetName || '未知目标');
 const targetList = computed(() => {
   return String(targetName.value).split(/[,\s]+/).filter(Boolean);
 });
@@ -821,11 +821,18 @@ const displayTitle = computed(() => {
   return `${list[0]} 等 ${list.length} 个目标相关资产`;
 });
 const isEnterpriseTask = computed(() => {
-  const t = route.query.task_type;
+  const t = route.query?.task_type;
   return t === 'tyc' || t === 'icp';
 });
+const handleBack = () => {
+  if (isEnterpriseTask.value) {
+    router.push({ path: '/taskList', query: { tab: 'enterprise' } });
+  } else {
+    router.push({ path: '/taskList', query: { tab: 'task' } });
+  }
+};
 const taskStatus = ref('');
-const isTaskRunning = computed(() => !!query.task_id && !['done', 'error', 'stop'].includes(taskStatus.value));
+const isTaskRunning = computed(() => !!taskId.value && !['done', 'error', 'stop'].includes(taskStatus.value));
 const isHydrating = ref(true);
 
 const activeTab = ref('site');
@@ -846,20 +853,37 @@ const handlePreview = (url) => {
 
 // URL 数量解析
 const queryCounts = reactive({
-  site: Number(query.site_cnt) || 0,
-  domain: Number(query.domain_cnt) || 0,
-  ip: Number(query.ip_cnt) || 0,
-  cert: Number(query.cert_cnt) || 0,
-  service: Number(query.service_cnt) || 0,
-  fileleak: Number(query.fileleak_cnt) || 0,
-  url: Number(query.url_cnt) || 0,
-  vuln: Number(query.vuln_cnt) || 0,
-  npoc_service: Number(query.npoc_service_cnt) || 0,
-  cip: Number(query.cip_cnt) || 0,
-  nuclei_result: Number(query.nuclei_result_cnt) || 0,
-  stat_finger: Number(query.stat_finger_cnt) || 0,
-  wih: Number(query.wih_cnt) || 0,
+  site: 0,
+  domain: 0,
+  ip: 0,
+  cert: 0,
+  service: 0,
+  fileleak: 0,
+  url: 0,
+  vuln: 0,
+  npoc_service: 0,
+  cip: 0,
+  nuclei_result: 0,
+  stat_finger: 0,
+  wih: 0,
 });
+
+const syncQueryCounts = (q = route.query) => {
+  queryCounts.site = Number(q?.site_cnt) || 0;
+  queryCounts.domain = Number(q?.domain_cnt) || 0;
+  queryCounts.ip = Number(q?.ip_cnt) || 0;
+  queryCounts.cert = Number(q?.cert_cnt) || 0;
+  queryCounts.service = Number(q?.service_cnt) || 0;
+  queryCounts.fileleak = Number(q?.fileleak_cnt) || 0;
+  queryCounts.url = Number(q?.url_cnt) || 0;
+  queryCounts.vuln = Number(q?.vuln_cnt) || 0;
+  queryCounts.npoc_service = Number(q?.npoc_service_cnt) || 0;
+  queryCounts.cip = Number(q?.cip_cnt) || 0;
+  queryCounts.nuclei_result = Number(q?.nuclei_result_cnt) || 0;
+  queryCounts.stat_finger = Number(q?.stat_finger_cnt) || 0;
+  queryCounts.wih = Number(q?.wih_cnt) || 0;
+};
+syncQueryCounts();
 
 const selectedRowKeys = ref([]);
 const hasSelected = computed(() => selectedRowKeys.value.length > 0);
@@ -1185,7 +1209,7 @@ const tabConfig = reactive({
 });
 
 const tabCache = createTabStateCache({
-  getStorageKey: () => query.task_id ? `ARL_TASK_TAB_STATE_${query.task_id}` : 'ARL_TASK_TAB_STATE_GLOBAL',
+  getStorageKey: () => taskId.value ? `ARL_TASK_TAB_STATE_${taskId.value}` : 'ARL_TASK_TAB_STATE_GLOBAL',
   tabConfig,
   defaultTab: 'site',
   canUseMemoryCache: () => !isTaskRunning.value
@@ -1195,7 +1219,7 @@ const columns = ref(tabConfig.site.cols);
 
 // 加载数据 (兼容单任务与全局查看)
 const fetchData = async (isPolling = false) => {
-  const taskId = query.task_id;
+  const currentTaskId = taskId.value;
   // 🚨 核心修改 1：删除了 if (!taskId) return; 让全局查看也能放行！
 
   const config = tabConfig[activeTab.value];
@@ -1211,8 +1235,8 @@ const fetchData = async (isPolling = false) => {
   try {
     // 🚨 核心修改 2：动态拼装参数，有 taskId 才传
     const params = { page: pagination.current, size: pagination.pageSize };
-    if (taskId) {
-      params.task_id = taskId;
+    if (currentTaskId) {
+      params.task_id = currentTaskId;
     }
 
     for (const key in searchForm.value) {
@@ -1269,7 +1293,7 @@ const handleExport = async () => {
     message.loading({ content: `正在生成${config.exportName}导出文件...`, key: 'export_data' });
 
     const params = { page: 1, size: 100000 };
-    if (query.task_id) params.task_id = query.task_id;
+    if (taskId.value) params.task_id = taskId.value;
     for (const key in searchForm.value) {
       if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
         const fieldConfig = config.searchFields?.find(f => f.key === key);
@@ -1302,7 +1326,7 @@ const handleExport = async () => {
 
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `ARL_${activeTab.value}_Export_${query.task_id ? query.task_id.substring(0, 8) : 'Global'}.${ext}`;
+    link.download = `ARL_${activeTab.value}_Export_${taskId.value ? taskId.value.substring(0, 8) : 'Global'}.${ext}`;
     document.body.appendChild(link);
     link.click();
 
@@ -1390,13 +1414,13 @@ const syslogLoading = ref(false);
 let syslogTimer = null;
 
 const fetchSyslog = async (isPolling = false) => {
-  const taskId = query.task_id;
-  if (!taskId) return;
+  const currentTaskId = taskId.value;
+  if (!currentTaskId) return;
   try {
     if (!isPolling) syslogLoading.value = true;
     const res = await request.get('/syslog/', {
       params: {
-        task_id: taskId,
+        task_id: currentTaskId,
         size: 5000,
         order: 'create_time',
         _t: Date.now()
@@ -1443,10 +1467,10 @@ const stopSyslogTimer = () => {
 let taskStatusTimer = null;
 
 const fetchTaskStats = async () => {
-  const taskId = query.task_id;
-  if (!taskId) return;
+  const currentTaskId = taskId.value;
+  if (!currentTaskId) return;
   try {
-    const res = await request.get('/task/', { params: { _id: taskId } });
+    const res = await request.get('/task/', { params: { _id: currentTaskId } });
     if (res.code === 200 && res.data && res.data.items && res.data.items.length > 0) {
       const task = res.data.items[0];
       const stat = task.statistic || {};
@@ -1484,7 +1508,8 @@ const fetchTaskStats = async () => {
 };
 
 const startTaskStatusTimer = () => {
-  if (!query.task_id) return;
+  if (!taskId.value) return;
+  if (taskStatusTimer) clearInterval(taskStatusTimer);
   fetchTaskStats(); // 初始拉取一次
   taskStatusTimer = setInterval(() => {
     fetchTaskStats();
@@ -1533,10 +1558,19 @@ watch(activeTab, (newVal, oldVal) => {
   }
 });
 
-onMounted(() => {
-  if (isEnterpriseTask.value) {
-    return;
-  }
+const loadedTaskId = ref('');
+
+const reloadTaskData = () => {
+  stopSyslogTimer();
+  stopTaskStatusTimer();
+
+  loadedTaskId.value = taskId.value;
+  targetName.value = route.query?.targetName || '未知目标';
+  syncQueryCounts(route.query);
+  taskStatus.value = '';
+  dataSource.value = [];
+  selectedRowKeys.value = [];
+
   const restoredTab = tabCache.init();
   if (restoredTab && tabConfig[restoredTab] && restoredTab !== activeTab.value) {
     activeTab.value = restoredTab;
@@ -1565,6 +1599,19 @@ onMounted(() => {
     });
   }
   startTaskStatusTimer();
+};
+
+watch(() => [taskId.value, isEnterpriseTask.value], ([newId, isEnterprise]) => {
+  if (!route.path.startsWith('/taskList/taskDetail')) return;
+  if (isEnterprise) return;
+  reloadTaskData();
+});
+
+onMounted(() => {
+  if (isEnterpriseTask.value) {
+    return;
+  }
+  reloadTaskData();
 });
 
 onUnmounted(() => {
@@ -1603,7 +1650,7 @@ const openRiskModal = async () => {
     if (hasSelected.value) {
       setParams._id = selectedRowKeys.value.join(',');
     } else {
-      if (query.task_id) setParams.task_id = query.task_id;
+      if (taskId.value) setParams.task_id = taskId.value;
       for (const key in searchForm.value) {
         if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
           setParams[key] = searchForm.value[key];
@@ -1682,10 +1729,15 @@ const submitRiskTask = async () => {
 };
 
 onActivated(() => {
-  if (activeTab.value === 'syslog') {
-    startSyslogTimer();
+  if (isEnterpriseTask.value) return;
+  if (loadedTaskId.value !== taskId.value) {
+    reloadTaskData();
+  } else {
+    if (activeTab.value === 'syslog') {
+      startSyslogTimer();
+    }
+    startTaskStatusTimer();
   }
-  startTaskStatusTimer();
 });
 
 onDeactivated(() => {

@@ -2270,7 +2270,14 @@ watch(() => route.query.tab, (newTab) => {
 
 const handleMainTabChange = (key) => {
   activeMainTab.value = key;
-  router.replace({ query: { ...route.query, tab: key === 'task' ? 'task' : undefined } });
+  const nextQuery = { ...route.query };
+  delete nextQuery.view;
+  if (key === 'task') {
+    nextQuery.tab = 'task';
+  } else {
+    delete nextQuery.tab;
+  }
+  router.replace({ query: nextQuery });
   if (key === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
     fetchEnterpriseMetricCounts();
@@ -2285,6 +2292,12 @@ const handleMainTabChange = (key) => {
 // 📌 生命周期钩子与字典拉取
 // ==========================================
 onMounted(async () => {
+  if (route.query?.view) {
+    const nextQuery = { ...route.query };
+    delete nextQuery.view;
+    router.replace({ query: nextQuery });
+  }
+
   if (activeMainTab.value === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
     fetchEnterpriseMetricCounts();
