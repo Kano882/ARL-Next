@@ -464,7 +464,7 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
 async def run_tyc_job(options):
     task_id = options.get("task_id")
     gid = options.get("gid")
-    depth = max(1, int(options.get("depth", 1) or 1))
+    depth = min(25, max(1, int(options.get("depth", 1) or 1)))
     invest_ratio = options.get("invest_ratio", 0)
     query_types = options.get("query_type", [])
     enable_icp = bool(options.get("enable_icp", True))
@@ -570,6 +570,7 @@ async def run_tyc_job(options):
     config_msg = f"任务开始运行，配置如下：目标(GID): {gid}，查询层数: {depth}，最低投资比例: {ratio_str}，需查询模块: {modules_str}，工信部ICP联动: {icp_tip}"
     await insert_syslog("info", "TYC查询", config_msg)
 
+    visited_gids = {str(gid)}
     gids_to_query = [gid]
     try:
         for level in range(depth):
@@ -657,7 +658,9 @@ async def run_tyc_job(options):
                                     sub_name = item.get("name")
                                     if sub_gid and sub_name:
                                         gid_to_name[sub_gid] = sub_name.strip()
-                                    next_gids.append(item.get("id"))
+                                    if sub_gid and sub_gid not in visited_gids:
+                                        visited_gids.add(sub_gid)
+                                        next_gids.append(item.get("id"))
                                     if is_new:
                                         passed_count += 1
                                 else:

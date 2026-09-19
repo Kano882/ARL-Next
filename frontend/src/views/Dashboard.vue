@@ -43,7 +43,7 @@
                   </div>
                 </div>
                 <div class="dual-metric-wrap">
-                  <div class="metric-cell clickable-cell" @click="router.push('/taskList')">
+                  <div class="metric-cell clickable-cell" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">
                     <div class="cell-val success-val">{{ stats.today_tasks || 0 }}</div>
                     <div class="cell-lbl">新增扫描任务</div>
                   </div>
@@ -58,7 +58,7 @@
                     <span class="beacon-dot"></span>
                     <span class="status-text">全网主动测绘</span>
                   </div>
-                  <span class="footer-link-hint" @click="router.push('/taskList')">查看任务流水 &gt;</span>
+                  <span class="footer-link-hint" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">查看任务流水 &gt;</span>
                 </div>
               </div>
             </a-skeleton>
@@ -283,7 +283,7 @@
             <div class="ribbon-divider"></div>
 
             <!-- 扫描调度流水线 (Celery) -->
-            <div class="ribbon-item cursor-pointer ribbon-tasks-item" @click="router.push('/taskList')">
+            <div class="ribbon-item cursor-pointer ribbon-tasks-item" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">
               <span class="ribbon-icon celery-color"><ThunderboltOutlined /></span>
               <span class="ribbon-name">扫描调度</span>
               <div class="ribbon-task-badges">
@@ -530,7 +530,7 @@
                   <ThunderboltOutlined class="card-header-icon" />
                   <span>实时侦察流水线</span>
                 </div>
-                <span class="widget-extra-link" @click="router.push('/taskList')">
+                <span class="widget-extra-link" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">
                   任务大厅 <RightOutlined style="font-size: 11px;" />
                 </span>
               </div>
@@ -542,7 +542,7 @@
                   v-for="(task, idx) in widgetsData.active_tasks" 
                   :key="idx" 
                   class="task-card-item"
-                  @click="router.push('/taskList')"
+                  @click="router.push({ path: '/taskList', query: { tab: 'task' } })"
                 >
                   <div class="task-card-top">
                     <div class="task-name-box">
@@ -571,7 +571,7 @@
               </div>
               <div v-else class="empty-widget-box">
                 <a-empty description="暂无活动扫描任务" :image="simpleImage">
-                  <a-button type="primary" size="small" @click="router.push('/taskList')">新建侦察任务</a-button>
+                  <a-button type="primary" size="small" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">新建侦察任务</a-button>
                 </a-empty>
               </div>
             </div>

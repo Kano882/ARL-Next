@@ -2,19 +2,70 @@
   <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
     <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
 
-      <!-- 顶层主标签页：资产侦查任务 vs 企业测绘任务 -->
+      <!-- 顶层主标签页：企业测绘任务 vs 资产侦查任务 -->
       <a-tabs v-model:activeKey="activeMainTab" class="arl-task-main-tabs" @change="handleMainTabChange" style="margin-bottom: 16px;">
-        <a-tab-pane key="task" tab="资产侦查任务" />
         <a-tab-pane key="enterprise">
           <template #tab>
             <span>企业测绘任务</span>
             <a-badge v-if="enterpriseRunningCount > 0" :count="enterpriseRunningCount" :number-style="{ backgroundColor: '#1890ff', marginLeft: '6px' }" />
           </template>
         </a-tab-pane>
+        <a-tab-pane key="task" tab="资产侦查任务" />
       </a-tabs>
 
+      <!-- 企业测绘任务操作与搜索栏 -->
+      <template v-if="activeMainTab === 'enterprise'">
+        <div style="margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div style="display: flex; gap: 12px;">
+            <a-button type="primary" @click="showTycModal">新建企业资产查询</a-button>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <a-form :model="reconSearchForm" layout="inline" style="row-gap: 16px;">
+            <a-form-item label="任务名:">
+              <a-input v-model:value="reconSearchForm.name" placeholder="请输入任务名" style="width: 230px;" allowClear @pressEnter="onReconSearch">
+                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="查询目标:">
+              <a-input v-model:value="reconSearchForm.target" placeholder="请输入查询目标" style="width: 230px;" allowClear @pressEnter="onReconSearch">
+                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="状态:">
+              <a-input v-model:value="reconSearchForm.status" placeholder="请输入状态" style="width: 160px;" allowClear @pressEnter="onReconSearch">
+                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="结束时间:">
+              <a-range-picker
+                v-model:value="reconSearchForm.dateRange"
+                :presets="rangePresets"
+                :placeholder="['开始日期', '结束日期']"
+                format="YYYY-MM-DD"
+                style="width: 240px;"
+                allowClear
+                @change="onReconSearch"
+              />
+            </a-form-item>
+          </a-form>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <a-button style="margin-right: 8px;" @click="resetReconSearch">清 除</a-button>
+          <a-popconfirm title="确定要批量重启选中的任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleBatchRestartEnterprise">
+            <a-button style="margin-right: 8px;" :disabled="enterpriseSelectedRowKeys.length === 0">批量重启</a-button>
+          </a-popconfirm>
+          <a-popconfirm title="确定要批量删除选中的任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleBatchDeleteEnterprise">
+            <a-button danger style="margin-right: 8px;" :disabled="enterpriseSelectedRowKeys.length === 0">批量删除</a-button>
+          </a-popconfirm>
+          <a-button type="primary" :disabled="enterpriseSelectedRowKeys.length === 0" @click="handleBatchExportEnterprise">批量导出</a-button>
+        </div>
+      </template>
+
       <!-- 资产侦查任务操作与搜索栏 -->
-      <template v-if="activeMainTab === 'task'">
+      <template v-else-if="activeMainTab === 'task'">
         <div style="margin-bottom: 24px;">
           <a-button type="primary" style="margin-right: 12px;" @click="showModal">添加任务</a-button>
           <a-button type="primary" style="margin-right: 12px;" @click="openFofaModal">FOFA 任务下发</a-button>
@@ -121,60 +172,99 @@
         </div>
       </template>
 
-      <!-- 企业测绘任务操作与搜索栏 -->
-      <template v-else-if="activeMainTab === 'enterprise'">
-        <div style="margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-          <div style="display: flex; gap: 12px;">
-            <a-button type="primary" @click="showTycModal">新建企业资产查询</a-button>
-            <a-button type="primary" @click="showIcpModal">新建 ICP 查询</a-button>
-          </div>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <a-form :model="reconSearchForm" layout="inline" style="row-gap: 16px;">
-            <a-form-item label="任务名:">
-              <a-input v-model:value="reconSearchForm.name" placeholder="请输入任务名" style="width: 230px;" allowClear @pressEnter="onReconSearch">
-                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-              </a-input>
-            </a-form-item>
-            <a-form-item label="查询目标:">
-              <a-input v-model:value="reconSearchForm.target" placeholder="请输入查询目标" style="width: 230px;" allowClear @pressEnter="onReconSearch">
-                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-              </a-input>
-            </a-form-item>
-            <a-form-item label="状态:">
-              <a-input v-model:value="reconSearchForm.status" placeholder="请输入状态" style="width: 160px;" allowClear @pressEnter="onReconSearch">
-                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-              </a-input>
-            </a-form-item>
-            <a-form-item label="结束时间:">
-              <a-range-picker
-                v-model:value="reconSearchForm.dateRange"
-                :presets="rangePresets"
-                :placeholder="['开始日期', '结束日期']"
-                format="YYYY-MM-DD"
-                style="width: 240px;"
-                allowClear
-                @change="onReconSearch"
-              />
-            </a-form-item>
-          </a-form>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <a-button style="margin-right: 8px;" @click="resetReconSearch">清 除</a-button>
-          <a-popconfirm title="确定要批量重启选中的任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleBatchRestartEnterprise">
-            <a-button style="margin-right: 8px;" :disabled="enterpriseSelectedRowKeys.length === 0">批量重启</a-button>
-          </a-popconfirm>
-          <a-popconfirm title="确定要批量删除选中的任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleBatchDeleteEnterprise">
-            <a-button danger style="margin-right: 8px;" :disabled="enterpriseSelectedRowKeys.length === 0">批量删除</a-button>
-          </a-popconfirm>
-          <a-button type="primary" :disabled="enterpriseSelectedRowKeys.length === 0" @click="handleBatchExportEnterprise">批量导出</a-button>
-        </div>
-      </template>
-
     </div>
-    <template v-if="activeMainTab === 'task'">
+    <!-- 企业测绘任务表格 -->
+    <template v-if="activeMainTab === 'enterprise'">
+      <a-table
+        :sticky="stickyConfig"
+        :row-selection="{ selectedRowKeys: enterpriseSelectedRowKeys, onChange: onEnterpriseSelectChange }"
+        :dataSource="enterpriseTaskList"
+        :columns="enterpriseColumns"
+        :loading="enterpriseLoading"
+        :pagination="false"
+        :scroll="{ x: 'max-content' }"
+        :rowKey="(record) => record._id"
+        bordered
+        style="margin-bottom: 16px;"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'name'">
+            <a style="font-weight: 500; color: var(--arl-theme-color);" @click="viewEnterpriseTask(record)">{{ record.name }}</a>
+          </template>
+          <template v-else-if="column.key === 'target'">
+            <span>{{ record.target }}</span>
+          </template>
+          <template v-else-if="column.key === 'status'">
+            <a-tag :color="getEnterpriseStatusColor(record.status)">{{ record.status }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'statistic'">
+            <div v-if="record.statistic" style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <a-badge :count="(record.statistic.asset_cnt || 0) - (record.statistic.invest_cnt || 0)" title="核心资产" />
+              <a-badge v-if="record.statistic.invest_cnt !== undefined" :count="record.statistic.invest_cnt" title="对外投资" :number-style="{ backgroundColor: '#52c41a' }" />
+            </div>
+          </template>
+          <template v-else-if="column.key === 'sync_status'">
+            <span v-if="record.sync_badge_status === 'no_web'" style="color: var(--arl-text-color); opacity: 0.35; font-size: 12px;">
+              无网站资产
+            </span>
+            <div v-else-if="record.synced_scope_id" style="display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+              <a-tag
+                color="blue"
+                style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin-right: 0;"
+                @click="goToScope(record.synced_scope_id)"
+                title="点击前往该资产分组"
+              >
+                <export-outlined />
+                <span>{{ record.synced_scope_name || '已同步' }}</span>
+              </a-tag>
+              <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+            </div>
+            <span v-else style="color: #faad14; font-size: 12px; font-weight: 500;">
+              ● 未同步
+            </span>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <a-space size="small">
+              <a-tooltip v-if="record.sync_badge_status === 'no_web'" title="当前任务无网站资产可同步">
+                <a-button type="link" size="small" disabled style="padding: 0 4px;">同步</a-button>
+              </a-tooltip>
+              <a-button
+                v-else
+                type="link"
+                size="small"
+                style="padding: 0 4px;"
+                @click="handleSyncEnterprise(record)"
+                :disabled="record.status !== 'done' && record.status !== 'stop'"
+              >
+                {{ record.synced_scope_id ? (record.has_increment ? '同步增量' : '再次同步') : '同步' }}
+              </a-button>
+              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleExportEnterprise(record)">导出</a-button>
+              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleStopEnterprise(record)" :disabled="record.status === 'done' || record.status === 'stop' || record.status === 'error'">停止</a-button>
+              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleRestartEnterprise(record)" :disabled="record.status === 'running' || record.status === 'waiting'">重启</a-button>
+              <a-popconfirm title="确定要删除该任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleDeleteEnterprise(record)">
+                <a-button type="link" danger size="small" style="padding: 0 4px;">删除</a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
+        <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(enterprisePagination.total / enterprisePagination.pageSize) || 1 }} 页 / {{ enterprisePagination.total }} 条数据</div>
+        <a-pagination
+          :pageSizeOptions="['10', '20', '50']"
+          v-model:current="enterprisePagination.current"
+          v-model:pageSize="enterprisePagination.pageSize"
+          :total="enterprisePagination.total"
+          show-size-changer
+          @change="handleEnterpriseTableChange"
+          @showSizeChange="handleEnterpriseTableChange"
+        />
+      </div>
+    </template>
+
+    <!-- 资产侦查任务表格与操作 -->
+    <template v-else-if="activeMainTab === 'task'">
       <a-table :sticky="stickyConfig"
         :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
         :dataSource="taskList"
@@ -279,96 +369,6 @@
       <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
       <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
     </div>
-    </template>
-
-    <!-- 企业测绘任务表格 -->
-    <template v-else-if="activeMainTab === 'enterprise'">
-      <a-table
-        :sticky="stickyConfig"
-        :row-selection="{ selectedRowKeys: enterpriseSelectedRowKeys, onChange: onEnterpriseSelectChange }"
-        :dataSource="enterpriseTaskList"
-        :columns="enterpriseColumns"
-        :loading="enterpriseLoading"
-        :pagination="false"
-        :scroll="{ x: 'max-content' }"
-        :rowKey="(record) => record._id"
-        bordered
-        style="margin-bottom: 16px;"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'name'">
-            <a style="font-weight: 500; color: var(--arl-theme-color);" @click="viewEnterpriseTask(record)">{{ record.name }}</a>
-          </template>
-          <template v-else-if="column.key === 'target'">
-            <span>{{ record.target }}</span>
-          </template>
-          <template v-else-if="column.key === 'status'">
-            <a-tag :color="getEnterpriseStatusColor(record.status)">{{ record.status }}</a-tag>
-          </template>
-          <template v-else-if="column.key === 'statistic'">
-            <div v-if="record.statistic" style="display: flex; gap: 6px; flex-wrap: wrap;">
-              <a-badge :count="(record.statistic.asset_cnt || 0) - (record.statistic.invest_cnt || 0)" title="核心资产" />
-              <a-badge v-if="record.statistic.invest_cnt !== undefined" :count="record.statistic.invest_cnt" title="对外投资" :number-style="{ backgroundColor: '#52c41a' }" />
-            </div>
-          </template>
-          <template v-else-if="column.key === 'sync_status'">
-            <span v-if="record.sync_badge_status === 'no_web'" style="color: var(--arl-text-color); opacity: 0.35; font-size: 12px;">
-              无网站资产
-            </span>
-            <div v-else-if="record.synced_scope_id" style="display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;">
-              <a-tag
-                color="blue"
-                style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin-right: 0;"
-                @click="goToScope(record.synced_scope_id)"
-                title="点击前往该资产分组"
-              >
-                <export-outlined />
-                <span>{{ record.synced_scope_name || '已同步' }}</span>
-              </a-tag>
-              <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
-            </div>
-            <span v-else style="color: #faad14; font-size: 12px; font-weight: 500;">
-              ● 未同步
-            </span>
-          </template>
-          <template v-else-if="column.key === 'action'">
-            <a-space size="small">
-              <a-tooltip v-if="record.sync_badge_status === 'no_web'" title="当前任务无网站资产可同步">
-                <a-button type="link" size="small" disabled style="padding: 0 4px;">同步</a-button>
-              </a-tooltip>
-              <a-button
-                v-else
-                type="link"
-                size="small"
-                style="padding: 0 4px;"
-                @click="handleSyncEnterprise(record)"
-                :disabled="record.status !== 'done' && record.status !== 'stop'"
-              >
-                {{ record.synced_scope_id ? (record.has_increment ? '同步增量' : '再次同步') : '同步' }}
-              </a-button>
-              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleExportEnterprise(record)">导出</a-button>
-              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleStopEnterprise(record)" :disabled="record.status === 'done' || record.status === 'stop' || record.status === 'error'">停止</a-button>
-              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleRestartEnterprise(record)" :disabled="record.status === 'running' || record.status === 'waiting'">重启</a-button>
-              <a-popconfirm title="确定要删除该任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleDeleteEnterprise(record)">
-                <a-button type="link" danger size="small" style="padding: 0 4px;">删除</a-button>
-              </a-popconfirm>
-            </a-space>
-          </template>
-        </template>
-      </a-table>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
-        <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(enterprisePagination.total / enterprisePagination.pageSize) || 1 }} 页 / {{ enterprisePagination.total }} 条数据</div>
-        <a-pagination
-          :pageSizeOptions="['10', '20', '50']"
-          v-model:current="enterprisePagination.current"
-          v-model:pageSize="enterprisePagination.pageSize"
-          :total="enterprisePagination.total"
-          show-size-changer
-          @change="handleEnterpriseTableChange"
-          @showSizeChange="handleEnterpriseTableChange"
-        />
-      </div>
     </template>
 
   </div>
@@ -518,7 +518,6 @@
   </a-modal>
 
   <!-- 企业测绘弹窗与同步组件 -->
-  <IcpTaskModal v-model:open="icpModalVisible" @success="fetchEnterpriseTasks(1, enterprisePagination.pageSize)" />
   <TycTaskModal v-model:open="tycModalVisible" @success="fetchEnterpriseTasks(1, enterprisePagination.pageSize)" />
   <SyncToScopeModal v-model:open="syncModalVisible" :task="currentSyncTask" @success="handleSyncSuccess" />
 
@@ -539,7 +538,6 @@ import { SearchOutlined, DownOutlined, ExclamationCircleOutlined, ExportOutlined
 import dayjs from 'dayjs';
 import request from '../utils/request';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
-import IcpTaskModal from '../components/IcpTaskModal.vue';
 import TycTaskModal from '../components/TycTaskModal.vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 
@@ -551,19 +549,19 @@ const portDicts = ref([]);
 // --- 路由与顶层 Tab 联动逻辑 ---
 const router = useRouter();
 const route = useRoute();
-const activeMainTab = ref(route.query.tab === 'enterprise' ? 'enterprise' : 'task');
+const activeMainTab = ref(route.query.tab === 'task' ? 'task' : 'enterprise');
 
 watch(() => route.query.tab, (newTab) => {
-  if (newTab === 'enterprise' && activeMainTab.value !== 'enterprise') {
-    activeMainTab.value = 'enterprise';
-  } else if (newTab !== 'enterprise' && activeMainTab.value !== 'task') {
+  if (newTab === 'task' && activeMainTab.value !== 'task') {
     activeMainTab.value = 'task';
+  } else if (newTab !== 'task' && activeMainTab.value !== 'enterprise') {
+    activeMainTab.value = 'enterprise';
   }
 });
 
 const handleMainTabChange = (key) => {
   activeMainTab.value = key;
-  router.replace({ query: { ...route.query, tab: key === 'enterprise' ? 'enterprise' : undefined } });
+  router.replace({ query: { ...route.query, tab: key === 'task' ? 'task' : undefined } });
   if (key === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
     fetchEnterpriseRunningCount();
@@ -668,14 +666,10 @@ const getEnterpriseStatusColor = (status) => {
   return map[status] || 'default';
 };
 
-const icpModalVisible = ref(false);
 const tycModalVisible = ref(false);
 const syncModalVisible = ref(false);
 const currentSyncTask = ref(null);
 
-const showIcpModal = () => {
-  icpModalVisible.value = true;
-};
 const showTycModal = () => {
   tycModalVisible.value = true;
 };

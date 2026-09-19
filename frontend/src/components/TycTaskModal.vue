@@ -40,7 +40,7 @@
           <a-input v-model:value="tycFormState.gid" placeholder="请输入天眼查公司 ID（纯数字/字母，例如：25174642）" />
         </a-form-item>
         <a-form-item label="投资层级" name="depth">
-          <a-input-number v-model:value="tycFormState.depth" :min="1" :max="3" style="width: 120px;" addon-after="层" />
+          <a-input-number v-model:value="tycFormState.depth" :min="1" :max="25" style="width: 120px;" addon-after="层" />
         </a-form-item>
         <a-form-item label="投资比例" name="invest_ratio">
           <a-input-number v-model:value="tycFormState.invest_ratio" :min="1" :max="100" style="width: 120px;" addon-after="%" />

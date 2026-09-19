@@ -190,7 +190,7 @@ class TycTask(ARLResource):
         name = args.get('name')
         company_name_arg = args.get('company_name')
         gid = args.get('gid')
-        depth = max(1, int(args.get('depth', 1) or 1))
+        depth = min(25, max(1, int(args.get('depth', 1) or 1)))
         invest_ratio = args.get('invest_ratio', 0)
         query_type = args.get('query_type')
         enable_icp = args.get('enable_icp', True)

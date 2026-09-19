@@ -650,7 +650,7 @@
                     <a-input-number
                       v-model:value="wizardForm.depth"
                       :min="1"
-                      :max="3"
+                      :max="25"
                       style="width: 130px;"
                       addon-after="层"
                     />
