@@ -82,6 +82,25 @@
                 <template #icon><download-outlined /></template>
                 导出当前维度
               </a-button>
+
+              <!-- 高级筛选折叠展开切换按钮 -->
+              <a-button
+                v-if="currentSearchFields.length"
+                size="small"
+                :type="isAdvancedFilterOpen ? 'primary' : 'default'"
+                :ghost="isAdvancedFilterOpen"
+                @click="isAdvancedFilterOpen = !isAdvancedFilterOpen"
+              >
+                <template #icon><filter-outlined /></template>
+                {{ isAdvancedFilterOpen ? '收起筛选' : '高级筛选' }}
+                <a-badge
+                  v-if="activeFilterCount > 0"
+                  :count="activeFilterCount"
+                  :number-style="{ backgroundColor: 'var(--arl-theme-color)', marginLeft: '4px', fontSize: '10px' }"
+                />
+                <down-outlined v-if="!isAdvancedFilterOpen" style="font-size: 10px; margin-left: 2px;" />
+                <up-outlined v-else style="font-size: 10px; margin-left: 2px;" />
+              </a-button>
             </template>
             <template v-else>
               <a-tag :color="taskStatusColor">{{ taskStatusLabel }}</a-tag>
@@ -94,8 +113,9 @@
           </div>
         </div>
 
-        <!-- 直接平铺的紧凑栅格筛选卡片 (对齐 ASM filter-card 规范) -->
-        <div v-if="activeTab !== 'log' && currentSearchFields.length" class="osint-filter-card">
+        <!-- 直接平铺的紧凑栅格筛选卡片 (可折叠) -->
+        <transition name="fade-slide">
+          <div v-show="isAdvancedFilterOpen" v-if="activeTab !== 'log' && currentSearchFields.length" class="osint-filter-card">
           <a-form :model="searchForm" class="filter-grid-form">
             <a-row :gutter="[12, 6]">
               <a-col
@@ -190,6 +210,7 @@
             </div>
           </a-form>
         </div>
+        </transition>
       </div>
     </div>
 
@@ -205,7 +226,7 @@
         :scroll="{ x: 'max-content' }"
         :rowKey="(record) => record._id || record.id || record.domain || record.ym || record.name || Math.random()"
         size="small"
-        bordered
+        class="modern-clean-table"
         style="margin-bottom: 8px;"
       >
         <template #bodyCell="{ column, record, text, index }">
@@ -344,7 +365,11 @@
 
           <!-- 原始 JSON 抽屉 -->
           <template v-else-if="column.key === 'raw'">
-            <a-button type="link" size="small" style="padding: 0;" @click="openRawDrawer(record)">查看JSON</a-button>
+            <a-tooltip title="查看原始 JSON 数据" placement="top">
+              <a-button type="text" size="small" class="json-icon-btn" @click="openRawDrawer(record)">
+                <code-outlined />
+              </a-button>
+            </a-tooltip>
           </template>
 
           <template v-else>
@@ -477,7 +502,10 @@ import {
   CodeOutlined,
   CheckCircleFilled,
   BankOutlined,
-  LinkOutlined
+  LinkOutlined,
+  FilterOutlined,
+  DownOutlined,
+  UpOutlined
 } from '@ant-design/icons-vue';
 import request from '../utils/request';
 import { copyText } from '../utils/clipboard';
@@ -510,6 +538,7 @@ const props = defineProps({
 const emit = defineEmits(['synced', 'refreshed', 'taskLoaded', 'update:taskId', 'openBind']);
 
 const osintControlRef = ref(null);
+const isAdvancedFilterOpen = ref(true);
 const osintControlHeight = ref(120);
 const scrollContainer = ref(null);
 let osintResizeObserver = null;
@@ -786,88 +815,88 @@ const activeFilterCount = computed(() => {
 
 const columnConfigs = {
   web: [
-    { title: '序号', key: 'index', width: 60 },
-    { title: '域名', dataIndex: 'domain', key: 'domain', width: 180 },
-    { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName', ellipsis: true },
+    { title: '序号', key: 'index', width: 55, align: 'center' },
+    { title: '域名', dataIndex: 'domain', key: 'domain', width: 170 },
+    { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName', width: 160, ellipsis: true },
     { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
-    { title: '单位性质', dataIndex: 'companyType', key: 'companyType', width: 100 },
+    { title: '单位性质', dataIndex: 'companyType', key: 'companyType', width: 90, align: 'center' },
     { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
-    { title: '首页网址', dataIndex: 'homeUrl', key: 'homeUrl', ellipsis: true },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 130 },
-    { title: '原始数据', key: 'raw', width: 90 }
+    { title: '首页网址', dataIndex: 'homeUrl', key: 'homeUrl', width: 170, ellipsis: true },
+    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
+    { title: '原始', key: 'raw', width: 55, align: 'center' }
   ],
   app: [
-    { title: '序号', key: 'index', width: 60 },
-    { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
+    { title: '序号', key: 'index', width: 55, align: 'center' },
+    { title: '图标', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
     { title: 'APP名称', dataIndex: 'name', key: 'name', width: 160 },
     { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
     { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 160 },
     { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
     { title: '简介', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '版本', dataIndex: 'version', key: 'version', width: 90 },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 130 },
-    { title: '原始数据', key: 'raw', width: 90 }
+    { title: '版本', dataIndex: 'version', key: 'version', width: 90, align: 'center' },
+    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
+    { title: '原始', key: 'raw', width: 55, align: 'center' }
   ],
   mapp: [
-    { title: '序号', key: 'index', width: 60 },
-    { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
+    { title: '序号', key: 'index', width: 55, align: 'center' },
+    { title: '图标', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
     { title: '小程序名称', dataIndex: 'name', key: 'name', width: 160 },
     { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
     { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
     { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
     { title: '描述', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 130 },
-    { title: '原始数据', key: 'raw', width: 90 }
+    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
+    { title: '原始', key: 'raw', width: 55, align: 'center' }
   ],
   wechat: [
-    { title: '序号', key: 'index', width: 60 },
-    { title: '头像', dataIndex: 'icon', key: 'icon', width: 70 },
+    { title: '序号', key: 'index', width: 55, align: 'center' },
+    { title: '头像', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
     { title: '公众号名称', dataIndex: 'name', key: 'name', width: 160 },
     { title: '微信号', dataIndex: 'wechatId', key: 'wechatId', width: 140 },
-    { title: '二维码', key: 'qrcode', width: 100 },
+    { title: '二维码', key: 'qrcode', width: 80, align: 'center' },
     { title: '功能介绍', dataIndex: 'brief', key: 'brief', ellipsis: true },
     { title: '认证主体', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
-    { title: '原始数据', key: 'raw', width: 90 }
+    { title: '原始', key: 'raw', width: 55, align: 'center' }
   ],
   weibo: [
-    { title: '序号', key: 'index', width: 60 },
-    { title: '头像', dataIndex: 'icon', key: 'icon', width: 70 },
+    { title: '序号', key: 'index', width: 55, align: 'center' },
+    { title: '头像', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
     { title: '微博昵称', dataIndex: 'name', key: 'name', width: 160 },
     { title: '认证信息/简介', dataIndex: 'brief', key: 'brief', ellipsis: true },
     { title: '微博主页', key: 'href', width: 160 },
-    { title: '粉丝数', dataIndex: 'fans', key: 'fans', width: 100 },
-    { title: '原始数据', key: 'raw', width: 90 }
+    { title: '粉丝数', dataIndex: 'fans', key: 'fans', width: 100, align: 'center' },
+    { title: '原始', key: 'raw', width: 55, align: 'center' }
   ],
   kapp: [
-    { title: '序号', key: 'index', width: 60 },
-    { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
+    { title: '序号', key: 'index', width: 55, align: 'center' },
+    { title: '图标', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
     { title: '快应用名称', dataIndex: 'name', key: 'name', width: 160 },
     { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
     { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
     { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 130 },
-    { title: '原始数据', key: 'raw', width: 90 }
+    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
+    { title: '原始', key: 'raw', width: 55, align: 'center' }
   ],
   trademark: [
-    { title: '序号', key: 'index', width: 60 },
-    { title: '商标图', dataIndex: 'icon', key: 'icon', width: 70 },
+    { title: '序号', key: 'index', width: 55, align: 'center' },
+    { title: '商标图', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
     { title: '商标名称', dataIndex: 'name', key: 'name', width: 160 },
     { title: '注册号', dataIndex: 'regNo', key: 'regNo', width: 140 },
     { title: '国际分类', dataIndex: 'category', key: 'category', width: 110 },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
-    { title: '申请日期', dataIndex: 'appDate', key: 'appDate', width: 130 },
-    { title: '原始数据', key: 'raw', width: 90 }
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100, align: 'center' },
+    { title: '申请日期', dataIndex: 'appDate', key: 'appDate', width: 120, align: 'center' },
+    { title: '原始', key: 'raw', width: 55, align: 'center' }
   ],
   invest: [
-    { title: '序号', key: 'index', width: 60 },
+    { title: '序号', key: 'index', width: 55, align: 'center' },
     { title: '被投资企业', dataIndex: 'name', key: 'name', ellipsis: true },
     { title: '法定代表人', dataIndex: 'legalPerson', key: 'legalPerson', width: 110 },
-    { title: '投资比例', dataIndex: 'percent', key: 'percent', width: 100 },
+    { title: '投资比例', dataIndex: 'percent', key: 'percent', width: 100, align: 'center' },
     { title: '投资数额', dataIndex: 'amount', key: 'amount', width: 140 },
-    { title: '企业状态', dataIndex: 'status', key: 'status', width: 100 },
+    { title: '企业状态', dataIndex: 'status', key: 'status', width: 100, align: 'center' },
     { title: '地区', key: 'region', width: 130 },
-    { title: '成立日期', key: 'estiblishTime', width: 120 },
-    { title: '原始数据', key: 'raw', width: 90 }
+    { title: '成立日期', key: 'estiblishTime', width: 120, align: 'center' },
+    { title: '原始', key: 'raw', width: 55, align: 'center' }
   ]
 };
 
@@ -1252,6 +1281,52 @@ defineExpose({
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+
+.json-icon-btn {
+  color: var(--arl-theme-color);
+  padding: 0 4px;
+  height: 24px;
+  line-height: 24px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.json-icon-btn:hover {
+  background: color-mix(in srgb, var(--arl-theme-color) 12%, transparent);
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.2s ease-in-out;
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* 现代化无纵线表格风格 */
+.modern-clean-table :deep(.ant-table) {
+  background: var(--arl-bg-white);
+  border-radius: 6px;
+  border: 1px solid var(--arl-border-color);
+}
+.modern-clean-table :deep(.ant-table-thead > tr > th) {
+  background: var(--arl-bg-light) !important;
+  color: var(--arl-text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  border-bottom: 1px solid var(--arl-border-color) !important;
+  border-right: none !important;
+}
+.modern-clean-table :deep(.ant-table-tbody > tr > td) {
+  border-bottom: 1px solid var(--arl-border-color) !important;
+  border-right: none !important;
+  transition: background 0.15s ease;
+}
+.modern-clean-table :deep(.ant-table-tbody > tr:hover > td) {
+  background: color-mix(in srgb, var(--arl-theme-color) 4%, var(--arl-bg-white)) !important;
 }
 
 .log-polling-hint {

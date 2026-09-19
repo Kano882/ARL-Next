@@ -1,10 +1,9 @@
 <template>
   <div style="background-color: var(--arl-bg-layout); padding: 12px 16px; min-height: calc(100vh - 64px);">
-    <!-- 1. 一体化资产画像 Hero 头部卡片 (常驻吸附在页面最顶部 top: 0) -->
+    <!-- 1. 一体化资产画像 Hero 头部卡片 (常驻吸附在页面最顶部 top: 0，极简单行整合) -->
     <div ref="heroRef" class="arl-hero-card hero-sticky-card">
-      <!-- 上层：标题、分组类型、主体状态元数据与快捷操作 (整合为单行) -->
-      <div class="hero-title-bar">
-        <!-- 左侧：返回 + 标题 + 核心标签 + 垂直分割线 + 主体元数据 -->
+      <div class="hero-unified-bar">
+        <!-- 左侧：返回 + 标题 + 分组标签 + 类型 + 测绘状态 (去重) -->
         <div class="hero-left-section">
           <a-button type="text" class="hero-back-btn" @click="() => $router.push('/group')" title="返回资产组列表">
             <template #icon><arrow-left-outlined style="font-size: 15px;" /></template>
@@ -35,9 +34,12 @@
                     <div v-if="taskStatusLabel">测绘状态: {{ taskStatusLabel }}</div>
                   </div>
                 </template>
-                <span class="hero-enterprise-label">
+                <span v-if="scopeEnterpriseName && scopeEnterpriseName !== targetName" class="hero-enterprise-label">
                   <bank-outlined class="meta-icon" />
-                  <span class="enterprise-text">{{ scopeEnterpriseName || targetName }}</span>
+                  <span class="enterprise-text">{{ scopeEnterpriseName }}</span>
+                </span>
+                <span v-else class="hero-enterprise-icon-only">
+                  <bank-outlined class="meta-icon" />
                 </span>
               </a-tooltip>
               <a-tag v-if="taskStatusLabel" :color="taskStatusColor" class="hero-mini-tag">
@@ -49,38 +51,38 @@
               <a-tooltip title="尚未关联企业主体，点击可立即拉取工商与数字资产" placement="bottom">
                 <span class="hero-unbound-label" @click="openBindModal" style="cursor: pointer;">
                   <link-outlined style="margin-right: 4px;" />
-                  未关联主体 (点击绑定)
+                  未关联主体
                 </span>
               </a-tooltip>
             </template>
           </div>
         </div>
-      </div>
 
-      <!-- 下层：专属独立行 OSINT / ASM 视角切换 Tab 栏 (靠左对齐，视觉焦点突出) -->
-      <div class="hero-view-switcher">
-        <div class="capsule-switcher">
-          <button
-            class="capsule-btn"
-            :class="{ active: currentView === 'osint' }"
-            @click="currentView = 'osint'"
-            title="切换至企业生态资产视角"
-          >
-            <bank-outlined class="capsule-icon" />
-            <span>企业生态资产 (OSINT)</span>
-            <span class="capsule-count" v-if="osintTotalCount > 0">{{ osintTotalCount }}</span>
-            <span v-if="scopeHasIncrement" class="capsule-dot"></span>
-          </button>
-          <button
-            class="capsule-btn"
-            :class="{ active: currentView === 'asm' }"
-            @click="currentView = 'asm'"
-            title="切换至网络暴露面视角"
-          >
-            <global-outlined class="capsule-icon" />
-            <span>网络暴露面 (ASM)</span>
-            <span class="capsule-count" v-if="asmTotalCount > 0">{{ asmTotalCount }}</span>
-          </button>
+        <!-- 右侧：OSINT / ASM 视角切换胶囊 -->
+        <div class="hero-right-section">
+          <div class="capsule-switcher">
+            <button
+              class="capsule-btn"
+              :class="{ active: currentView === 'osint' }"
+              @click="currentView = 'osint'"
+              title="切换至企业生态资产视角"
+            >
+              <bank-outlined class="capsule-icon" />
+              <span>企业生态资产 (OSINT)</span>
+              <span class="capsule-count" v-if="osintTotalCount > 0">{{ osintTotalCount }}</span>
+              <span v-if="scopeHasIncrement" class="capsule-dot"></span>
+            </button>
+            <button
+              class="capsule-btn"
+              :class="{ active: currentView === 'asm' }"
+              @click="currentView = 'asm'"
+              title="切换至网络暴露面视角"
+            >
+              <global-outlined class="capsule-icon" />
+              <span>网络暴露面 (ASM)</span>
+              <span class="capsule-count" v-if="asmTotalCount > 0">{{ asmTotalCount }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -188,11 +190,31 @@
                 <template #icon><bug-outlined /></template>
                 风险巡航
               </a-button>
+
+              <!-- 高级筛选折叠展开切换按钮 -->
+              <a-button
+                v-if="tabConfig[activeTab]?.searchFields?.length"
+                size="small"
+                :type="isAdvancedFilterOpen ? 'primary' : 'default'"
+                :ghost="isAdvancedFilterOpen"
+                @click="isAdvancedFilterOpen = !isAdvancedFilterOpen"
+              >
+                <template #icon><filter-outlined /></template>
+                {{ isAdvancedFilterOpen ? '收起筛选' : '高级筛选' }}
+                <a-badge
+                  v-if="activeFilterCount > 0"
+                  :count="activeFilterCount"
+                  :number-style="{ backgroundColor: 'var(--arl-theme-color)', marginLeft: '4px', fontSize: '10px' }"
+                />
+                <down-outlined v-if="!isAdvancedFilterOpen" style="font-size: 10px; margin-left: 2px;" />
+                <up-outlined v-else style="font-size: 10px; margin-left: 2px;" />
+              </a-button>
             </div>
           </div>
 
-          <!-- 直接平铺展示搜索字段的紧凑栅格卡片 (无需展开/折叠，美观微质感) -->
-          <div v-if="tabConfig[activeTab]?.searchFields?.length" class="asm-filter-card">
+          <!-- 可折叠展开的紧凑多字段栅格筛选卡片 -->
+          <transition name="fade-slide">
+            <div v-show="isAdvancedFilterOpen" v-if="tabConfig[activeTab]?.searchFields?.length" class="asm-filter-card">
             <a-form :model="searchForm" class="filter-grid-form">
               <a-row :gutter="[12, 6]">
                 <a-col
@@ -297,6 +319,7 @@
               </div>
             </a-form>
           </div>
+          </transition>
         </div>
       </div>
 
@@ -311,8 +334,8 @@
       :pagination="false"
       :scroll="pagination.pageSize >= 100 ? { y: tableScrollY, x: 'max-content' } : { x: 'max-content' }"
       :virtual="pagination.pageSize >= 100"
-      bordered
       size="small"
+      class="modern-clean-table"
       :rowKey="(record) => record._id || record.id"
     >
       <template #bodyCell="{ column, record, index }">
@@ -400,8 +423,21 @@
           </div>
         </template>
 
+        <template v-else-if="column.key === 'status'">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+            <a-tag :color="getStatusTagColor(record.status)" style="margin: 0; font-weight: 600; font-family: ui-monospace, SFMono-Regular, monospace;">
+              HTTP {{ record.status || '-' }}
+            </a-tag>
+            <a-tooltip v-if="record.headers" title="点击查看完整 HTTP 响应标头">
+              <a-button type="link" size="small" class="headers-quick-btn" @click.stop="openHeadersModal(record)">
+                <file-text-outlined style="font-size: 11px;" /> Headers
+              </a-button>
+            </a-tooltip>
+          </div>
+        </template>
+
         <template v-else-if="column.key === 'screenshot'">
-          <img v-if="record.screenshot" :src="`/api${record.screenshot}`" style="width: 280px; height: 160px; object-fit: cover; object-position: top; cursor: pointer; border: 1px solid var(--arl-border-color); border-radius: 4px;" @click="handlePreview(`/api${record.screenshot}`)" />
+          <img v-if="record.screenshot" :src="`/api${record.screenshot}`" style="width: 260px; height: 150px; object-fit: cover; object-position: top; cursor: pointer; border: 1px solid var(--arl-border-color); border-radius: 4px;" @click="handlePreview(`/api${record.screenshot}`)" />
           <span v-else>-</span>
         </template>
 
@@ -418,7 +454,12 @@
           </a-tooltip>
         </template>
 
-        <template v-else-if="column.key === 'headers'"><div class="scroll-x"><pre>{{ record.headers }}</pre></div></template>
+        <template v-else-if="column.key === 'headers'">
+          <a-button v-if="record.headers" type="link" size="small" @click.stop="openHeadersModal(record)">
+            <file-text-outlined /> 查看标头
+          </a-button>
+          <span v-else>-</span>
+        </template>
         <template v-else-if="column.key === 'finger'">
           <div v-if="record.finger && record.finger.length > 0" style="display: flex; flex-wrap: wrap; gap: 4px;">
             <a-tag v-for="f in record.finger.slice(0, 3)" :key="f.name" color="blue" style="margin: 0; white-space: normal; height: auto; text-align: left;">{{ f.name }}</a-tag>
@@ -528,17 +569,48 @@
 
       
         <template v-else-if="column.key === 'cert_detail'">
-          <div v-if="record.cert" style="font-size: 13px; line-height: 1.8; color: var(--arl-text-color); padding: 12px 0;">
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px;">基本信息</div>
-            <div style="display: flex; margin-bottom: 6px;"><div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">主题名称</div><div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.subject_dn || '-' }}</div></div>
-            <div style="display: flex; margin-bottom: 6px;"><div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">签发者名称</div><div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.issuer_dn || '-' }}</div></div>
-            <div style="display: flex; margin-bottom: 6px;"><div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">使用者备用名称</div><div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.extensions?.subjectAltName || '-' }}</div></div>
-            <div style="display: flex; margin-bottom: 6px;"><div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">序列号</div><div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.serial_number || '-' }}</div></div>
-            <div style="display: flex; margin-bottom: 16px;"><div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">时间</div><div style="flex: 1; color: var(--arl-text-color);">{{ record.cert.validity?.start || '-' }} 至 {{ record.cert.validity?.end || '-' }}</div></div>
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px;">指纹</div>
-            <div style="display: flex; margin-bottom: 6px;"><div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">SHA-256</div><div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.fingerprint?.sha256 || '-' }}</div></div>
-            <div style="display: flex; margin-bottom: 6px;"><div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">SHA-1</div><div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.fingerprint?.sha1 || '-' }}</div></div>
-            <div style="display: flex; margin-bottom: 6px;"><div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">MD5</div><div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.fingerprint?.md5 || '-' }}</div></div>
+          <div v-if="record.cert" class="cert-grid-container">
+            <a-row :gutter="[16, 4]">
+              <!-- 左列：基础信息 -->
+              <a-col :xs="24" :sm="14">
+                <div class="cert-micro-row">
+                  <span class="cert-micro-label">主题名称：</span>
+                  <span class="cert-micro-val font-mono" :title="record.cert.subject_dn">{{ record.cert.subject_dn || '-' }}</span>
+                </div>
+                <div class="cert-micro-row">
+                  <span class="cert-micro-label">签发者：</span>
+                  <span class="cert-micro-val" :title="record.cert.issuer_dn">{{ record.cert.issuer_dn || '-' }}</span>
+                </div>
+                <div class="cert-micro-row">
+                  <span class="cert-micro-label">备用名称：</span>
+                  <span class="cert-micro-val font-mono" :title="record.cert.extensions?.subjectAltName">{{ record.cert.extensions?.subjectAltName || '-' }}</span>
+                </div>
+                <div class="cert-micro-row">
+                  <span class="cert-micro-label">有效时间：</span>
+                  <span class="cert-micro-val">{{ record.cert.validity?.start || '-' }} 至 {{ record.cert.validity?.end || '-' }}</span>
+                </div>
+              </a-col>
+
+              <!-- 右列：指纹与序列号 -->
+              <a-col :xs="24" :sm="10">
+                <div class="cert-micro-row">
+                  <span class="cert-micro-label">序列号：</span>
+                  <span class="cert-micro-val font-mono" :title="record.cert.serial_number">{{ record.cert.serial_number || '-' }}</span>
+                </div>
+                <div class="cert-micro-row">
+                  <span class="cert-micro-label">SHA-256：</span>
+                  <span class="cert-micro-val font-mono" :title="record.cert.fingerprint?.sha256">{{ record.cert.fingerprint?.sha256 || '-' }}</span>
+                </div>
+                <div class="cert-micro-row">
+                  <span class="cert-micro-label">SHA-1：</span>
+                  <span class="cert-micro-val font-mono" :title="record.cert.fingerprint?.sha1">{{ record.cert.fingerprint?.sha1 || '-' }}</span>
+                </div>
+                <div class="cert-micro-row">
+                  <span class="cert-micro-label">MD5：</span>
+                  <span class="cert-micro-val font-mono" :title="record.cert.fingerprint?.md5">{{ record.cert.fingerprint?.md5 || '-' }}</span>
+                </div>
+              </a-col>
+            </a-row>
           </div>
           <span v-else>-</span>
         </template>
@@ -1422,6 +1494,36 @@
       v-model:open="rawDrawerVisible"
       :data="currentRawRecord"
     />
+
+    <!-- 站点 HTTP 响应标头全息弹窗 -->
+    <a-modal
+      v-model:open="headersModalVisible"
+      title="站点 HTTP 响应标头 (Headers)"
+      width="780px"
+      :footer="null"
+      centered
+      destroyOnClose
+    >
+      <div v-if="currentHeadersRecord" class="headers-modal-content">
+        <div class="headers-modal-header">
+          <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1; min-width: 0;">
+            <a :href="currentHeadersRecord.site || currentHeadersRecord.url" target="_blank" style="font-weight: 600; font-size: 14px; word-break: break-all; color: var(--arl-theme-color);">
+              {{ currentHeadersRecord.site || currentHeadersRecord.url }}
+            </a>
+            <a-tag :color="getStatusTagColor(currentHeadersRecord.status)">
+              HTTP {{ currentHeadersRecord.status || '-' }}
+            </a-tag>
+          </div>
+          <a-button size="small" @click="handleCopyText(currentHeadersRecord.headers)">
+            <template #icon><copy-outlined /></template>
+            复制标头
+          </a-button>
+        </div>
+        <div class="headers-pre-box">
+          <pre class="headers-pre-content">{{ currentHeadersRecord.headers || '无可用标头数据' }}</pre>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -1430,8 +1532,8 @@
 import { ref, onMounted, reactive, watch, computed, createVNode, onUnmounted, nextTick } from 'vue';
 const heroRef = ref(null);
 const asmControlRef = ref(null);
-const heroHeight = ref(82);
-const asmControlHeight = ref(180);
+const heroHeight = ref(48);
+const asmControlHeight = ref(80);
 const scrollContainer = ref(null);
 
 let heroResizeObserver = null;
@@ -1557,6 +1659,25 @@ const targetName = computed(() => {
   }
   return t;
 });
+
+// 高级筛选折叠状态与标头弹窗状态
+const isAdvancedFilterOpen = ref(true);
+const headersModalVisible = ref(false);
+const currentHeadersRecord = ref(null);
+
+const openHeadersModal = (record) => {
+  currentHeadersRecord.value = record;
+  headersModalVisible.value = true;
+};
+
+const getStatusTagColor = (status) => {
+  const code = Number(status);
+  if (code >= 200 && code < 300) return 'success';
+  if (code >= 300 && code < 400) return 'processing';
+  if (code >= 400 && code < 500) return 'warning';
+  if (code >= 500) return 'error';
+  return 'default';
+};
 
 // 双视角状态 (OSINT vs ASM，默认优先激活 OSINT)
 const currentView = ref(route.query.view === 'asm' ? 'asm' : 'osint');
@@ -2380,14 +2501,13 @@ const tabConfig = reactive({
       { label: '更新时间', key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '站点', dataIndex: 'site', key: 'site', width: 250 },
+      { title: '序号', key: 'index', width: 55, align: 'center' },
+      { title: '站点', dataIndex: 'site', key: 'site', width: 280 },
       { title: '状态码', dataIndex: 'status', key: 'status', width: 100, align: 'center' },
-      { title: '标题', dataIndex: 'title', key: 'title', width: 200 },
-      { title: 'headers', key: 'headers', width: 400 },
-      { title: 'finger', key: 'finger', width: 150 },
-      { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 180 }, // 修正字段名
-      { title: '截图', key: 'screenshot', width: 300 }
+      { title: '标题', dataIndex: 'title', key: 'title', width: 220 },
+      { title: '指纹', key: 'finger', width: 180 },
+      { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 170, align: 'center' },
+      { title: '截图', key: 'screenshot', width: 260 }
     ]
   },
   domain: {
@@ -3319,15 +3439,29 @@ const submitAddDomain = async () => {
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 
-/* 上层：标题、分组类型、主体元数据与操作整合为单行 */
-.hero-title-bar {
+/* 极简单行整合栏 */
+.hero-unified-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  min-height: 42px;
+  padding: 6px 14px;
+  min-height: 46px;
   gap: 12px;
   box-sizing: border-box;
+}
+
+.hero-enterprise-icon-only {
+  display: inline-flex;
+  align-items: center;
+  color: var(--arl-theme-color);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.hero-enterprise-icon-only:hover {
+  background: var(--arl-bg-light);
 }
 
 /* 左侧区域：返回按钮 + 标题 + 核心标签 + 垂直分割线 + 主体元数据 */
@@ -4005,5 +4139,114 @@ div:hover > .chain-action-btn {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* ================= 高级筛选折叠动画 ================= */
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.2s ease-in-out;
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* ================= 状态码与标头快速操作 ================= */
+.headers-quick-btn {
+  padding: 0 4px;
+  height: 20px;
+  line-height: 20px;
+  font-size: 11px;
+  color: var(--arl-theme-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.headers-quick-btn:hover {
+  opacity: 0.8;
+}
+
+/* ================= 标头弹窗样式 ================= */
+.headers-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.headers-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--arl-bg-light);
+  border: 1px solid var(--arl-border-color);
+  border-radius: 6px;
+}
+.headers-pre-box {
+  background: #0f172a;
+  border-radius: 6px;
+  padding: 14px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.headers-pre-content {
+  color: #38bdf8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ================= SSL 证书两列紧凑微网格 ================= */
+.cert-grid-container {
+  padding: 4px 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.cert-micro-row {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 3px;
+  gap: 4px;
+}
+.cert-micro-label {
+  width: 80px;
+  flex-shrink: 0;
+  text-align: right;
+  color: var(--arl-text-secondary);
+  font-weight: 500;
+}
+.cert-micro-val {
+  flex: 1;
+  min-width: 0;
+  color: var(--arl-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ================= 现代化无纵线表格风格 ================= */
+.modern-clean-table :deep(.ant-table) {
+  background: var(--arl-bg-white);
+  border-radius: 6px;
+  border: 1px solid var(--arl-border-color);
+}
+.modern-clean-table :deep(.ant-table-thead > tr > th) {
+  background: var(--arl-bg-light) !important;
+  color: var(--arl-text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  border-bottom: 1px solid var(--arl-border-color) !important;
+  border-right: none !important;
+}
+.modern-clean-table :deep(.ant-table-tbody > tr > td) {
+  border-bottom: 1px solid var(--arl-border-color) !important;
+  border-right: none !important;
+  transition: background 0.15s ease;
+}
+.modern-clean-table :deep(.ant-table-tbody > tr:hover > td) {
+  background: color-mix(in srgb, var(--arl-theme-color) 4%, var(--arl-bg-white)) !important;
+}
 
 </style>
