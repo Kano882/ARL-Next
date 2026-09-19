@@ -424,20 +424,11 @@
         </template>
 
         <template v-else-if="column.key === 'status'">
-          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-            <a-tag :color="getStatusTagColor(record.status)" style="margin: 0; font-weight: 600; font-family: ui-monospace, SFMono-Regular, monospace;">
-              HTTP {{ record.status || '-' }}
-            </a-tag>
-            <a-tooltip v-if="record.headers" title="点击查看完整 HTTP 响应标头">
-              <a-button type="link" size="small" class="headers-quick-btn" @click.stop="openHeadersModal(record)">
-                <file-text-outlined style="font-size: 11px;" /> Headers
-              </a-button>
-            </a-tooltip>
-          </div>
+          <span>{{ record.status || '-' }}</span>
         </template>
 
         <template v-else-if="column.key === 'screenshot'">
-          <img v-if="record.screenshot" :src="`/api${record.screenshot}`" style="width: 260px; height: 150px; object-fit: cover; object-position: top; cursor: pointer; border: 1px solid var(--arl-border-color); border-radius: 4px;" @click="handlePreview(`/api${record.screenshot}`)" />
+          <img v-if="record.screenshot" :src="`/api${record.screenshot}`" style="width: 240px; height: 135px; object-fit: cover; object-position: top; cursor: pointer; border: 1px solid var(--arl-border-color); border-radius: 4px;" @click="handlePreview(`/api${record.screenshot}`)" />
           <span v-else>-</span>
         </template>
 
@@ -448,17 +439,14 @@
                 {{ record.title }}
               </div>
             </template>
-            <div style="max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <div style="max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               {{ record.title }}
             </div>
           </a-tooltip>
         </template>
 
         <template v-else-if="column.key === 'headers'">
-          <a-button v-if="record.headers" type="link" size="small" @click.stop="openHeadersModal(record)">
-            <file-text-outlined /> 查看标头
-          </a-button>
-          <span v-else>-</span>
+          <div class="scroll-x"><pre>{{ record.headers }}</pre></div>
         </template>
         <template v-else-if="column.key === 'finger'">
           <div v-if="record.finger && record.finger.length > 0" style="display: flex; flex-wrap: wrap; gap: 4px;">
@@ -1495,35 +1483,7 @@
       :data="currentRawRecord"
     />
 
-    <!-- 站点 HTTP 响应标头全息弹窗 -->
-    <a-modal
-      v-model:open="headersModalVisible"
-      title="站点 HTTP 响应标头 (Headers)"
-      width="780px"
-      :footer="null"
-      centered
-      destroyOnClose
-    >
-      <div v-if="currentHeadersRecord" class="headers-modal-content">
-        <div class="headers-modal-header">
-          <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1; min-width: 0;">
-            <a :href="currentHeadersRecord.site || currentHeadersRecord.url" target="_blank" style="font-weight: 600; font-size: 14px; word-break: break-all; color: var(--arl-theme-color);">
-              {{ currentHeadersRecord.site || currentHeadersRecord.url }}
-            </a>
-            <a-tag :color="getStatusTagColor(currentHeadersRecord.status)">
-              HTTP {{ currentHeadersRecord.status || '-' }}
-            </a-tag>
-          </div>
-          <a-button size="small" @click="handleCopyText(currentHeadersRecord.headers)">
-            <template #icon><copy-outlined /></template>
-            复制标头
-          </a-button>
-        </div>
-        <div class="headers-pre-box">
-          <pre class="headers-pre-content">{{ currentHeadersRecord.headers || '无可用标头数据' }}</pre>
-        </div>
-      </div>
-    </a-modal>
+
   </div>
 </template>
 
@@ -1660,24 +1620,8 @@ const targetName = computed(() => {
   return t;
 });
 
-// 高级筛选折叠状态与标头弹窗状态
+// 高级筛选折叠状态
 const isAdvancedFilterOpen = ref(true);
-const headersModalVisible = ref(false);
-const currentHeadersRecord = ref(null);
-
-const openHeadersModal = (record) => {
-  currentHeadersRecord.value = record;
-  headersModalVisible.value = true;
-};
-
-const getStatusTagColor = (status) => {
-  const code = Number(status);
-  if (code >= 200 && code < 300) return 'success';
-  if (code >= 300 && code < 400) return 'processing';
-  if (code >= 400 && code < 500) return 'warning';
-  if (code >= 500) return 'error';
-  return 'default';
-};
 
 // 双视角状态 (OSINT vs ASM，默认优先激活 OSINT)
 const currentView = ref(route.query.view === 'asm' ? 'asm' : 'osint');
@@ -2501,13 +2445,14 @@ const tabConfig = reactive({
       { label: '更新时间', key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 55, align: 'center' },
-      { title: '站点', dataIndex: 'site', key: 'site', width: 280 },
-      { title: '状态码', dataIndex: 'status', key: 'status', width: 100, align: 'center' },
-      { title: '标题', dataIndex: 'title', key: 'title', width: 220 },
-      { title: '指纹', key: 'finger', width: 180 },
-      { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 170, align: 'center' },
-      { title: '截图', key: 'screenshot', width: 260 }
+      { title: '序号', key: 'index', width: 50, align: 'center' },
+      { title: '站点', dataIndex: 'site', key: 'site', width: 260 },
+      { title: '状态码', dataIndex: 'status', key: 'status', width: 75, align: 'center' },
+      { title: '标题', dataIndex: 'title', key: 'title', width: 200 },
+      { title: 'headers', key: 'headers', width: 360 },
+      { title: '指纹', key: 'finger', width: 200 },
+      { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 160, align: 'center' },
+      { title: '截图', key: 'screenshot', width: 250 }
     ]
   },
   domain: {
@@ -4151,52 +4096,53 @@ div:hover > .chain-action-btn {
   transform: translateY(-6px);
 }
 
-/* ================= 状态码与标头快速操作 ================= */
-.headers-quick-btn {
-  padding: 0 4px;
-  height: 20px;
-  line-height: 20px;
-  font-size: 11px;
-  color: var(--arl-theme-color);
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.headers-quick-btn:hover {
-  opacity: 0.8;
+/* ================= Headers 样式 (对齐 TaskDetail，全视口无滚动条完美适配) ================= */
+.scroll-x {
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  width: 100%;
+  max-width: 360px;
+  max-height: 140px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
 }
 
-/* ================= 标头弹窗样式 ================= */
-.headers-modal-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.headers-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--arl-bg-light);
-  border: 1px solid var(--arl-border-color);
-  border-radius: 6px;
-}
-.headers-pre-box {
-  background: #0f172a;
-  border-radius: 6px;
-  padding: 14px;
-  max-height: 480px;
-  overflow-y: auto;
-}
-.headers-pre-content {
-  color: #38bdf8;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.6;
+.scroll-x pre {
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  font-family: Consolas, Menlo, Courier, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #334155;
+  opacity: 0.85;
+  white-space: pre;
+  word-wrap: normal;
 }
+
+/* 定制横向滚动条的纤细样式 */
+.scroll-x::-webkit-scrollbar {
+  height: 4px;
+}
+.scroll-x::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-x::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+}
+.scroll-x::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.modern-clean-table :deep(.ant-table-cell:has(.scroll-x)) {
+  max-width: 360px !important;
+  width: 360px !important;
+}
+
 
 /* ================= SSL 证书两列紧凑微网格 ================= */
 .cert-grid-container {
