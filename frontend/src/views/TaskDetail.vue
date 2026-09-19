@@ -607,7 +607,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, reactive, watch, nextTick, computed, createVNode } from 'vue';
+defineOptions({ name: 'TaskDetail' });
+import { ref, onMounted, onUnmounted, onActivated, onDeactivated, reactive, watch, nextTick, computed, createVNode } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
@@ -1680,9 +1681,24 @@ const submitRiskTask = async () => {
   }
 };
 
+onActivated(() => {
+  if (activeTab.value === 'syslog') {
+    startSyslogTimer();
+  }
+  startTaskStatusTimer();
+});
 
-
-
+onDeactivated(() => {
+  stopSyslogTimer();
+  stopTaskStatusTimer();
+  diffModalVisible.value = false;
+  cipDetailModalVisible.value = false;
+  serviceDetailModalVisible.value = false;
+  fingerModalVisible.value = false;
+  tagVisible.value = false;
+  previewVisible.value = false;
+  riskVisible.value = false;
+});
 </script>
 
 <style scoped>

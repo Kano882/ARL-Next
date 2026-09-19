@@ -1118,8 +1118,9 @@ admin123
 </template>
 
 <script setup>
+defineOptions({ name: 'SystemSettings' });
 import { InfoCircleOutlined } from '@ant-design/icons-vue';
-import { ref, reactive, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, watch } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
 import { copyText } from '@/utils/clipboard';
@@ -2567,6 +2568,14 @@ onMounted(() => {
   fetchSecurityPolicy();
   fetchPerformanceConfig();
   fetchGeneralConfig();
+});
+
+onDeactivated(() => {
+  createDictDrawerVisible.value = false;
+  appendDrawerVisible.value = false;
+  searchDrawerVisible.value = false;
+  cdnDrawerVisible.value = false;
+  updateModalVisible.value = false;
 });
 
 onUnmounted(() => {

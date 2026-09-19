@@ -48,7 +48,7 @@
     
     </div>
 <a-table :sticky="stickyConfig"
-        :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
+        :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
         :loading="loading"
         :dataSource="dataSource"
         :columns="columns"
@@ -105,8 +105,9 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'Fingerprint' });
 
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, onDeactivated, computed, watch } from 'vue';
 import { useSticky } from '../utils/useSticky';
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
@@ -321,6 +322,10 @@ const handleDelete = (record) => {};
 
 onMounted(() => {
   fetchData();
+});
+
+onDeactivated(() => {
+  addModalVisible.value = false;
 });
 </script>
 

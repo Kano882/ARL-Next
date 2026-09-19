@@ -1488,8 +1488,9 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'GroupAssetsDetail' });
 
-import { ref, onMounted, reactive, watch, computed, createVNode, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, reactive, watch, computed, createVNode, onUnmounted, onDeactivated, nextTick } from 'vue';
 const heroRef = ref(null);
 const asmControlRef = ref(null);
 const heroHeight = ref(48);
@@ -3292,6 +3293,19 @@ const submitAddDomain = async () => {
   }
 };
 
+onDeactivated(() => {
+  fingerModalVisible.value = false;
+  cipDetailModalVisible.value = false;
+  serviceDetailModalVisible.value = false;
+  previewVisible.value = false;
+  tagVisible.value = false;
+  addSiteVisible.value = false;
+  riskModalVisible.value = false;
+  addDomainVisible.value = false;
+  bindModalVisible.value = false;
+  chainDrawerVisible.value = false;
+  rawDrawerVisible.value = false;
+});
 </script>
 
 <style scoped>

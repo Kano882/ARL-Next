@@ -439,8 +439,9 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'AssetSearch' });
 
-import { ref, onMounted, reactive, watch, onUnmounted, computed, nextTick } from 'vue';
+import { ref, onMounted, onDeactivated, reactive, watch, onUnmounted, computed, nextTick } from 'vue';
 import { useSticky } from '../utils/useSticky';
 const actionBarRef = ref(null);
 const { stickyConfig, actionBarHeight } = useSticky(actionBarRef);
@@ -1115,6 +1116,12 @@ const openCidrDetail = (record) => {
   cipDetailModalVisible.value = true;
 };
 
+onDeactivated(() => {
+  cipDetailModalVisible.value = false;
+  previewVisible.value = false;
+  riskVisible.value = false;
+  fingerModalVisible.value = false;
+});
 </script>
 
 <style scoped>

@@ -35,7 +35,7 @@
     
     </div>
 <a-table :sticky="stickyConfig"
-        :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
+        :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
         :loading="loading"
         :dataSource="dataSource"
         :columns="columns"
@@ -87,6 +87,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'AssetMonitor' });
 
 import { ref, onMounted, reactive, computed, createVNode, watch } from 'vue';
 import { useSticky } from '../utils/useSticky';

@@ -124,7 +124,7 @@
       <a-layout-content class="arl-main-content" style="margin: 16px; display: flex; flex-direction: column; overflow-y: auto; height: 0;">
         <div :style="{ background: hasBgImage ? (isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.4)') : (isDarkMode ? '#0f172a' : 'transparent'), flex: '1 0 auto', display: 'flex', flexDirection: 'column', borderRadius: '4px' }">
           <router-view v-slot="{ Component }">
-            <keep-alive include="Dashboard,TaskList,AssetScope">
+            <keep-alive include="Dashboard,TaskList,TaskDetail,AssetScope,GroupAssetsDetail,AssetSearch,AssetMonitor,PlanningTasks,GithubManage,PocList,Fingerprint,Policy,SystemSettings">
               <component :is="Component" />
             </keep-alive>
           </router-view>
@@ -564,7 +564,54 @@ onUnmounted(() => {
   }
 });
 
-const handleMenuClick = (e) => router.push(e.key);
+// 帮助函数：将任意子路径或详情页映射至左侧菜单项的 key
+const getMenuKeyForPath = (path) => {
+  if (!path) return '/dashboard';
+  if (path.startsWith('/taskList')) return '/taskList';
+  if (path.startsWith('/group') || path.startsWith('/groupAssetsManagement')) return '/group';
+  if (path.startsWith('/policy')) return '/policy';
+  if (path.startsWith('/GitHub')) return '/GitHubTasks/GitHubTasksList';
+  return path;
+};
+
+// 记录各业务模块最后访问的完整路由（含 query 参数与详情页路径）
+const moduleLastPathMap = reactive({
+  '/group': '/group',
+  '/taskList': '/taskList',
+  '/policy': '/policy',
+  '/GitHubTasks/GitHubTasksList': '/GitHubTasks/GitHubTasksList'
+});
+
+// 在路由变化时，动态记录各模块最后访问的 fullPath
+watch(() => route.fullPath, (newFullPath) => {
+  const currentPath = route.path;
+  const menuKey = getMenuKeyForPath(currentPath);
+  if (menuKey && moduleLastPathMap[menuKey] !== undefined) {
+    moduleLastPathMap[menuKey] = newFullPath;
+  }
+}, { immediate: true });
+
+const handleMenuClick = (e) => {
+  const targetMenuKey = e.key;
+  const currentMenuKey = getMenuKeyForPath(route.path);
+
+  // 如果用户当前已经在该模块的二级/详情页中，再次点击该模块的左侧菜单，视为希望返回一级大盘列表
+  if (currentMenuKey === targetMenuKey) {
+    if (route.path !== targetMenuKey) {
+      moduleLastPathMap[targetMenuKey] = targetMenuKey;
+      router.push(targetMenuKey);
+    }
+    return;
+  }
+
+  // 从其他模块切回该模块：若之前访问过详情页或子路径，直接恢复到上次停留的完整路由
+  const savedPath = moduleLastPathMap[targetMenuKey];
+  if (savedPath && savedPath !== targetMenuKey) {
+    router.push(savedPath);
+  } else {
+    router.push(targetMenuKey);
+  }
+};
 
 const handleLogout = () => {
   localStorage.removeItem('token');
@@ -572,27 +619,44 @@ const handleLogout = () => {
   router.push('/login');
 };
 
-// 监听路由变化，保持左侧菜单高亮的一致性
-watch(() => route.path, (newPath) => {
-  // 切换页面时，将滚动容器恢复到顶部
-  const mainContent = document.querySelector('.arl-main-content');
-  if (mainContent) {
-    mainContent.scrollTop = 0;
-  }
+// 记录各路由对应的滚动容器偏移量
+const scrollPositions = new Map();
+let prevPath = '';
 
-  // 如果当前在详情页，依然让相应的菜单亮起
-  if (newPath.startsWith('/taskList')) {
-    selectedKeys.value = ['/taskList'];
-  } else if (newPath.startsWith('/group')) {
-    selectedKeys.value = ['/group'];
-  } else {
-    selectedKeys.value = [newPath];
+// 监听路由变化，保持左侧菜单高亮的一致性并记忆还原滚动条位置
+watch(() => route.path, (newPath) => {
+  const mainContent = document.querySelector('.arl-main-content');
+  if (mainContent && prevPath) {
+    scrollPositions.set(prevPath, mainContent.scrollTop);
   }
+  prevPath = newPath;
+
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.arl-main-content');
+      if (el) {
+        const savedScroll = scrollPositions.get(newPath);
+        if (savedScroll !== undefined) {
+          el.scrollTop = savedScroll;
+        } else {
+          el.scrollTop = 0;
+        }
+      }
+    });
+  });
+
+  // 映射对应的菜单高亮
+  const activeMenuKey = getMenuKeyForPath(newPath);
+  selectedKeys.value = [activeMenuKey];
 }, { immediate: true });
 
 // 动态计算页面标题
 const currentPageTitle = computed(() => {
-  if (route.path.includes('taskDetail')) return '任务详情'; // 详情页标题
+  if (route.path.includes('taskDetail')) return '任务详情';
+  if (route.path.includes('groupAssetsDetail')) return '资产分组详情';
+  if (route.path.includes('GitHubTasksInfo')) return 'GitHub 任务详情';
+  if (route.path.includes('GitHubMonitorInfo')) return 'GitHub 监控详情';
+  if (route.path.includes('policyDetail')) return '策略配置详情';
   const titleMap = {
     '/dashboard': '仪表盘',
     '/group': '资产分组',

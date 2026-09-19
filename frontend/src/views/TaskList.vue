@@ -487,7 +487,7 @@
       <template v-if="activeMainTab === 'enterprise'">
         <a-table
           :sticky="stickyConfig"
-          :row-selection="{ selectedRowKeys: enterpriseSelectedRowKeys, onChange: onEnterpriseSelectChange }"
+          :row-selection="{ selectedRowKeys: enterpriseSelectedRowKeys, onChange: onEnterpriseSelectChange, preserveSelectedRowKeys: true }"
           :dataSource="enterpriseTaskList"
           :columns="enterpriseColumns"
           :loading="enterpriseLoading"
@@ -626,7 +626,7 @@
       <template v-else-if="activeMainTab === 'task'">
         <a-table
           :sticky="stickyConfig"
-          :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
+          :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
           :dataSource="taskList"
           :columns="columns"
           :loading="loading"
@@ -2259,9 +2259,11 @@ const goToGlobalView = () => {
 // 🚀 顶层 Tab 切换
 // ==========================================
 watch(() => route.query.tab, (newTab) => {
+  // 核心加固：仅在当前路由处于任务管理页面时响应外部 query 联动，避免切至其他页面时将 activeMainTab 误重置为 enterprise
+  if (!route.path.startsWith('/taskList')) return;
   if (newTab === 'task' && activeMainTab.value !== 'task') {
     activeMainTab.value = 'task';
-  } else if (newTab !== 'task' && activeMainTab.value !== 'enterprise') {
+  } else if (newTab === 'enterprise' && activeMainTab.value !== 'enterprise') {
     activeMainTab.value = 'enterprise';
   }
 });
@@ -2324,6 +2326,12 @@ onActivated(() => {
 
 onDeactivated(() => {
   stopSmartPolling();
+  // 离开页面时安全收起弹窗，避免浮层遮挡其他视图
+  visible.value = false;
+  fofaVisible.value = false;
+  syncVisible.value = false;
+  tycModalVisible.value = false;
+  syncModalVisible.value = false;
 });
 
 onUnmounted(() => {

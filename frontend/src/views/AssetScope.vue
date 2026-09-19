@@ -305,7 +305,7 @@
 
         <a-table 
           :sticky="stickyConfig"
-          :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
+          :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
           :loading="loading"
           :dataSource="dataSource"
           :columns="columns"
@@ -1379,7 +1379,9 @@ const fetchData = async (silent = false) => {
     if (res.code === 200) {
       dataSource.value = processScopeItems(res.items || []);
       pagination.total = res.total || 0;
-      selectedRowKeys.value = [];
+      if (!silent) {
+        selectedRowKeys.value = [];
+      }
       checkAndSchedulePoll();
     }
   } catch (error) {
@@ -2655,6 +2657,8 @@ const submitAddWihMonitor = async () => {
 
 // 监听路由参数联动
 watch(() => route.query.scope_id, (newScopeId) => {
+  // 核心加固：仅在当前路由处于 /group 页面时响应外部 query 联动，避免切至其他页面时将 searchForm._id 误清空重置
+  if (!route.path.startsWith('/group')) return;
   if (newScopeId) {
     activeGroupId.value = 'all';
     searchForm.value._id = newScopeId;
@@ -2768,6 +2772,17 @@ const handleImportFromTask = async (task) => {
 onDeactivated(() => {
   stopPoll();
   stopReconPoller();
+  // 离开页面时安全收起弹窗，避免浮层遮挡其他视图
+  addModalVisible.value = false;
+  editGroupModalVisible.value = false;
+  enterpriseGroupModalVisible.value = false;
+  batchMoveModalVisible.value = false;
+  icpImportModalVisible.value = false;
+  syncIncrementModalVisible.value = false;
+  bindScopeModalVisible.value = false;
+  addMonitorVisible.value = false;
+  addSiteMonitorVisible.value = false;
+  addWihMonitorVisible.value = false;
 });
 
 onUnmounted(() => {

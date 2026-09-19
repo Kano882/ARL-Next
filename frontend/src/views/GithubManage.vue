@@ -71,7 +71,7 @@
             <a-button type="primary" danger :disabled="!cveHasSelected">批量删除</a-button>
           </a-popconfirm>
         </div>
-        <a-table :row-selection="{ selectedRowKeys: cveSelectedRowKeys, onChange: onCveSelectChange }" :loading="cveLoading" :dataSource="pagedCveData" :columns="cveColumns" :pagination="false" size="middle" rowKey="cve_name">
+        <a-table :row-selection="{ selectedRowKeys: cveSelectedRowKeys, onChange: onCveSelectChange, preserveSelectedRowKeys: true }" :loading="cveLoading" :dataSource="pagedCveData" :columns="cveColumns" :pagination="false" size="middle" rowKey="cve_name">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'cve_name'">
               <a :href="record.cve_url" target="_blank" style="color: #ff4d4f; font-weight: bold; font-size: 15px;">
@@ -141,7 +141,7 @@
           </a-popconfirm>
         </div>
 
-        <a-table :row-selection="{ selectedRowKeys: toolsSelectedRowKeys, onChange: onToolsSelectChange }" :loading="toolsLoading" :dataSource="pagedToolsData" :columns="toolsColumns" :pagination="false" size="middle" rowKey="repo_url">
+        <a-table :row-selection="{ selectedRowKeys: toolsSelectedRowKeys, onChange: onToolsSelectChange, preserveSelectedRowKeys: true }" :loading="toolsLoading" :dataSource="pagedToolsData" :columns="toolsColumns" :pagination="false" size="middle" rowKey="repo_url">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'repo_url'">
               <a :href="record.repo_url.replace('api.github.com/repos', 'github.com')" target="_blank" style="color: #1890ff; font-weight: 500;">
@@ -219,7 +219,7 @@
           </a-popconfirm>
         </div>
 
-        <a-table :row-selection="{ selectedRowKeys: hackersSelectedRowKeys, onChange: onHackersSelectChange }" :loading="hackersLoading" :dataSource="pagedHackersData" :columns="hackersColumns" :pagination="false" size="middle" rowKey="github_id">
+        <a-table :row-selection="{ selectedRowKeys: hackersSelectedRowKeys, onChange: onHackersSelectChange, preserveSelectedRowKeys: true }" :loading="hackersLoading" :dataSource="pagedHackersData" :columns="hackersColumns" :pagination="false" size="middle" rowKey="github_id">
           <template #emptyText>
             <div style="padding: 40px 0;">
               <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
@@ -308,7 +308,7 @@
         </div>
         <!-- 策略表格 -->
 <a-table
-            :row-selection="{ selectedRowKeys: schedulerSelectedRowKeys, onChange: onSchedulerSelectChange }"
+            :row-selection="{ selectedRowKeys: schedulerSelectedRowKeys, onChange: onSchedulerSelectChange, preserveSelectedRowKeys: true }"
             :loading="schedulerLoading"
             :dataSource="schedulerData"
             :columns="schedulerColumns"
@@ -411,7 +411,7 @@
 
         <!-- 任务表格 -->
         <a-table
-            :row-selection="{ selectedRowKeys: taskSelectedRowKeys, onChange: onTaskSelectChange }"
+            :row-selection="{ selectedRowKeys: taskSelectedRowKeys, onChange: onTaskSelectChange, preserveSelectedRowKeys: true }"
             :loading="taskLoading"
             :dataSource="taskData"
             :columns="taskColumns"
@@ -587,7 +587,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+defineOptions({ name: 'GithubManage' });
+import { ref, reactive, onMounted, onDeactivated, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
@@ -1355,6 +1356,14 @@ const runHackersOnce = async () => {
     message.error('请求失败');
   }
 };
+
+onDeactivated(() => {
+  historyDrawerVisible.value = false;
+  schedulerModalVisible.value = false;
+  taskModalVisible.value = false;
+  toolModalVisible.value = false;
+  hackerModalVisible.value = false;
+});
 </script>
 
 <style scoped>

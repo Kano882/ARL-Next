@@ -65,7 +65,7 @@
         :pagination="false"
         size="middle"
         :rowKey="(record) => record._id"
-        :rowSelection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
+        :rowSelection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
     >
       <template #bodyCell="{ column, record, index }">
         <template v-if="column.key === 'index'">
@@ -220,8 +220,9 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'PocList' });
 
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, onDeactivated, watch } from 'vue';
 import { useSticky } from '../utils/useSticky';
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
@@ -679,6 +680,13 @@ const handleBatchDelete = async () => {
   }
 };
 onMounted(() => { fetchData(); });
+
+onDeactivated(() => {
+  isImportModalVisible.value = false;
+  isDetailDrawerVisible.value = false;
+  isEditModalVisible.value = false;
+  isCreateModalVisible.value = false;
+});
 </script>
 
 <style scoped>

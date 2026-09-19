@@ -30,7 +30,7 @@
 
     
     </div>
-<a-table :sticky="stickyConfig" :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: keys => selectedRowKeys = keys }" :loading="loading" :dataSource="dataSource" :columns="columns" :pagination="false" size="middle" :rowKey="(record) => record._id">
+<a-table :sticky="stickyConfig" :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: keys => selectedRowKeys = keys, preserveSelectedRowKeys: true }" :loading="loading" :dataSource="dataSource" :columns="columns" :pagination="false" size="middle" :rowKey="(record) => record._id">
       <template #bodyCell="{ column, record, index }">
         <template v-if="column.key === 'index'"><span>{{ (pagination.current - 1) * pagination.pageSize + index + 1 }}</span></template>
 
@@ -116,8 +116,9 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'Policy' });
 
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, onDeactivated, watch } from 'vue';
 import { useSticky } from '../utils/useSticky';
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
@@ -329,6 +330,9 @@ const handleBatchDelete = async () => {
   }
 };
 
+onDeactivated(() => {
+  dispatchModalVisible.value = false;
+});
 </script>
 
 <style scoped>
