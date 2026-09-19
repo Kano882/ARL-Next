@@ -1,6 +1,8 @@
 <template>
   <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+    <EnterpriseTaskDetailPanel v-if="isEnterpriseTask" />
+    <div v-else>
+      <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
     <a-page-header
       @back="() => router.back()"
       style="padding: 0 0 24px 0;"
@@ -600,7 +602,7 @@
         </div>
       </div>
     </a-modal>
-
+    </div>
   </div>
 </template>
 
@@ -615,6 +617,7 @@ import {
 } from '@ant-design/icons-vue';
 import CidrDetailModal from '../components/CidrDetailModal.vue';
 import ServiceDetailModal from '../components/ServiceDetailModal.vue';
+import EnterpriseTaskDetailPanel from '../components/EnterpriseTaskDetailPanel.vue';
 import { useSticky } from '../utils/useSticky';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { copyText as copyToClipboard } from '../utils/clipboard';
@@ -815,6 +818,10 @@ const displayTitle = computed(() => {
   const list = targetList.value;
   if (list.length <= 1) return `${targetName.value} 相关资产`;
   return `${list[0]} 等 ${list.length} 个目标相关资产`;
+});
+const isEnterpriseTask = computed(() => {
+  const t = route.query.task_type;
+  return t === 'tyc' || t === 'icp';
 });
 const taskStatus = ref('');
 const isTaskRunning = computed(() => !!query.task_id && !['done', 'error', 'stop'].includes(taskStatus.value));
@@ -1526,6 +1533,9 @@ watch(activeTab, (newVal, oldVal) => {
 });
 
 onMounted(() => {
+  if (isEnterpriseTask.value) {
+    return;
+  }
   const restoredTab = tabCache.init();
   if (restoredTab && tabConfig[restoredTab] && restoredTab !== activeTab.value) {
     activeTab.value = restoredTab;

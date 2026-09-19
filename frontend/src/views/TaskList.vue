@@ -2,115 +2,180 @@
   <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
     <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
 
+      <!-- 顶层主标签页：资产侦查任务 vs 企业测绘任务 -->
+      <a-tabs v-model:activeKey="activeMainTab" class="arl-task-main-tabs" @change="handleMainTabChange" style="margin-bottom: 16px;">
+        <a-tab-pane key="task" tab="资产侦查任务" />
+        <a-tab-pane key="enterprise">
+          <template #tab>
+            <span>企业测绘任务</span>
+            <a-badge v-if="enterpriseRunningCount > 0" :count="enterpriseRunningCount" :number-style="{ backgroundColor: '#1890ff', marginLeft: '6px' }" />
+          </template>
+        </a-tab-pane>
+      </a-tabs>
 
-    <div style="margin-bottom: 24px;">
-      <a-button type="primary" style="margin-right: 12px;" @click="showModal">添加任务</a-button>
-      <a-button type="primary" style="margin-right: 12px;" @click="openFofaModal">FOFA 任务下发</a-button>
-      <a-button type="primary" @click="goToGlobalView">全局查看</a-button>
+      <!-- 资产侦查任务操作与搜索栏 -->
+      <template v-if="activeMainTab === 'task'">
+        <div style="margin-bottom: 24px;">
+          <a-button type="primary" style="margin-right: 12px;" @click="showModal">添加任务</a-button>
+          <a-button type="primary" style="margin-right: 12px;" @click="openFofaModal">FOFA 任务下发</a-button>
+          <a-button type="primary" @click="goToGlobalView">全局查看</a-button>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
+
+            <a-form-item label="任务名:">
+              <a-input v-model:value="searchForm.name" placeholder="请输入任务名进行搜索" style="width: 230px;" allowClear @pressEnter="onSearch">
+                <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+
+            <a-form-item label="目标:">
+              <a-input v-model:value="searchForm.target" placeholder="请输入目标进行搜索" style="width: 230px;" allowClear @pressEnter="onSearch">
+                <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+
+            <a-form-item label="Task_Id:">
+              <a-input v-model:value="searchForm.task_id" placeholder="请输入Task_Id进行搜索" style="width: 230px;" allowClear @pressEnter="onSearch">
+                <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+
+            <a-form-item label="任务类型:">
+              <a-select v-model:value="searchForm.type" placeholder="请选择任务类型进行搜索" style="width: 230px;" allowClear>
+                <a-select-option value="task">资产侦查任务</a-select-option>
+                <a-select-option value="monitor">资产监控任务</a-select-option>
+                <a-select-option value="risk_cruising">风险巡航任务</a-select-option>
+                <a-select-option value="site_update">资产站点更新</a-select-option>
+                <a-select-option value="wih">WIH 监控任务</a-select-option>
+              </a-select>
+            </a-form-item>
+
+            <a-form-item label="状态:">
+              <a-input v-model:value="searchForm.status" placeholder="请输入状态进行搜索" style="width: 230px;" allowClear @pressEnter="onSearch">
+                <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+
+            <a-form-item label="站点数量:">
+              <a-input-group compact style="display: flex; width: 230px;">
+                <a-input v-model:value="searchForm.site_count" placeholder="请输入数量" style="flex: 1;" @pressEnter="onSearch">
+                  <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+                </a-input>
+                <a-select v-model:value="searchForm.site_operator" style="width: 75px;">
+                  <a-select-option value="=">等于</a-select-option>
+                  <a-select-option value=">">大于</a-select-option>
+                  <a-select-option value="<">小于</a-select-option>
+                </a-select>
+              </a-input-group>
+            </a-form-item>
+
+            <a-form-item label="域名数量:">
+              <a-input-group compact style="display: flex; width: 230px;">
+                <a-input v-model:value="searchForm.domain_count" placeholder="请输入数量" style="flex: 1;" @pressEnter="onSearch">
+                  <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+                </a-input>
+                <a-select v-model:value="searchForm.domain_operator" style="width: 75px;">
+                  <a-select-option value="=">等于</a-select-option>
+                  <a-select-option value=">">大于</a-select-option>
+                  <a-select-option value="<">小于</a-select-option>
+                </a-select>
+              </a-input-group>
+            </a-form-item>
+
+            <a-form-item label="WIH数量:">
+              <a-input-group compact style="display: flex; width: 230px;">
+                <a-input v-model:value="searchForm.wih_count" placeholder="请输入数量" style="flex: 1;" @pressEnter="onSearch">
+                  <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+                </a-input>
+                <a-select v-model:value="searchForm.wih_operator" style="width: 75px;">
+                  <a-select-option value="=">等于</a-select-option>
+                  <a-select-option value=">">大于</a-select-option>
+                  <a-select-option value="<">小于</a-select-option>
+                </a-select>
+              </a-input-group>
+            </a-form-item>
+
+          </a-form>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <a-button style="margin-right: 8px;" @click="resetSearch">清 除</a-button>
+          <a-button :disabled="!hasSelected" style="margin-right: 8px;" @click="handleBatchDelete">批量删除</a-button>
+          <a-button :disabled="!hasSelected" style="margin-right: 8px;" @click="handleBatchStop">批量停止</a-button>
+          <a-dropdown :disabled="!hasSelected">
+            <template #overlay>
+              <a-menu @click="handleBatchExport">
+                <a-menu-item key="cip">C段 批量导出</a-menu-item>
+                <a-menu-item key="domain">域名批量导出</a-menu-item>
+                <a-menu-item key="ip">IP 批量导出</a-menu-item>
+                <a-menu-item key="ip_port">IP 端口批量导出</a-menu-item>
+                <a-menu-item key="site">站点批量导出</a-menu-item>
+                <a-menu-item key="url">URL批量导出</a-menu-item>
+                <a-menu-item key="wih">WIH批量导出</a-menu-item>
+              </a-menu>
+            </template>
+            <a-button>批量导出 <down-outlined /></a-button>
+          </a-dropdown>
+        </div>
+      </template>
+
+      <!-- 企业测绘任务操作与搜索栏 -->
+      <template v-else-if="activeMainTab === 'enterprise'">
+        <div style="margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div style="display: flex; gap: 12px;">
+            <a-button type="primary" @click="showTycModal">新建企业资产查询</a-button>
+            <a-button type="primary" @click="showIcpModal">新建 ICP 查询</a-button>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <a-form :model="reconSearchForm" layout="inline" style="row-gap: 16px;">
+            <a-form-item label="任务名:">
+              <a-input v-model:value="reconSearchForm.name" placeholder="请输入任务名" style="width: 230px;" allowClear @pressEnter="onReconSearch">
+                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="查询目标:">
+              <a-input v-model:value="reconSearchForm.target" placeholder="请输入查询目标" style="width: 230px;" allowClear @pressEnter="onReconSearch">
+                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="状态:">
+              <a-input v-model:value="reconSearchForm.status" placeholder="请输入状态" style="width: 160px;" allowClear @pressEnter="onReconSearch">
+                <template #suffix><search-outlined @click="onReconSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="结束时间:">
+              <a-range-picker
+                v-model:value="reconSearchForm.dateRange"
+                :presets="rangePresets"
+                :placeholder="['开始日期', '结束日期']"
+                format="YYYY-MM-DD"
+                style="width: 240px;"
+                allowClear
+                @change="onReconSearch"
+              />
+            </a-form-item>
+          </a-form>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <a-button style="margin-right: 8px;" @click="resetReconSearch">清 除</a-button>
+          <a-popconfirm title="确定要批量重启选中的任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleBatchRestartEnterprise">
+            <a-button style="margin-right: 8px;" :disabled="enterpriseSelectedRowKeys.length === 0">批量重启</a-button>
+          </a-popconfirm>
+          <a-popconfirm title="确定要批量删除选中的任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleBatchDeleteEnterprise">
+            <a-button danger style="margin-right: 8px;" :disabled="enterpriseSelectedRowKeys.length === 0">批量删除</a-button>
+          </a-popconfirm>
+          <a-button type="primary" :disabled="enterpriseSelectedRowKeys.length === 0" @click="handleBatchExportEnterprise">批量导出</a-button>
+        </div>
+      </template>
+
     </div>
-
-    <div style="margin-bottom: 16px;">
-      <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
-
-        <a-form-item label="任务名:">
-          <a-input v-model:value="searchForm.name" placeholder="请输入任务名进行搜索" style="width: 230px;" allowClear @pressEnter="onSearch">
-            <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-          </a-input>
-        </a-form-item>
-
-        <a-form-item label="目标:">
-          <a-input v-model:value="searchForm.target" placeholder="请输入目标进行搜索" style="width: 230px;" allowClear @pressEnter="onSearch">
-            <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-          </a-input>
-        </a-form-item>
-
-        <a-form-item label="Task_Id:">
-          <a-input v-model:value="searchForm.task_id" placeholder="请输入Task_Id进行搜索" style="width: 230px;" allowClear @pressEnter="onSearch">
-            <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-          </a-input>
-        </a-form-item>
-
-        <a-form-item label="任务类型:">
-          <a-select v-model:value="searchForm.type" placeholder="请选择任务类型进行搜索" style="width: 230px;" allowClear>
-            <a-select-option value="task">资产侦查任务</a-select-option>
-            <a-select-option value="monitor">资产监控任务</a-select-option>
-            <a-select-option value="risk_cruising">风险巡航任务</a-select-option>
-            <a-select-option value="site_update">资产站点更新</a-select-option>
-            <a-select-option value="wih">WIH 监控任务</a-select-option>
-          </a-select>
-        </a-form-item>
-
-        <a-form-item label="状态:">
-          <a-input v-model:value="searchForm.status" placeholder="请输入状态进行搜索" style="width: 230px;" allowClear @pressEnter="onSearch">
-            <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-          </a-input>
-        </a-form-item>
-
-        <a-form-item label="站点数量:">
-          <a-input-group compact style="display: flex; width: 230px;">
-            <a-input v-model:value="searchForm.site_count" placeholder="请输入数量" style="flex: 1;" @pressEnter="onSearch">
-              <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-            </a-input>
-            <a-select v-model:value="searchForm.site_operator" style="width: 75px;">
-              <a-select-option value="=">等于</a-select-option>
-              <a-select-option value=">">大于</a-select-option>
-              <a-select-option value="<">小于</a-select-option>
-            </a-select>
-          </a-input-group>
-        </a-form-item>
-
-        <a-form-item label="域名数量:">
-          <a-input-group compact style="display: flex; width: 230px;">
-            <a-input v-model:value="searchForm.domain_count" placeholder="请输入数量" style="flex: 1;" @pressEnter="onSearch">
-              <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-            </a-input>
-            <a-select v-model:value="searchForm.domain_operator" style="width: 75px;">
-              <a-select-option value="=">等于</a-select-option>
-              <a-select-option value=">">大于</a-select-option>
-              <a-select-option value="<">小于</a-select-option>
-            </a-select>
-          </a-input-group>
-        </a-form-item>
-
-        <a-form-item label="WIH数量:">
-          <a-input-group compact style="display: flex; width: 230px;">
-            <a-input v-model:value="searchForm.wih_count" placeholder="请输入数量" style="flex: 1;" @pressEnter="onSearch">
-              <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-            </a-input>
-            <a-select v-model:value="searchForm.wih_operator" style="width: 75px;">
-              <a-select-option value="=">等于</a-select-option>
-              <a-select-option value=">">大于</a-select-option>
-              <a-select-option value="<">小于</a-select-option>
-            </a-select>
-          </a-input-group>
-        </a-form-item>
-
-      </a-form>
-    </div>
-
-    <div style="margin-bottom: 16px;">
-      <a-button style="margin-right: 8px;" @click="resetSearch">清 除</a-button>
-      <a-button :disabled="!hasSelected" style="margin-right: 8px;" @click="handleBatchDelete">批量删除</a-button>
-      <a-button :disabled="!hasSelected" style="margin-right: 8px;" @click="handleBatchStop">批量停止</a-button>
-      <a-dropdown :disabled="!hasSelected">
-        <template #overlay>
-          <a-menu @click="handleBatchExport">
-            <a-menu-item key="cip">C段 批量导出</a-menu-item>
-            <a-menu-item key="domain">域名批量导出</a-menu-item>
-            <a-menu-item key="ip">IP 批量导出</a-menu-item>
-            <a-menu-item key="ip_port">IP 端口批量导出</a-menu-item>
-            <a-menu-item key="site">站点批量导出</a-menu-item>
-            <a-menu-item key="url">URL批量导出</a-menu-item>
-            <a-menu-item key="wih">WIH批量导出</a-menu-item>
-          </a-menu>
-        </template>
-        <a-button>批量导出 <down-outlined /></a-button>
-      </a-dropdown>
-    </div>
-
-    
-    </div>
-<a-table :sticky="stickyConfig"
+    <template v-if="activeMainTab === 'task'">
+      <a-table :sticky="stickyConfig"
         :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
         :dataSource="taskList"
         :columns="columns"
@@ -120,7 +185,7 @@
         :rowKey="(record) => record.task_id || record._id"
         bordered
         style="margin-bottom: 16px;"
-    >
+      >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'name'">
           <a style="font-weight: 500;" @click="viewTask(record)">{{ record.name }}</a>
@@ -214,6 +279,97 @@
       <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
       <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
     </div>
+    </template>
+
+    <!-- 企业测绘任务表格 -->
+    <template v-else-if="activeMainTab === 'enterprise'">
+      <a-table
+        :sticky="stickyConfig"
+        :row-selection="{ selectedRowKeys: enterpriseSelectedRowKeys, onChange: onEnterpriseSelectChange }"
+        :dataSource="enterpriseTaskList"
+        :columns="enterpriseColumns"
+        :loading="enterpriseLoading"
+        :pagination="false"
+        :scroll="{ x: 'max-content' }"
+        :rowKey="(record) => record._id"
+        bordered
+        style="margin-bottom: 16px;"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'name'">
+            <a style="font-weight: 500; color: var(--arl-theme-color);" @click="viewEnterpriseTask(record)">{{ record.name }}</a>
+          </template>
+          <template v-else-if="column.key === 'target'">
+            <span>{{ record.target }}</span>
+          </template>
+          <template v-else-if="column.key === 'status'">
+            <a-tag :color="getEnterpriseStatusColor(record.status)">{{ record.status }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'statistic'">
+            <div v-if="record.statistic" style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <a-badge :count="(record.statistic.asset_cnt || 0) - (record.statistic.invest_cnt || 0)" title="核心资产" />
+              <a-badge v-if="record.statistic.invest_cnt !== undefined" :count="record.statistic.invest_cnt" title="对外投资" :number-style="{ backgroundColor: '#52c41a' }" />
+            </div>
+          </template>
+          <template v-else-if="column.key === 'sync_status'">
+            <span v-if="record.sync_badge_status === 'no_web'" style="color: var(--arl-text-color); opacity: 0.35; font-size: 12px;">
+              无网站资产
+            </span>
+            <div v-else-if="record.synced_scope_id" style="display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+              <a-tag
+                color="blue"
+                style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin-right: 0;"
+                @click="goToScope(record.synced_scope_id)"
+                title="点击前往该资产分组"
+              >
+                <export-outlined />
+                <span>{{ record.synced_scope_name || '已同步' }}</span>
+              </a-tag>
+              <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+            </div>
+            <span v-else style="color: #faad14; font-size: 12px; font-weight: 500;">
+              ● 未同步
+            </span>
+          </template>
+          <template v-else-if="column.key === 'action'">
+            <a-space size="small">
+              <a-tooltip v-if="record.sync_badge_status === 'no_web'" title="当前任务无网站资产可同步">
+                <a-button type="link" size="small" disabled style="padding: 0 4px;">同步</a-button>
+              </a-tooltip>
+              <a-button
+                v-else
+                type="link"
+                size="small"
+                style="padding: 0 4px;"
+                @click="handleSyncEnterprise(record)"
+                :disabled="record.status !== 'done' && record.status !== 'stop'"
+              >
+                {{ record.synced_scope_id ? (record.has_increment ? '同步增量' : '再次同步') : '同步' }}
+              </a-button>
+              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleExportEnterprise(record)">导出</a-button>
+              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleStopEnterprise(record)" :disabled="record.status === 'done' || record.status === 'stop' || record.status === 'error'">停止</a-button>
+              <a-button type="link" size="small" style="padding: 0 4px;" @click="handleRestartEnterprise(record)" :disabled="record.status === 'running' || record.status === 'waiting'">重启</a-button>
+              <a-popconfirm title="确定要删除该任务吗？" ok-text="确定" cancel-text="取消" @confirm="handleDeleteEnterprise(record)">
+                <a-button type="link" danger size="small" style="padding: 0 4px;">删除</a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
+        <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(enterprisePagination.total / enterprisePagination.pageSize) || 1 }} 页 / {{ enterprisePagination.total }} 条数据</div>
+        <a-pagination
+          :pageSizeOptions="['10', '20', '50']"
+          v-model:current="enterprisePagination.current"
+          v-model:pageSize="enterprisePagination.pageSize"
+          :total="enterprisePagination.total"
+          show-size-changer
+          @change="handleEnterpriseTableChange"
+          @showSizeChange="handleEnterpriseTableChange"
+        />
+      </div>
+    </template>
 
   </div>
 
@@ -361,6 +517,10 @@
     </a-form>
   </a-modal>
 
+  <!-- 企业测绘弹窗与同步组件 -->
+  <IcpTaskModal v-model:open="icpModalVisible" @success="fetchEnterpriseTasks(1, enterprisePagination.pageSize)" />
+  <TycTaskModal v-model:open="tycModalVisible" @success="fetchEnterpriseTasks(1, enterprisePagination.pageSize)" />
+  <SyncToScopeModal v-model:open="syncModalVisible" :task="currentSyncTask" @success="handleSyncSuccess" />
 
 </template>
 
@@ -373,19 +533,319 @@ const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
 
 import { Modal, message, Checkbox } from 'ant-design-vue';
-import { useRouter } from 'vue-router'; // 新增：引入路由钩子
-// 引入 Antd 的图标（搜索放大镜、下拉箭头）
-import { SearchOutlined, DownOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
+import { useRouter, useRoute } from 'vue-router';
+// 引入 Antd 的图标（搜索放大镜、下拉箭头、导出）
+import { SearchOutlined, DownOutlined, ExclamationCircleOutlined, ExportOutlined } from '@ant-design/icons-vue';
+import dayjs from 'dayjs';
 import request from '../utils/request';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
+import IcpTaskModal from '../components/IcpTaskModal.vue';
+import TycTaskModal from '../components/TycTaskModal.vue';
+import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 
 const domainDicts = ref([]);
 const altDnsDicts = ref([]);
 const fileLeakDicts = ref([]);
 const portDicts = ref([]);
 
-// --- 表格与数据逻辑 ---
+// --- 路由与顶层 Tab 联动逻辑 ---
 const router = useRouter();
+const route = useRoute();
+const activeMainTab = ref(route.query.tab === 'enterprise' ? 'enterprise' : 'task');
+
+watch(() => route.query.tab, (newTab) => {
+  if (newTab === 'enterprise' && activeMainTab.value !== 'enterprise') {
+    activeMainTab.value = 'enterprise';
+  } else if (newTab !== 'enterprise' && activeMainTab.value !== 'task') {
+    activeMainTab.value = 'task';
+  }
+});
+
+const handleMainTabChange = (key) => {
+  activeMainTab.value = key;
+  router.replace({ query: { ...route.query, tab: key === 'enterprise' ? 'enterprise' : undefined } });
+  if (key === 'enterprise') {
+    fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+    fetchEnterpriseRunningCount();
+  } else {
+    fetchTasks(pagination.current, pagination.pageSize);
+  }
+};
+
+// ==========================================
+// 🏢 企业测绘任务专属状态与方法
+// ==========================================
+const rangePresets = ref([
+  { label: '今天', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
+  { label: '近 7 天', value: [dayjs().subtract(6, 'day').startOf('day'), dayjs().endOf('day')] },
+  { label: '近 30 天', value: [dayjs().subtract(29, 'day').startOf('day'), dayjs().endOf('day')] },
+  { label: '本月', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
+]);
+
+const reconSearchForm = reactive({
+  name: '',
+  target: '',
+  status: '',
+  dateRange: null
+});
+
+const enterpriseTaskList = ref([]);
+const enterpriseLoading = ref(false);
+const enterprisePagination = reactive({ current: 1, pageSize: 10, total: 0 });
+const enterpriseSelectedRowKeys = ref([]);
+const onEnterpriseSelectChange = (keys) => {
+  enterpriseSelectedRowKeys.value = keys;
+};
+
+const enterpriseRunningCount = ref(0);
+
+const fetchEnterpriseRunningCount = async () => {
+  try {
+    const res = await request.get('/icp/task', { params: { status: 'running', size: 1 } });
+    if (res.code === 200) {
+      enterpriseRunningCount.value = res.total || 0;
+    }
+  } catch (e) {
+    // ignore
+  }
+};
+
+const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false) => {
+  if (!silent) enterpriseLoading.value = true;
+  try {
+    const queryParams = { page, size };
+    if (reconSearchForm.name) queryParams.name = reconSearchForm.name;
+    if (reconSearchForm.target) queryParams.target = reconSearchForm.target;
+    if (reconSearchForm.status) queryParams.status = reconSearchForm.status;
+    if (reconSearchForm.dateRange && reconSearchForm.dateRange.length === 2 && reconSearchForm.dateRange[0] && reconSearchForm.dateRange[1]) {
+      queryParams.end_time__gte = dayjs(reconSearchForm.dateRange[0]).startOf('day').format('YYYY-MM-DD HH:mm:ss');
+      queryParams.end_time__lte = dayjs(reconSearchForm.dateRange[1]).endOf('day').format('YYYY-MM-DD HH:mm:ss');
+    }
+
+    const res = await request.get('/icp/task', { params: queryParams });
+    if (res.code === 200) {
+      enterpriseTaskList.value = res.items || [];
+      enterprisePagination.total = res.total || 0;
+      enterprisePagination.current = page;
+      enterprisePagination.pageSize = size;
+    }
+  } catch (error) {
+    console.error('获取企业测绘列表失败:', error);
+  } finally {
+    if (!silent) enterpriseLoading.value = false;
+  }
+};
+
+const onReconSearch = () => fetchEnterpriseTasks(1, enterprisePagination.pageSize);
+const resetReconSearch = () => {
+  reconSearchForm.name = '';
+  reconSearchForm.target = '';
+  reconSearchForm.status = '';
+  reconSearchForm.dateRange = null;
+  onReconSearch();
+};
+const handleEnterpriseTableChange = (page, pageSize) => fetchEnterpriseTasks(page, pageSize);
+
+const enterpriseColumns = [
+  { title: '任务名称', dataIndex: 'name', key: 'name', width: 220, ellipsis: true },
+  { title: '查询目标', dataIndex: 'target', key: 'target', width: 200, ellipsis: true },
+  { title: '类型', dataIndex: 'task_type', key: 'task_type', width: 90, customRender: ({ text }) => text === 'tyc' ? '天眼查' : '工信部ICP' },
+  { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
+  { title: '核心/投资', key: 'statistic', width: 120 },
+  { title: '同步状态', key: 'sync_status', width: 150 },
+  { title: '结束时间', dataIndex: 'end_time', key: 'end_time', width: 160 },
+  { title: '操作', key: 'action', width: 220, fixed: 'right' }
+];
+
+const getEnterpriseStatusColor = (status) => {
+  const map = {
+    done: 'success',
+    running: 'processing',
+    waiting: 'warning',
+    stop: 'default',
+    error: 'error'
+  };
+  return map[status] || 'default';
+};
+
+const icpModalVisible = ref(false);
+const tycModalVisible = ref(false);
+const syncModalVisible = ref(false);
+const currentSyncTask = ref(null);
+
+const showIcpModal = () => {
+  icpModalVisible.value = true;
+};
+const showTycModal = () => {
+  tycModalVisible.value = true;
+};
+
+const handleSyncEnterprise = (record) => {
+  currentSyncTask.value = record;
+  syncModalVisible.value = true;
+};
+
+const handleSyncSuccess = (result) => {
+  if (currentSyncTask.value) {
+    currentSyncTask.value.synced_scope_id = result.scope_id;
+    currentSyncTask.value.synced_scope_name = result.target_name;
+  }
+  fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
+};
+
+const goToScope = (scopeId) => {
+  if (scopeId) {
+    router.push({ path: '/group', query: { scope_id: scopeId } });
+  }
+};
+
+const viewEnterpriseTask = (record) => {
+  const stats = record.statistic || {};
+  router.push({
+    path: '/taskList/taskDetail',
+    query: {
+      task_id: record._id,
+      name: record.name,
+      target: record.target,
+      task_type: record.task_type || 'icp',
+      web_cnt: stats.web_cnt || 0,
+      app_cnt: stats.app_cnt || 0,
+      mapp_cnt: stats.mapp_cnt || 0,
+      kapp_cnt: stats.kapp_cnt || 0,
+      invest_cnt: stats.invest_cnt || 0,
+      trademark_cnt: stats.trademark_cnt || 0,
+      wechat_cnt: stats.wechat_cnt || 0,
+      weibo_cnt: stats.weibo_cnt || 0,
+    }
+  });
+};
+
+const handleExportEnterprise = async (record) => {
+  try {
+    message.loading({ content: '正在导出...', key: 'export', duration: 0 });
+    const res = await request.get(`/icp/export/${record._id}`, { responseType: 'blob' });
+    const blob = new Blob([res.data || res]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${record.name || 'icp_export'}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    message.success({ content: '导出成功', key: 'export', duration: 2 });
+  } catch (error) {
+    message.error({ content: '导出失败', key: 'export', duration: 2 });
+  }
+};
+
+const handleBatchExportEnterprise = async () => {
+  if (enterpriseSelectedRowKeys.value.length === 0) {
+    message.warning('请先勾选需要导出的任务');
+    return;
+  }
+  try {
+    message.loading({ content: '正在批量导出...', key: 'batch_export', duration: 0 });
+    const res = await request.post('/icp/batch_export', {
+      task_id: enterpriseSelectedRowKeys.value
+    }, { responseType: 'blob' });
+    const blob = new Blob([res.data || res]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'batch_icp_export.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    message.success({ content: '批量导出成功', key: 'batch_export', duration: 2 });
+  } catch (error) {
+    message.error({ content: '批量导出失败', key: 'batch_export', duration: 2 });
+  }
+};
+
+const handleBatchDeleteEnterprise = async () => {
+  if (!enterpriseSelectedRowKeys.value.length) return;
+  try {
+    message.loading({ content: '正在批量删除...', key: 'batchDelete', duration: 0 });
+    const res = await request.post('/icp/delete/', { task_ids: enterpriseSelectedRowKeys.value });
+    if (res.code === 200) {
+      message.success({ content: '批量删除成功', key: 'batchDelete', duration: 2 });
+      enterpriseSelectedRowKeys.value = [];
+      fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+      fetchEnterpriseRunningCount();
+    } else {
+      message.error({ content: res.message || '批量删除失败', key: 'batchDelete', duration: 2 });
+    }
+  } catch (error) {
+    message.error({ content: '批量删除失败', key: 'batchDelete', duration: 2 });
+  }
+};
+
+const handleBatchRestartEnterprise = async () => {
+  if (!enterpriseSelectedRowKeys.value.length) return;
+  try {
+    message.loading({ content: '正在批量重启...', key: 'batchRestart', duration: 0 });
+    const res = await request.post('/icp/restart/', { task_ids: enterpriseSelectedRowKeys.value });
+    if (res.code === 200) {
+      message.success({ content: '成功下发批量重启', key: 'batchRestart', duration: 3 });
+      enterpriseSelectedRowKeys.value = [];
+      fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+      fetchEnterpriseRunningCount();
+    } else {
+      message.error({ content: res.message || '批量重启失败', key: 'batchRestart', duration: 3 });
+    }
+  } catch (error) {
+    message.error({ content: '批量重启失败', key: 'batchRestart', duration: 3 });
+  }
+};
+
+const handleStopEnterprise = async (record) => {
+  try {
+    const res = await request.get(`/icp/stop/${record._id}`);
+    if (res.code === 200) {
+      message.success('已停止任务');
+      fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+      fetchEnterpriseRunningCount();
+    } else {
+      message.error(res.message || '停止失败');
+    }
+  } catch (error) {
+    console.error('停止任务失败', error);
+  }
+};
+
+const handleRestartEnterprise = async (record) => {
+  try {
+    const res = await request.get(`/icp/restart/${record._id}`);
+    if (res.code === 200) {
+      message.success('已重启任务');
+      fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+      fetchEnterpriseRunningCount();
+    } else {
+      message.error(res.message || '重启失败');
+    }
+  } catch (error) {
+    console.error('重启任务失败', error);
+  }
+};
+
+const handleDeleteEnterprise = async (record) => {
+  try {
+    const res = await request.post('/icp/delete/', { task_ids: [record._id] });
+    if (res.code === 200) {
+      message.success('删除成功');
+      fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+      fetchEnterpriseRunningCount();
+    } else {
+      message.error(res.message || '删除失败');
+    }
+  } catch (error) {
+    console.error('删除任务失败', error);
+  }
+};
+
+// ==========================================
+// 🔍 资产侦查任务表格与数据逻辑
+// ==========================================
 const taskList = ref([]);
 const loading = ref(false);
 const globalPageSize = useGlobalPageSize(10);
@@ -758,7 +1218,12 @@ const resetSearch = () => {
 
 const handleTableChange = (page, pageSize) => fetchTasks(page, pageSize);
 onMounted(async () => {
-  fetchTasks(pagination.current, pagination.pageSize);
+  if (activeMainTab.value === 'enterprise') {
+    fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+  } else {
+    fetchTasks(pagination.current, pagination.pageSize);
+  }
+  fetchEnterpriseRunningCount();
   try {
     const dictRes = await request.get('/dictionary/list');
     if (dictRes.code === 200 && dictRes.data) {
@@ -1161,7 +1626,12 @@ const goToGlobalView = () => {
 };
 
 onActivated(() => {
-  fetchTasks(pagination.current, pagination.pageSize, true);
+  if (activeMainTab.value === 'enterprise') {
+    fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
+  } else {
+    fetchTasks(pagination.current, pagination.pageSize, true);
+  }
+  fetchEnterpriseRunningCount();
 });
 
 </script>

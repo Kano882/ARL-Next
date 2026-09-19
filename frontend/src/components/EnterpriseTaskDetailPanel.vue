@@ -1,8 +1,8 @@
 <template>
-  <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
+  <div style="background-color: var(--arl-bg-layout); min-height: calc(100vh - 64px);">
     <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
       <a-page-header
-        @back="() => router.back()"
+        @back="handleBack"
         style="padding: 0 0 24px 0;"
       >
         <template #title>
@@ -171,10 +171,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SearchOutlined, DownloadOutlined, CloudSyncOutlined, ExportOutlined } from '@ant-design/icons-vue';
-import SyncToScopeModal from '../components/SyncToScopeModal.vue';
+import SyncToScopeModal from './SyncToScopeModal.vue';
 import { message } from 'ant-design-vue';
 import request from '../utils/request';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
@@ -187,13 +187,21 @@ const query = route.query || {};
 const taskId = query.task_id;
 const taskName = ref(query.name || '');
 const taskTarget = ref(query.target || '');
-const taskType = ref(query.task_type || '');
+const taskType = ref(query.task_type || 'icp');
 const taskStatus = ref('');
 const taskRecord = ref({});
 
 const syncModalVisible = ref(false);
 const selectedWebRowKeys = ref([]);
 const selectedWebDomains = ref([]);
+
+const handleBack = () => {
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.push({ path: '/taskList', query: { tab: 'enterprise' } });
+  }
+};
 
 const onWebSelectChange = (keys, rows) => {
   selectedWebRowKeys.value = keys;
@@ -287,21 +295,13 @@ const loading = ref(false);
 const globalPageSize = useGlobalPageSize(10);
 const pagination = reactive({ current: 1, pageSize: globalPageSize.value, total: 0 });
 
-watch(() => pagination.pageSize, (newSize) => {
-  globalPageSize.value = newSize;
-});
-
-watch(globalPageSize, (newSize) => {
-  pagination.pageSize = newSize;
-});
-
 const syslogList = ref([]);
 let syslogTimer = null;
 const terminalContainer = ref(null);
 
 const sortState = reactive({
   field: null,
-  order: null // 'ascend' | 'descend' | null
+  order: null
 });
 
 const getDefaultSortForTab = (tab) => {
@@ -333,7 +333,6 @@ const webColumns = [
   { title: '审核日期', dataIndex: 'examineDate', key: 'examineDate', width: 120 },
   { title: '详情', key: 'raw', width: 80 }
 ];
-
 
 const mappColumns = [
   { title: '小程序名称', dataIndex: 'serviceName', key: 'serviceName', width: 200 },
@@ -636,7 +635,6 @@ const fetchTaskStatistic = async () => {
           taskTimer = null;
         }
         stopSyslogTimer();
-        // 如果是从非结束状态刚变为结束状态，立刻刷新一次当前页面
         if (lastStatus && lastStatus !== 'done' && lastStatus !== 'error') {
           if (activeTab.value === 'log') {
             fetchSyslog();

@@ -124,7 +124,7 @@
       <a-layout-content class="arl-main-content" style="margin: 16px; display: flex; flex-direction: column; overflow-y: auto; height: 0;">
         <div :style="{ background: hasBgImage ? (isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.4)') : (isDarkMode ? '#0f172a' : 'transparent'), flex: '1 0 auto', display: 'flex', flexDirection: 'column', borderRadius: '4px' }">
           <router-view v-slot="{ Component }">
-            <keep-alive include="Dashboard,AssetRecon,TaskList,AssetScope">
+            <keep-alive include="Dashboard,TaskList,AssetScope">
               <component :is="Component" />
             </keep-alive>
           </router-view>
@@ -583,7 +583,7 @@ watch(() => route.path, (newPath) => {
   // 如果当前在详情页，依然让相应的菜单亮起
   if (newPath.startsWith('/taskList')) {
     selectedKeys.value = ['/taskList'];
-  } else if (newPath.startsWith('/group') || newPath.startsWith('/assetRecon')) {
+  } else if (newPath.startsWith('/group')) {
     selectedKeys.value = ['/group'];
   } else {
     selectedKeys.value = [newPath];
@@ -593,10 +593,8 @@ watch(() => route.path, (newPath) => {
 // 动态计算页面标题
 const currentPageTitle = computed(() => {
   if (route.path.includes('taskDetail')) return '任务详情'; // 详情页标题
-  if (route.path.includes('assetRecon/assetDetail')) return '企业信息资产详情'; // ICP详情页
   const titleMap = {
     '/dashboard': '仪表盘',
-    '/assetRecon': '企业资产查询',
     '/group': '资产分组',
     '/taskList': '任务管理',
     '/asset-search': '资产搜索',

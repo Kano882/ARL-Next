@@ -239,9 +239,6 @@
               </div>
             </div>
             <div class="scope-header-actions">
-              <a-button @click="reconDrawerVisible = true" class="header-action-btn">
-                <ApartmentOutlined /> 企业测绘任务
-              </a-button>
               <a-button type="primary" @click="openAddModal" class="header-action-btn">
                 <PlusOutlined /> 新建资产分组
               </a-button>
@@ -1116,12 +1113,6 @@
       </a-table>
     </a-modal>
 
-    <!-- 企业测绘任务抽屉组件 -->
-    <ReconTaskDrawer
-      v-model:open="reconDrawerVisible"
-      @synced="handleReconDrawerSynced"
-    />
-
     <!-- 同步增量弹窗 -->
     <SyncToScopeModal
       v-model:open="syncIncrementModalVisible"
@@ -1191,7 +1182,6 @@ const { stickyConfig } = useSticky(actionBarRef);
 import request from '../utils/request';
 import { message, Modal, notification, Button } from 'ant-design-vue';
 import { h } from 'vue';
-import ReconTaskDrawer from '../components/ReconTaskDrawer.vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 import { 
   SearchOutlined, 
@@ -1728,18 +1718,6 @@ const addRules = {
   name: [{ required: true, message: '请输入资产组名称', trigger: 'blur' }],
   scope: [{ required: true, message: '请输入资产范围', trigger: 'blur' }]
 };
-
-// ================= 企业测绘任务抽屉与向导建组状态 =================
-const reconDrawerVisible = ref(false);
-const handleReconDrawerSynced = () => {
-  fetchData();
-};
-
-watch(() => route.query.drawer, (d) => {
-  if (d === 'reconHistory') {
-    reconDrawerVisible.value = true;
-  }
-}, { immediate: true });
 
 // 新建资产分组模式与向导状态
 const creationMode = ref('manual'); // 'manual' | 'wizard'
@@ -2689,11 +2667,11 @@ watch(() => route.query.scope_id, (newScopeId) => {
   }
 }, { immediate: true });
 
-const goToReconDetail = (taskId) => {
+const goToReconDetail = (taskId, taskType = 'icp') => {
   if (taskId) {
     router.push({
-      path: '/assetRecon/assetDetail',
-      query: { task_id: taskId }
+      path: '/taskList/taskDetail',
+      query: { task_id: taskId, task_type: taskType }
     });
   }
 };

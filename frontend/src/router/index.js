@@ -129,14 +129,15 @@ const routes = [
                 path: '/assetRecon',
                 name: 'AssetRecon',
                 redirect: to => {
-                    return { path: '/group', query: { drawer: 'reconHistory', ...to.query } };
+                    return { path: '/taskList', query: { tab: 'enterprise', ...to.query } };
                 }
             },
             {
                 path: '/assetRecon/assetDetail',
                 name: 'AssetReconDetail',
-                component: () => import('../views/AssetReconDetail.vue'),
-                meta: { title: '企业信息资产详情' }
+                redirect: to => {
+                    return { path: '/taskList/taskDetail', query: { task_type: 'icp', ...to.query } };
+                }
             }
         ]
 
