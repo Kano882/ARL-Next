@@ -5,7 +5,8 @@
       <a-row :gutter="[14, 14]" class="stat-row">
         <!-- 卡片 1: 总资产暴露面 -->
         <a-col :xs="24" :sm="12" :md="12" :lg="6">
-          <a-card class="modern-stat-card posture-card clickable-card" :bordered="false" @click="router.push('/asset-search')">
+          <a-card class="modern-stat-card posture-card clickable-card card-asset" :bordered="false" @click="router.push('/asset-search')">
+            <div class="card-ambient-glow primary"></div>
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
@@ -33,7 +34,8 @@
 
         <!-- 卡片 2: 今日侦察动向 -->
         <a-col :xs="24" :sm="12" :md="12" :lg="6">
-          <a-card class="modern-stat-card posture-card" :bordered="false">
+          <a-card class="modern-stat-card posture-card card-recon" :bordered="false">
+            <div class="card-ambient-glow success"></div>
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
@@ -67,7 +69,8 @@
 
         <!-- 卡片 3: 漏洞风险全景矩阵 -->
         <a-col :xs="24" :sm="12" :md="12" :lg="6">
-          <a-card class="modern-stat-card posture-card" :bordered="false">
+          <a-card class="modern-stat-card posture-card card-vuln" :bordered="false">
+            <div class="card-ambient-glow danger"></div>
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
@@ -152,7 +155,8 @@
 
         <!-- 卡片 4: GitHub 威胁与情报 (今日) -->
         <a-col :xs="24" :sm="12" :md="12" :lg="6">
-          <a-card class="modern-stat-card posture-card clickable-card" :bordered="false" @click="router.push('/GitHubTasks/GitHubTasksList')">
+          <a-card class="modern-stat-card posture-card clickable-card card-github" :bordered="false" @click="router.push('/GitHubTasks/GitHubTasksList')">
+            <div class="card-ambient-glow dark"></div>
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
@@ -411,16 +415,28 @@
                     <div 
                       v-if="!item.isHeartbeatGroup" 
                       class="log-stream-item"
-                      :class="[item.level || 'info', { 'has-alert': item.level === 'error' || item.level === 'warning' }]"
+                      :class="[getLogMeta(item).type, { 'has-alert': item.level === 'error' || item.level === 'warning' }]"
                       @click="showLogDetail(item)"
                     >
-                      <div class="log-item-top">
-                        <span class="log-item-tag" :class="item.level || 'info'">
-                          [{{ item.title || (item.level === 'error' ? '系统异常' : (item.level === 'warning' ? '预警' : '运行通知')) }}]
-                        </span>
-                        <span class="log-item-time">{{ item.create_time }}</span>
+                      <div class="log-indicator-stripe" :class="getLogMeta(item).type"></div>
+                      <div class="log-stream-body">
+                        <div class="log-item-top">
+                          <div class="log-tag-group">
+                            <span class="log-type-tag" :class="getLogMeta(item).type">
+                              <AlertOutlined v-if="getLogMeta(item).type === 'cve' || getLogMeta(item).type === 'error' || getLogMeta(item).type === 'warning'" class="log-tag-icon" />
+                              <SyncOutlined v-else-if="getLogMeta(item).type === 'monitor'" class="log-tag-icon" />
+                              <ClockCircleOutlined v-else class="log-tag-icon" />
+                              {{ getLogMeta(item).tag }}
+                            </span>
+                            <span v-if="getLogMeta(item).isCve" class="cve-inline-pill">{{ getLogMeta(item).mainText }}</span>
+                          </div>
+                          <span class="log-item-time">{{ formatTime(item.create_time) }}</span>
+                        </div>
+                        <div class="log-item-msg">
+                          <span v-if="!getLogMeta(item).isCve">{{ getLogMeta(item).desc || item.message }}</span>
+                          <span v-else class="cve-msg-highlight">全网测绘探测到高价值披露威胁，已归档入库</span>
+                        </div>
                       </div>
-                      <div class="log-item-msg">{{ item.message }}</div>
                     </div>
                   </template>
                 </div>
@@ -546,24 +562,25 @@
                 >
                   <div class="task-card-top">
                     <div class="task-name-box">
-                      <span v-if="task.status === 'running'" class="pulse-beacon green inline-beacon"></span>
-                      <span class="task-name" :title="task.name">{{ task.name }}</span>
+                      <span class="task-type-badge" :class="task.type || 'scan'">
+                        {{ task.type === 'ip' ? 'IP' : (task.type === 'domain' ? '域名' : '扫描') }}
+                      </span>
+                      <span class="task-name" :title="task.name">{{ formatTaskTitle(task.name) }}</span>
                     </div>
-                    <a-tag :color="getTaskTagColor(task.status)" class="task-status-tag">
-                      <template #icon>
-                        <SyncOutlined v-if="task.status === 'running'" spin />
-                        <ClockCircleOutlined v-else-if="task.status === 'waiting'" />
-                        <CheckCircleOutlined v-else />
-                      </template>
-                      {{ getTaskStatusLabel(task.status) }}
-                    </a-tag>
+                    <div class="task-status-pill" :class="task.status">
+                      <span v-if="task.status === 'running'" class="pulse-beacon green inline-beacon"></span>
+                      <SyncOutlined v-if="task.status === 'running'" spin class="status-icon" />
+                      <ClockCircleOutlined v-else-if="task.status === 'waiting'" class="status-icon" />
+                      <CheckCircleOutlined v-else class="status-icon" />
+                      <span class="status-text">{{ getTaskStatusLabel(task.status) }}</span>
+                    </div>
                   </div>
                   <div class="task-card-bottom">
                     <span class="task-target" :title="task.target">
-                      <span class="target-lbl">目标:</span> {{ task.target }}
+                      <span class="target-lbl">目标:</span> <code>{{ task.target }}</code>
                     </span>
                     <span class="task-time-wrap">
-                      <ClockCircleOutlined style="font-size: 10px; margin-right: 3px;" />
+                      <ClockCircleOutlined style="font-size: 10px; margin-right: 4px; opacity: 0.7;" />
                       {{ task.start_time ? task.start_time.substring(5, 16) : '-' }}
                     </span>
                   </div>
@@ -720,6 +737,68 @@ const criticalVulnCount = computed(() => {
   return (v.nuclei_critical || 0) + (v.nuclei_high || 0);
 });
 
+// 格式化任务标题（去除冗余的一次性前缀，突出目标与实体）
+const formatTaskTitle = (name) => {
+  if (!name) return '未命名任务';
+  return name.replace(/^(一次性扫描|周期监控|定时任务)-/, '');
+};
+
+// 智能结构化日志元数据解析
+const getLogMeta = (item) => {
+  const msg = item?.message || '';
+  const title = item?.title || '';
+  const level = item?.level || 'info';
+
+  if (msg.includes('New CVE found:')) {
+    const cve = msg.replace('New CVE found:', '').trim();
+    return {
+      type: 'cve',
+      tag: 'CVE 发现',
+      mainText: cve,
+      isCve: true
+    };
+  }
+  if (msg.includes('Starting Github CVE Monitor Task')) {
+    return {
+      type: 'monitor',
+      tag: 'GitHub 监控',
+      mainText: '启动 CVE 监控任务',
+      desc: '执行全网 CVE 与开源威胁情报主动探测',
+      isCve: false
+    };
+  }
+  if (level === 'error') {
+    return {
+      type: 'error',
+      tag: '系统异常',
+      mainText: title || '异常报警',
+      isCve: false
+    };
+  }
+  if (level === 'warning') {
+    return {
+      type: 'warning',
+      tag: '风险预警',
+      mainText: title || '告警提醒',
+      isCve: false
+    };
+  }
+  return {
+    type: 'info',
+    tag: title === 'run' ? '运行调度' : (title || '调度通知'),
+    mainText: msg,
+    isCve: false
+  };
+};
+
+const formatTime = (timeStr) => {
+  if (!timeStr) return '';
+  if (timeStr.length >= 19) {
+    return timeStr.substring(5, 19);
+  }
+  return timeStr;
+};
+
 // 动态获取日志等级颜色
 const getLogColor = (level) => {
   const map = {
@@ -731,15 +810,7 @@ const getLogColor = (level) => {
   return map[level] || 'gray';
 };
 
-// 任务状态标签颜色与文案
-const getTaskTagColor = (status) => {
-  if (status === 'running') return 'processing';
-  if (status === 'waiting') return 'warning';
-  if (status === 'done') return 'success';
-  if (status === 'error') return 'error';
-  return 'default';
-};
-
+// 任务状态文案映射
 const getTaskStatusLabel = (status) => {
   const map = {
     'running': '执行中',
@@ -1138,25 +1209,27 @@ const renderVulnChart = () => {
       top: 'center',
       itemWidth: 10,
       itemHeight: 10,
-      itemGap: 8,
+      itemGap: 10,
       textStyle: {
         color: isDark ? 'rgba(255, 255, 255, 0.75)' : '#555',
         fontSize: 11
       },
       formatter: (name) => {
         const item = dataList.find(d => d.name === name);
-        return `${name}  ${item ? item.value : 0}`;
+        const val = item ? item.value : 0;
+        const pct = totalFilteredVulns > 0 ? ((val / totalFilteredVulns) * 100).toFixed(0) : 0;
+        return `${name}  ${val} (${pct}%)`;
       }
     },
     series: [
       {
         name: '漏洞严重级别',
         type: 'pie',
-        radius: ['52%', '76%'],
-        center: ['36%', '50%'],
+        radius: ['56%', '78%'],
+        center: ['34%', '50%'],
         avoidLabelOverlap: false,
         itemStyle: {
-          borderRadius: 4,
+          borderRadius: 6,
           borderColor: isDark ? '#141414' : '#fff',
           borderWidth: 2
         },
@@ -1166,10 +1239,10 @@ const renderVulnChart = () => {
           formatter: () => `{total|${totalFilteredVulns}}\n{label|${vulnEngineMode.value === 'nuclei' ? 'Nuclei 检出' : (vulnEngineMode.value === 'arl' ? 'ARL 内置' : '全库风险')}}`,
           rich: {
             total: {
-              fontSize: 20,
+              fontSize: 24,
               fontWeight: 700,
-              color: isDark ? 'rgba(255,255,255,0.92)' : '#262626',
-              lineHeight: 24,
+              color: isDark ? 'rgba(255,255,255,0.95)' : '#262626',
+              lineHeight: 28,
               fontFamily: 'ui-monospace, monospace'
             },
             label: {
@@ -1413,20 +1486,40 @@ onUnmounted(() => {
    ======================================================== */
 .modern-stat-card {
   height: 100%;
-  border-radius: 10px;
-  transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
+  border-radius: 12px;
+  transition: all 0.28s cubic-bezier(0.2, 0, 0, 1);
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
   border: 1px solid var(--arl-border-color);
   background: var(--arl-bg-container);
   position: relative;
 }
 
 .modern-stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  border-color: rgba(var(--arl-theme-color-rgb, 24, 144, 255), 0.35);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(var(--arl-theme-color-rgb, 24, 144, 255), 0.25);
 }
+
+.card-ambient-glow {
+  position: absolute;
+  right: -24px;
+  top: -24px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  filter: blur(34px);
+  pointer-events: none;
+  opacity: 0.45;
+  z-index: 0;
+  transition: opacity 0.3s ease;
+}
+.modern-stat-card:hover .card-ambient-glow {
+  opacity: 0.75;
+}
+.card-ambient-glow.primary { background: rgba(var(--arl-theme-color-rgb, 24, 144, 255), 0.45); }
+.card-ambient-glow.success { background: rgba(82, 196, 26, 0.4); }
+.card-ambient-glow.danger { background: rgba(245, 34, 45, 0.38); }
+.card-ambient-glow.dark { background: rgba(114, 46, 209, 0.35); }
 
 .modern-stat-card :deep(.ant-card-body) {
   padding: 14px 16px;
@@ -1434,6 +1527,8 @@ onUnmounted(() => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 1;
 }
 
 .clickable-card {
@@ -1457,24 +1552,25 @@ onUnmounted(() => {
 .card-title-text {
   font-size: 13px;
   color: var(--arl-text-color);
-  opacity: 0.72;
+  opacity: 0.78;
   font-weight: 500;
   letter-spacing: 0.2px;
 }
 
 .stat-icon-box {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 19px;
   flex-shrink: 0;
-  transition: transform 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
 }
 .modern-stat-card:hover .stat-icon-box {
-  transform: scale(1.08);
+  transform: scale(1.1);
 }
 .stat-icon-box.primary {
   background: rgba(24, 144, 255, 0.12);
@@ -1494,13 +1590,14 @@ onUnmounted(() => {
 }
 
 .card-metric-num {
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--arl-text-color);
   line-height: 1.15;
+  letter-spacing: -0.5px;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, monospace;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   margin: 4px 0 8px 0;
 }
 
@@ -1608,7 +1705,7 @@ onUnmounted(() => {
   background: var(--arl-bg-light);
 }
 .cell-val {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
@@ -1643,7 +1740,7 @@ onUnmounted(() => {
   margin: 4px 0 8px 0;
 }
 .vuln-total-num {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--arl-text-color);
   font-variant-numeric: tabular-nums;
@@ -1666,7 +1763,7 @@ onUnmounted(() => {
 .vuln-pill-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   margin-top: 4px;
 }
 .vuln-pill {
@@ -1676,14 +1773,15 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 3px 2px;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   line-height: 1.2;
 }
 .vuln-pill:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.15);
+  transform: translateY(-2px);
+  filter: brightness(1.12);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
 }
 .vuln-pill .pill-name {
   font-size: 10px;
@@ -1696,19 +1794,21 @@ onUnmounted(() => {
   color: #fff;
   font-family: monospace;
 }
-.vuln-pill.critical { background: #e53935; }
-.vuln-pill.high { background: #f4511e; }
-.vuln-pill.medium { background: #fb8c00; }
-.vuln-pill.low { background: #1e88e5; }
-.vuln-pill.arl { background: #8e24aa; }
+.vuln-pill.critical { background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%); }
+.vuln-pill.high { background: linear-gradient(180deg, #f97316 0%, #ea580c 100%); }
+.vuln-pill.medium { background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%); }
+.vuln-pill.low { background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%); }
+.vuln-pill.arl { background: linear-gradient(180deg, #a855f7 0%, #9333ea 100%); }
 .vuln-pill.empty {
-  opacity: 0.55;
+  opacity: 0.5;
   background: var(--arl-bg-light);
   border: 1px solid var(--arl-border-color);
+  box-shadow: none;
 }
 .vuln-pill.empty .pill-name,
 .vuln-pill.empty .pill-cnt {
   color: var(--arl-text-color);
+  opacity: 0.7;
 }
 
 .intel-tooltip-box {
@@ -1731,9 +1831,9 @@ onUnmounted(() => {
 .health-ribbon-bar {
   background: var(--arl-bg-container);
   border: 1px solid var(--arl-border-color);
-  border-radius: 8px;
-  padding: 8px 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+  border-radius: 12px;
+  padding: 8px 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
   display: flex;
   align-items: center;
   backdrop-filter: blur(12px);
@@ -2084,36 +2184,104 @@ onUnmounted(() => {
 
 .log-stream-item {
   cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
   background: var(--arl-bg-light);
-  border: 1px solid transparent;
-  transition: all 0.2s ease;
+  border: 1px solid var(--arl-border-color);
+  transition: all 0.22s ease;
+  display: flex;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
 }
 .log-stream-item:hover {
   border-color: var(--arl-theme-color);
-  transform: translateX(2px);
+  background: var(--arl-bg-container);
+  transform: translateX(3px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
 }
 .log-stream-item.has-alert {
-  border-left: 3px solid #ff4d4f;
-  background: rgba(255, 77, 79, 0.05);
+  border-color: rgba(255, 77, 79, 0.35);
+  background: rgba(255, 77, 79, 0.04);
+}
+
+.log-indicator-stripe {
+  width: 3px;
+  border-radius: 3px;
+  align-self: stretch;
+  flex-shrink: 0;
+  background: var(--arl-theme-color);
+}
+.log-indicator-stripe.cve { background: #fa8c16; }
+.log-indicator-stripe.monitor { background: #722ed1; }
+.log-indicator-stripe.error { background: #ff4d4f; }
+.log-indicator-stripe.warning { background: #faad14; }
+.log-indicator-stripe.info { background: var(--arl-theme-color); }
+
+.log-stream-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .log-item-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2px;
 }
 
-.log-item-tag {
-  font-size: 11px;
-  font-weight: 600;
+.log-tag-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-.log-item-tag.error { color: #f5222d; }
-.log-item-tag.warning { color: #fa8c16; }
-.log-item-tag.success { color: #52c41a; }
-.log-item-tag.info { color: #1890ff; }
+
+.log-type-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 16px;
+}
+.log-type-tag.cve {
+  background: rgba(250, 140, 22, 0.12);
+  color: #fa8c16;
+}
+.log-type-tag.monitor {
+  background: rgba(114, 46, 209, 0.12);
+  color: #722ed1;
+}
+.log-type-tag.error {
+  background: rgba(255, 77, 79, 0.12);
+  color: #ff4d4f;
+}
+.log-type-tag.warning {
+  background: rgba(250, 173, 20, 0.12);
+  color: #faad14;
+}
+.log-type-tag.info {
+  background: rgba(24, 144, 255, 0.12);
+  color: var(--arl-theme-color);
+}
+.log-tag-icon {
+  font-size: 10px;
+}
+
+.cve-inline-pill {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #e53935;
+  background: rgba(229, 57, 53, 0.08);
+  padding: 0 5px;
+  border-radius: 3px;
+  line-height: 16px;
+}
 
 .log-item-time {
   font-size: 10px;
@@ -2126,8 +2294,12 @@ onUnmounted(() => {
   font-size: 11px;
   color: var(--arl-text-color);
   opacity: 0.8;
-  line-height: 1.4;
+  line-height: 1.45;
   word-break: break-all;
+}
+.cve-msg-highlight {
+  color: var(--arl-text-color);
+  opacity: 0.75;
 }
 
 .empty-log-box {
@@ -2145,9 +2317,9 @@ onUnmounted(() => {
   height: 255px;
   display: flex;
   flex-direction: column;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
   border: 1px solid var(--arl-border-color);
   background: var(--arl-bg-container);
 }
@@ -2225,8 +2397,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   flex: 0 1 auto;
-  max-width: 145px;
-  min-width: 90px;
+  max-width: 200px;
+  min-width: 110px;
   flex-shrink: 0;
 }
 
@@ -2234,18 +2406,25 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 17px;
-  height: 17px;
-  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
   font-size: 10px;
   font-weight: 700;
   color: #fff;
-  background: #bfbfbf;
+  background: #cbd5e1;
   flex-shrink: 0;
 }
-.rank-badge.rank-1 { background: #ff4d4f; }
-.rank-badge.rank-2 { background: #fa8c16; }
-.rank-badge.rank-3 { background: #faad14; }
+.rank-badge.rank-1 {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+}
+.rank-badge.rank-2 {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+}
+.rank-badge.rank-3 {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
 
 .finger-name {
   font-size: 12px;
@@ -2258,12 +2437,12 @@ onUnmounted(() => {
 
 .finger-category-tag {
   font-size: 9px;
-  padding: 0 3px;
+  padding: 0 4px;
   border-radius: 3px;
   line-height: 14px;
   border: 1px solid var(--arl-border-color);
   color: var(--arl-text-color);
-  opacity: 0.6;
+  opacity: 0.7;
 }
 .finger-category-tag.cdn { background: rgba(24, 144, 255, 0.1); color: var(--arl-theme-color); }
 .finger-category-tag.server { background: rgba(82, 196, 26, 0.1); color: #52c41a; }
@@ -2283,7 +2462,7 @@ onUnmounted(() => {
 
 .finger-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--arl-theme-color) 0%, rgba(24, 144, 255, 0.35) 100%);
+  background: linear-gradient(90deg, var(--arl-theme-color) 0%, rgba(var(--arl-theme-color-rgb, 24, 144, 255), 0.35) 100%);
   border-radius: 3px;
   transition: width 0.4s ease;
 }
@@ -2352,15 +2531,17 @@ onUnmounted(() => {
 
 .task-card-item {
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--arl-bg-light);
   cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
+  transition: all 0.22s ease;
+  border: 1px solid var(--arl-border-color);
 }
 .task-card-item:hover {
   border-color: var(--arl-theme-color);
+  background: var(--arl-bg-container);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 .task-card-top {
@@ -2379,6 +2560,27 @@ onUnmounted(() => {
   min-width: 0;
 }
 
+.task-type-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 3px;
+  line-height: 15px;
+  flex-shrink: 0;
+}
+.task-type-badge.ip {
+  background: rgba(24, 144, 255, 0.12);
+  color: var(--arl-theme-color);
+}
+.task-type-badge.domain {
+  background: rgba(114, 46, 209, 0.12);
+  color: #722ed1;
+}
+.task-type-badge.scan {
+  background: rgba(82, 196, 26, 0.12);
+  color: #52c41a;
+}
+
 .task-name {
   font-size: 12px;
   font-weight: 600;
@@ -2388,11 +2590,37 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.task-status-tag {
-  margin-right: 0;
+.task-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
-  padding: 0 4px;
-  line-height: 18px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 12px;
+  line-height: 16px;
+  flex-shrink: 0;
+  background: rgba(82, 196, 26, 0.1);
+  color: #52c41a;
+  border: 1px solid rgba(82, 196, 26, 0.25);
+}
+.task-status-pill .status-icon {
+  font-size: 10px;
+}
+.task-status-pill.running {
+  background: rgba(24, 144, 255, 0.1);
+  color: var(--arl-theme-color);
+  border-color: rgba(var(--arl-theme-color-rgb, 24, 144, 255), 0.25);
+}
+.task-status-pill.waiting {
+  background: rgba(250, 140, 22, 0.1);
+  color: #fa8c16;
+  border-color: rgba(250, 140, 22, 0.25);
+}
+.task-status-pill.error {
+  background: rgba(255, 77, 79, 0.1);
+  color: #ff4d4f;
+  border-color: rgba(255, 77, 79, 0.25);
 }
 
 .task-card-bottom {
@@ -2401,7 +2629,7 @@ onUnmounted(() => {
   justify-content: space-between;
   font-size: 11px;
   color: var(--arl-text-color);
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
 .task-target {
@@ -2409,7 +2637,14 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-  font-family: monospace;
+}
+.task-target code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--arl-text-color);
 }
 .target-lbl {
   opacity: 0.6;
