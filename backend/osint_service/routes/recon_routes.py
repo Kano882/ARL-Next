@@ -146,6 +146,9 @@ async def reconcile_orphan_tasks(app):
                         "depth": wt.get("depth", 1),
                         "invest_ratio": wt.get("invest_ratio", 0),
                         "query_type": query_type,
+                        "enable_icp": wt.get("enable_icp", True),
+                        "company_name": wt.get("company_name", ""),
+                        "name": wt.get("name", ""),
                         "type": "tyc",
                         "tyc_id": tyc_id,
                         "tyc_token": tyc_token

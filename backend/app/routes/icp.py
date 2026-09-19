@@ -32,11 +32,13 @@ add_icp_task_fields = ns.model('AddIcpTask', {
 })
 
 add_tyc_task_fields = ns.model('AddTycTask', {
-    'name': fields.String(required=True, description="任务名称"),
+    'name': fields.String(required=False, description="任务名称(选填，留空默认企业全称或TYC_GID)"),
+    'company_name': fields.String(required=False, description="企业官方工商全称(选填，留空自动根据GID定向解析)"),
     'gid': fields.String(required=True, description="公司/节点GID"),
     'depth': fields.Integer(required=False, default=1, description="递归查询层数"),
     'invest_ratio': fields.Float(required=False, default=50, description="对外投资最小比例(%)"),
-    'query_type': fields.List(fields.String, required=True, description="查询类型(web/app/mapp/wechat/weibo/invest/trademark)")
+    'query_type': fields.List(fields.String, required=True, description="查询类型(web/app/mapp/wechat/weibo/invest/trademark)"),
+    'enable_icp': fields.Boolean(required=False, default=True, description="是否联动工信部ICP双轨查重与补全")
 })
 
 @ns.route('/task')
@@ -186,10 +188,14 @@ class TycTask(ARLResource):
         """
         args = self.parse_args(add_tyc_task_fields)
         name = args.get('name')
+        company_name_arg = args.get('company_name')
         gid = args.get('gid')
         depth = max(1, int(args.get('depth', 1) or 1))
         invest_ratio = args.get('invest_ratio', 0)
         query_type = args.get('query_type')
+        enable_icp = args.get('enable_icp', True)
+        if enable_icp is None:
+            enable_icp = True
 
         # 校验天眼查配置是否有效
         from app.services.tycClient import TycClient
@@ -201,14 +207,30 @@ class TycTask(ARLResource):
         except Exception as e:
             return build_ret(f"校验天眼查配置异常: {e}", {})
 
-        task_data = {
+        # 定向解析企业官方工商全称（彻底脱钩用户任务自定义名称）
+        official_company_name = ""
+        if company_name_arg and company_name_arg.strip():
+            official_company_name = company_name_arg.strip()
+        else:
+            try:
+                official_company_name = client.get_company_name(gid)
+            except Exception as e:
+                logger.warning(f"Failed to resolve company name for GID {gid}: {e}")
 
+        if not name or not name.strip():
+            name = f"{official_company_name}企业测绘" if official_company_name else f"TYC_{gid}"
+        else:
+            name = name.strip()
+
+        task_data = {
             "name": name,
+            "company_name": official_company_name,
             "target": f"TYC_{gid}",
             "gid": gid,
             "depth": depth,
             "invest_ratio": invest_ratio,
             "query_type": query_type,
+            "enable_icp": bool(enable_icp),
             "task_type": "tyc",  # 用于前端区分
             "status": TaskStatus.WAITING,
             "start_time": curr_date(),
@@ -227,7 +249,10 @@ class TycTask(ARLResource):
             "gid": gid,
             "depth": depth,
             "invest_ratio": invest_ratio,
-            "query_type": query_type
+            "query_type": query_type,
+            "enable_icp": bool(enable_icp),
+            "company_name": official_company_name,
+            "name": name
         }
 
         options["type"] = "tyc"
@@ -651,6 +676,9 @@ def _restart_single_icp_task(task_id: str):
                 "depth": task.get("depth", 1),
                 "invest_ratio": task.get("invest_ratio", 0),
                 "query_type": query_type,
+                "enable_icp": task.get("enable_icp", True),
+                "company_name": task.get("company_name") or "",
+                "name": task.get("name", ""),
                 "type": "tyc",
                 "tyc_id": client.gid,
                 "tyc_token": client.token

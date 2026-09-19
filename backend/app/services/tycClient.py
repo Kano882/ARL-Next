@@ -25,7 +25,9 @@ class TycClient:
             "Version": "TYC-Web",
             "X-Tycid": self.gid,
             "X-Auth-Token": self.token,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Origin": "https://www.tianyancha.com",
+            "Referer": "https://www.tianyancha.com/"
         }
         self.page_size = 100
 
@@ -209,4 +211,42 @@ class TycClient:
             return False, f"天眼查 API 异常: {e}"
         except Exception as e:
             return False, f"天眼查连接异常: {e}"
+
+    def get_company_name(self, gid):
+        """
+        根据 GID 定向提取企业官方工商全称 (同步版)
+        优先调用 /biz-service/cloud-other-information/companyinfo/companyPhoneList
+        兜底尝试从备案网站/小程序中反向提取主体名称
+        """
+        if not gid:
+            return ""
+        try:
+            path = "/biz-service/cloud-other-information/companyinfo/companyPhoneList"
+            data = self._request("GET", path, params={"gid": str(gid)})
+            if data and isinstance(data, dict):
+                phone_list = data.get("phoneList") or []
+                for p in phone_list:
+                    if isinstance(p, dict):
+                        cname = p.get("companyName")
+                        if cname and isinstance(cname, str) and len(cname.strip()) > 3:
+                            return cname.strip()
+                claim_info = data.get("claimInfo") or {}
+                if isinstance(claim_info, dict):
+                    cname = claim_info.get("companyName")
+                    if cname and isinstance(cname, str) and len(cname.strip()) > 3:
+                        return cname.strip()
+        except Exception as e:
+            logger.warning(f"Failed to fetch companyPhoneList for GID {gid}: {e}")
+
+        try:
+            web_records = self.get_icp_record_list(gid)
+            if web_records:
+                for item in web_records:
+                    cn = item.get('companyName') or item.get('unitName')
+                    if cn and isinstance(cn, str) and len(cn.strip()) > 3:
+                        return cn.strip()
+        except Exception as e:
+            logger.warning(f"Fallback icpRecordList for GID {gid} failed: {e}")
+
+        return ""
 

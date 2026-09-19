@@ -456,7 +456,8 @@ const tycFormState = reactive({
   gid: "",
   depth: 1,
   invest_ratio: 50,
-  query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+  query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo'],
+  enable_icp: true
 });
 
 const tycConfigCheck = reactive({
@@ -470,6 +471,7 @@ const showTycModal = async () => {
   // 重置表单状态，确保每次打开时恢复默认配置
   tycFormState.depth = 1;
   tycFormState.query_type = ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo'];
+  tycFormState.enable_icp = true;
   
   tycConfigCheck.loading = true;
   tycConfigCheck.valid = true;

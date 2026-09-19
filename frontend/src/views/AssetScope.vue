@@ -179,6 +179,35 @@
         position: 'relative'
       }"
     >
+      <!-- 后台完成待建组的测绘任务横幅 -->
+      <div v-if="completedReconTasks.length > 0" style="margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px;">
+        <a-alert
+          v-for="task in completedReconTasks"
+          :key="task.taskId"
+          type="success"
+          show-icon
+          closable
+          @close="dismissPendingReconTask(task.taskId)"
+          style="border-radius: 6px; box-shadow: 0 2px 8px rgba(82, 196, 26, 0.1);"
+        >
+          <template #message>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <span>
+                <b>企业测绘已完成</b>：目标【<b>{{ task.name || task.target }}</b>】已完成天眼查与工信部联合测绘，共发现 <b>{{ (task.domains || []).length }}</b> 个网站域名
+              </span>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <a-button type="primary" size="small" @click="resumeWizardFromCompletedTask(task)">
+                  立即挑选建组 &rarr;
+                </a-button>
+                <a-button size="small" @click="dismissPendingReconTask(task.taskId)">
+                  忽略
+                </a-button>
+              </div>
+            </div>
+          </template>
+        </a-alert>
+      </div>
+
       <div class="arl-scope-main-card">
         <!-- 头部吸附操作区 (含标题、全局搜索与批量操作) -->
         <div ref="actionBarRef" class="arl-scope-action-bar">
@@ -496,7 +525,7 @@
     <a-modal
       v-model:open="addModalVisible"
       title="新建资产分组"
-      :width="creationMode === 'wizard' && wizardStep === 2 ? '780px' : '580px'"
+      :width="creationMode === 'wizard' && wizardStep === 2 ? '780px' : '620px'"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
       :footer="creationMode === 'wizard' ? null : undefined"
@@ -519,8 +548,8 @@
         ref="addFormRef"
         :model="addForm"
         :rules="addRules"
-        :label-col="{ span: 5 }"
-        :wrapper-col="{ span: 18 }"
+        :label-col="{ style: { width: '110px' } }"
+        :wrapper-col="{ style: { width: 'calc(100% - 110px)' } }"
         style="margin-top: 10px;"
       >
         <a-form-item label="所属集团" name="group_id">
@@ -530,7 +559,7 @@
         </a-form-item>
 
         <a-form-item label="资产组名称" name="name">
-          <a-input v-model:value="addForm.name" placeholder="请输入资产组名称" />
+          <a-input v-model:value="addForm.name" placeholder="请输入资产组名称" allowClear />
         </a-form-item>
 
         <a-form-item label="资产范围" name="scope">
@@ -557,70 +586,100 @@
             <a-form
               ref="wizardFormRef"
               :model="wizardForm"
-              :label-col="{ span: 5 }"
-              :wrapper-col="{ span: 18 }"
-              style="margin-top: 10px;"
+              :label-col="{ style: { width: '110px' } }"
+              :wrapper-col="{ style: { width: 'calc(100% - 110px)' } }"
+              style="margin-top: 6px;"
             >
-              <a-form-item label="测绘引擎">
-                <a-radio-group v-model:value="wizardForm.engine">
-                  <a-radio value="tyc">天眼查工商测绘 (推荐)</a-radio>
-                  <a-radio value="icp">工信部ICP备案</a-radio>
-                </a-radio-group>
-              </a-form-item>
+              <a-alert
+                type="info"
+                show-icon
+                style="margin-bottom: 20px; border-radius: 6px;"
+              >
+                <template #message>
+                  <span style="font-weight: 600; font-size: 13px;">天眼查工商联合测绘</span>
+                </template>
+                <template #description>
+                  <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.85; line-height: 1.5;">
+                    通过企业天眼查 ID 穿透投资控股树，并无缝联动工信部官方备案接口进行双轨查重与补全，自动聚合产出完整域名底账。
+                  </span>
+                </template>
+              </a-alert>
 
               <a-form-item
-                v-if="wizardForm.engine === 'tyc'"
-                label="公司ID (TYC_id)"
+                label="天眼查 ID"
                 required
-                tooltip="可在天眼查企业详情页 URL 中获取，例如 https://www.tianyancha.com/company/25174642 中的 25174642"
+                tooltip="天眼查企业详情页 URL 中的纯数字 ID，例如 https://www.tianyancha.com/company/25174642 中的 25174642"
               >
                 <a-input
                   v-model:value="wizardForm.target"
                   placeholder="请输入天眼查公司 ID（纯数字/字母，例如：25174642）"
+                  allowClear
                   @pressEnter="startWizardRecon"
                 />
               </a-form-item>
 
               <a-form-item
-                v-else
-                label="企业目标"
-                required
-              >
-                <a-input
-                  v-model:value="wizardForm.target"
-                  placeholder="请输入企业全称或主域名（如：腾讯科技 或 qq.com）"
-                  @pressEnter="startWizardRecon"
-                />
-              </a-form-item>
-
-              <a-form-item
-                label="分组名称"
-                :required="wizardForm.engine === 'tyc'"
+                label="企业全称"
+                tooltip="企业官方工商全称（选填）。若留空，资产组将默认命名为 TYC_公司ID，工信部查重将自动从天眼查解析官方全称"
               >
                 <a-input
                   v-model:value="wizardForm.name"
-                  :placeholder="wizardForm.engine === 'tyc' ? '请输入分组/企业名称（如：腾讯科技）' : (wizardForm.target ? wizardForm.target : '若留空则自动采用企业目标名称')"
+                  placeholder="请输入企业工商全称（可选，留空默认使用 TYC_公司ID）"
+                  allowClear
+                  @pressEnter="startWizardRecon"
                 />
               </a-form-item>
 
               <a-form-item label="所属集团">
-                <a-select v-model:value="wizardForm.group_id" placeholder="请选择所属集团（可选）" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
-                  <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
+                <a-select
+                  v-model:value="wizardForm.group_id"
+                  placeholder="请选择所属集团（可选）"
+                  allowClear
+                  show-search
+                  option-filter-prop="label"
+                  :getPopupContainer="(trigger) => trigger.parentNode"
+                >
+                  <a-select-option v-for="g in groupList" :key="g._id" :value="g._id" :label="g.name">{{ g.name }}</a-select-option>
                 </a-select>
               </a-form-item>
 
-              <template v-if="wizardForm.engine === 'tyc'">
-                <a-form-item label="投资层级">
-                  <a-input-number v-model:value="wizardForm.depth" :min="1" :max="3" style="width: 120px;" addon-after="层" />
-                </a-form-item>
-                <a-form-item label="投资比例">
-                  <a-input-number v-model:value="wizardForm.invest_ratio" :min="1" :max="100" style="width: 120px;" addon-after="%" />
-                </a-form-item>
-              </template>
+              <a-row :gutter="16">
+                <a-col :span="12">
+                  <a-form-item
+                    label="投资层级"
+                    :label-col="{ style: { width: '110px' } }"
+                    :wrapper-col="{ style: { width: 'calc(100% - 110px)' } }"
+                  >
+                    <a-input-number
+                      v-model:value="wizardForm.depth"
+                      :min="1"
+                      :max="3"
+                      style="width: 130px;"
+                      addon-after="层"
+                    />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="12">
+                  <a-form-item
+                    label="投资比例"
+                    :label-col="{ style: { width: '85px' } }"
+                    :wrapper-col="{ style: { width: 'calc(100% - 85px)' } }"
+                  >
+                    <a-input-number
+                      v-model:value="wizardForm.invest_ratio"
+                      :min="1"
+                      :max="100"
+                      style="width: 130px;"
+                      addon-after="%"
+                    />
+                  </a-form-item>
+                </a-col>
+              </a-row>
 
               <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
                 <a-button @click="addModalVisible = false">取 消</a-button>
                 <a-button type="primary" :loading="wizardLoading" @click="startWizardRecon">
+                  <template #icon><search-outlined /></template>
                   开始检索并解析 &rarr;
                 </a-button>
               </div>
@@ -635,7 +694,7 @@
               type="success"
               show-icon
               :message="`企业测绘检索完成！共发现 ${wizardDomains.length} 个网站域名`"
-              :description="`所属集团：${getGroupName(wizardForm.group_id) || '未分组'} | 资产组名称：${wizardForm.name.trim() || (wizardForm.engine === 'tyc' ? 'TYC_' + wizardForm.target.trim() : wizardForm.target.trim())}`"
+              :description="`所属集团：${getGroupName(wizardForm.group_id) || '未分组'} | 资产组名称：${wizardForm.name.trim() || (wizardForm.target.trim() ? 'TYC_' + wizardForm.target.trim() : '未命名')}`"
             />
           </div>
 
@@ -1130,7 +1189,8 @@ const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
 
 import request from '../utils/request';
-import { message, Modal } from 'ant-design-vue';
+import { message, Modal, notification, Button } from 'ant-design-vue';
+import { h } from 'vue';
 import ReconTaskDrawer from '../components/ReconTaskDrawer.vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 import { 
@@ -1633,6 +1693,10 @@ onMounted(() => {
     siderObserver.observe(siderEl, { attributes: true, attributeFilter: ['style', 'class'] });
     siderEl.addEventListener('transitionend', updateSidebarLeft);
   }
+  loadPendingReconTasks();
+  if (pendingReconTasks.value.some(t => t.status === 'running')) {
+    startReconPoller();
+  }
 });
 
 onActivated(() => {
@@ -1641,6 +1705,10 @@ onActivated(() => {
     fetchData(true);
   }
   updateSidebarLeft();
+  loadPendingReconTasks();
+  if (pendingReconTasks.value.some(t => t.status === 'running')) {
+    startReconPoller();
+  }
 });
 
 // Update the initial addForm and editGroupForm state definitions
@@ -1692,9 +1760,9 @@ const wizardForm = reactive({
   group_id: undefined,
   target: '',
   name: '',
-  engine: 'tyc',
   depth: 1,
-  invest_ratio: 50
+  invest_ratio: 50,
+  enable_icp: true
 });
 
 const getGroupName = (gid) => {
@@ -1719,50 +1787,179 @@ const selectAllWizardDomains = () => {
   selectedWizardDomains.value = wizardDomains.value.slice();
 };
 
+// ================= 企业测绘后台异步追踪与建组唤回 =================
+const PENDING_RECON_KEY = 'arl_pending_wizard_recon_tasks';
+const pendingReconTasks = ref([]);
+const activeResumeTaskId = ref('');
+
+const loadPendingReconTasks = () => {
+  try {
+    const raw = localStorage.getItem(PENDING_RECON_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const now = Date.now();
+        pendingReconTasks.value = parsed.filter(t => (now - (t.startTime || 0)) < 86400000);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load pending recon tasks', e);
+  }
+};
+
+const savePendingReconTasks = () => {
+  try {
+    localStorage.setItem(PENDING_RECON_KEY, JSON.stringify(pendingReconTasks.value));
+  } catch (e) {
+    console.error('Failed to save pending recon tasks', e);
+  }
+};
+
+const addPendingReconTask = (task) => {
+  const existingIdx = pendingReconTasks.value.findIndex(t => t.taskId === task.taskId);
+  if (existingIdx >= 0) {
+    pendingReconTasks.value[existingIdx] = task;
+  } else {
+    pendingReconTasks.value.unshift(task);
+  }
+  savePendingReconTasks();
+};
+
+const dismissPendingReconTask = (taskId) => {
+  pendingReconTasks.value = pendingReconTasks.value.filter(t => t.taskId !== taskId);
+  savePendingReconTasks();
+  notification.close(`recon_done_${taskId}`);
+};
+
+const completedReconTasks = computed(() => {
+  return pendingReconTasks.value.filter(t => t.status === 'done' && t.domains && t.domains.length > 0);
+});
+
+let reconPollerTimer = null;
+
+const startReconPoller = () => {
+  if (reconPollerTimer) return;
+  reconPollerTimer = setInterval(pollRunningReconTasks, 4000);
+};
+
+const stopReconPoller = () => {
+  if (reconPollerTimer) {
+    clearInterval(reconPollerTimer);
+    reconPollerTimer = null;
+  }
+};
+
+const pollRunningReconTasks = async () => {
+  const runningTasks = pendingReconTasks.value.filter(t => t.status === 'running');
+  if (runningTasks.length === 0) {
+    stopReconPoller();
+    return;
+  }
+
+  for (const task of runningTasks) {
+    try {
+      const checkRes = await request.get('/icp/task', { params: { _id: task.taskId } });
+      if (checkRes.code === 200 && checkRes.items && checkRes.items.length > 0) {
+        const taskObj = checkRes.items[0];
+        if (taskObj.status === 'done' || taskObj.status === 'stop') {
+          const assetRes = await request.get('/icp/asset', { params: { task_id: task.taskId, query_type: 'web', size: 5000 } });
+          const domainSet = new Set();
+          if (assetRes.code === 200 && assetRes.items) {
+            assetRes.items.forEach(item => {
+              const d = item.domain || item.ym;
+              if (d && typeof d === 'string') domainSet.add(d.trim().toLowerCase());
+            });
+          }
+          const domainList = Array.from(domainSet);
+          task.status = 'done';
+          task.domains = domainList;
+          savePendingReconTasks();
+
+          notification.success({
+            key: `recon_done_${task.taskId}`,
+            message: `企业测绘已完成：${task.name || task.target}`,
+            description: `共发现 ${domainList.length} 个网站域名资产，可立即挑选入库并激活资产组。`,
+            btn: () => h(
+              Button,
+              {
+                type: 'primary',
+                size: 'small',
+                onClick: () => {
+                  notification.close(`recon_done_${task.taskId}`);
+                  resumeWizardFromCompletedTask(task);
+                }
+              },
+              { default: () => '立即挑选建组 →' }
+            ),
+            duration: 0
+          });
+        } else if (taskObj.status === 'error') {
+          task.status = 'error';
+          savePendingReconTasks();
+          notification.error({
+            message: `企业测绘执行异常：${task.name || task.target}`,
+            description: taskObj.error_msg || '测绘任务执行发生错误，您可前往【企业测绘任务】查看日志。'
+          });
+        }
+      }
+    } catch (err) {
+      console.error(`Error polling recon task ${task.taskId}`, err);
+    }
+  }
+};
+
+const resumeWizardFromCompletedTask = async (task) => {
+  creationMode.value = 'wizard';
+  wizardStep.value = 2;
+  wizardTaskId.value = task.taskId;
+  wizardForm.group_id = task.group_id;
+  wizardForm.target = task.target;
+  wizardForm.name = task.name.startsWith('TYC_') ? '' : task.name.replace(/企业测绘$/, '');
+  wizardDomains.value = task.domains || [];
+  selectedWizardDomains.value = (task.domains || []).slice();
+  wizardDomainSearch.value = '';
+  wizardAutoScan.value = false;
+  activeResumeTaskId.value = task.taskId;
+
+  if (policyList.value.length === 0) {
+    try {
+      const pRes = await request.get('/policy/', { params: { size: 100 } });
+      if (pRes.code === 200 && pRes.items?.length > 0) {
+        policyList.value = pRes.items;
+        wizardPolicyId.value = pRes.items[0]._id;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  addModalVisible.value = true;
+};
+
 const startWizardRecon = async () => {
   const target = (wizardForm.target || '').trim();
   const name = (wizardForm.name || '').trim();
 
-  if (wizardForm.engine === 'tyc') {
-    if (!target) {
-      message.warning('请输入天眼查公司 ID (TYC_id)');
-      return;
-    }
-    if (!/^[a-zA-Z0-9]+$/.test(target)) {
-      message.warning('天眼查公司 ID 格式不正确，请输入纯数字/字母 ID（例如：25174642）');
-      return;
-    }
-    if (!name) {
-      message.warning('使用天眼查测绘时，请输入分组名称（如：腾讯科技）');
-      return;
-    }
-  } else {
-    if (!target) {
-      message.warning('请输入企业全称或主域名');
-      return;
-    }
+  if (!target) {
+    message.warning('请输入天眼查 ID');
+    return;
+  }
+  if (!/^[a-zA-Z0-9]+$/.test(target)) {
+    message.warning('天眼查 ID 格式不正确，请输入纯数字/字母 ID（例如：25174642）');
+    return;
   }
 
   wizardLoading.value = true;
-  wizardLoadingTip.value = '正在检索企业工商与备案资产，预计需 5~15 秒...';
   try {
-    let taskRes;
-    const tName = (name || target) + '企业测绘';
-    if (wizardForm.engine === 'tyc') {
-      taskRes = await request.post('/icp/tyc_task', {
-        name: tName,
-        gid: target,
-        depth: wizardForm.depth || 1,
-        invest_ratio: wizardForm.invest_ratio || 50,
-        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
-      });
-    } else {
-      taskRes = await request.post('/icp/task', {
-        name: tName,
-        target: target,
-        query_type: ['web', 'app', 'mapp']
-      });
-    }
+    const tName = name ? (name + '企业测绘') : ('TYC_' + target);
+    const taskRes = await request.post('/icp/tyc_task', {
+      name: tName,
+      gid: target,
+      depth: wizardForm.depth || 1,
+      invest_ratio: wizardForm.invest_ratio || 50,
+      enable_icp: true,
+      query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+    });
 
     if (!taskRes || taskRes.code !== 200) {
       message.error(taskRes?.message || '发起测绘失败');
@@ -1773,61 +1970,31 @@ const startWizardRecon = async () => {
     const taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
     wizardTaskId.value = taskId;
 
-    // 获取可用策略列表
-    if (policyList.value.length === 0) {
-      const pRes = await request.get('/policy/', { params: { size: 100 } });
-      if (pRes.code === 200) {
-        policyList.value = pRes.items || [];
-        if (policyList.value.length > 0) {
-          wizardPolicyId.value = policyList.value[0]._id;
-        }
-      }
-    }
+    // 立即关闭向导弹窗，彻底消除等待遮罩与阻断体验
+    addModalVisible.value = false;
+    wizardLoading.value = false;
 
-    let attempts = 0;
-    const maxAttempts = 30;
-    const pollInterval = 2000;
+    // 注册到后台追踪队列
+    addPendingReconTask({
+      taskId: taskId,
+      name: tName,
+      target: target,
+      group_id: wizardForm.group_id || '',
+      status: 'running',
+      startTime: Date.now()
+    });
 
-    const pollTask = async () => {
-      attempts++;
-      try {
-        const checkRes = await request.get('/icp/task', { params: { _id: taskId } });
-        if (checkRes.code === 200 && checkRes.items && checkRes.items.length > 0) {
-          const taskObj = checkRes.items[0];
-          if (taskObj.status === 'done' || taskObj.status === 'stop') {
-            const assetRes = await request.get('/icp/asset', { params: { task_id: taskId, query_type: 'web', size: 5000 } });
-            const domainSet = new Set();
-            if (assetRes.code === 200 && assetRes.items) {
-              assetRes.items.forEach(item => {
-                const d = item.domain || item.ym;
-                if (d && typeof d === 'string') domainSet.add(d.trim().toLowerCase());
-              });
-            }
-            wizardDomains.value = Array.from(domainSet);
-            selectedWizardDomains.value = Array.from(domainSet);
-            wizardStep.value = 2;
-            wizardLoading.value = false;
-            return;
-          } else if (taskObj.status === 'error') {
-            message.error('测绘任务执行异常');
-            wizardLoading.value = false;
-            return;
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      }
+    // 启动非阻塞轮询器
+    startReconPoller();
 
-      if (attempts < maxAttempts) {
-        setTimeout(pollTask, pollInterval);
-      } else {
-        message.info('测绘数据量较大，已转入后台运行。您可稍后在【企业测绘任务】中查看。');
-        wizardLoading.value = false;
-        addModalVisible.value = false;
-      }
-    };
+    // 弹出优雅通知
+    notification.info({
+      key: `recon_start_${taskId}`,
+      message: '企业测绘任务已转入后台运行',
+      description: `已下发针对【${tName}】的联合测绘任务。系统正在后台自动执行股权穿透与工信部双轨查重，完成后将通知您挑选域名建组。`,
+      duration: 5
+    });
 
-    setTimeout(pollTask, pollInterval);
   } catch (err) {
     message.error('请求网络错误');
     wizardLoading.value = false;
@@ -1843,7 +2010,7 @@ const submitWizardSync = async () => {
   try {
     const payload = {
       mode: 'new',
-      target_name: wizardForm.name.trim() || wizardForm.target.trim(),
+      target_name: wizardForm.name.trim() || ('TYC_' + wizardForm.target.trim()),
       group_id: wizardForm.group_id || '',
       selected_domains: selectedWizardDomains.value,
       auto_scan: wizardAutoScan.value,
@@ -1854,6 +2021,12 @@ const submitWizardSync = async () => {
     if (res.code === 200) {
       message.success('资产组创建成功并已导入资产');
       addModalVisible.value = false;
+      if (activeResumeTaskId.value) {
+        dismissPendingReconTask(activeResumeTaskId.value);
+        activeResumeTaskId.value = '';
+      } else if (wizardTaskId.value) {
+        dismissPendingReconTask(wizardTaskId.value);
+      }
       fetchData();
     } else {
       message.error(res.message || '入库失败');
@@ -1948,7 +2121,9 @@ const openAddModal = () => {
   wizardForm.group_id = activeGroupId.value === 'all' || activeGroupId.value === 'unassigned' ? undefined : activeGroupId.value;
   wizardForm.target = '';
   wizardForm.name = '';
-  wizardForm.engine = 'tyc';
+  wizardForm.depth = 1;
+  wizardForm.invest_ratio = 50;
+  wizardForm.enable_icp = true;
   wizardDomains.value = [];
   selectedWizardDomains.value = [];
   wizardDomainSearch.value = '';
@@ -2614,6 +2789,7 @@ const handleImportFromTask = async (task) => {
 
 onDeactivated(() => {
   stopPoll();
+  stopReconPoller();
 });
 
 onUnmounted(() => {
@@ -2631,6 +2807,7 @@ onUnmounted(() => {
     clearTimeout(saveOrderTimer);
   }
   stopPoll();
+  stopReconPoller();
 });
 
 </script>

@@ -18,7 +18,9 @@ class AsyncTycClient:
             "Version": "TYC-Web",
             "X-Tycid": self.gid,
             "X-Auth-Token": self.token,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Origin": "https://www.tianyancha.com",
+            "Referer": "https://www.tianyancha.com/"
         }
         self.page_size = 100
 
@@ -149,3 +151,55 @@ class AsyncTycClient:
 
     async def get_weibo_list(self, gid):
         return await self.fetch_all_pages("GET", "/cloud-business-state/weibo/list", "total", "result", "graphId", gid)
+
+    async def get_company_name(self, gid):
+        """
+        根据 GID 定向提取企业官方工商全称
+        优先调用 /biz-service/cloud-other-information/companyinfo/companyPhoneList
+        兜底尝试从备案网站/小程序中反向提取主体名称
+        """
+        if not gid:
+            return ""
+        try:
+            # 1. 优先调用年报电话接口（内含法定企业全称）
+            path = "/biz-service/cloud-other-information/companyinfo/companyPhoneList"
+            data = await self._request("GET", path, params={"gid": str(gid)})
+            if data and isinstance(data, dict):
+                phone_list = data.get("phoneList") or []
+                for p in phone_list:
+                    if isinstance(p, dict):
+                        cname = p.get("companyName")
+                        if cname and isinstance(cname, str) and len(cname.strip()) > 3:
+                            return cname.strip()
+                claim_info = data.get("claimInfo") or {}
+                if isinstance(claim_info, dict):
+                    cname = claim_info.get("companyName")
+                    if cname and isinstance(cname, str) and len(cname.strip()) > 3:
+                        return cname.strip()
+        except Exception as e:
+            logger.warning(f"Failed to fetch companyPhoneList for GID {gid}: {e}")
+
+        # 2. 兜底策略 1：从网站备案记录中提取主体全称
+        try:
+            web_records = await self.get_icp_record_list(gid)
+            if web_records:
+                for item in web_records:
+                    cn = item.get('companyName') or item.get('unitName')
+                    if cn and isinstance(cn, str) and len(cn.strip()) > 3:
+                        return cn.strip()
+        except Exception as e:
+            logger.warning(f"Fallback icpRecordList for GID {gid} failed: {e}")
+
+        # 3. 兜底策略 2：从小程序备案记录中提取主体全称
+        try:
+            mapp_records = await self.get_mini_program_list(gid)
+            if mapp_records:
+                for item in mapp_records:
+                    detail = item.get('miniProgramIcpRecordDetail') or {}
+                    cn = detail.get('icpFilingSubjectInformation', {}).get('organizingName')
+                    if cn and isinstance(cn, str) and len(cn.strip()) > 3:
+                        return cn.strip()
+        except Exception as e:
+            logger.warning(f"Fallback miniProgram list for GID {gid} failed: {e}")
+
+        return ""

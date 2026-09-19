@@ -1890,6 +1890,7 @@ const executeBindNew = async () => {
         gid: targetVal,
         depth: 1,
         invest_ratio: 50,
+        enable_icp: true,
         query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
       });
     } else {
