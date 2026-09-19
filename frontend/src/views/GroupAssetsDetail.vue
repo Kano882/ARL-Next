@@ -46,47 +46,14 @@
               <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
             </template>
             <template v-else>
-              <a-tooltip title="尚未关联企业主体，点击右侧「绑定企业主体」可自动拉取工商资产数据" placement="bottom">
-                <span class="hero-unbound-label">
-                  <info-circle-outlined style="margin-right: 4px;" />
-                  未关联主体
+              <a-tooltip title="尚未关联企业主体，点击可立即拉取工商与数字资产" placement="bottom">
+                <span class="hero-unbound-label" @click="openBindModal" style="cursor: pointer;">
+                  <link-outlined style="margin-right: 4px;" />
+                  未关联主体 (点击绑定)
                 </span>
               </a-tooltip>
             </template>
           </div>
-        </div>
-
-        <!-- 右侧：快捷操作按钮 -->
-        <div class="hero-right-section">
-          <template v-if="boundIcpTaskId">
-            <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
-              <a-button
-                type="primary"
-                size="small"
-                :loading="osintRefreshLoading"
-                @click="triggerOsintRefresh"
-              >
-                <template #icon><sync-outlined :spin="osintRefreshLoading" /></template>
-                更新主体资产
-              </a-button>
-            </a-tooltip>
-            <a-button
-              size="small"
-              @click="openBindModal"
-            >
-              <template #icon><link-outlined /></template>
-              重新绑定主体
-            </a-button>
-          </template>
-          <a-button
-            v-else
-            type="primary"
-            size="small"
-            @click="openBindModal"
-          >
-            <template #icon><link-outlined /></template>
-            绑定企业主体
-          </a-button>
         </div>
       </div>
 
@@ -1298,7 +1265,7 @@
   </div>
 
   <!-- OSINT 企业生态资产视角 -->
-  <div v-show="currentView === 'osint'" style="margin-top: 16px;">
+  <div v-show="currentView === 'osint'">
     <EnterpriseOsintPanel
       v-if="boundIcpTaskId"
       ref="osintPanelRef"
@@ -1309,17 +1276,23 @@
       :sticky-top-offset="heroHeight"
       @taskLoaded="handleOsintLoaded"
       @synced="handleOsintSynced"
+      @openBind="openBindModal"
       @refreshed="(newTid) => { if (newTid) { boundIcpTaskId = newTid; fetchBoundTaskDetail(newTid); } }"
     />
-    <div v-else style="background: var(--arl-bg-white); border: 1px dashed var(--arl-border-color); border-radius: 8px; padding: 60px 24px; text-align: center; margin-top: 16px;">
-      <BankOutlined style="font-size: 48px; color: var(--arl-theme-color); opacity: 0.6; margin-bottom: 16px;" />
-      <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">当前资产组尚未关联企业主体</div>
-      <div style="color: var(--arl-text-color); opacity: 0.65; max-width: 480px; margin: 0 auto 24px auto; font-size: 13px;">
+    <div v-else class="empty-actionable-card" style="margin-top: 16px;">
+      <div class="empty-icon-circle">
+        <bank-outlined class="empty-icon" />
+      </div>
+      <div class="empty-title">当前资产组尚未关联企业主体</div>
+      <div class="empty-desc">
         绑定企业主体后，系统可自动拉取天眼查工商画像、对外投资控股树、工信部ICP备案、移动APP、微信小程序与公众号等全域数字资产。
       </div>
-      <a-button type="primary" @click="openBindModal">
-        <LinkOutlined /> 立即绑定企业主体并测绘
-      </a-button>
+      <div class="empty-actions">
+        <a-button type="primary" size="middle" @click="openBindModal">
+          <template #icon><link-outlined /></template>
+          立即绑定企业主体并测绘
+        </a-button>
+      </div>
     </div>
   </div>
 
@@ -1558,7 +1531,6 @@ import {
   DownloadOutlined,
   CloseOutlined,
   BankOutlined,
-  SyncOutlined,
   ArrowLeftOutlined,
   FilterOutlined,
   DownOutlined,
@@ -1621,7 +1593,6 @@ const taskTypeLabel = ref('');
 const taskStatusLabel = ref('');
 const taskStatusColor = ref('default');
 const osintTotalCount = ref(0);
-const osintRefreshLoading = ref(false);
 
 const asmTabList = [
   { key: 'site', label: '站点' },
@@ -1737,33 +1708,6 @@ const fetchBoundTaskDetail = async (taskId) => {
       );
     }
   } catch (e) {}
-};
-
-const triggerOsintRefresh = async () => {
-  if (!boundIcpTaskId.value) return;
-  osintRefreshLoading.value = true;
-  try {
-    const res = await request.get(`/icp/restart/${boundIcpTaskId.value}`);
-    if (res.code === 200) {
-      message.success('已触发主体资产更新任务');
-      const newTaskId = res.data?.task_id;
-      if (newTaskId) {
-        boundIcpTaskId.value = newTaskId;
-        fetchBoundTaskDetail(newTaskId);
-      } else {
-        fetchBoundTaskDetail(boundIcpTaskId.value);
-      }
-      if (osintPanelRef.value?.fetchTaskDetail) {
-        osintPanelRef.value.fetchTaskDetail();
-      }
-    } else {
-      message.error(res.message || '触发失败');
-    }
-  } catch (e) {
-    message.error('网络请求失败');
-  } finally {
-    osintRefreshLoading.value = false;
-  }
 };
 
 const fetchAsmCounts = async () => {

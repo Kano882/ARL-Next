@@ -1,8 +1,8 @@
 <template>
   <div class="enterprise-osint-panel">
     <!-- 顶部摘要与操作栏 (仅当有任务且未隐藏 Header 时渲染) -->
-    <div v-if="taskId && !hideHeader" style="margin-bottom: 16px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+    <div v-if="taskId && !hideHeader" style="margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">{{ displayName }}</span>
           <a-tag v-if="taskTarget && taskTarget.startsWith('TYC_')" color="cyan">{{ taskTarget }}</a-tag>
@@ -13,74 +13,187 @@
         <div style="display: flex; gap: 8px; align-items: center;">
           <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
             <a-button type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
-              <template #icon><sync-outlined /></template>
+              <template #icon><sync-outlined :spin="refreshLoading" /></template>
               更新主体资产
             </a-button>
           </a-tooltip>
-          <a-button v-if="activeTab === 'web' && selectedWebRowKeys.length > 0" type="dashed" size="small" @click="openSyncModalWithSelected">
-            <template #icon><cloud-sync-outlined /></template>
-            同步勾选域名 ({{ selectedWebRowKeys.length }})
-          </a-button>
         </div>
       </div>
     </div>
 
-    <!-- 维度 Tabs 导航与搜索操作栏 (吸附在 Hero 顶栏正下方) -->
+    <!-- 维度 Tabs 导航与控制检索区 (吸附在 Hero 顶栏正下方，与 ASM 保持同等视觉与吸顶标准) -->
     <div
       v-if="taskId"
       ref="osintControlRef"
       class="osint-sticky-control-box"
       :style="{ top: (props.stickyTopOffset || 0) + 'px' }"
     >
-      <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs osint-tabs-nav" :style="activeTab === 'log' ? 'margin-bottom: 0;' : 'margin-bottom: 12px;'" @change="onTabChange">
-        <a-tab-pane key="web" :tab="`网站备案 (${queryCounts.web})`"></a-tab-pane>
-        <a-tab-pane key="app" :tab="`移动 APP (${queryCounts.app})`"></a-tab-pane>
-        <a-tab-pane key="mapp" :tab="`微信小程序 (${queryCounts.mapp})`"></a-tab-pane>
-        <a-tab-pane key="wechat" :tab="`微信公众号 (${queryCounts.wechat})`"></a-tab-pane>
-        <a-tab-pane key="weibo" :tab="`企业微博 (${queryCounts.weibo})`"></a-tab-pane>
-        <a-tab-pane key="kapp" :tab="`快应用 (${queryCounts.kapp})`"></a-tab-pane>
-        <a-tab-pane key="trademark" :tab="`商标信息 (${queryCounts.trademark})`"></a-tab-pane>
-        <a-tab-pane key="invest" :tab="`对外投资 (${queryCounts.invest})`"></a-tab-pane>
-        <a-tab-pane key="log" tab="测绘日志"></a-tab-pane>
+      <!-- 维度 Tabs 导航 (微徽标胶囊风格) -->
+      <a-tabs v-model:activeKey="activeTab" type="card" size="small" class="arl-detail-tabs osint-tabs-nav" @change="onTabChange">
+        <a-tab-pane v-for="t in osintTabList" :key="t.key">
+          <template #tab>
+            <span class="osint-tab-item">
+              <span>{{ t.label }}</span>
+              <span class="osint-tab-badge" :class="{ 'has-data': (queryCounts[t.key] || 0) > 0 }">
+                {{ queryCounts[t.key] || 0 }}
+              </span>
+            </span>
+          </template>
+        </a-tab-pane>
+        <a-tab-pane key="log">
+          <template #tab>
+            <span class="log-tab-pill">
+              <code-outlined /> 测绘日志
+              <span v-if="taskRecord.status === 'running'" class="log-pulse-dot"></span>
+            </span>
+          </template>
+        </a-tab-pane>
       </a-tabs>
 
-      <!-- 搜索与导出栏 -->
-      <div v-show="activeTab !== 'log'">
-        <div style="margin-bottom: 12px;">
-          <a-form :model="searchForm" layout="inline" style="row-gap: 12px;">
-            <template v-for="col in dynamicColumns" :key="col.key">
-              <a-form-item
-                v-if="col.key !== 'index' && col.key !== 'raw' && col.key !== 'icon' && col.key !== 'qrcode' && col.key !== 'examineDate' && col.key !== 'updateRecordTime' && col.key !== 'estiblishTime' && col.key !== 'href'"
-                :label="col.title + ':'"
-              >
-                <a-input-group compact v-if="['amount', 'percent'].includes(col.dataIndex)">
-                  <a-select v-model:value="searchFormOp[col.dataIndex]" style="width: 65px" :options="[{value:'eq',label:'='},{value:'gt',label:'>'},{value:'lt',label:'<'}]" />
-                  <a-input v-model:value="searchForm[col.dataIndex]" style="width: 140px" :placeholder="'输入' + col.title" @pressEnter="onSearch">
-                    <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-                  </a-input>
-                </a-input-group>
-                <a-input v-else v-model:value="searchForm[col.dataIndex]" :placeholder="'请输入' + col.title" style="width: 180px;" allowClear @pressEnter="onSearch">
-                  <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
-                </a-input>
-              </a-form-item>
+      <!-- 统一工具栏与直接平铺检索区 -->
+      <div class="osint-toolbar-container">
+        <!-- 业务操作行 -->
+        <div class="toolbar-row">
+          <div class="toolbar-left">
+            <span class="toolbar-title-text">{{ currentTabLabel }}维度</span>
+            <span class="toolbar-meta-count">
+              共 <b class="font-mono">{{ activeTab === 'log' ? syslogList.length : (queryCounts[activeTab] || pagination.total || 0) }}</b> 条记录
+            </span>
+            <a-tag v-if="hasIncrement && activeTab !== 'log'" color="success" class="osint-mini-tag">
+              发现增量
+            </a-tag>
+          </div>
+
+          <div class="toolbar-right">
+            <template v-if="activeTab !== 'log'">
+              <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
+                <a-button type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
+                  <template #icon><sync-outlined :spin="refreshLoading" /></template>
+                  更新主体资产
+                </a-button>
+              </a-tooltip>
+              <a-tooltip title="更换当前资产组绑定的企业主体并重新拉取全域资产">
+                <a-button size="small" @click="emit('openBind')">
+                  <template #icon><link-outlined /></template>
+                  重新绑定
+                </a-button>
+              </a-tooltip>
+              <a-button size="small" :loading="exportLoading" @click="handleExport">
+                <template #icon><download-outlined /></template>
+                导出当前维度
+              </a-button>
             </template>
-          </a-form>
+            <template v-else>
+              <a-tag :color="taskStatusColor">{{ taskStatusLabel }}</a-tag>
+              <span v-if="taskRecord.status === 'running'" class="log-polling-hint">(3秒轮询中)</span>
+              <a-button size="small" :loading="logLoading" @click="() => fetchLogs(true)">
+                <template #icon><sync-outlined :spin="logLoading" /></template>
+                刷新日志
+              </a-button>
+            </template>
+          </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          <a-button size="small" @click="resetSearch">重 置</a-button>
-          <a-button size="small" type="primary" :loading="exportLoading" @click="handleExport">
-            <template #icon><download-outlined /></template>
-            导出当前维度表格
-          </a-button>
-          <a-button v-if="activeTab === 'web' && selectedWebRowKeys.length > 0" type="primary" ghost size="small" @click="openSyncModalWithSelected">
-            <template #icon><cloud-sync-outlined /></template>
-            同步勾选域名 ({{ selectedWebRowKeys.length }})
-          </a-button>
+
+        <!-- 直接平铺的紧凑栅格筛选卡片 (对齐 ASM filter-card 规范) -->
+        <div v-if="activeTab !== 'log' && currentSearchFields.length" class="osint-filter-card">
+          <a-form :model="searchForm" class="filter-grid-form">
+            <a-row :gutter="[12, 6]">
+              <a-col
+                v-for="field in currentSearchFields"
+                :key="field.key"
+                :xs="24" :sm="12" :md="8" :lg="6"
+              >
+                <div class="filter-field-cell">
+                  <span class="filter-field-label" :title="field.label">{{ field.label }}</span>
+                  <div class="filter-field-widget">
+                    <!-- 下拉选择 -->
+                    <a-select
+                      v-if="field.type === 'select'"
+                      v-model:value="searchForm[field.key]"
+                      :placeholder="`请选择${field.label}`"
+                      style="width: 100%;"
+                      size="small"
+                      allowClear
+                      @change="onSearch"
+                    >
+                      <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</a-select-option>
+                    </a-select>
+
+                    <!-- 组合操作符输入框 (如 投资比例/数额 等于/大于/小于) -->
+                    <div
+                      v-else-if="field.hasOperatorSelect"
+                      class="filter-operator-box"
+                    >
+                      <a-input
+                        v-model:value="searchForm[field.key]"
+                        :placeholder="`请输入${field.label}`"
+                        :bordered="false"
+                        size="small"
+                        class="operator-text-input"
+                        allowClear
+                        @pressEnter="onSearch"
+                      >
+                        <template #suffix>
+                          <search-outlined class="filter-search-icon" @click="onSearch" />
+                        </template>
+                      </a-input>
+                      <div class="operator-divider"></div>
+                      <a-select
+                        v-model:value="field.operator"
+                        :bordered="false"
+                        size="small"
+                        class="operator-op-select"
+                        @change="onSearch"
+                      >
+                        <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op === 'eq' ? '=' : op === 'gt' ? '>' : '<' }}</a-select-option>
+                      </a-select>
+                    </div>
+
+                    <!-- 普通文本输入框 -->
+                    <a-input
+                      v-else
+                      v-model:value="searchForm[field.key]"
+                      :placeholder="`请输入${field.label}`"
+                      style="width: 100%;"
+                      size="small"
+                      allowClear
+                      @pressEnter="onSearch"
+                    >
+                      <template #suffix>
+                        <search-outlined class="filter-search-icon" @click="onSearch" />
+                      </template>
+                    </a-input>
+                  </div>
+                </div>
+              </a-col>
+            </a-row>
+
+            <!-- 底部操作与状态条 -->
+            <div class="filter-footer-row">
+              <div class="filter-badge-status">
+                <template v-if="activeFilterCount > 0">
+                  <span class="active-indicator-dot"></span>
+                  <span>已应用 <b class="font-mono" style="color: var(--arl-theme-color);">{{ activeFilterCount }}</b> 项筛选条件</span>
+                </template>
+                <span v-else class="filter-idle-text">支持回车或点击放大镜图标快速检索</span>
+              </div>
+              <div class="filter-action-btns">
+                <a-button size="small" @click="resetSearch">
+                  <template #icon><redo-outlined /></template>
+                  重 置
+                </a-button>
+                <a-button type="primary" size="small" @click="onSearch">
+                  <template #icon><search-outlined /></template>
+                  查 询
+                </a-button>
+              </div>
+            </div>
+          </a-form>
         </div>
       </div>
     </div>
 
-    <!-- 资产表格 -->
+    <!-- 资产数据表格区 -->
     <div v-if="taskId && activeTab !== 'log'">
       <a-table
         :sticky="osintStickyConfig"
@@ -90,10 +203,10 @@
         :pagination="false"
         :row-selection="activeTab === 'web' ? { selectedRowKeys: selectedWebRowKeys, onChange: onWebSelectChange } : null"
         :scroll="{ x: 'max-content' }"
-        :rowKey="(record) => record._id || record.id || record.domain || record.ym || Math.random()"
+        :rowKey="(record) => record._id || record.id || record.domain || record.ym || record.name || Math.random()"
         size="small"
         bordered
-        style="margin-bottom: 16px;"
+        style="margin-bottom: 8px;"
       >
         <template #bodyCell="{ column, record, text, index }">
           <template v-if="column.key === 'index'">
@@ -238,9 +351,38 @@
             {{ text || '-' }}
           </template>
         </template>
+
+        <!-- 可行动的空状态引导 (Actionable Empty State) -->
+        <template #emptyText>
+          <div class="empty-actionable-card">
+            <div class="empty-icon-circle">
+              <bank-outlined class="empty-icon" />
+            </div>
+            <div class="empty-title">当前「{{ currentTabLabel }}」暂无生态数据</div>
+            <div class="empty-desc">
+              <template v-if="taskRecord.status === 'running'">
+                系统正在进行企业全域资产采集与比对，数据正在生成中，请稍候或查看实时测绘日志。
+              </template>
+              <template v-else>
+                当前主体在当前维度未收录资产记录。您可以点击「更新主体资产」重新拉取最新数据，或切换至其他维度进行查看。
+              </template>
+            </div>
+            <div class="empty-actions">
+              <a-button v-if="taskRecord.status === 'running'" type="primary" size="small" @click="activeTab = 'log'">
+                <template #icon><code-outlined /></template>
+                查看实时测绘日志
+              </a-button>
+              <a-button v-else type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
+                <template #icon><sync-outlined :spin="refreshLoading" /></template>
+                更新主体资产
+              </a-button>
+            </div>
+          </div>
+        </template>
       </a-table>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 8px;">
+      <!-- 分页栏 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 12px; margin-top: 10px;">
         <div style="color: var(--arl-text-color); opacity: 0.65; font-size: 12px;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
         <a-pagination
           :pageSizeOptions="['10', '20', '50', '100']"
@@ -253,32 +395,53 @@
           @showSizeChange="handlePaginationChange"
         />
       </div>
+
+      <!-- 悬浮浮动批处理条 (仅在 Web 备案维度且选中行时平滑弹出) -->
+      <transition name="floating-slide">
+        <div v-if="activeTab === 'web' && selectedWebRowKeys.length > 0" class="arl-floating-action-bar">
+          <div class="floating-info">
+            <check-circle-filled style="color: var(--arl-theme-color); font-size: 16px;" />
+            <span>已选中 <b style="color: var(--arl-theme-color); margin: 0 4px;">{{ selectedWebRowKeys.length }}</b> 项备案域名</span>
+          </div>
+          <div class="floating-actions">
+            <a-button type="primary" size="middle" @click="openSyncModalWithSelected">
+              <template #icon><cloud-sync-outlined /></template>
+              同步至资产组 ({{ selectedWebRowKeys.length }})
+            </a-button>
+            <a-button size="middle" @click="handleBatchCopyDomains">
+              <template #icon><copy-outlined /></template>
+              复制域名
+            </a-button>
+            <a-button size="middle" @click="clearWebSelection">取消选择</a-button>
+          </div>
+        </div>
+      </transition>
     </div>
 
     <!-- 运行日志 Tab -->
-    <div v-if="taskId && activeTab === 'log'">
-      <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 12px; background-color: var(--arl-bg-light);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <div v-if="taskId && activeTab === 'log'" style="margin-top: 8px;">
+      <div class="log-terminal-card">
+        <div class="log-terminal-header">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-weight: bold; font-size: 13px;">任务执行过程日志</span>
+            <span style="font-weight: 600; font-size: 13px;">任务执行过程日志</span>
             <a-tag :color="taskRecord.status === 'running' ? 'processing' : taskRecord.status === 'done' ? 'success' : taskRecord.status === 'error' ? 'error' : 'default'">
               {{ taskRecord.status === 'running' ? '实时采集监控中...' : taskRecord.status === 'done' ? '测绘已完成' : taskRecord.status === 'error' ? '任务异常终止' : (taskRecord.status || '就绪') }}
             </a-tag>
-            <span style="color: rgba(255,255,255,0.45); font-size: 12px;" v-if="taskRecord.status === 'running'">(每 3 秒自动轮询增量)</span>
+            <span style="color: var(--arl-text-secondary); font-size: 12px;" v-if="taskRecord.status === 'running'">(每 3 秒自动轮询增量)</span>
           </div>
           <a-button size="small" :loading="logLoading" @click="() => fetchLogs(true)">
-            <template #icon><SyncOutlined :spin="logLoading" /></template>
+            <template #icon><sync-outlined :spin="logLoading" /></template>
             刷新日志
           </a-button>
         </div>
-        <div ref="terminalContainer" style="background-color: #001529; color: #e6f7ff; font-family: 'Fira Code', Consolas, monospace; padding: 14px; border-radius: 4px; height: 480px; overflow-y: auto; font-size: 12px; line-height: 1.6;">
-          <div v-for="(log, idx) in syslogList" :key="idx" style="margin-bottom: 4px; word-break: break-all; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 2px;">
-            <span style="opacity: 0.7; margin-right: 8px;">[{{ log.create_time }}]</span>
-            <span :style="{ color: log.level === 'error' ? '#ff4d4f' : log.level === 'warning' ? '#faad14' : '#52c41a', fontWeight: 'bold', marginRight: '8px' }">[{{ (log.level || 'info').toUpperCase() }}]</span>
-            <span style="margin-right: 8px; color: #40a9ff;">[{{ log.title }}]</span>
-            <span>{{ log.message }}</span>
+        <div ref="terminalContainer" class="log-terminal-body">
+          <div v-for="(log, idx) in syslogList" :key="idx" class="log-terminal-line">
+            <span class="log-time">[{{ log.create_time }}]</span>
+            <span :class="['log-level', log.level]">[{{ (log.level || 'info').toUpperCase() }}]</span>
+            <span class="log-title">[{{ log.title }}]</span>
+            <span class="log-msg">{{ log.message }}</span>
           </div>
-          <div v-if="syslogList.length === 0" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 暂无日志记录... (历史任务或日志正在生成中)</div>
+          <div v-if="syslogList.length === 0" class="log-empty">[System] 暂无日志记录... (历史任务或日志正在生成中)</div>
         </div>
       </div>
     </div>
@@ -309,7 +472,12 @@ import {
   SyncOutlined,
   ExportOutlined,
   QrcodeOutlined,
-  CopyOutlined
+  CopyOutlined,
+  RedoOutlined,
+  CodeOutlined,
+  CheckCircleFilled,
+  BankOutlined,
+  LinkOutlined
 } from '@ant-design/icons-vue';
 import request from '../utils/request';
 import { copyText } from '../utils/clipboard';
@@ -338,6 +506,8 @@ const props = defineProps({
     default: 120
   }
 });
+
+const emit = defineEmits(['synced', 'refreshed', 'taskLoaded', 'update:taskId', 'openBind']);
 
 const osintControlRef = ref(null);
 const osintControlHeight = ref(120);
@@ -375,7 +545,10 @@ onMounted(() => {
   updateOsintHeight();
 });
 
-const emit = defineEmits(['synced', 'refreshed', 'taskLoaded', 'update:taskId']);
+onUnmounted(() => {
+  stopLogPolling();
+  if (osintResizeObserver) osintResizeObserver.disconnect();
+});
 
 const rawDrawerVisible = ref(false);
 const currentRawRecord = ref({});
@@ -460,6 +633,18 @@ const onWebSelectChange = (keys, rows) => {
   selectedWebDomains.value = domains;
 };
 
+const clearWebSelection = () => {
+  selectedWebRowKeys.value = [];
+  selectedWebDomains.value = [];
+};
+
+const handleBatchCopyDomains = async () => {
+  if (!selectedWebDomains.value.length) return;
+  const text = selectedWebDomains.value.join('\n');
+  const ok = await copyText(text);
+  if (ok) message.success(`已复制 ${selectedWebDomains.value.length} 个域名至剪贴板`);
+};
+
 const openSyncModalWithSelected = () => {
   syncModalVisible.value = true;
 };
@@ -492,13 +677,117 @@ const handleRefreshTask = async () => {
   }
 };
 
+/* ================= 维度列表与精选筛选项配置 (osintTabConfig) ================= */
+const osintTabList = [
+  { key: 'web', label: '网站备案' },
+  { key: 'app', label: '移动 APP' },
+  { key: 'mapp', label: '微信小程序' },
+  { key: 'wechat', label: '微信公众号' },
+  { key: 'weibo', label: '企业微博' },
+  { key: 'kapp', label: '快应用' },
+  { key: 'trademark', label: '商标信息' },
+  { key: 'invest', label: '对外投资' }
+];
+
+const osintTabConfig = reactive({
+  web: {
+    label: '网站备案',
+    searchFields: [
+      { label: '域名', key: 'domain' },
+      { label: '网站名称', key: 'serviceName' },
+      { label: '主办单位', key: 'unitName' },
+      { label: '备案号', key: 'serviceLicence' },
+      { label: '单位性质', key: 'companyType' }
+    ]
+  },
+  app: {
+    label: '移动 APP',
+    searchFields: [
+      { label: 'APP名称', key: 'name' },
+      { label: '主办单位', key: 'unitName' },
+      { label: '备案号', key: 'serviceLicence' },
+      { label: '分类', key: 'category' }
+    ]
+  },
+  mapp: {
+    label: '微信小程序',
+    searchFields: [
+      { label: '小程序名', key: 'name' },
+      { label: '主办单位', key: 'unitName' },
+      { label: '备案号', key: 'serviceLicence' },
+      { label: '分类', key: 'category' }
+    ]
+  },
+  wechat: {
+    label: '微信公众号',
+    searchFields: [
+      { label: '公众号名', key: 'name' },
+      { label: '微信号', key: 'wechatId' },
+      { label: '认证主体', key: 'unitName' }
+    ]
+  },
+  weibo: {
+    label: '企业微博',
+    searchFields: [
+      { label: '微博昵称', key: 'name' },
+      { label: '认证简介', key: 'brief' }
+    ]
+  },
+  kapp: {
+    label: '快应用',
+    searchFields: [
+      { label: '快应用名', key: 'name' },
+      { label: '主办单位', key: 'unitName' },
+      { label: '备案号', key: 'serviceLicence' }
+    ]
+  },
+  trademark: {
+    label: '商标信息',
+    searchFields: [
+      { label: '商标名称', key: 'name' },
+      { label: '注册号', key: 'regNo' },
+      { label: '国际分类', key: 'category' },
+      { label: '状态', key: 'status' }
+    ]
+  },
+  invest: {
+    label: '对外投资',
+    searchFields: [
+      { label: '企业名称', key: 'name' },
+      { label: '法定代表人', key: 'legalPerson' },
+      { label: '企业状态', key: 'status' },
+      { label: '投资比例', key: 'percent', hasOperatorSelect: true, operator: 'eq', operators: ['eq', 'gt', 'lt'] },
+      { label: '投资数额', key: 'amount', hasOperatorSelect: true, operator: 'eq', operators: ['eq', 'gt', 'lt'] }
+    ]
+  }
+});
+
+const currentSearchFields = computed(() => {
+  return osintTabConfig[activeTab.value]?.searchFields || [];
+});
+
+const currentTabLabel = computed(() => {
+  if (activeTab.value === 'log') return '测绘日志';
+  return osintTabConfig[activeTab.value]?.label || '资产';
+});
+
 const searchForm = reactive({});
-const searchFormOp = reactive({});
+
+const activeFilterCount = computed(() => {
+  let count = 0;
+  for (const k in searchForm) {
+    if (searchForm[k] !== undefined && searchForm[k] !== null && searchForm[k] !== '') {
+      if (Array.isArray(searchForm[k]) && searchForm[k].length === 0) continue;
+      count++;
+    }
+  }
+  return count;
+});
 
 const columnConfigs = {
   web: [
     { title: '序号', key: 'index', width: 60 },
-    { title: '域名', dataIndex: 'domain', key: 'domain', width: 160 },
+    { title: '域名', dataIndex: 'domain', key: 'domain', width: 180 },
     { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName', ellipsis: true },
     { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
     { title: '单位性质', dataIndex: 'companyType', key: 'companyType', width: 100 },
@@ -510,7 +799,7 @@ const columnConfigs = {
   app: [
     { title: '序号', key: 'index', width: 60 },
     { title: '图标', dataIndex: 'icon', key: 'icon', width: 70 },
-    { title: 'APP名称', dataIndex: 'name', key: 'name', width: 150 },
+    { title: 'APP名称', dataIndex: 'name', key: 'name', width: 160 },
     { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
     { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 160 },
     { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
@@ -675,11 +964,28 @@ const fetchAssets = async (page = 1, size = 10) => {
       page,
       size
     };
-    for (const k in searchForm) {
-      if (searchForm[k] !== undefined && searchForm[k] !== '') {
-        params[k] = searchForm[k];
-        if (searchFormOp[k]) {
-          params[`${k}_op`] = searchFormOp[k];
+    const fields = currentSearchFields.value;
+    for (const f of fields) {
+      const val = searchForm[f.key];
+      if (val !== undefined && val !== null && val !== '') {
+        const trimmed = typeof val === 'string' ? val.trim() : val;
+        if (f.hasOperatorSelect) {
+          const numKey = `${f.key}_num`;
+          const op = f.operator || 'eq';
+          const numVal = parseFloat(trimmed);
+          if (!isNaN(numVal)) {
+            if (op === 'gt' || op === '>') {
+              params[`${numKey}__ngt`] = numVal;
+            } else if (op === 'lt' || op === '<') {
+              params[`${numKey}__nlt`] = numVal;
+            } else {
+              params[numKey] = numVal;
+            }
+          } else {
+            params[f.key] = trimmed;
+          }
+        } else {
+          params[f.key] = trimmed;
         }
       }
     }
@@ -748,15 +1054,13 @@ const stopLogPolling = () => {
   }
 };
 
-onUnmounted(() => {
-  stopLogPolling();
-  if (osintResizeObserver) osintResizeObserver.disconnect();
-});
-
 const onTabChange = (key) => {
   pagination.current = 1;
   selectedWebRowKeys.value = [];
   selectedWebDomains.value = [];
+  for (const k in searchForm) {
+    searchForm[k] = undefined;
+  }
   nextTick(() => { updateOsintHeight(); });
   if (key === 'log') {
     fetchLogs(true);
@@ -768,13 +1072,17 @@ const onTabChange = (key) => {
 };
 
 const onSearch = () => fetchAssets(1, pagination.pageSize);
+
 const resetSearch = () => {
   for (const k in searchForm) {
     searchForm[k] = undefined;
   }
-  for (const k in searchFormOp) {
-    searchFormOp[k] = undefined;
-  }
+  const fields = currentSearchFields.value;
+  fields.forEach(f => {
+    if (f.hasOperatorSelect && f.operators && f.operators.length > 0) {
+      f.operator = f.operators[0];
+    }
+  });
   onSearch();
 };
 
@@ -829,23 +1137,414 @@ defineExpose({
 </script>
 
 <style scoped>
+/* ================= OSINT 吸顶控制区 (与 ASM 完全对齐) ================= */
 .osint-sticky-control-box {
   position: sticky;
   z-index: 11;
   background: var(--arl-bg-white);
   border-radius: 8px;
   border: 1px solid var(--arl-border-color);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  padding: 14px 16px 12px 16px;
-  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 8px;
   transition: box-shadow 0.2s ease;
+}
+
+.osint-tabs-nav {
+  padding: 6px 12px 0 12px;
+  margin-bottom: 0 !important;
 }
 
 .osint-tabs-nav :deep(.ant-tabs-nav) {
   margin-bottom: 0 !important;
 }
 
-.enterprise-osint-panel :deep(.ant-tabs-nav) {
-  margin-bottom: 12px;
+.osint-tab-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.osint-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 500;
+  background: var(--arl-bg-light);
+  color: var(--arl-text-secondary);
+  transition: all 0.2s;
+}
+
+.osint-tab-badge.has-data {
+  background: color-mix(in srgb, var(--arl-theme-color) 12%, transparent);
+  color: var(--arl-theme-color);
+  font-weight: 600;
+}
+
+.log-tab-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #13c2c2;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.log-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #52c41a;
+  animation: filter-dot-pulse 1.5s infinite;
+}
+
+/* 工具栏与平铺检索区 */
+.osint-toolbar-container {
+  padding: 8px 12px;
+  border-top: 1px solid var(--arl-border-color);
+  background: var(--arl-bg-white);
+}
+
+.toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toolbar-title-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+}
+
+.toolbar-meta-count {
+  font-size: 11px;
+  color: var(--arl-text-secondary);
+  background: var(--arl-bg-light);
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--arl-border-color);
+}
+
+.osint-mini-tag {
+  font-size: 10px;
+  line-height: 16px;
+  padding: 0 4px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.log-polling-hint {
+  color: var(--arl-text-secondary);
+  font-size: 12px;
+}
+
+/* 直接平铺的紧凑栅格筛选卡片 */
+.osint-filter-card {
+  margin-top: 6px;
+  padding: 8px 12px 6px 12px;
+  background: var(--arl-bg-light);
+  border: 1px solid var(--arl-border-color);
+  border-radius: 6px;
+}
+
+.filter-grid-form {
+  width: 100%;
+}
+
+.filter-field-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.filter-field-label {
+  width: 72px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 12px;
+  color: var(--arl-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.filter-field-widget {
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-search-icon {
+  color: var(--arl-text-secondary);
+  opacity: 0.45;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 11px;
+}
+.filter-search-icon:hover {
+  color: var(--arl-theme-color);
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+/* 操作符组合输入框 (如 等于/大于/小于) */
+.filter-operator-box {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--arl-border-color);
+  border-radius: 4px;
+  background: var(--arl-bg-white);
+  height: 24px;
+  transition: all 0.2s;
+  overflow: hidden;
+}
+.filter-operator-box:hover,
+.filter-operator-box:focus-within {
+  border-color: var(--arl-theme-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--arl-theme-color) 20%, transparent);
+}
+.operator-text-input {
+  flex: 1;
+  min-width: 0;
+  box-shadow: none !important;
+  font-size: 12px;
+}
+.operator-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--arl-border-color);
+  flex-shrink: 0;
+}
+.operator-op-select {
+  width: 65px;
+  flex-shrink: 0;
+  box-shadow: none !important;
+  font-size: 12px;
+}
+.operator-op-select :deep(.ant-select-selector) {
+  height: 22px !important;
+  padding: 0 4px !important;
+  font-size: 12px !important;
+}
+
+/* 底部操作行与状态提示 */
+.filter-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed color-mix(in srgb, var(--arl-border-color) 80%, transparent);
+}
+
+.filter-badge-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--arl-text-secondary);
+}
+
+.active-indicator-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--arl-theme-color);
+  animation: filter-dot-pulse 2s infinite;
+}
+
+@keyframes filter-dot-pulse {
+  0% { opacity: 0.6; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0.6; transform: scale(0.9); }
+}
+
+.filter-idle-text {
+  color: var(--arl-text-secondary);
+  opacity: 0.7;
+}
+
+.filter-action-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ================= 可行动的空状态引导 (Actionable Empty State) ================= */
+.empty-actionable-card {
+  background: var(--arl-bg-white);
+  border: 1px dashed var(--arl-border-color);
+  border-radius: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  max-width: 600px;
+  margin: 24px auto;
+}
+
+.empty-icon-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--arl-theme-color) 12%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+}
+
+.empty-icon {
+  font-size: 28px;
+  color: var(--arl-theme-color);
+}
+
+.empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: var(--arl-text-secondary);
+  max-width: 460px;
+  margin: 0 auto 20px auto;
+  line-height: 1.6;
+}
+
+.empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* ================= 悬浮浮动批处理条 (Floating Action Bar) ================= */
+.arl-floating-action-bar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--arl-bg-white);
+  border: 1px solid var(--arl-border-color);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  border-radius: 28px;
+  padding: 8px 20px 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.floating-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--arl-text-color);
+}
+
+.floating-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.floating-slide-enter-active,
+.floating-slide-leave-active {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-slide-enter-from,
+.floating-slide-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 20px);
+}
+
+/* ================= 测绘日志卡片与终端 ================= */
+.log-terminal-card {
+  border: 1px solid var(--arl-border-color);
+  border-radius: 8px;
+  background: var(--arl-bg-white);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.log-terminal-header {
+  padding: 10px 16px;
+  background: var(--arl-bg-light);
+  border-bottom: 1px solid var(--arl-border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.log-terminal-body {
+  background-color: #001529;
+  color: #e6f7ff;
+  font-family: 'Fira Code', Consolas, Monaco, monospace;
+  padding: 14px;
+  height: 480px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.log-terminal-line {
+  margin-bottom: 4px;
+  word-break: break-all;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-bottom: 2px;
+}
+
+.log-time {
+  opacity: 0.65;
+  margin-right: 8px;
+}
+
+.log-level {
+  font-weight: 600;
+  margin-right: 8px;
+}
+.log-level.error { color: #ff4d4f; }
+.log-level.warning { color: #faad14; }
+.log-level.info { color: #52c41a; }
+
+.log-title {
+  color: #40a9ff;
+  margin-right: 8px;
+}
+
+.log-msg {
+  color: #e6f7ff;
+}
+
+.log-empty {
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
 }
 </style>
