@@ -117,6 +117,16 @@ class ARLTask(ARLResource): # 继承我们在阶段一拆解过的“大基类�
     # 提前准备好 GET 请求用的“查询参数解析器”
     parser = get_arl_parser(search_task_fields, location='args')
 
+    def build_db_query(self, args):
+        status_val = args.get("status")
+        if status_val == "running":
+            args_copy = dict(args)
+            args_copy.pop("status", None)
+            q = super().build_db_query(args_copy)
+            q["status"] = {"$nin": ["done", "error", "stop", "waiting"]}
+            return q
+        return super().build_db_query(args)
+
     # ==========================================
     # GET 接口：负责分页查询和展示任务列表
     # ==========================================
