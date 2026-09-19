@@ -2656,20 +2656,30 @@ const submitAddWihMonitor = async () => {
 };
 
 // 监听路由参数联动
-watch(() => route.query.scope_id, (newScopeId) => {
-  // 核心加固：仅在当前路由处于 /group 页面时响应外部 query 联动，避免切至其他页面时将 searchForm._id 误清空重置
-  if (!route.path.startsWith('/group')) return;
-  if (newScopeId) {
-    activeGroupId.value = 'all';
-    searchForm.value._id = newScopeId;
-    pagination.current = 1;
-    fetchData();
-  } else if (searchForm.value._id) {
-    searchForm.value._id = undefined;
-    pagination.current = 1;
-    fetchData();
-  }
-}, { immediate: true });
+watch(
+  () => ({ path: route.path, scopeId: route.query.scope_id }),
+  (curr, prev) => {
+    // 核心加固：仅在当前路由精确处于 /group 页面时响应外部 query 联动，杜绝子页面或详情页穿透
+    if (curr.path !== '/group') return;
+
+    // 如果是从二级详情页或其他页面返回 /group，严禁重置或覆盖已有一级页面状态
+    if (prev && prev.path !== '/group') return;
+
+    // 响应外部传入或 /group 内部的有效 scope_id 联动
+    if (curr.scopeId && curr.scopeId !== searchForm.value._id) {
+      activeGroupId.value = 'all';
+      searchForm.value._id = curr.scopeId;
+      pagination.current = 1;
+      fetchData();
+    } else if (!curr.scopeId && prev && prev.scopeId && searchForm.value._id === prev.scopeId) {
+      // 仅当之前是在 /group 页面且显式携带了 scopeId，现被主动清空时才重置
+      searchForm.value._id = undefined;
+      pagination.current = 1;
+      fetchData();
+    }
+  },
+  { immediate: true }
+);
 
 const goToReconDetail = (taskId, taskType = 'icp') => {
   if (taskId) {

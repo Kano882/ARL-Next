@@ -5,7 +5,7 @@
       <div class="hero-unified-bar">
         <!-- 左侧：返回 + 标题 + 分组标签 + 类型 + 测绘状态 (去重) -->
         <div class="hero-left-section">
-          <a-button type="text" class="hero-back-btn" @click="() => $router.push('/group')" title="返回资产组列表">
+          <a-button type="text" class="hero-back-btn" @click="handleBack" title="返回资产组列表">
             <template #icon><arrow-left-outlined style="font-size: 15px;" /></template>
           </a-button>
 
@@ -1610,6 +1610,10 @@ import { createTabStateCache } from '../utils/useTabStateCache';
 
 const route = useRoute();
 const router = useRouter();
+
+const handleBack = () => {
+  router.push('/group');
+};
 // 🚨 修复 1：使用 computed，让路由参数具备真正的响应式
 const scope_id = computed(() => route.query.scope_id || '');
 const scopeEnterpriseName = ref('');
