@@ -428,15 +428,17 @@ class DomainExecutor(DomainTask):
                         is_wildcard = True
                         break
 
-                    # IP 规则判定
+                    # IP 规则判定（静态与轮转统一引入交集比例阈值，规避多 A 记录绕过）
                     if info_ips and wc_ips:
+                        common = info_ips & wc_ips
+                        threshold = 0.5
                         if is_rotating:
-                            common = info_ips & wc_ips
-                            if len(common) / len(info_ips) >= 0.5:
+                            if len(common) / len(info_ips) >= threshold:
                                 is_wildcard = True
                                 break
                         else:
-                            if info_ips.issubset(wc_ips):
+                            # 静态泛解析：若子域全部 IP 均为泛解析 IP（子集），或子域多 A 记录中泛解析 IP 占比达到阈值
+                            if info_ips.issubset(wc_ips) or (len(common) / len(info_ips) >= threshold):
                                 is_wildcard = True
                                 break
 

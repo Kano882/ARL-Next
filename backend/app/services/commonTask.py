@@ -1,5 +1,6 @@
 import time
 import socket
+import re
 from collections import defaultdict
 from urllib.parse import urlparse
 from bson import ObjectId
@@ -11,6 +12,10 @@ import traceback
 from app.modules import CollectSource, WebSiteFetchStatus, WebSiteFetchOption
 from app.services.nuclei_scan import nuclei_scan
 from app.services import run_risk_cruising, BaseUpdateTask
+try:
+    import simhash
+except ImportError:
+    simhash = None
 logger = utils.get_logger()
 
 
@@ -271,9 +276,350 @@ class WebSiteFetch(object):
                 item["task_id"] = self.task_id
                 utils.safe_insert_asset('url', ['task_id', 'url'], item)
 
+    CATCH_ALL_CONTROL_TIMEOUT = 6.1
+    CATCH_ALL_CONTROL_CONCURRENCY = 6
+    CATCH_ALL_CONTROL_MAX_ENTRY = 30
+    CATCH_ALL_CONTROL_SIMHASH_DISTANCE = 3
+
+    @staticmethod
+    def _wildcard_parent(hostname):
+        """提取用于随机 Host 探测的父级域名，支持二级公共后缀与纯 IP 早退"""
+        if not hostname:
+            return None
+
+        hostname = hostname.strip().strip(".").lower()
+        if utils.is_vaild_ip_target(hostname):
+            return None
+
+        fld = utils.get_fld(hostname) or ""
+        parent = hostname.split(".", 1)[1] if "." in hostname else ""
+        if parent and fld and parent.endswith(fld):
+            return parent
+
+        return fld or None
+
+    @classmethod
+    def _simhash_within_distance(cls, simhash_a, simhash_b, max_distance=None):
+        """容忍默认后端页面里的时间戳 / 随机 token：按汉明距离判定"""
+        if max_distance is None:
+            max_distance = cls.CATCH_ALL_CONTROL_SIMHASH_DISTANCE
+
+        if str(simhash_a) == str(simhash_b):
+            return True
+
+        try:
+            val_a = int(simhash_a)
+            val_b = int(simhash_b)
+            distance = bin(val_a ^ val_b).count("1")
+            return distance <= max_distance
+        except Exception:
+            pass
+
+        if simhash:
+            try:
+                distance = simhash.Simhash(int(simhash_a)).distance(simhash.Simhash(int(simhash_b)))
+                return distance <= max_distance
+            except Exception:
+                return False
+
+        return False
+
+    def _probe_catch_all_reference(self, url, host_header):
+        """请求一次，取回用于比对的响应快照；失败返回 None"""
+        try:
+            conn = utils.http_req(url, headers={"Host": host_header},
+                                  timeout=self.CATCH_ALL_CONTROL_TIMEOUT,
+                                  allow_redirects=True)
+        except Exception:
+            return None
+
+        content = conn.content or b""
+        body_simhash = ""
+        if simhash:
+            try:
+                body_simhash = str(simhash.Simhash(conn.text).value)
+            except Exception:
+                body_simhash = ""
+
+        return {
+            "status": conn.status_code,
+            "title": utils.get_title(content),
+            "body_length": len(content),
+            "simhash": body_simhash,
+        }
+
+    def _fetch_catch_all_reference(self, ip, scheme, port, hostname):
+        """
+        双探针交叉验证基准快照：
+        并发发送 2 个随机标签 Host 对照请求，
+        仅当两个探针响应状态码一致且 SimHash 汉明距离 <= 3 时确立有效基准；
+        否则视为网络抖动或 WAF 频控/挑战页干扰，放弃确立基准以防全站误判。
+        """
+        parent = self._wildcard_parent(hostname)
+        if not parent:
+            return None
+
+        rand_tag_1 = "wf" + utils.random_choices(6) + "." + parent
+        rand_tag_2 = "wf" + utils.random_choices(6) + "." + parent
+
+        ip_netloc = "[{}]".format(ip) if ":" in ip else ip
+        netloc = "{}:{}".format(ip_netloc, port)
+        base_url = "{}://{}/".format(scheme, netloc)
+
+        snap1 = None
+        snap2 = None
+        try:
+            with utils.ContextAwareThreadPoolExecutor(max_workers=2) as executor:
+                f1 = executor.submit(self._probe_catch_all_reference, base_url, rand_tag_1)
+                f2 = executor.submit(self._probe_catch_all_reference, base_url, rand_tag_2)
+                snap1 = f1.result()
+                snap2 = f2.result()
+        except Exception as e:
+            logger.debug("dual-probe catch_all reference error: {}".format(e))
+            return None
+
+        # 若直连 IP 失败且 DNS 存在泛解析，降级尝试随机域名直连
+        if not snap1 or not snap2:
+            if utils.get_ip(rand_tag_1, log_flag=False):
+                url1 = "{}://{}:{}/".format(scheme, rand_tag_1, port)
+                url2 = "{}://{}:{}/".format(scheme, rand_tag_2, port)
+                try:
+                    with utils.ContextAwareThreadPoolExecutor(max_workers=2) as executor:
+                        f1 = executor.submit(self._probe_catch_all_reference, url1, rand_tag_1)
+                        f2 = executor.submit(self._probe_catch_all_reference, url2, rand_tag_2)
+                        snap1 = f1.result()
+                        snap2 = f2.result()
+                except Exception:
+                    return None
+
+        if not snap1 or not snap2:
+            return None
+
+        # 双探针交叉校验：状态码一致且正文 SimHash 接近
+        if snap1.get("status") != snap2.get("status"):
+            logger.info("catch_all baseline rejected for entry {}: status inconsistent ({} vs {})".format(
+                netloc, snap1.get("status"), snap2.get("status")))
+            return None
+
+        sim1 = snap1.get("simhash") or ""
+        sim2 = snap2.get("simhash") or ""
+        if sim1 and sim2:
+            if not self._simhash_within_distance(sim1, sim2):
+                logger.info("catch_all baseline rejected for entry {}: SimHash distance exceeds threshold".format(netloc))
+                return None
+        else:
+            if (snap1.get("title") or "") != (snap2.get("title") or ""):
+                return None
+            if abs(int(snap1.get("body_length") or 0) - int(snap2.get("body_length") or 0)) > 50:
+                return None
+
+        return snap1
+
+    GENERIC_SERVERS = {
+        "nginx", "apache", "iis", "tengine", "openresty", "lighttpd", "caddy",
+        "microsoft-iis", "apache-http-server", "apache-httpd", "byte-nginx",
+        "apache2 debian 默认页", "apache2 ubuntu 默认页", "iis 默认页"
+    }
+
+    INFRA_TOKENS = {
+        "cdn", "waf", "proxy", "gateway", "alb", "slb", "elb", "tlb", "clb", "nlb",
+        "volcalb", "loadbalancer", "cloudflare", "akamai", "fastly", "imperva",
+        "incapsula", "envoy", "traefik", "haproxy", "squid", "varnish", "kong"
+    }
+
+    VENDOR_TOKENS = {
+        "bytedance", "aliyun", "tencent", "baidu", "huawei", "cloud", "aws",
+        "azure", "google", "microsoft", "volcengine", "volc"
+    }
+
+    NOISE_TOKENS = {"server", "service", "vhost", "default", "edge"}
+
+    @classmethod
+    def _is_infra_fingerprint(cls, name):
+        """判定指纹是否属于基础设施（CDN/WAF/网关/负载均衡/通用Web服务器），此类指纹不能作为业务特赦凭据"""
+        if not name or not isinstance(name, str):
+            return False
+        lower = name.lower().strip()
+        if lower in cls.GENERIC_SERVERS:
+            return True
+        tokens = set(re.split(r"[\s\-_/]+", lower))
+        if tokens.intersection(cls.INFRA_TOKENS):
+            non_infra = tokens - cls.INFRA_TOKENS - cls.VENDOR_TOKENS - cls.NOISE_TOKENS
+            if not non_infra:
+                return True
+        return False
+
+    @classmethod
+    def _has_business_amnesty(cls, item):
+        """
+        多维业务特征特赦 (Amnesty)：
+        即使站点与默认后端基准相似，若具备强业务特征，予以特赦放行。
+        """
+        title = (item.get("title") or "").strip().lower()
+        if title:
+            business_keywords = [
+                "登录", "登陆", "后台", "管理", "系统", "平台", "用户中心",
+                "login", "admin", "portal", "dashboard", "console", "manager", "sso"
+            ]
+            if any(k in title for k in business_keywords):
+                return True
+
+        # 独立框架 / CMS 指纹（排除通用 Web 服务器与 CDN/WAF/负载均衡等基础设施指纹）
+        finger_list = item.get("finger") or item.get("finger_name") or []
+        if isinstance(finger_list, list) and finger_list:
+            for fg in finger_list:
+                fg_name = (fg if isinstance(fg, str) else fg.get("name", "")).strip()
+                if fg_name and not cls._is_infra_fingerprint(fg_name):
+                    return True
+
+        # SSL 证书非泛解析精确匹配
+        cert_info = item.get("cert") or item.get("ssl_cert") or {}
+        if isinstance(cert_info, dict):
+            subject_cn = (cert_info.get("subject_cn") or cert_info.get("common_name") or "").lower().strip()
+            hostname = (item.get("hostname") or "").lower().strip()
+            if subject_cn and hostname and subject_cn == hostname and not subject_cn.startswith("*"):
+                return True
+
+        return False
+
+    def _is_catch_all_by_control(self, item, reference):
+        """站点响应与随机标签的参照响应一致 => 命中的是默认后端"""
+        # 特赦机制优先：若具有明确业务特征，豁免打标与阻断
+        if self._has_business_amnesty(item):
+            return False
+
+        if item.get("status") != reference.get("status"):
+            return False
+
+        item_simhash = item.get("simhash") or ""
+        ref_simhash = reference.get("simhash") or ""
+        if item_simhash and ref_simhash:
+            return self._simhash_within_distance(item_simhash, ref_simhash)
+
+        if (item.get("title") or "") != (reference.get("title") or ""):
+            return False
+        return int(item.get("body_length") or 0) == int(reference.get("body_length") or 0)
+
+    @staticmethod
+    def _mark_catch_all_by_control(item, reference):
+        if not isinstance(item.get("tag"), list):
+            item["tag"] = []
+        if "catch_all_vhost" not in item["tag"]:
+            item["tag"].append("catch_all_vhost")
+
+        item["is_catch_all"] = True
+        item["catch_all_evidence"] = {
+            "mode": "dual_probe_random_host_control",
+            "ref_status": reference.get("status"),
+            "ref_title": reference.get("title"),
+            "simhash_matched": bool(item.get("simhash")) and item.get("simhash") == reference.get("simhash"),
+        }
+
+    def filter_catch_all_by_control_probe(self):
+        """
+        首道防线：逐入口双探针随机 Host 对照。
+        1. 命中默认后端的站点打标 catch_all_vhost；
+        2. 保留第 1 个作为代表站点入库，其余冗余站点从 site_info_list 剔除；
+        3. 将全部命中站点写入 catch_all_sites 阻断集合（阻断下游 PoC/file_leak/爬虫/截图）；
+        4. 支持任务选项 block_catch_all: False 回退为仅标注模式。
+        """
+        if not self.site_info_list:
+            return
+
+        should_block = True
+        if hasattr(self, 'options') and isinstance(self.options, dict):
+            should_block = self.options.get("block_catch_all", True)
+
+        entry_map = {}
+        for item in self.site_info_list:
+            site = item.get("site")
+            ip = item.get("ip")
+            if not site or not ip:
+                continue
+
+            try:
+                parsed = urlparse(site)
+            except Exception:
+                continue
+
+            scheme = parsed.scheme or "http"
+            port = parsed.port or (443 if scheme == "https" else 80)
+            hostname = item.get("hostname") or parsed.hostname or ""
+            entry = entry_map.setdefault((ip, scheme, port), {"hostname": hostname, "items": []})
+            entry["items"].append(item)
+
+        if not entry_map:
+            return
+
+        entries = list(entry_map.items())[:self.CATCH_ALL_CONTROL_MAX_ENTRY]
+
+        def _probe(idx):
+            (ip, scheme, port), entry = entries[idx]
+            return self._fetch_catch_all_reference(ip=ip, scheme=scheme,
+                                                   port=port, hostname=entry["hostname"])
+
+        reference_map = {}
+        try:
+            from concurrent.futures import as_completed
+            with utils.ContextAwareThreadPoolExecutor(max_workers=self.CATCH_ALL_CONTROL_CONCURRENCY) as executor:
+                future_map = {executor.submit(_probe, idx): idx for idx in range(len(entries))}
+                for future in as_completed(future_map):
+                    idx = future_map[future]
+                    try:
+                        snapshot = future.result()
+                    except Exception:
+                        continue
+                    if snapshot:
+                        reference_map[idx] = snapshot
+        except Exception as e:
+            logger.warning("catch_all control probe error: {}".format(e))
+            return
+
+        marked_cnt = 0
+        discarded_sites_set = set()
+
+        for idx, ((ip, scheme, port), entry) in enumerate(entries):
+            reference = reference_map.get(idx)
+            if not reference:
+                continue
+
+            matched_items = []
+            for item in entry["items"]:
+                if self._is_catch_all_by_control(item, reference):
+                    self._mark_catch_all_by_control(item, reference)
+                    matched_items.append(item)
+                    marked_cnt += 1
+
+            if matched_items:
+                # 处置动作：将命中站点全部加入阻断集合
+                for m_item in matched_items:
+                    m_site = m_item.get("site")
+                    if m_site:
+                        self.catch_all_sites.add(m_site)
+                        cut_m = utils.url.cut_filename(m_site)
+                        if cut_m:
+                            self.catch_all_sites.add(cut_m)
+
+                # 若启用阻断（默认）：保留首个代表站点，剔除其余冗余站点
+                if should_block and len(matched_items) > 1:
+                    for d_item in matched_items[1:]:
+                        d_site = d_item.get("site")
+                        if d_site:
+                            discarded_sites_set.add(d_site)
+
+        if discarded_sites_set:
+            self.site_info_list = [s for s in self.site_info_list if s.get("site") not in discarded_sites_set]
+            if self.available_sites:
+                self.available_sites = [s for s in self.available_sites if s not in discarded_sites_set]
+            logger.info("filter_catch_all_by_control_probe: marked {} default-backend sites, discarded {} redundant sites, retained representative sites".format(
+                marked_cnt, len(discarded_sites_set)))
+        else:
+            logger.info("filter_catch_all_by_control_probe: probed {} entries, marked {} default-backend sites".format(
+                len(entries), marked_cnt))
+
     def filter_catch_all_vhost(self):
         """
-        对抓取到的站点结果进行默认后端/泛解析反代去噪与聚类。
+        第二道防线：对抓取到的站点结果进行默认后端/泛解析反代去噪与聚类兜底。
         针对状态码 {400, 403, 404, 500, 502, 503, 504}，按 (ip, status, length_bin, title) 聚类。
         当聚类数量 >= 10 时，保留第 1 个作为代表站点打标，其余剔除，并在下游扫描中全面阻断。
         """
@@ -284,6 +630,10 @@ class WebSiteFetch(object):
         clusters = defaultdict(list)
 
         for item in self.site_info_list:
+            # 已经由首道防线（对照探针）处理过的站点跳过，避免重复聚类
+            if item.get("is_catch_all"):
+                continue
+
             status = item.get("status")
             if status not in target_status_codes:
                 continue
@@ -350,6 +700,9 @@ class WebSiteFetch(object):
     def fetch_site(self):
         # ***站点信息获取***
         self.site_info_list = services.fetch_site(self.sites)
+        # 首道防线：基于双探针的高精度随机 Host 对照（阻断冗余并防 WAF 污染）
+        self.filter_catch_all_by_control_probe()
+        # 第二道防线：传统聚类兜底（针对网络超时未能确立基准的边缘站点）
         self.filter_catch_all_vhost()
         for site_info in self.site_info_list:
             curr_site = site_info["site"]
