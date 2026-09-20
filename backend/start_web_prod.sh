@@ -23,4 +23,4 @@ echo "🛡️ 正在确保默认管理员账号存在..."
 python3 inject_user.py
 
 echo "🚀 正在前台拉起 Web Backend API (高并发生产模式)..."
-gunicorn -b 0.0.0.0:5000 app.main:arl_app -w 4 --threads 4 --worker-class gthread -t 120 --max-requests 1000 --max-requests-jitter 50
+gunicorn --preload -b 0.0.0.0:5000 app.main:arl_app -w 4 --threads 4 --worker-class gthread -t 120 --max-requests 1000 --max-requests-jitter 50

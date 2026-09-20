@@ -44,7 +44,8 @@ fingerprint_new/
 server.txt
 lab/
 apikey.txt
-test/
+/test/
+!backend/test/
 backend/ARL-NPoC/build/
 backend/ARL-NPoC/xing.egg-info/
 /tmp.txt

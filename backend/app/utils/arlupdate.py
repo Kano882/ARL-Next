@@ -590,45 +590,17 @@ def fingerprint_info_update():
 
 def cleanup_zombie_tasks():
     """
-    🛡️【系统韧性】启动与更新时自动收敛因系统重启或更新中断的僵尸/孤儿任务
-    将非终态任务优雅收敛为 TaskStatus.ERROR，并记录明确的终止原因与时间戳
+    [DEPRECATED / 防御注解] 僵尸任务收敛逻辑已解耦并移交调度器守护进程 (backend/app/scheduler.py)。
+    严禁在 Web Worker 或 arl_update 数据迁移初始化流水线中执行，以杜绝 Web 服务多 Worker 启动/轮转时误杀运行中的扫描任务。
+    为保持向后静态引用兼容，保留本函数声明为空操作（防御性跳过并记录告警）。
     """
     import logging
-    import time
-    from app.modules import TaskStatus
     logger = logging.getLogger()
-    try:
-        non_running = [TaskStatus.DONE, TaskStatus.WAITING, TaskStatus.ERROR, TaskStatus.STOP]
-        zombie_tasks = list(conn_db('task').find({"status": {"$nin": non_running}}))
-        if zombie_tasks:
-            logger.warning(f"Detected {len(zombie_tasks)} interrupted tasks during startup, converging status...")
-            curr_date = time.strftime("%Y-%m-%d %H:%M:%S")
-            for task in zombie_tasks:
-                if task.get("task_tag") == "monitor":
-                    conn_db('task').delete_one({"_id": task["_id"]})
-                    options = task.get("options", {})
-                    scheduler_id = options.get("scheduler_id")
-                    if scheduler_id:
-                        try:
-                            from bson import ObjectId
-                            conn_db('scheduler').update_one(
-                                {"_id": ObjectId(scheduler_id)},
-                                {"$set": {"next_run_time": int(time.time())}}
-                            )
-                        except Exception:
-                            pass
-                else:
-                    conn_db('task').update_one(
-                        {"_id": task["_id"]},
-                        {"$set": {
-                            "status": TaskStatus.ERROR,
-                            "end_time": curr_date,
-                            "end_reason": "系统重启/升级中断 (Interrupted by system restart/update)"
-                        }}
-                    )
-            logger.info("Successfully converged interrupted tasks to ERROR.")
-    except Exception as e:
-        logger.error(f"Failed to cleanup zombie tasks: {e}")
+    logger.warning(
+        "[DEPRECATED] arlupdate.cleanup_zombie_tasks is deprecated and disabled in Web context. "
+        "Zombie task lifecycle cleanup is exclusively handled by app.scheduler.cleanup_zombie_tasks."
+    )
+    return
 
 
 def migrate_asset_cip_merge():
@@ -1073,7 +1045,6 @@ def arl_update():
         _run_step("migrate_asset_cip_merge", migrate_asset_cip_merge)
         _run_step("migrate_geo_ip_data", migrate_geo_ip_data)
         _run_step("heal_polluted_site_fingers", heal_polluted_site_fingers)
-        _run_step("cleanup_zombie_tasks", cleanup_zombie_tasks)
         _run_step("backfill_icp_task_synced_scopes", backfill_icp_task_synced_scopes)
         _run_step("migrate_asset_group_sort_order", migrate_asset_group_sort_order)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})

@@ -9,6 +9,7 @@ from app import services
 from app.config import Config
 from contextlib import contextmanager
 import traceback
+import threading
 from app.modules import CollectSource, WebSiteFetchStatus, WebSiteFetchOption
 from app.services.nuclei_scan import nuclei_scan
 from app.services import run_risk_cruising, BaseUpdateTask
@@ -17,6 +18,45 @@ try:
 except ImportError:
     simhash = None
 logger = utils.get_logger()
+
+
+class TaskHeartbeat(object):
+    """
+    轻量级后台心跳守护器：在任务阶段执行期间，每隔 interval 秒向 MongoDB
+    刷新一次 update_date 与 last_updated 时间戳，确保超长任务（如持续数天的 Nuclei 扫描）
+    具有持续的心跳可观测性，并规避极端异常重启时的误判定。
+    """
+    def __init__(self, task_id: str, interval: int = 60):
+        self.task_id = str(task_id) if task_id else None
+        self.interval = interval
+        self._stop_event = threading.Event()
+        self._thread = None
+
+    def __enter__(self):
+        if not self.task_id or self.task_id == "global":
+            return self
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._thread:
+            self._stop_event.set()
+        return False
+
+    def _run(self):
+        from bson import ObjectId
+        while not self._stop_event.wait(self.interval):
+            try:
+                now_ts = time.time()
+                curr_d = utils.curr_date()
+                utils.conn_db('task').update_one(
+                    {"_id": ObjectId(self.task_id)},
+                    {"$set": {"last_updated": now_ts, "update_date": curr_d}}
+                )
+            except Exception:
+                pass
 
 
 # 任务类中一些相关公共类
@@ -30,19 +70,20 @@ class CommonTask(object):
             base_update.update_task_field("status", phase_name)
         logger.info(f"Start phase: {phase_name} for task {self.task_id}")
         t1 = time.time()
-        try:
-            yield
-        except Exception as e:
-            logger.error(f"[容错阻断] 阶段 {phase_name} 发生致命错误: {e}")
-            logger.error(traceback.format_exc())
-            if base_update:
-                base_update.update_task_field("error_msg", str(e))
-                base_update.update_services(f"{phase_name}_error", 0.0)
-        finally:
-            elapse = time.time() - t1
-            logger.info(f"End phase: {phase_name} for task {self.task_id}, cost: {elapse:.2f}s")
-            if base_update:
-                base_update.update_services(phase_name, elapse)
+        with TaskHeartbeat(self.task_id, interval=60):
+            try:
+                yield
+            except Exception as e:
+                logger.error(f"[容错阻断] 阶段 {phase_name} 发生致命错误: {e}")
+                logger.error(traceback.format_exc())
+                if base_update:
+                    base_update.update_task_field("error_msg", str(e))
+                    base_update.update_services(f"{phase_name}_error", 0.0)
+            finally:
+                elapse = time.time() - t1
+                logger.info(f"End phase: {phase_name} for task {self.task_id}, cost: {elapse:.2f}s")
+                if base_update:
+                    base_update.update_services(phase_name, elapse)
 
     def insert_task_stat(self):
         query = {
@@ -784,7 +825,8 @@ class WebSiteFetch(object):
         logger.info("start run {}, {}".format(name, self.__str__()))
         self.base_update_task.update_task_field("status", name)
         t1 = time.time()
-        func()
+        with TaskHeartbeat(self.task_id, interval=60):
+            func()
         elapse = time.time() - t1
 
         # 新增：恢复细颗粒度记录

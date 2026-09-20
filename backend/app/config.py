@@ -175,7 +175,12 @@ class Config(object, metaclass=ConfigMeta):
 
 
 try:
-    with open(os.path.join(basedir, 'config.yaml')) as f:
+    _config_path = os.path.join(basedir, 'config.yaml')
+    if not os.path.isfile(_config_path):
+        _parent_path = os.path.join(os.path.dirname(basedir), 'config.yaml')
+        if os.path.isfile(_parent_path):
+            _config_path = _parent_path
+    with open(_config_path) as f:
         y = yaml.load(f, Loader=yaml.SafeLoader)
 
     Config.MONGO_URL = y["MONGO"]["URI"]

@@ -1,9 +1,9 @@
+import datetime
 import sys
 from bson import ObjectId
 from pymongo import UpdateOne
 from app.utils import conn_db as conn
 from app import utils
-from app import celerytask
 import time
 from app.modules import CeleryAction, SchedulerStatus, AssetScopeType, TaskStatus, CeleryRoutingKey
 from app.helpers import task_schedule, asset_site_monitor, asset_wih_monitor
@@ -201,6 +201,7 @@ def update_scheduler_run(scheduler_id):
     query = {"_id": item["_id"]}
     conn('scheduler').find_one_and_replace(query, item)
 
+from app import celerytask
 
 DISPATCH_MAP = {
     AssetScopeType.DOMAIN: {
@@ -291,48 +292,154 @@ def asset_monitor_scheduler():
             logger.error(f"Bulk write error in scheduler: {str(e)}")
 
 
-def cleanup_zombie_tasks():
+def _parse_task_timestamp(val):
+    if not val or val == "-":
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, datetime.datetime):
+        if val.tzinfo is not None:
+            return val.timestamp()
+        return val.timestamp()
+    if isinstance(val, str):
+        try:
+            struct = time.strptime(val, "%Y-%m-%d %H:%M:%S")
+            return time.mktime(struct)
+        except Exception:
+            pass
+        try:
+            from app.utils.time import date2time
+            return date2time(val)
+        except Exception:
+            pass
+        try:
+            return utils.parse_datetime(val).timestamp()
+        except Exception:
+            pass
+    return None
+
+
+def _get_task_latest_activity(task):
+    """
+    获取任务最近活跃时间戳，按 update_date、update_time、last_updated、start_time 及 _id 生成时间依次探测
+    """
+    ts_candidates = []
+    for field in ["update_date", "update_time", "last_updated", "start_time"]:
+        val = task.get(field)
+        ts = _parse_task_timestamp(val)
+        if ts is not None:
+            ts_candidates.append(ts)
+
+    # 兜底：若以上字段均无有效时间，检查 ObjectId 自带的生成时间
+    obj_id = task.get("_id")
+    if hasattr(obj_id, "generation_time"):
+        try:
+            ts_candidates.append(obj_id.generation_time.timestamp())
+        except Exception:
+            pass
+
+    if ts_candidates:
+        return max(ts_candidates)
+    return None
+
+
+def cleanup_zombie_tasks(window_seconds=1800):
+    """
+    🛡️【系统韧性与活性双重探测】清理因系统异常重启或中断的真正僵尸任务
+    1. Celery 活性探测：活跃任务绝对不收敛；
+    2. 心跳安全时间窗：任务在 window_seconds (默认30分钟) 内有活跃心跳/启动时间，防御 Inspect 瞬时超时；
+    3. 监控任务保留审计：严禁物理删除，标记为 TaskStatus.ERROR 并保留 end_reason，平滑延后调度。
+    """
     non_running_statuses = [TaskStatus.DONE, TaskStatus.WAITING, TaskStatus.ERROR, TaskStatus.STOP]
-    zombie_tasks = conn('task').find({"status": {"$nin": non_running_statuses}})
-    count = 0
-    
+    zombie_tasks = list(conn('task').find({"status": {"$nin": non_running_statuses}}))
+    if not zombie_tasks:
+        return 0
+
+    # 1. Celery 活性双重探测：获取存活 Worker 正在执行的任务集合
+    active_celery_ids = set()
+    try:
+        from app.celerytask import celery as celery_app
+        inspector = celery_app.control.inspect(timeout=2.0)
+        active_map = inspector.active() if inspector else None
+        if active_map:
+            for worker_name, tasks in active_map.items():
+                if isinstance(tasks, list):
+                    for t in tasks:
+                        if isinstance(t, dict) and t.get("id"):
+                            active_celery_ids.add(str(t["id"]))
+        logger.info(f"Celery inspect found {len(active_celery_ids)} active tasks across workers")
+    except Exception as e:
+        logger.warning(f"Failed to inspect celery active tasks: {e}")
+
+    now = time.time()
+    converged_count = 0
+
     for task in zombie_tasks:
         task_id = str(task["_id"])
-        logger.info(f"Cleanup zombie task: {task_id}, status: {task.get('status')}")
-        
-        # 清理残余数据
-        utils.clean_task_data(task_id)
-        
-        if task.get("task_tag") == "monitor":
-            # 对于监控任务，删除残余记录
-            conn('task').delete_one({"_id": task["_id"]})
-            
-            # 找到对应的 scheduler_id，将其 next_run_time 设置为当前时间
+        celery_id = str(task.get("celery_id", ""))
+
+        # a. 若任务的 celery_id 仍处于活跃任务队列中，严禁收敛，直接跳过并打 info 日志
+        if celery_id and celery_id in active_celery_ids:
+            logger.info(f"Task {task_id} (celery_id: {celery_id}) is actively executing in Celery, skipping convergence.")
+            continue
+
+        # b. 心跳安全时间窗：结合任务最后更新时间或开始时间（若在 30 分钟内活跃），防御 Celery Inspect 瞬时超时
+        latest_act = _get_task_latest_activity(task)
+        if latest_act is not None and (now - latest_act) < window_seconds:
+            logger.info(
+                f"Task {task_id} (celery_id: {celery_id}) was active {now - latest_act:.1f}s ago "
+                f"(within {window_seconds}s heartbeat window), skipping convergence."
+            )
+            continue
+
+        # 确认为真正失活的僵尸任务，执行收敛
+        logger.warning(
+            f"Converging confirmed zombie task: {task_id}, status: {task.get('status')}, "
+            f"celery_id: {celery_id}, elapsed since activity: {now - (latest_act or 0):.1f}s"
+        )
+
+        try:
+            utils.clean_task_data(task_id)
+        except Exception as e:
+            logger.warning(f"Failed to clean temporary task data for zombie task {task_id}: {e}")
+
+        curr_date = utils.curr_date()
+        is_monitor = (task.get("task_tag") == "monitor")
+
+        # c. 监控任务与普通任务安全收敛与保留审计：严禁调用 conn('task').delete_one！
+        conn('task').update_one(
+            {"_id": task["_id"]},
+            {"$set": {
+                "status": TaskStatus.ERROR,
+                "end_time": curr_date,
+                "end_reason": "服务重启/异常中断"
+            }}
+        )
+
+        if is_monitor:
             options = task.get("options", {})
             scheduler_id = options.get("scheduler_id")
             if scheduler_id:
-                logger.info(f"Re-scheduling monitor job: {scheduler_id}")
-                conn('scheduler').update_one(
-                    {"_id": ObjectId(scheduler_id)},
-                    {"$set": {"next_run_time": int(time.time())}}
-                )
-        else:
-            # 普通任务直接报错
-            conn('task').update_one(
-                {"_id": task["_id"]},
-                {"$set": {
-                    "status": TaskStatus.ERROR,
-                    "end_time": utils.curr_date(),
-                    "end_reason": "系统重启/升级中断 (Interrupted by system restart/update)"
-                }}
-            )
-            
-        count += 1
+                logger.info(f"Re-scheduling monitor job: {scheduler_id} next_run_time in 60s")
+                try:
+                    conn('scheduler').update_one(
+                        {"_id": ObjectId(scheduler_id)},
+                        {"$set": {"next_run_time": int(time.time()) + 60}}
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to reschedule monitor job {scheduler_id}: {e}")
+
+        converged_count += 1
+
+    if converged_count > 0:
+        logger.info(f"Successfully converged {converged_count} zombie tasks to ERROR.")
+
+    return converged_count
         
-def cleanup_orphan_tmp_files(max_age_seconds=86400):
+def cleanup_orphan_tmp_files(max_age_seconds=604800):
     """
     清理 TMP_PATH 目录下的孤儿临时文件（如强行终止任务遗留的 wih、nuclei、massdns 等中间文件）
-    默认清理修改时间超过 24 小时 (86400秒) 的临时文件，白名单排除系统配置文件
+    默认清理修改时间超过 7 天 (604800秒) 的临时文件，白名单排除系统配置文件，充分护航 2-3 天超长扫描任务
     """
     import os
     import shutil

@@ -45,7 +45,7 @@ from .domain import (
 )
 from .ip import is_vaild_ip_target, not_in_black_ips, get_ip_asn, get_ip_city, get_ip_type
 from .arl import arl_domain, get_asset_domain_by_id
-from .time import curr_date, time2date, curr_date_obj
+from .time import curr_date, time2date, curr_date_obj, date2time
 from .url import rm_similar_url, get_hostname, normal_url, same_netloc, verify_cert, url_ext
 from .cert import get_cert, extract_domains_from_cert
 from .arlupdate import arl_update
