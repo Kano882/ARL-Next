@@ -149,14 +149,15 @@
 
     <div v-show="activeTab === 'log'">
       <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 8px; background-color: var(--arl-bg-light);">
-        <div ref="terminalContainer" style="background-color: #001529; color: #e6f7ff; font-family: 'Fira Code', Consolas, 'Courier New', monospace; padding: 16px; border-radius: 4px; height: calc(100vh - 240px); overflow-y: auto; font-size: 13px; line-height: 1.6; box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);">
+        <div ref="terminalContainer" style="background-color: #001529; color: #e6f7ff; font-family: 'Fira Code', Consolas, 'Courier New', monospace; padding: 16px; border-radius: 4px; height: calc(100vh - 240px); overflow-y: auto; font-size: 13px; line-height: 1.6; box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);" @mouseenter="pauseScroll = true" @mouseleave="pauseScroll = false">
           <div v-for="(log, idx) in syslogList" :key="idx" style="margin-bottom: 6px; word-break: break-all; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 4px;">
             <a style="margin-right: 8px;">[{{ log.create_time }}]</a>
             <span :style="{ color: log.level === 'error' ? '#ff4d4f' : log.level === 'warning' ? '#faad14' : '#52c41a', fontWeight: 'bold', marginRight: '8px' }">[{{ (log.level || 'info').toUpperCase() }}]</span>
             <a style="margin-right: 8px;">[{{ log.title }}]</a>
             <span style="color: #e6f7ff;">{{ log.message }}</span>
           </div>
-          <div v-if="syslogList.length === 0" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 暂无日志记录... (等待日志生成或当前为历史遗留任务)</div>
+          <div v-if="syslogLoading && syslogList.length === 0" style="color: rgba(255,255,255,0.65); font-style: italic;">[System] 正在加载任务运行日志...</div>
+          <div v-else-if="syslogList.length === 0" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 暂无日志记录... (等待日志生成或当前为历史遗留任务)</div>
         </div>
       </div>
     </div>
@@ -230,7 +231,7 @@ const goToScope = (scopeId) => {
 };
 
 const targetList = computed(() => {
-  const t = taskTarget.value || taskName.value || taskId || '未知目标';
+  const t = taskTarget.value || taskName.value || taskId.value || '未知目标';
   return String(t).split(/[,\s]+/).filter(Boolean);
 });
 
@@ -273,7 +274,8 @@ const taskStatusColor = computed(() => {
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
 
-const activeTab = ref('web');
+const validTabs = ['web', 'app', 'mapp', 'kapp', 'invest', 'trademark', 'wechat', 'weibo', 'log'];
+const activeTab = ref(route.query?.tab && validTabs.includes(route.query.tab) ? route.query.tab : 'web');
 const queryCounts = reactive({
   web: 0,
   app: 0,
@@ -305,6 +307,8 @@ const pagination = reactive({ current: 1, pageSize: globalPageSize.value, total:
 const syslogList = ref([]);
 let syslogTimer = null;
 const terminalContainer = ref(null);
+const pauseScroll = ref(false);
+const syslogLoading = ref(false);
 
 const sortState = reactive({
   field: null,
@@ -559,19 +563,46 @@ const handlePaginationChange = (page, pageSize) => {
   fetchAssets(page, pageSize);
 };
 
-const fetchSyslog = async () => {
+const fetchSyslog = async (isPolling = false) => {
+  if (!taskId.value) return;
   try {
-    const res = await request.get('/syslog/', { params: { task_id: taskId, size: 50000, order: 'create_time', _t: Date.now() } });
+    if (!isPolling) syslogLoading.value = true;
+    const res = await request.get('/syslog/', {
+      params: {
+        task_id: taskId.value,
+        size: 50000,
+        order: 'create_time',
+        _t: Date.now()
+      }
+    });
     if (res.code === 200) {
       syslogList.value = res.items || [];
-      nextTick(() => {
-        if (terminalContainer.value) {
-          terminalContainer.value.scrollTop = terminalContainer.value.scrollHeight;
-        }
-      });
+      if (!pauseScroll.value) {
+        nextTick(() => {
+          if (terminalContainer.value) {
+            terminalContainer.value.scrollTop = terminalContainer.value.scrollHeight;
+          }
+        });
+      }
     }
   } catch (error) {
     console.error('获取日志失败:', error);
+  } finally {
+    if (!isPolling) syslogLoading.value = false;
+  }
+};
+
+const startSyslogTimer = () => {
+  if (syslogTimer) {
+    clearInterval(syslogTimer);
+    syslogTimer = null;
+  }
+  fetchSyslog();
+  const isTerminal = ['done', 'error', 'stop'].includes(taskStatus.value);
+  if (!isTerminal) {
+    syslogTimer = setInterval(() => {
+      fetchSyslog(true);
+    }, 5000);
   }
 };
 
@@ -598,12 +629,7 @@ const onTabChange = (key) => {
   resetTabSort(key);
 
   if (key === 'log') {
-    fetchSyslog();
-    if (!syslogTimer) {
-      if (lastStatus !== 'done' && lastStatus !== 'error') {
-        syslogTimer = setInterval(fetchSyslog, 5000);
-      }
-    }
+    startSyslogTimer();
   } else {
     stopSyslogTimer();
     assetList.value = [];
@@ -637,18 +663,16 @@ const fetchTaskStatistic = async () => {
       queryCounts.weibo = stat.weibo_cnt !== undefined ? stat.weibo_cnt : queryCounts.weibo;
       
       const currentStatus = taskData.status;
-      if (currentStatus === 'done' || currentStatus === 'error') {
+      if (['done', 'error', 'stop'].includes(currentStatus)) {
         if (taskTimer) {
           clearInterval(taskTimer);
           taskTimer = null;
         }
         stopSyslogTimer();
-        if (lastStatus && lastStatus !== 'done' && lastStatus !== 'error') {
-          if (activeTab.value === 'log') {
-            fetchSyslog();
-          } else {
-            fetchAssets(pagination.current, pagination.pageSize);
-          }
+        if (activeTab.value === 'log') {
+          fetchSyslog(true);
+        } else if (lastStatus && !['done', 'error', 'stop'].includes(lastStatus)) {
+          fetchAssets(pagination.current, pagination.pageSize);
         }
       }
       lastStatus = currentStatus;
@@ -679,8 +703,12 @@ const reloadEnterpriseTaskData = () => {
   syncEnterpriseQueryCounts(route.query);
 
   if (taskId.value) {
-    resetTabSort(activeTab.value);
-    fetchAssets(1, pagination.pageSize);
+    if (activeTab.value === 'log') {
+      startSyslogTimer();
+    } else {
+      resetTabSort(activeTab.value);
+      fetchAssets(1, pagination.pageSize);
+    }
     fetchTaskStatistic();
     taskTimer = setInterval(fetchTaskStatistic, 5000);
   }
@@ -693,23 +721,28 @@ watch(taskId, () => {
   reloadEnterpriseTaskData();
 });
 
+watch(() => route.query?.tab, (newTab) => {
+  if (!route.path.startsWith('/taskList/taskDetail')) return;
+  if (newTab && validTabs.includes(newTab) && newTab !== activeTab.value) {
+    activeTab.value = newTab;
+    onTabChange(newTab);
+  }
+});
+
 onMounted(() => {
   reloadEnterpriseTaskData();
 });
 
 onUnmounted(() => {
-  if (syslogTimer) {
-    clearInterval(syslogTimer);
-  }
+  stopSyslogTimer();
   if (taskTimer) {
     clearInterval(taskTimer);
+    taskTimer = null;
   }
 });
 
 onDeactivated(() => {
-  if (syslogTimer) {
-    clearInterval(syslogTimer);
-  }
+  stopSyslogTimer();
   if (taskTimer) {
     clearInterval(taskTimer);
     taskTimer = null;
@@ -725,8 +758,16 @@ onActivated(() => {
     reloadEnterpriseTaskData();
   } else if (taskId.value) {
     fetchTaskStatistic();
-    if (!taskTimer && taskStatus.value !== 'done' && taskStatus.value !== 'error' && taskStatus.value !== 'stop') {
+    const isTerminal = ['done', 'error', 'stop'].includes(taskStatus.value);
+    if (!taskTimer && !isTerminal) {
       taskTimer = setInterval(fetchTaskStatistic, 5000);
+    }
+    if (activeTab.value === 'log') {
+      if (!syslogTimer && !isTerminal) {
+        startSyslogTimer();
+      } else if (syslogList.value.length === 0) {
+        fetchSyslog();
+      }
     }
   }
 });
