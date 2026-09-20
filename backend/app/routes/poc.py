@@ -312,9 +312,13 @@ class ARLPoCImport(ARLResource):
                 fail_details.append({"filename": file.filename, "reason": "插件文件名不合法（仅允许英文字母、数字和下划线，且首字符必须为英文字母或数字）"})
                 continue
 
-            # 读取内容并校验
+            # 读取内容并校验（限制单个脚本最大 10MB，防止内存暴涨）
             try:
                 raw_bytes = file.read()
+                if len(raw_bytes) > 10 * 1024 * 1024:
+                    fail_count += 1
+                    fail_details.append({"filename": file.filename, "reason": "单个 PoC 脚本文件体积超过 10MB 限制"})
+                    continue
                 try:
                     content = raw_bytes.decode('utf-8-sig')
                 except UnicodeDecodeError:

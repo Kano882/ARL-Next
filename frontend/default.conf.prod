@@ -81,6 +81,11 @@ server {
         proxy_set_header X-Forwarded-Host $http_host;
         proxy_set_header X-Forwarded-Port $server_port;
 
+        # 允许最大 200MB 请求体，放宽超大字典、PoC 脚本包等文件上传与文本提交
+        client_max_body_size 200m;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+
         # 优化大文件(如截图)传输缓冲，防止写入临时文件增加磁盘 IO 消耗
         proxy_buffer_size 128k;
         proxy_buffers 4 256k;

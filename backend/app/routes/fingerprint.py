@@ -247,6 +247,8 @@ class UploadARLFinger(ARLResource):
         """
         args = file_upload.parse_args()
         file_data = args['file'].read()
+        if len(file_data) > 20 * 1024 * 1024:
+            return utils.build_ret(ErrorMsg.Error, {'msg': "指纹文件体积不能超过 20MB"})
         try:
             obj = yaml.safe_load(file_data)
             if not isinstance(obj, list):

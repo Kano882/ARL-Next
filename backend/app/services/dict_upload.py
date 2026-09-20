@@ -4,13 +4,13 @@ import threading
 import uuid
 from app.utils import get_logger
 from app.utils import conn_db as conn
-from app.utils.dict_utils import file_lock, count_file_lines
+from app.utils.dict_utils import file_lock, count_file_lines, hash_dict_entry
 
 logger = get_logger()
 
 def background_process_dict(task_id, temp_file_path, target_dict_path):
     """
-    后台处理字典：分块统计、去重并追加到目标字典中（具备排他文件锁与进度上报）
+    后台处理字典：分块统计、64位紧凑哈希去重并追加到目标字典中（具备排他文件锁与心跳进度上报）
     """
     try:
         # 初始化任务状态
@@ -29,7 +29,7 @@ def background_process_dict(task_id, temp_file_path, target_dict_path):
         # 确保目标目录存在
         os.makedirs(os.path.dirname(target_dict_path), exist_ok=True)
 
-        existing_set = set()
+        existing_hashes = set()
         inserted_lines = 0
         ignored_lines = 0
         processed_lines = 0
@@ -50,12 +50,12 @@ def background_process_dict(task_id, temp_file_path, target_dict_path):
         # 3. 合并预加载与写入为单一排他锁段，消除并发空窗（TOCTOU）
         with open(target_dict_path, 'a+', encoding='utf-8', errors='ignore') as fout:
             with file_lock(fout, exclusive=True):
-                # 3a. 在排他锁内预加载现有字典用于去重
+                # 3a. 在排他锁内以 64 位紧凑哈希预加载现有字典用于去重（单条仅 8 字节）
                 fout.seek(0)
                 for line in fout:
                     line = line.strip().lstrip('\ufeff')
                     if line:
-                        existing_set.add(line)
+                        existing_hashes.add(hash_dict_entry(line))
 
                 # 确保已有非空文件末尾具备换行符，避免首个新增条目与历史尾行拼接
                 fout.flush()
@@ -76,12 +76,14 @@ def background_process_dict(task_id, temp_file_path, target_dict_path):
                         line = line.strip().lstrip('\ufeff')
                         processed_lines += 1
 
-                        if line and line not in existing_set:
-                            fout.write(line + "\n")
-                            existing_set.add(line)
-                            inserted_lines += 1
-                        elif line:
-                            ignored_lines += 1
+                        if line:
+                            h = hash_dict_entry(line)
+                            if h not in existing_hashes:
+                                fout.write(line + "\n")
+                                existing_hashes.add(h)
+                                inserted_lines += 1
+                            else:
+                                ignored_lines += 1
 
                         # 每处理 10000 行或在末尾更新一次进度
                         if processed_lines % 10000 == 0 or processed_lines == total_lines:
@@ -130,12 +132,30 @@ def background_process_dict(task_id, temp_file_path, target_dict_path):
             except Exception as e:
                 logger.error(f"Failed to remove temp file {temp_file_path}: {e}")
 
+
 def trigger_dict_upload_task(temp_file_path, target_dict_path):
     """
-    生成任务 ID 并启动后台线程
+    生成任务 ID 并优先派发至 Celery 异步队列（由 arl-worker 容器独立运行，规避 Gunicorn worker 生命周期回收）；
+    在 Celery 未启动或连接异常时平滑降级为守护线程。
     """
     task_id = str(uuid.uuid4())
-    t = threading.Thread(target=background_process_dict, args=(task_id, temp_file_path, target_dict_path))
-    t.daemon = True
-    t.start()
+    dispatched = False
+    try:
+        from app.celerytask import dict_import_celery_task
+        from app.modules import CeleryRoutingKey
+        dict_import_celery_task.apply_async(
+            args=[task_id, temp_file_path, target_dict_path],
+            queue=CeleryRoutingKey.ASSET_TASK_LIGHT
+        )
+        dispatched = True
+        logger.info(f"Dispatched dict upload task {task_id} to Celery queue {CeleryRoutingKey.ASSET_TASK_LIGHT}")
+    except Exception as e:
+        logger.warning(f"Failed to dispatch dict upload task to Celery ({e}), falling back to background thread")
+
+    if not dispatched:
+        t = threading.Thread(target=background_process_dict, args=(task_id, temp_file_path, target_dict_path))
+        t.daemon = True
+        t.start()
+        logger.info(f"Started dict upload task {task_id} in background daemon thread")
+
     return task_id

@@ -136,11 +136,61 @@ def count_file_lines(path):
         return 0
 
 
+import hashlib
+import uuid
+
+
+def hash_dict_entry(entry: str) -> bytes:
+    """
+    计算字典条目的 64 位紧凑 Blake2b 二进制哈希（仅 8 字节）。
+    在百万级大字典去重时将单条条目内存从 60~80 字节降至 8 字节，节约 90%+ 内存占用。
+    """
+    return hashlib.blake2b(entry.encode('utf-8', errors='ignore'), digest_size=8).digest()
+
+
+def create_dict_file(path, content):
+    """
+    流式创建字典文件（64位紧凑哈希去重、原子写盘、排他锁保护）
+    避免将大字典拆分为巨型列表和全量 join 导致内存激增。
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    seen_hashes = set()
+    dir_name = os.path.dirname(path)
+    base_name = os.path.basename(path)
+    tmp_path = os.path.join(dir_name, f".tmp_create_{base_name}_{uuid.uuid4().hex}")
+
+    try:
+        count = 0
+        with open(tmp_path, 'w', encoding='utf-8', errors='ignore') as f_out:
+            for line in content.splitlines():
+                stripped = line.strip().lstrip('\ufeff')
+                if stripped:
+                    h = hash_dict_entry(stripped)
+                    if h not in seen_hashes:
+                        seen_hashes.add(h)
+                        f_out.write(stripped + '\n')
+                        count += 1
+            f_out.flush()
+
+        with open(tmp_path, 'r', encoding='utf-8', errors='ignore') as f_tmp:
+            with file_lock(f_tmp, exclusive=True):
+                os.replace(tmp_path, path)
+        return count
+    except Exception as e:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+        logger.error(f"Error creating dictionary file {path}: {e}")
+        raise e
+
+
 def append_to_dict_file(path, new_entries_str):
     """
-    向字典追加条目（自动去重、清洗空白行与 BOM 字符、并发文件锁保护、仅追加增量行避免全量重写）
+    向字典追加条目（64位紧凑哈希自动去重、清洗空白行与 BOM 字符、并发文件锁保护、流式增量追加避免全量重写）
     """
-    new_entries = [line.strip().lstrip('\ufeff') for line in new_entries_str.split('\n') if line.strip().lstrip('\ufeff')]
+    new_entries = [line.strip().lstrip('\ufeff') for line in new_entries_str.splitlines() if line.strip().lstrip('\ufeff')]
     if not new_entries:
         return 0, 0
 
@@ -149,36 +199,35 @@ def append_to_dict_file(path, new_entries_str):
         with open(path, 'a+', encoding='utf-8', errors='ignore') as f:
             with file_lock(f, exclusive=True):
                 f.seek(0)
-                existing_set = set()
+                existing_hashes = set()
                 for line in f:
                     stripped = line.strip().lstrip('\ufeff')
                     if stripped:
-                        existing_set.add(stripped)
+                        existing_hashes.add(hash_dict_entry(stripped))
 
-                to_append = []
+                to_append_count = 0
+                f.flush()
+                # 检查已有文件末尾是否缺少换行符
+                try:
+                    f.buffer.seek(0, os.SEEK_END)
+                    pos = f.buffer.tell()
+                    if pos > 0:
+                        f.buffer.seek(pos - 1)
+                        if f.buffer.read(1) != b'\n':
+                            f.write('\n')
+                except Exception:
+                    pass
+
+                f.seek(0, os.SEEK_END)
                 for e in new_entries:
-                    if e not in existing_set:
-                        existing_set.add(e)
-                        to_append.append(e)
+                    h = hash_dict_entry(e)
+                    if h not in existing_hashes:
+                        existing_hashes.add(h)
+                        f.write(e + '\n')
+                        to_append_count += 1
+                f.flush()
 
-                if to_append:
-                    # 检查已有文件末尾是否缺少换行符（通过底层 buffer 安全检查字节）
-                    f.flush()
-                    try:
-                        f.buffer.seek(0, os.SEEK_END)
-                        pos = f.buffer.tell()
-                        if pos > 0:
-                            f.buffer.seek(pos - 1)
-                            if f.buffer.read(1) != b'\n':
-                                f.write('\n')
-                    except Exception:
-                        pass
-
-                    f.seek(0, os.SEEK_END)
-                    f.write('\n'.join(to_append) + '\n')
-                    f.flush()
-
-                return len(new_entries), len(to_append)
+                return len(new_entries), to_append_count
     except Exception as e:
         logger.error(f"Error appending to {path}: {e}")
         raise e
@@ -186,36 +235,44 @@ def append_to_dict_file(path, new_entries_str):
 
 def delete_entries_from_dict_file(path, entries_to_delete_set):
     """
-    从字典中批量剔除条目（并发文件锁保护）
+    从字典中批量剔除条目（基于 64位紧凑哈希集合 + 逐行流式读写 + 临时文件原子替换，内存严格受控于待删除集体积）
     """
-    if not entries_to_delete_set:
+    if not entries_to_delete_set or not os.path.exists(path):
         return 0
 
-    if not os.path.exists(path):
+    delete_hashes = {hash_dict_entry(e) for e in entries_to_delete_set if e}
+    if not delete_hashes:
         return 0
 
     deleted_count = 0
-    try:
-        with open(path, 'r+', encoding='utf-8', errors='ignore') as f:
-            with file_lock(f, exclusive=True):
-                f.seek(0)
-                retained = []
-                for line in f:
-                    stripped = line.strip().lstrip('\ufeff')
-                    if stripped in entries_to_delete_set:
-                        deleted_count += 1
-                    else:
-                        if stripped:
-                            retained.append(stripped)
+    dir_name = os.path.dirname(path)
+    base_name = os.path.basename(path)
+    tmp_path = os.path.join(dir_name, f".tmp_del_{base_name}_{uuid.uuid4().hex}")
 
-                if deleted_count > 0:
-                    f.seek(0)
-                    f.truncate(0)
-                    if retained:
-                        f.write('\n'.join(retained) + '\n')
-                    f.flush()
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f_in, \
+             open(tmp_path, 'w', encoding='utf-8', errors='ignore') as f_out:
+            with file_lock(f_in, exclusive=True):
+                for line in f_in:
+                    stripped = line.strip().lstrip('\ufeff')
+                    if stripped and hash_dict_entry(stripped) in delete_hashes:
+                        deleted_count += 1
+                    elif stripped:
+                        f_out.write(stripped + '\n')
+            f_out.flush()
+
+        if deleted_count > 0:
+            os.replace(tmp_path, path)
+        else:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
         return deleted_count
     except Exception as e:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
         logger.error(f"Error deleting entries from {path}: {e}")
         raise e

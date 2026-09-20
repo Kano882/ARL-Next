@@ -207,7 +207,7 @@
                   <a-input v-model:value="createDictForm.customName" placeholder="例如: top100" />
                 </a-form-item>
                 <a-form-item label="初始字典内容 (可选)">
-                  <a-textarea v-model:value="createDictForm.content" placeholder="每行一个条目，支持批量粘贴" :rows="8" />
+                  <a-textarea v-model:value="createDictForm.content" placeholder="每行一个条目，支持批量粘贴（超大字典建议切换至【文件上传新建】）" :rows="8" @paste="handlePasteContent" />
                 </a-form-item>
               </a-form>
               <div style="text-align: right; margin-top: 24px;">
@@ -1190,18 +1190,136 @@ const resetCreateDictForm = () => {
   createDictTabKey.value = 'manual';
 };
 
+// ======================= 字典后台导入全受控轮询器 =======================
+const activeDictPollTimers = ref(new Set());
+
+const clearAllDictPollTimers = () => {
+  for (const timer of activeDictPollTimers.value) {
+    clearInterval(timer);
+  }
+  activeDictPollTimers.value.clear();
+};
+
+const handlePasteContent = (e) => {
+  const clipboardData = e.clipboardData || window.clipboardData;
+  if (!clipboardData) return;
+  const pastedText = clipboardData.getData('text') || '';
+  if (pastedText.length > 500 * 1024) {
+    message.info(`检测到粘贴了较大内容 (${(pastedText.length / 1024 / 1024).toFixed(1)} MB)，点击【确定新建】时将自动启用后台流式导入。`);
+  }
+};
+
+const startDictPolling = (taskId, targetName, apiBase, isBrute, isAppend = false) => {
+  const hideMsg = message.loading(`字典 ${targetName} 正在后台${isAppend ? '追加' : ''}导入中，您可以继续其他操作...`, 0);
+  let pollCount = 0;
+  const MAX_POLL_COUNT = 300; // 最多轮询 300 次 (10分钟)
+  let lastUpdateTime = null;
+  let staleCount = 0;
+
+  const timer = setInterval(async () => {
+    pollCount++;
+    if (pollCount > MAX_POLL_COUNT) {
+      clearInterval(timer);
+      activeDictPollTimers.value.delete(timer);
+      hideMsg();
+      message.warning(`字典 ${targetName} 导入耗时较长，已停止前台轮询。任务仍在后台继续执行，请稍后刷新查看。`);
+      return;
+    }
+
+    try {
+      const statusRes = await request.get(`${apiBase}/upload_status`, { params: { task_id: taskId } });
+      if (statusRes.code === 200 && statusRes.data) {
+        const data = statusRes.data;
+
+        // 心跳停滞检测：若连续 60 次轮询（120秒）且 update_time 毫无变化，提示可能中断并熔断
+        if (data.status === 'processing') {
+          if (data.update_time && data.update_time === lastUpdateTime) {
+            staleCount++;
+            if (staleCount >= 60) {
+              clearInterval(timer);
+              activeDictPollTimers.value.delete(timer);
+              hideMsg();
+              message.warning(`字典 ${targetName} 导入长时间无心跳响应，可能已被中断，请刷新页面核验。`);
+              return;
+            }
+          } else {
+            lastUpdateTime = data.update_time;
+            staleCount = 0;
+          }
+        }
+
+        if (data.status === 'completed') {
+          clearInterval(timer);
+          activeDictPollTimers.value.delete(timer);
+          hideMsg();
+          message.success(`字典 ${targetName} ${isAppend ? '追加' : ''}导入完成！新增 ${data.inserted_lines} 条，忽略重复 ${data.ignored_lines} 条`);
+          if (isBrute) {
+            fetchBruteDictList(false);
+          } else {
+            fetchDictList(false);
+          }
+          if (isAppend) {
+            fetchPreview(targetName);
+          }
+        } else if (data.status === 'error') {
+          clearInterval(timer);
+          activeDictPollTimers.value.delete(timer);
+          hideMsg();
+          message.error(`导入 ${targetName} 失败: ${data.message || '未知错误'}`);
+        }
+      } else {
+        // 任务不存在或状态丢失（如后端容器重启）
+        clearInterval(timer);
+        activeDictPollTimers.value.delete(timer);
+        hideMsg();
+        message.warning(`导入任务状态已丢失 (${statusRes.message || '任务不存在'})，请刷新页面后确认。`);
+      }
+    } catch (e) {
+      // 忽略轮询网络抖动
+    }
+  }, 2000);
+
+  activeDictPollTimers.value.add(timer);
+};
+
 const handleCreateDictManual = async () => {
   let targetName = `${createDictForm.prefix}${createDictForm.customName}.txt`;
+  const rawContent = createDictForm.content || '';
 
   createDictLoading.value = true;
   try {
+    // 智能流式分流：若内容大于 500KB 或超过 5000 行，自动打包为 Blob 走后台异步 upload_large 通道，
+    // 避免超大 JSON 请求造成 Gunicorn Worker 线程长时间同步阻塞与 120s 超时
+    const lineCount = (rawContent.match(/\n/g) || []).length;
+    if (rawContent.length > 500 * 1024 || lineCount > 5000) {
+      const blob = new Blob([rawContent], { type: 'text/plain' });
+      const formData = new FormData();
+      formData.append('file', blob, targetName);
+      formData.append('name', targetName);
+
+      const res = await request.post(`${createDictApiBase.value}/upload_large`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.code === 200) {
+        message.info(`字典内容较大 (约 ${lineCount + 1} 行)，已自动转入后台高性能流式通道导入...`);
+        const apiBase = createDictApiBase.value;
+        const isBrute = isBruteCreatePrefix.value;
+        createDictDrawerVisible.value = false;
+        resetCreateDictForm();
+        startDictPolling(res.task_id, targetName, apiBase, isBrute, false);
+        return;
+      } else {
+        message.error(res.message || '新建失败');
+        return;
+      }
+    }
+
     const res = await request.post(`${createDictApiBase.value}/create`, {
       name: targetName,
-      content: createDictForm.content
+      content: rawContent
     });
     if (res.code === 200) {
       message.success(`字典 ${targetName} 新建成功！`);
-      // 先捕获前缀判定再重置表单，避免 resetCreateDictForm 将 prefix 重置为 domain_ 导致刷新错列表
       const isBrute = isBruteCreatePrefix.value;
       createDictDrawerVisible.value = false;
       resetCreateDictForm();
@@ -1245,41 +1363,11 @@ const handleCreateDictUpload = async () => {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     if (res.code === 200) {
-      const hideMsg = message.loading(`字典 ${targetName} 正在后台导入中，您可以继续其他操作...`, 0);
-      // 先捕获前缀判定与 API 基址再重置表单，避免 resetCreateDictForm 将 prefix 重置为 domain_ 导致轮询/刷新错命名空间
       const apiBase = createDictApiBase.value;
       const isBrute = isBruteCreatePrefix.value;
       createDictDrawerVisible.value = false;
       resetCreateDictForm();
-
-      const pollTimer = setInterval(async () => {
-        try {
-          const statusRes = await request.get(`${apiBase}/upload_status`, { params: { task_id: res.task_id } });
-          if (statusRes.code === 200) {
-            if (statusRes.data.status === 'completed') {
-              clearInterval(pollTimer);
-              hideMsg();
-              message.success(`字典 ${targetName} 导入完成！新增 ${statusRes.data.inserted_lines} 条，忽略重复 ${statusRes.data.ignored_lines} 条`);
-              if (isBrute) {
-                fetchBruteDictList(false);
-              } else {
-                fetchDictList(false);
-              }
-            } else if (statusRes.data.status === 'error') {
-              clearInterval(pollTimer);
-              hideMsg();
-              message.error(`导入 ${targetName} 失败: ${statusRes.data.message}`);
-            }
-          } else {
-            // 任务不存在/状态丢失（如后端容器重启），停止轮询避免定时器泄漏
-            clearInterval(pollTimer);
-            hideMsg();
-            message.warning(`导入任务状态已丢失 (${statusRes.message || '任务不存在'})，请刷新页面后确认。`);
-          }
-        } catch (e) {
-          // 忽略轮询时的网络抖动
-        }
-      }, 2000);
+      startDictPolling(res.task_id, targetName, apiBase, isBrute, false);
     } else {
       message.error(res.message || '上传失败');
     }
@@ -1303,12 +1391,13 @@ const handleLargeUpload = async (info) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('name', unifiedSelectedName.value);
-  
+
   const targetName = unifiedSelectedName.value;
   const currentType = unifiedSelectedType.value;
-  
+
   const uploadUrl = currentType === 'asset' ? '/api/dictionary/upload_large' : '/api/brute_dict/upload_large';
-  const statusUrl = currentType === 'asset' ? '/api/dictionary/upload_status' : '/api/brute_dict/upload_status';
+  const apiBase = currentType === 'asset' ? '/api/dictionary' : '/api/brute_dict';
+  const isBrute = currentType !== 'asset';
 
   try {
     const res = await request.post(uploadUrl, formData, {
@@ -1318,40 +1407,8 @@ const handleLargeUpload = async (info) => {
     });
 
     if (res.code === 200) {
-      const hideMsg = message.loading(`字典 ${targetName} 正在后台追加导入中，您可以继续其他操作...`, 0);
       appendDrawerVisible.value = false;
-      
-      const pollTimer = setInterval(async () => {
-        try {
-          const statusRes = await request.get(statusUrl, { params: { task_id: res.task_id } });
-          if (statusRes.code === 200) {
-            if (statusRes.data.status === 'completed') {
-              clearInterval(pollTimer);
-              hideMsg();
-              message.success(`字典 ${targetName} 追加导入完成！新增 ${statusRes.data.inserted_lines} 条，忽略重复 ${statusRes.data.ignored_lines} 条`);
-              
-              if (currentType === 'asset') {
-                fetchDictList(false);
-                fetchPreview(targetName);
-              } else {
-                fetchBruteDictList(false);
-                fetchPreview(targetName);
-              }
-            } else if (statusRes.data.status === 'error') {
-              clearInterval(pollTimer);
-              hideMsg();
-              message.error(`字典 ${targetName} 追加失败: ${statusRes.data.message}`);
-            }
-          } else {
-            // 任务不存在/状态丢失，停止轮询避免定时器泄漏
-            clearInterval(pollTimer);
-            hideMsg();
-            message.warning('追加任务状态已丢失，请刷新页面后确认。');
-          }
-        } catch (e) {
-          // 忽略轮询时的网络抖动
-        }
-      }, 2000);
+      startDictPolling(res.task_id, targetName, apiBase, isBrute, true);
     } else {
       message.error(res.message || '上传失败');
     }
@@ -2576,10 +2633,12 @@ onDeactivated(() => {
   searchDrawerVisible.value = false;
   cdnDrawerVisible.value = false;
   updateModalVisible.value = false;
+  clearAllDictPollTimers();
 });
 
 onUnmounted(() => {
   stopUpdateTimers();
+  clearAllDictPollTimers();
 });
 </script>
 

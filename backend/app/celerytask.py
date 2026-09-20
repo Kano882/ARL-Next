@@ -75,6 +75,15 @@ def arl_task(options):
     run_task(options)
 
 
+@celery.task(name='app.celerytask.dict_import_celery_task', queue=CeleryRoutingKey.ASSET_TASK_LIGHT)
+def dict_import_celery_task(task_id, temp_file_path, target_dict_path):
+    """
+    异步超大字典流式导入与去重写入（由 Celery Worker 容器独立调度执行，彻底规避 Web 容器 Worker 回收中断）
+    """
+    from app.services.dict_upload import background_process_dict
+    background_process_dict(task_id, temp_file_path, target_dict_path)
+
+
 def sigterm_handler(signum, frame):
     if not current_task:
         return

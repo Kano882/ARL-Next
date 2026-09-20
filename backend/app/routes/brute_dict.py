@@ -5,7 +5,8 @@ from werkzeug.datastructures import FileStorage
 from app.utils import get_logger, auth
 from app.utils.dict_utils import (
     is_builtin_dict,
-    append_to_dict_file, delete_entries_from_dict_file, file_lock
+    append_to_dict_file, delete_entries_from_dict_file, file_lock,
+    create_dict_file
 )
 from . import get_arl_parser
 from app.config import Config
@@ -230,19 +231,7 @@ class BruteDictCreate(Resource):
             return {'code': 400, 'message': '同名字典已存在'}
 
         try:
-            entries = [line.strip() for line in content.split('\n') if line.strip()]
-            seen = set()
-            clean_entries = []
-            for e in entries:
-                if e not in seen:
-                    seen.add(e)
-                    clean_entries.append(e)
-
-            with open(path, 'w', encoding='utf-8') as f:
-                with file_lock(f, exclusive=True):
-                    if clean_entries:
-                        f.write('\n'.join(clean_entries) + '\n')
-
+            create_dict_file(path, content)
             return {'code': 200, 'message': 'success', 'data': {'name': name}}
         except Exception as e:
             logger.error(f"Error creating brute dictionary {name}: {e}")
@@ -364,8 +353,8 @@ class BruteDictUploadLarge(Resource):
         if not file_obj.filename.endswith('.txt'):
             return {"code": 400, "message": "仅支持 .txt 格式文件"}
 
-        # 保存到临时目录
-        tmp_dir = os.path.join(Config.basedir if hasattr(Config, 'basedir') else os.path.dirname(os.path.dirname(__file__)), 'tmp_upload')
+        # 保存到共享数据卷临时目录（确保 Celery Worker 与 Web 容器均可访问）
+        tmp_dir = os.path.join(DICT_DIR, '.tmp_upload')
         os.makedirs(tmp_dir, exist_ok=True)
 
         import uuid
