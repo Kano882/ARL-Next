@@ -232,6 +232,36 @@ def asset_monitor_scheduler():
     for item in due_tasks:
         try:
             scheduler_id_str = str(item["_id"])
+            scope_id_str = str(item.get("scope_id", ""))
+
+            # 关口 2：查验关联资产组有效性与监控目标包含关系 (自愈与盲派发阻断 - Issue #48)
+            try:
+                scope_obj = conn('asset_scope').find_one({"_id": ObjectId(scope_id_str)})
+            except Exception:
+                scope_obj = None
+
+            if not scope_obj:
+                logger.warning(f"Orphan scheduler detected: scope_id '{scope_id_str}' not found in asset_scope. Auto-deleting scheduler {scheduler_id_str}.")
+                conn('scheduler').delete_one({"_id": item["_id"]})
+                continue
+
+            scope_type = item.get("scope_type") or AssetScopeType.DOMAIN
+            valid_scopes = set(scope_obj.get("scope_array", []))
+            target_str = item.get("domain", "")
+
+            if scope_type == AssetScopeType.IP and " " in target_str:
+                valid_targets = [t for t in target_str.split() if t in valid_scopes]
+                if not valid_targets:
+                    logger.warning(f"Orphan composite IP scheduler: all targets in '{target_str}' removed from scope {scope_id_str}. Auto-deleting scheduler {scheduler_id_str}.")
+                    conn('scheduler').delete_one({"_id": item["_id"]})
+                    continue
+                item["domain"] = " ".join(valid_targets)
+            elif target_str:
+                if target_str not in valid_scopes:
+                    logger.warning(f"Orphan scheduler detected: target '{target_str}' no longer in scope {scope_id_str}. Auto-deleting scheduler {scheduler_id_str}.")
+                    conn('scheduler').delete_one({"_id": item["_id"]})
+                    continue
+
             running_tasks = conn('task').count_documents({
                 "options.scheduler_id": scheduler_id_str,
                 "status": {"$nin": [TaskStatus.DONE, TaskStatus.ERROR, TaskStatus.STOP]}
@@ -246,7 +276,6 @@ def asset_monitor_scheduler():
                 ))
                 continue
 
-            scope_type = item.get("scope_type") or AssetScopeType.DOMAIN
             strategy = DISPATCH_MAP.get(scope_type)
 
             if not strategy:

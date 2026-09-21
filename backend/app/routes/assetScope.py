@@ -284,6 +284,9 @@ class DeleteARLAssetScope(ARLResource):
             # 我们这里采用以 domain/ip 作为精确匹配 (通常子系统收集资产时会保存关联的 base_domain/ip 到 domain 字段)
             utils.conn_db("asset_site").delete_many({"scope_id": str(scope_id), "domain": scope})
             utils.conn_db("asset_wih").delete_many({"scope_id": str(scope_id), "domain": scope})
+
+            # 级联物理清理周期监控任务，规避脱节盲派发 (Issue #48)
+            utils.conn_db("scheduler").delete_many({"scope_id": str(scope_id), "domain": scope})
         except Exception as e:
             logger.error(f"delete asset_scope target error, scope_id={scope_id}, scope={scope}, detail={e}")
             return utils.build_ret(ErrorMsg.Error, {"error": "数据库操作异常，请查看服务端日志"})
@@ -546,6 +549,8 @@ class UpdateARLAssetScope(ARLResource):
                 utils.conn_db("asset_ip").delete_many({"scope_id": str(scope_id), "ip": removed})
                 utils.conn_db("asset_site").delete_many({"scope_id": str(scope_id), "domain": removed})
                 utils.conn_db("asset_wih").delete_many({"scope_id": str(scope_id), "domain": removed})
+                # 级联物理清理周期监控任务，规避脱节盲派发 (Issue #48)
+                utils.conn_db("scheduler").delete_many({"scope_id": str(scope_id), "domain": removed})
 
             for d in domain_array:
                 if d not in domain_status:

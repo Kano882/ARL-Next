@@ -22,8 +22,18 @@ def domain_executors(base_domain=None, scheduler_id=None, scope_id=None, options
             return
 
         if item.get("status") == SchedulerStatus.STOP:
-            logger.info("stop  ip_executors {}  scheduler_id {} is stop ".format(base_domain, scheduler_id))
+            logger.info("stop  domain_executors {}  scheduler_id {} is stop ".format(base_domain, scheduler_id))
             return
+
+        # 关口 3：Worker 消费端前置校验（核验目标是否仍属于当前资产组 - Issue #48）
+        if scope_id:
+            try:
+                scope_obj = utils.conn_db('asset_scope').find_one({"_id": ObjectId(str(scope_id))})
+                if not scope_obj or base_domain not in scope_obj.get("scope_array", []):
+                    logger.warning("stop domain_executors: target {} is no longer in scope {}, dropping task.".format(base_domain, scope_id))
+                    return
+            except Exception as ex:
+                logger.error(f"check scope validity failed in domain_executors: {ex}")
 
         wrap_domain_executors(base_domain=base_domain, scheduler_id=scheduler_id, scope_id=scope_id, options=options, name=name)
     except Exception as e:
@@ -633,6 +643,22 @@ def ip_executor(target, scope_id, task_name, scheduler_id, options):
         if item.get("status") == SchedulerStatus.STOP:
             logger.info("stop  ip_executors {}  scheduler_id {} is stop ".format(target, scheduler_id))
             return
+
+        # 关口 3：Worker 消费端前置校验（核验 IP 目标是否仍属于当前资产组 - Issue #48）
+        if scope_id:
+            try:
+                scope_obj = utils.conn_db('asset_scope').find_one({"_id": ObjectId(str(scope_id))})
+                if not scope_obj:
+                    logger.warning(f"stop ip_executors: scope {scope_id} not found, dropping task.")
+                    return
+                valid_scopes = set(scope_obj.get("scope_array", []))
+                valid_targets = [t for t in target.split() if t in valid_scopes]
+                if not valid_targets:
+                    logger.warning(f"stop ip_executors: target(s) '{target}' no longer in scope {scope_id}, dropping task.")
+                    return
+                target = " ".join(valid_targets)
+            except Exception as ex:
+                logger.error(f"check scope validity failed in ip_executors: {ex}")
 
         update_scheduler_run(scheduler_id)
     except Exception as e:
