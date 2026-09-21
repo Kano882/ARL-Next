@@ -493,9 +493,18 @@ class WebSiteFetch(object):
     @classmethod
     def _has_business_amnesty(cls, item):
         """
-        多维业务特征特赦 (Amnesty)：
+        多维业务特征特赦 (Amnesty) - 内置记忆化缓存 (O(1) 防跨层重复计算):
         即使站点与默认后端基准相似，若具备强业务特征，予以特赦放行。
         """
+        if "has_business_amnesty" in item:
+            return item["has_business_amnesty"]
+
+        res = cls._compute_business_amnesty(item)
+        item["has_business_amnesty"] = res
+        return res
+
+    @classmethod
+    def _compute_business_amnesty(cls, item):
         title = (item.get("title") or "").strip().lower()
         if title:
             business_keywords = [
@@ -671,8 +680,10 @@ class WebSiteFetch(object):
         clusters = defaultdict(list)
 
         for item in self.site_info_list:
-            # 已经由首道防线（对照探针）处理过的站点跳过，避免重复聚类
-            if item.get("is_catch_all"):
+            # 已经由首道防线（对照探针）处理过的默认后端跳过，避免重复聚类；
+            # 具备业务特赦的站点享有绝对豁免权，严禁被第二层粗粒度聚类误杀 (Fix Issue #49)
+            # (同时覆盖 MAX_ENTRY 截断未入探针、网络超时未建基准的极端边界场景)
+            if item.get("is_catch_all") or self._has_business_amnesty(item):
                 continue
 
             status = item.get("status")
