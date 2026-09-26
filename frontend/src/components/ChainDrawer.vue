@@ -177,6 +177,14 @@
                 <template v-if="column.key === 'ip'">
                   <span class="font-mono font-bold">{{ record.ip }}</span>
                 </template>
+                <template v-else-if="column.key === 'cdn'">
+                  <a-tag v-if="record.is_cdn || record.cdn_name" color="blue">
+                    {{ record.cdn_name || 'CDN节点' }}
+                  </a-tag>
+                  <a-tag v-else color="green">
+                    独立源站
+                  </a-tag>
+                </template>
                 <template v-else-if="column.key === 'port_info'">
                   <span>{{ record.port_info && record.port_info.length ? record.port_info.map(p => p.port_id).join(', ') : '-' }}</span>
                 </template>
@@ -587,6 +595,7 @@ const domainCols = [
 
 const ipCols = [
   { title: 'IP', dataIndex: 'ip', key: 'ip', width: 140 },
+  { title: 'CDN', key: 'cdn', width: 140 },
   { title: '开放端口', key: 'port_info' },
   { title: '地理位置', key: 'geo', width: 140 },
   { title: 'AS机构', key: 'asn' }
