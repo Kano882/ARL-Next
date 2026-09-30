@@ -125,10 +125,14 @@ def get_cve_config():
     db = utils.conn_db("system_config")
     conf = db.find_one({"_id": "cve_radar_config"})
     if not conf:
-        conf = {"enabled": False, "interval": 6}
+        conf = {"enabled": False, "interval": 6, "is_running": False}
         db.insert_one({"_id": "cve_radar_config", **conf})
     
-    return utils.build_ret(ErrorMsg.Success, {"enabled": conf.get("enabled", False), "interval": conf.get("interval", 6)})
+    return utils.build_ret(ErrorMsg.Success, {
+        "enabled": conf.get("enabled", False),
+        "interval": conf.get("interval", 6),
+        "is_running": conf.get("is_running", False)
+    })
 
 @github_threat_bp.route('/cve_config', methods=['POST'])
 def set_cve_config():
@@ -143,23 +147,30 @@ def set_cve_config():
 
 @github_threat_bp.route('/cve_run_once', methods=['POST'])
 def run_cve_once():
-    from app.tasks.github_threat_monitor import GithubCveMonitorTask
+    from app.tasks.github_threat_monitor import dispatch_threat_task
     try:
-        GithubCveMonitorTask().run()
+        success, msg = dispatch_threat_task("cve", force=True)
+        if success:
+            return utils.build_ret(ErrorMsg.Success, {"msg": msg, "is_running": True})
+        else:
+            return utils.build_ret(ErrorMsg.Error, {"msg": msg, "is_running": False})
     except Exception as e:
-        utils.get_logger().error(f"Manual CVE run error: {e}")
-        return utils.build_ret(ErrorMsg.Error, {"msg": f"扫描失败: {str(e)}"})
-    return utils.build_ret(ErrorMsg.Success, {"msg": "扫描完成！"})
+        utils.get_logger().error(f"Manual CVE dispatch error: {e}")
+        return utils.build_ret(ErrorMsg.Error, {"msg": f"下发失败: {str(e)}"})
 
 @github_threat_bp.route('/tools_config', methods=['GET'])
 def get_tools_config():
     db = utils.conn_db("system_config")
     conf = db.find_one({"_id": "tools_radar_config"})
     if not conf:
-        conf = {"enabled": False, "interval": 6}
+        conf = {"enabled": False, "interval": 6, "is_running": False}
         db.insert_one({"_id": "tools_radar_config", **conf})
     
-    return utils.build_ret(ErrorMsg.Success, {"enabled": conf.get("enabled", False), "interval": conf.get("interval", 6)})
+    return utils.build_ret(ErrorMsg.Success, {
+        "enabled": conf.get("enabled", False),
+        "interval": conf.get("interval", 6),
+        "is_running": conf.get("is_running", False)
+    })
 
 @github_threat_bp.route('/tools_config', methods=['POST'])
 def set_tools_config():
@@ -174,23 +185,30 @@ def set_tools_config():
 
 @github_threat_bp.route('/tools_run_once', methods=['POST'])
 def run_tools_once():
-    from app.tasks.github_threat_monitor import GithubToolsMonitorTask
+    from app.tasks.github_threat_monitor import dispatch_threat_task
     try:
-        GithubToolsMonitorTask().run()
+        success, msg = dispatch_threat_task("tools", force=True)
+        if success:
+            return utils.build_ret(ErrorMsg.Success, {"msg": msg, "is_running": True})
+        else:
+            return utils.build_ret(ErrorMsg.Error, {"msg": msg, "is_running": False})
     except Exception as e:
-        utils.get_logger().error(f"Manual Tools run error: {e}")
-        return utils.build_ret(ErrorMsg.Error, {"msg": f"扫描失败: {str(e)}"})
-    return utils.build_ret(ErrorMsg.Success, {"msg": "扫描完成！"})
+        utils.get_logger().error(f"Manual Tools dispatch error: {e}")
+        return utils.build_ret(ErrorMsg.Error, {"msg": f"下发失败: {str(e)}"})
 
 @github_threat_bp.route('/hackers_config', methods=['GET'])
 def get_hackers_config():
     db = utils.conn_db("system_config")
     conf = db.find_one({"_id": "hackers_radar_config"})
     if not conf:
-        conf = {"enabled": False, "interval": 6}
+        conf = {"enabled": False, "interval": 6, "is_running": False}
         db.insert_one({"_id": "hackers_radar_config", **conf})
     
-    return utils.build_ret(ErrorMsg.Success, {"enabled": conf.get("enabled", False), "interval": conf.get("interval", 6)})
+    return utils.build_ret(ErrorMsg.Success, {
+        "enabled": conf.get("enabled", False),
+        "interval": conf.get("interval", 6),
+        "is_running": conf.get("is_running", False)
+    })
 
 @github_threat_bp.route('/hackers_config', methods=['POST'])
 def set_hackers_config():
@@ -205,13 +223,16 @@ def set_hackers_config():
 
 @github_threat_bp.route('/hackers_run_once', methods=['POST'])
 def run_hackers_once():
-    from app.tasks.github_threat_monitor import GithubHackersMonitorTask
+    from app.tasks.github_threat_monitor import dispatch_threat_task
     try:
-        GithubHackersMonitorTask().run()
+        success, msg = dispatch_threat_task("hackers", force=True)
+        if success:
+            return utils.build_ret(ErrorMsg.Success, {"msg": msg, "is_running": True})
+        else:
+            return utils.build_ret(ErrorMsg.Error, {"msg": msg, "is_running": False})
     except Exception as e:
-        utils.get_logger().error(f"Manual Hackers run error: {e}")
-        return utils.build_ret(ErrorMsg.Error, {"msg": f"扫描失败: {str(e)}"})
-    return utils.build_ret(ErrorMsg.Success, {"msg": "扫描完成！"})
+        utils.get_logger().error(f"Manual Hackers dispatch error: {e}")
+        return utils.build_ret(ErrorMsg.Error, {"msg": f"下发失败: {str(e)}"})
 
 
 @github_threat_bp.route('/token_status', methods=['GET'])

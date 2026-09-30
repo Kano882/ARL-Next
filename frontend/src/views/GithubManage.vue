@@ -44,7 +44,8 @@
                 <a-select-option :value="24">每 24 小时</a-select-option>
               </a-select>
             </div>
-            <a-button type="primary" ghost @click="runCveOnce" :loading="cveRunLoading">立刻扫描一次</a-button>
+            <a-button type="primary" ghost @click="runCveOnce" :loading="cveRunLoading || cveConfig.is_running">立刻扫描一次</a-button>
+            <a-tag v-if="cveConfig.is_running" color="processing">正在后台扫描</a-tag>
           </div>
           <a-button type="dashed" @click="fetchCveData">
             <template #icon><sync-outlined /></template> 刷新数据
@@ -101,7 +102,8 @@
         <div style="margin-bottom: 20px; display: flex; justify-content: space-between;">
           <div style="display: flex; gap: 16px; align-items: center;">
             <a-button type="primary" @click="openToolAdd">添加工具监控</a-button>
-            <a-button type="primary" ghost @click="runToolsOnce">立刻扫描一次</a-button>
+            <a-button type="primary" ghost @click="runToolsOnce" :loading="toolsRunLoading || toolsConfig.is_running">立刻扫描一次</a-button>
+            <a-tag v-if="toolsConfig.is_running" color="processing">正在后台扫描</a-tag>
             
             <div style="display: flex; align-items: center; gap: 8px; background: var(--arl-bg-light); padding: 4px 12px; border-radius: 4px; border: 1px solid var(--arl-border-color);">
               <span>开启监控:</span>
@@ -174,7 +176,8 @@
         <div style="margin-bottom: 20px; display: flex; justify-content: space-between;">
           <div style="display: flex; gap: 16px; align-items: center;">
             <a-button type="primary" @click="openHackerAdd">添加大佬监控</a-button>
-            <a-button type="primary" ghost @click="runHackersOnce">立刻扫描一次</a-button>
+            <a-button type="primary" ghost @click="runHackersOnce" :loading="hackersRunLoading || hackersConfig.is_running">立刻扫描一次</a-button>
+            <a-tag v-if="hackersConfig.is_running" color="processing">正在后台扫描</a-tag>
             
             <div style="display: flex; align-items: center; gap: 8px; background: var(--arl-bg-light); padding: 4px 12px; border-radius: 4px; border: 1px solid var(--arl-border-color);">
               <span>开启监控:</span>
@@ -1194,7 +1197,7 @@ const fetchCveData = async () => {
   }
 };
 
-const cveConfig = reactive({ enabled: false, interval: 6 });
+const cveConfig = reactive({ enabled: false, interval: 6, is_running: false });
 const cveRunLoading = ref(false);
 
 const fetchCveConfig = async () => {
@@ -1203,6 +1206,7 @@ const fetchCveConfig = async () => {
     if (res.code === 200) {
       cveConfig.enabled = res.data.enabled;
       cveConfig.interval = res.data.interval;
+      cveConfig.is_running = !!res.data.is_running;
     }
   } catch (error) {
     console.error(error);
@@ -1224,23 +1228,17 @@ const saveCveConfig = async () => {
 
 const runCveOnce = async () => {
   cveRunLoading.value = true;
-  const hide = message.loading('任务已提交，后台正在扫描中...', 0);
   try {
-    const start = Date.now();
     const res = await request.post('/github_threat/cve_run_once');
-    const elapsed = Date.now() - start;
-    if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
-    
     if (res.code === 200) {
-      hide();
-      Modal.success({ title: '扫描结束', content: res.data?.msg || '扫描逻辑已全部执行完毕！数据已同步刷新。' });
-      fetchCveData(); // 自动刷新列表
+      message.success(res.data?.msg || 'CVE 监控任务已成功提交至后台队列！');
+      cveConfig.is_running = true;
+      fetchCveConfig();
+      fetchCveData();
     } else {
-      hide();
-      message.error(res.message || '运行失败');
+      message.warning(res.data?.msg || res.message || '运行受阻');
     }
   } catch (error) {
-    hide();
     message.error('请求失败');
   } finally {
     cveRunLoading.value = false;
@@ -1260,8 +1258,10 @@ const fetchTokenStatus = async () => {
   }
 };
 
-const toolsConfig = reactive({ enabled: false, interval: 6 });
-const hackersConfig = reactive({ enabled: false, interval: 6 });
+const toolsConfig = reactive({ enabled: false, interval: 6, is_running: false });
+const toolsRunLoading = ref(false);
+const hackersConfig = reactive({ enabled: false, interval: 6, is_running: false });
+const hackersRunLoading = ref(false);
 
 const fetchToolsConfig = async () => {
   try {
@@ -1269,6 +1269,7 @@ const fetchToolsConfig = async () => {
     if (res.code === 200) {
       toolsConfig.enabled = res.data.enabled;
       toolsConfig.interval = res.data.interval;
+      toolsConfig.is_running = !!res.data.is_running;
     }
   } catch (error) {
     console.error(error);
@@ -1289,24 +1290,21 @@ const saveToolsConfig = async () => {
 };
 
 const runToolsOnce = async () => {
-  const hide = message.loading('任务已提交，后台正在扫描中...', 0);
+  toolsRunLoading.value = true;
   try {
-    const start = Date.now();
     const res = await request.post('/github_threat/tools_run_once');
-    const elapsed = Date.now() - start;
-    if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
-
     if (res.code === 200) {
-      hide();
-      Modal.success({ title: '扫描结束', content: res.data?.msg || '扫描逻辑已全部执行完毕！数据已同步刷新。' });
-      fetchToolsData(); // 自动刷新列表
+      message.success(res.data?.msg || '安全工具监控任务已成功提交至后台队列！');
+      toolsConfig.is_running = true;
+      fetchToolsConfig();
+      fetchToolsData();
     } else {
-      hide();
-      message.error(res.message || '运行失败');
+      message.warning(res.data?.msg || res.message || '运行受阻');
     }
   } catch (error) {
-    hide();
     message.error('请求失败');
+  } finally {
+    toolsRunLoading.value = false;
   }
 };
 
@@ -1316,6 +1314,7 @@ const fetchHackersConfig = async () => {
     if (res.code === 200) {
       hackersConfig.enabled = res.data.enabled;
       hackersConfig.interval = res.data.interval;
+      hackersConfig.is_running = !!res.data.is_running;
     }
   } catch (error) {
     console.error(error);
@@ -1336,24 +1335,21 @@ const saveHackersConfig = async () => {
 };
 
 const runHackersOnce = async () => {
-  const hide = message.loading('任务已提交，后台正在扫描中...', 0);
+  hackersRunLoading.value = true;
   try {
-    const start = Date.now();
     const res = await request.post('/github_threat/hackers_run_once');
-    const elapsed = Date.now() - start;
-    if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
-
     if (res.code === 200) {
-      hide();
-      Modal.success({ title: '扫描结束', content: res.data?.msg || '扫描逻辑已全部执行完毕！数据已同步刷新。' });
-      fetchHackersData(); // 自动刷新列表
+      message.success(res.data?.msg || '黑客动态监控任务已成功提交至后台队列！');
+      hackersConfig.is_running = true;
+      fetchHackersConfig();
+      fetchHackersData();
     } else {
-      hide();
-      message.error(res.message || '运行失败');
+      message.warning(res.data?.msg || res.message || '运行受阻');
     }
   } catch (error) {
-    hide();
     message.error('请求失败');
+  } finally {
+    hackersRunLoading.value = false;
   }
 };
 

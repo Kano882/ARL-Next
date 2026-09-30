@@ -291,6 +291,9 @@ class CeleryAction:
     ASSET_WIH_UPDATE = "asset_wih_update"       # 暗号：执行资产WIH更新
     ONESHOT_DOMAIN_EXEC_TASK = "oneshot_domain_exec_task" # 暗号：一次性监控同步任务 (域名)
     ONESHOT_IP_EXEC_TASK = "oneshot_ip_exec_task" # 暗号：一次性监控同步任务 (IP)
+    GITHUB_THREAT_CVE = "github_threat_cve"         # 暗号：跑GitHub CVE威胁情报雷达
+    GITHUB_THREAT_TOOLS = "github_threat_tools"     # 暗号：跑GitHub安全工具更新雷达
+    GITHUB_THREAT_HACKERS = "github_threat_hackers" # 暗号：跑GitHub黑客大牛动态雷达
 
 
 error_map = {

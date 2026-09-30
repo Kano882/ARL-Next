@@ -1009,6 +1009,29 @@ def migrate_asset_group_sort_order():
         logging.getLogger().error(f"migrate_asset_group_sort_order failed: {e}")
 
 
+def normalize_threat_radar_configs():
+    """
+    🛡️【威胁情报雷达配置平滑兼容与初始化】
+    确保 cve_radar_config、tools_radar_config、hackers_radar_config
+    存在默认字段，平滑重置服务重启时未清理的残留 is_running 标记。
+    """
+    try:
+        db = conn_db('system_config')
+        radar_ids = ["cve_radar_config", "tools_radar_config", "hackers_radar_config"]
+        for rid in radar_ids:
+            db.update_one(
+                {"_id": rid},
+                {
+                    "$setOnInsert": {"enabled": False, "interval": 6, "last_run_time": 0},
+                    "$set": {"is_running": False}
+                },
+                upsert=True
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger().error(f"normalize_threat_radar_configs failed: {e}")
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -1077,6 +1100,7 @@ def arl_update():
         _run_step("heal_polluted_site_fingers", heal_polluted_site_fingers)
         _run_step("backfill_icp_task_synced_scopes", backfill_icp_task_synced_scopes)
         _run_step("migrate_asset_group_sort_order", migrate_asset_group_sort_order)
+        _run_step("normalize_threat_radar_configs", normalize_threat_radar_configs)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:
         import logging

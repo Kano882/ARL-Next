@@ -22,7 +22,15 @@ celery.conf.update(
 )
 platforms.C_FORCE_ROOT = True
 
-from celery.signals import task_prerun, task_postrun, worker_process_init
+from celery.signals import task_prerun, task_postrun, worker_process_init, task_failure
+try:
+    from celery.exceptions import WorkerLostError
+except ImportError:
+    try:
+        from billiard.exceptions import WorkerLostError
+    except ImportError:
+        WorkerLostError = None
+
 from app.utils import arl_task_id_var, MongoSyslogHandler
 import threading
 _token_local = threading.local()
@@ -68,6 +76,134 @@ def teardown_task_context(**kw):
         except ValueError:
             pass
         _token_local.token = None
+
+@task_failure.connect
+def handle_task_failure(sender=None, task_id=None, exception=None, args=None, kwargs=None, traceback=None, einfo=None, **kw):
+    """
+    捕获 Celery Worker 执行失败，特别针对 Linux 内核 OOM Killer (SIGKILL / Signal 9 / WorkerLostError)
+    实现秒级熔断收敛，在 MongoDB 任务记录与对应 task_id 的 syslog 中抛出完整诊断卡片，
+    防止 RabbitMQ 重复投递导致无限 OOM 崩溃循环，让后续排队任务正常拉起。
+    """
+    try:
+        exc_str = str(exception)
+        is_worker_lost = False
+        if WorkerLostError and isinstance(exception, WorkerLostError):
+            is_worker_lost = True
+        elif "signal 9" in exc_str or "SIGKILL" in exc_str or "exitcode 137" in exc_str or "WorkerLostError" in exc_str:
+            is_worker_lost = True
+
+        # 提取业务任务编号 (business_task_id)
+        options = None
+        if args and len(args) > 0:
+            options = args[0]
+        elif kwargs and 'options' in kwargs:
+            options = kwargs.get('options')
+
+        business_task_id = None
+        if isinstance(options, dict):
+            if "data" in options and isinstance(options["data"], dict):
+                business_task_id = options["data"].get("task_id") or options["data"].get("scheduler_id") or options["data"].get("_id")
+            elif "task_id" in options:
+                business_task_id = options.get("task_id")
+            elif "scheduler_id" in options:
+                business_task_id = options.get("scheduler_id")
+            elif "_id" in options:
+                business_task_id = options.get("_id")
+
+        target_collection = 'task'
+        task_data = None
+        if business_task_id and business_task_id != "global":
+            try:
+                b_task_id_str = str(business_task_id)
+                if ObjectId.is_valid(b_task_id_str):
+                    task_data = utils.conn_db('task').find_one({"_id": ObjectId(b_task_id_str)})
+                    if not task_data:
+                        task_data = utils.conn_db('github_task').find_one({"_id": ObjectId(b_task_id_str)})
+                        if task_data:
+                            target_collection = 'github_task'
+            except Exception:
+                pass
+
+        if not task_data and task_id:
+            task_data = utils.conn_db('task').find_one({"celery_id": str(task_id)})
+            if not task_data:
+                task_data = utils.conn_db('github_task').find_one({"celery_id": str(task_id)})
+                if task_data:
+                    target_collection = 'github_task'
+
+        if not task_data:
+            logger.warning(f"Task failure handler: could not locate task for celery_id={task_id}, exc={exc_str}")
+            return
+
+        db_id = task_data["_id"]
+        current_status = task_data.get("status", "")
+        # 如果任务已经被标记为结束或手动停止，不重复覆盖
+        if current_status in [TaskStatus.DONE, TaskStatus.STOP]:
+            return
+
+        curr_d = utils.curr_date()
+        if is_worker_lost:
+            last_phase = current_status or "未知阶段"
+            log_msg = (
+                f"【🚨 CRITICAL 异常抛出】【OOM-KILLER】检测到 Worker 扫描子进程异常终止 (WorkerLostError: signal 9 SIGKILL)！\n"
+                f"• 根因推断: Linux 内核物理内存耗尽 (OOM Killer) 强行杀死扫描子进程 (或宿主机外部强制 SIGKILL)\n"
+                f"• 中断阶段: 任务在【{last_phase}】阶段失联\n"
+                f"• 原始异常: {exc_str}\n"
+                f"• 排查指引: \n"
+                f"   1. 登录宿主机执行: dmesg -T | grep -i oom 确认内核 OOM 强杀记录\n"
+                f"   2. 检查宿主机内存与 Swap 分区（建议配置 2GB~4GB Swap 规避突发峰值）\n"
+                f"   3. 避免在较小内存机器上配置超大域名/目录爆破字典或超高扫描并发\n"
+                f"• 熔断保护: 当前任务已标记为 ERROR 终止态，Worker 槽位已释放，排队任务正常继续执行"
+            )
+            logger.critical(f"Task {db_id} terminated prematurely by OOM/SIGKILL in phase [{last_phase}]")
+            end_reason = "系统内存耗尽 (OOM Killer 强杀)"
+        else:
+            log_msg = f"【❌ 任务执行异常】Celery Worker 报告未捕获错误: {exc_str}"
+            logger.error(f"Task {db_id} failed with error: {exc_str}")
+            end_reason = f"任务执行异常: {exc_str[:100]}"
+
+        # 写入该任务的专属 syslog 日志集合 (整型时间戳统一模型)
+        try:
+            utils.conn_db('syslog').insert_one({
+                "task_id": str(db_id),
+                "message": log_msg,
+                "level": "CRITICAL" if is_worker_lost else "ERROR",
+                "time": curr_d,
+                "timestamp": int(time.time())
+            })
+        except Exception as log_err:
+            logger.error(f"Failed to insert failure syslog for task {db_id}: {log_err}")
+
+        # 数据库原子级更新为 ERROR，同时防范与用户在 Web 端手动点击 STOP 的时序竞态
+        try:
+            update_ret = utils.conn_db(target_collection).update_one(
+                {"_id": db_id, "status": {"$nin": [TaskStatus.DONE, TaskStatus.STOP]}},
+                {"$set": {
+                    "status": TaskStatus.ERROR,
+                    "end_reason": end_reason,
+                    "error_msg": exc_str,
+                    "end_time": curr_d
+                }}
+            )
+            if update_ret.matched_count == 0:
+                logger.info(f"Task {db_id} was already finalized or stopped, skipping failure overwrite.")
+        except Exception as db_err:
+            logger.error(f"Failed to update task {db_id} status on failure: {db_err}")
+
+        # 异步线程清理临时文件，规避 Celery 主进程同步 I/O 阻塞导致 RabbitMQ 心跳超时
+        try:
+            threading.Thread(
+                target=utils.clean_task_tmp_files,
+                args=(str(db_id),),
+                daemon=True,
+                name=f"CleanTmpFiles-{db_id}"
+            ).start()
+        except Exception as clean_err:
+            logger.warning(f"Failed to spawn clean_task_tmp_files thread for task {db_id}: {clean_err}")
+
+    except Exception as e:
+        logger.exception(f"Unexpected error in handle_task_failure: {e}")
+
 
 @celery.task(queue=CeleryRoutingKey.ASSET_TASK)
 def arl_task(options):
@@ -117,6 +253,9 @@ def run_task(options):
         CeleryAction.ASSET_WIH_UPDATE: asset_wih_update_task,
         CeleryAction.ONESHOT_DOMAIN_EXEC_TASK: oneshot_domain_exec,
         CeleryAction.ONESHOT_IP_EXEC_TASK: oneshot_ip_exec,
+        CeleryAction.GITHUB_THREAT_CVE: github_threat_cve_task,
+        CeleryAction.GITHUB_THREAT_TOOLS: github_threat_tools_task,
+        CeleryAction.GITHUB_THREAT_HACKERS: github_threat_hackers_task,
     }
     start_time = time.time()
     # 这里监控任务 task_id 和 target 是空的
@@ -314,3 +453,18 @@ def asset_wih_update_task(options):
 def asset_site_add_task(options):
     task_id = options["task_id"]
     wrap_tasks.run_add_asset_site_task(task_id)
+
+
+def github_threat_cve_task(options):
+    from app.tasks.github_threat_monitor import run_threat_task_worker
+    run_threat_task_worker("cve")
+
+
+def github_threat_tools_task(options):
+    from app.tasks.github_threat_monitor import run_threat_task_worker
+    run_threat_task_worker("tools")
+
+
+def github_threat_hackers_task(options):
+    from app.tasks.github_threat_monitor import run_threat_task_worker
+    run_threat_task_worker("hackers")

@@ -538,6 +538,7 @@ def cleanup_orphan_tmp_files(max_age_seconds=604800):
 
 def run_forever():
     from app.utils.github_task import github_task_scheduler
+    from app.tasks.github_threat_monitor import threat_intelligence_scheduler
     logger.info("start scheduler server ")
     
     # 启动时先清理僵尸任务并恢复
@@ -549,8 +550,7 @@ def run_forever():
     last_zombie_clean = time.time()
 
     while True:
-        # Threat Intelligence (CVE/Tools/Hackers) 独立任务调度
-        from app.tasks.github_threat_monitor import threat_intelligence_scheduler
+        # Threat Intelligence (CVE/Tools/Hackers) 异步解耦任务调度
         threat_intelligence_scheduler()
 
         # 资产监控任务调度
