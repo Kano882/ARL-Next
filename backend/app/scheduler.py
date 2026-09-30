@@ -457,6 +457,22 @@ def cleanup_zombie_tasks(window_seconds=1800):
             }}
         )
 
+        try:
+            syslog_col = conn('syslog')
+            if hasattr(syslog_col, 'insert_one'):
+                syslog_col.insert_one({
+                    "task_id": task_id,
+                    "message": (
+                        f"【⚠️ 异常收敛】任务因失联且在安全时间窗内无活跃心跳（最后记录阶段: {task.get('status')}），"
+                        f"由系统看门狗自动收敛为 ERROR 终止态（通常因宿主机 OOM Killer 强杀、Worker 进程崩溃或节点异常重启导致）。"
+                    ),
+                    "level": "ERROR",
+                    "time": curr_date,
+                    "timestamp": int(time.time())
+                })
+        except Exception as log_ex:
+            logger.warning(f"Failed to write zombie convergence syslog for task {task_id}: {log_ex}")
+
         if is_monitor:
             options = task.get("options", {})
             scheduler_id = options.get("scheduler_id")
