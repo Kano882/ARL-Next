@@ -598,14 +598,54 @@ class IcpTaskBatchDelete(ARLResource):
             args = flask_request.json or {}
             task_ids = args.get('task_ids', [])
             if not isinstance(task_ids, list):
-                return build_ret(ErrorMsg.Error, {"error": "task_ids must be a list"})
+                return build_ret(
+                    {"code": 400, "message": "task_ids must be a list"},
+                    {"error": "task_ids must be a list"}
+                )
 
-            import bson
+            if not task_ids:
+                return build_ret(ErrorMsg.Success, {"msg": "成功删除 0 个任务"})
+
+            obj_ids = []
             for tid in task_ids:
-                conn_db('icp_task').delete_one({"_id": bson.ObjectId(tid)})
-                conn_db('icp_asset').delete_many({"task_id": tid})
+                try:
+                    obj_ids.append(bson.ObjectId(tid))
+                except Exception as err:
+                    logger.warning(f"Invalid task_id format {tid}: {err}")
 
-            return build_ret(ErrorMsg.Success, {"msg": f"成功删除 {len(task_ids)} 个任务"})
+            # 严格前置拦截：只要待删除列表中包含任何 running / waiting 任务，立即整体拒绝本次删除操作
+            active_tasks = list(conn_db('icp_task').find(
+                {"_id": {"$in": obj_ids}, "status": {"$in": [TaskStatus.RUNNING, TaskStatus.WAITING]}},
+                {"_id": 1, "status": 1}
+            ))
+            if active_tasks:
+                return build_ret(
+                    {"code": 400, "message": "所选任务中存在正在运行或排队中的任务，请先停止后再删除"},
+                    {"active_count": len(active_tasks)}
+                )
+
+            success_count = 0
+            for tid in task_ids:
+                try:
+                    obj_id = bson.ObjectId(tid)
+                    # 原子性状态条件删除，规避并发竞态
+                    del_res = conn_db('icp_task').delete_one({
+                        "_id": obj_id,
+                        "status": {"$nin": [TaskStatus.RUNNING, TaskStatus.WAITING]}
+                    })
+                    del_count = getattr(del_res, 'deleted_count', 0) if del_res else 0
+                    if del_count > 0:
+                        conn_db('icp_asset').delete_many({"task_id": str(tid)})
+                        # 级联解绑资产组悬空指针，杜绝幽灵绑定
+                        conn_db('asset_scope').update_many(
+                            {"synced_icp_task_id": str(tid)},
+                            {"$unset": {"synced_icp_task_id": ""}}
+                        )
+                        success_count += 1
+                except Exception as item_err:
+                    logger.error(f"Failed to cascade delete icp_task {tid}: {item_err}")
+
+            return build_ret(ErrorMsg.Success, {"msg": f"成功删除 {success_count} 个任务", "deleted_count": success_count})
         except Exception as e:
             return build_ret(ErrorMsg.Error, {"error": str(e)})
 
@@ -615,11 +655,39 @@ class IcpTaskDelete(ARLResource):
     def get(self, task_id):
         """删除 ICP 任务 (单任务)"""
         try:
-            # 删任务和资产
-            query = {"_id": bson.ObjectId(task_id)}
-            conn_db('icp_task').delete_one(query)
-            conn_db('icp_asset').delete_many({"task_id": task_id})
-            return build_ret(ErrorMsg.Success, {"task_id": task_id})
+            try:
+                obj_id = bson.ObjectId(task_id)
+            except Exception:
+                return build_ret(
+                    {"code": 400, "message": "无效的任务 ID 格式"},
+                    {"task_id": task_id}
+                )
+
+            task = conn_db('icp_task').find_one({"_id": obj_id})
+            if not task:
+                return build_ret(ErrorMsg.NotFoundTask, {"task_id": task_id})
+
+            # 严格前置拦截：禁止直接删除运行中或排队中的任务
+            if task.get("status") in [TaskStatus.RUNNING, TaskStatus.WAITING]:
+                return build_ret(
+                    {"code": 400, "message": "无法删除正在运行或排队中的任务，请先手动停止后再行删除"},
+                    {"task_id": task_id}
+                )
+
+            # 原子性状态条件删除
+            del_res = conn_db('icp_task').delete_one({
+                "_id": obj_id,
+                "status": {"$nin": [TaskStatus.RUNNING, TaskStatus.WAITING]}
+            })
+            del_count = getattr(del_res, 'deleted_count', 0) if del_res else 0
+            if del_count > 0:
+                conn_db('icp_asset').delete_many({"task_id": str(task_id)})
+                conn_db('asset_scope').update_many(
+                    {"synced_icp_task_id": str(task_id)},
+                    {"$unset": {"synced_icp_task_id": ""}}
+                )
+
+            return build_ret(ErrorMsg.Success, {"task_id": task_id, "deleted_count": del_count})
         except Exception as e:
             return build_ret(ErrorMsg.Error, {"error": str(e)})
 

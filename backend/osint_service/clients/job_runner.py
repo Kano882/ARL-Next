@@ -448,17 +448,26 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
                 else:
                     await insert_syslog("info", "工信部查重", f"主体【{company_name}】工信部 {label} 查重完成：官方暂无收录该主体资产")
             elif res.get("code") != 200:
-                msg = res.get("message") or res.get("msg") or f"状态码 {res.get('code')}"
+                msg = str(res.get("message") or res.get("msg") or f"状态码 {res.get('code')}")
                 if "创宇盾" in msg or "黑客" in msg:
-                    await insert_syslog("warning", "工信部查重", f"主体【{company_name}】查询 {label} 触发创宇盾风控，跳过该项")
+                    await insert_syslog("warning", "工信部查重", f"主体【{company_name}】查询 {label} 触发创宇盾风控，跳过该主体后续工信部接口查询")
+                    break
                 elif "无数据" in msg or "为空" in msg:
                     await insert_syslog("info", "工信部查重", f"主体【{company_name}】工信部 {label} 查重完成：官方暂无收录该主体资产")
+                elif any(kw in msg for kw in ["验证码", "频率", "拦截", "风控", "禁止访问", "403"]):
+                    await insert_syslog("warning", "工信部查重", f"主体【{company_name}】查询 {label} 触发工信部接口限制 ({msg})，跳过该主体后续工信部接口查询")
+                    break
                 else:
                     logger.warning(f"ICP enrichment query for {company_name} {qt} returned: {msg}")
                     await insert_syslog("warning", "工信部查重", f"主体【{company_name}】工信部 {label} 查询响应: {msg}")
         except Exception as err:
+            err_msg = str(err)
             logger.warning(f"ICP enrichment exception for {company_name} {qt}: {err}")
-            await insert_syslog("warning", "工信部查重", f"主体【{company_name}】工信部 {label} 查询异常 ({err})，已平滑降级跳过")
+            if any(kw in err_msg for kw in ["创宇盾", "黑客", "403", "ClientConnectorError", "TimeoutError"]):
+                await insert_syslog("warning", "工信部查重", f"主体【{company_name}】工信部 {label} 网络/风控异常 ({err_msg})，跳过该主体后续工信部接口查询")
+                break
+            else:
+                await insert_syslog("warning", "工信部查重", f"主体【{company_name}】工信部 {label} 查询异常 ({err_msg})，已平滑降级跳过")
 
 
 async def run_tyc_job(options):

@@ -435,9 +435,15 @@
             title="确定要批量删除选中的企业任务吗？"
             ok-text="确定"
             cancel-text="取消"
+            :disabled="enterpriseBatchDeleting"
             @confirm="handleBatchDeleteEnterprise"
           >
-            <a-button size="small" danger>
+            <a-button
+              size="small"
+              danger
+              :loading="enterpriseBatchDeleting"
+              :disabled="enterpriseBatchDeleting"
+            >
               <template #icon><delete-outlined /></template>
               批量删除
             </a-button>
@@ -621,7 +627,13 @@
                         <sync-outlined /> 重启任务
                       </a-menu-item>
                       <a-menu-divider />
-                      <a-menu-item key="delete" danger @click="handleDeleteEnterprise(record)">
+                      <a-menu-item
+                        key="delete"
+                        danger
+                        :disabled="!['done', 'stop', 'error'].includes(record.status)"
+                        :title="!['done', 'stop', 'error'].includes(record.status) ? '无法删除正在运行或排队中的任务，请先停止任务' : undefined"
+                        @click="handleDeleteEnterprise(record)"
+                      >
                         <delete-outlined /> 删除任务
                       </a-menu-item>
                     </a-menu>
@@ -1298,6 +1310,8 @@ const reconSearchForm = reactive({
 
 const enterpriseTaskList = ref([]);
 const enterpriseLoading = ref(false);
+const enterpriseBatchDeleting = ref(false);
+const enterpriseTaskCache = new Map();
 const enterprisePagination = reactive({ current: 1, pageSize: 10, total: 0 });
 const enterpriseSelectedRowKeys = ref([]);
 const onEnterpriseSelectChange = (keys) => {
@@ -1319,6 +1333,11 @@ const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false) => {
     const res = await request.get('/icp/task', { params: queryParams });
     if (res.code === 200) {
       enterpriseTaskList.value = res.items || [];
+      (res.items || []).forEach(item => {
+        if (item && item._id) {
+          enterpriseTaskCache.set(item._id, item);
+        }
+      });
       enterprisePagination.total = res.total || 0;
       enterprisePagination.current = page;
       enterprisePagination.pageSize = size;
@@ -1536,20 +1555,39 @@ const handleBatchExportEnterprise = async () => {
 };
 
 const handleBatchDeleteEnterprise = async () => {
-  if (!enterpriseSelectedRowKeys.value.length) return;
+  if (!enterpriseSelectedRowKeys.value.length || enterpriseBatchDeleting.value) return;
+
+  // 严格前置白名单校验：从缓存及当前页记录中解析状态，非终态任务坚决拦截
+  const activeSelected = enterpriseSelectedRowKeys.value.filter(id => {
+    const item = enterpriseTaskCache.get(id) || enterpriseTaskList.value.find(t => t._id === id);
+    return item && !['done', 'stop', 'error'].includes(item.status);
+  });
+  if (activeSelected.length > 0) {
+    message.warning('所选任务中存在正在运行或未完成的任务，请先停止后再删除');
+    return;
+  }
+
+  enterpriseBatchDeleting.value = true;
   try {
     message.loading({ content: '正在批量删除...', key: 'batchDelete', duration: 0 });
     const res = await request.post('/icp/delete/', { task_ids: enterpriseSelectedRowKeys.value });
     if (res.code === 200) {
       message.success({ content: '批量删除成功', key: 'batchDelete', duration: 2 });
+      enterpriseSelectedRowKeys.value.forEach(id => enterpriseTaskCache.delete(id));
+      const deletedCount = res.deleted_count || enterpriseSelectedRowKeys.value.length;
       enterpriseSelectedRowKeys.value = [];
-      fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+      const remainingCount = Math.max(0, enterprisePagination.total - deletedCount);
+      const maxPage = Math.max(1, Math.ceil(remainingCount / enterprisePagination.pageSize));
+      const targetPage = Math.min(enterprisePagination.current, maxPage);
+      fetchEnterpriseTasks(targetPage, enterprisePagination.pageSize);
       fetchEnterpriseMetricCounts();
     } else {
-      message.error({ content: res.message || '批量删除失败', key: 'batchDelete', duration: 2 });
+      message.error({ content: res.message || '批量删除失败', key: 'batchDelete', duration: 3 });
     }
   } catch (error) {
-    message.error({ content: '批量删除失败', key: 'batchDelete', duration: 2 });
+    message.error({ content: '网络异常，批量删除失败', key: 'batchDelete', duration: 2 });
+  } finally {
+    enterpriseBatchDeleting.value = false;
   }
 };
 
@@ -1602,6 +1640,11 @@ const handleRestartEnterprise = async (record) => {
 };
 
 const handleDeleteEnterprise = async (record) => {
+  if (!['done', 'stop', 'error'].includes(record.status)) {
+    message.warning('无法删除正在运行或排队中的任务，请先停止任务后再行删除');
+    return;
+  }
+
   Modal.confirm({
     title: '删除确认',
     icon: createVNode(ExclamationCircleOutlined),
@@ -1614,12 +1657,18 @@ const handleDeleteEnterprise = async (record) => {
         const res = await request.post('/icp/delete/', { task_ids: [record._id] });
         if (res.code === 200) {
           message.success('删除成功');
-          fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
+          enterpriseTaskCache.delete(record._id);
+          enterpriseSelectedRowKeys.value = enterpriseSelectedRowKeys.value.filter(id => id !== record._id);
+          const remainingCount = Math.max(0, enterprisePagination.total - 1);
+          const maxPage = Math.max(1, Math.ceil(remainingCount / enterprisePagination.pageSize));
+          const targetPage = Math.min(enterprisePagination.current, maxPage);
+          fetchEnterpriseTasks(targetPage, enterprisePagination.pageSize);
           fetchEnterpriseMetricCounts();
         } else {
           message.error(res.message || '删除失败');
         }
       } catch (error) {
+        message.error('网络异常，删除失败');
         console.error('删除任务失败', error);
       }
     }

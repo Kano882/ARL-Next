@@ -23,7 +23,7 @@ from contextlib import asynccontextmanager
 import threading
 from load_config import config
 from cachetools import TTLCache
-ssl._create_default_https_context = ssl._create_unverified_context()
+
 
 
 def is_public_ipv6(ipv6):

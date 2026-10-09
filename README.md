@@ -1,5 +1,10 @@
 <div align="center">
 
+  <p>
+    <a href="./README_en.md"><b>English</b></a> |
+    <b>简体中文</b>
+  </p>
+
   # ARL-Next
   **现代化资产测绘与漏洞监控平台**
 

@@ -1,3 +1,10 @@
+<div align="center">
+  <p>
+    <a href="./README_en.md"><b>English</b></a> |
+    <b>简体中文</b>
+  </p>
+</div>
+
 # ARL-Next MCP Server (v2.0 极速低耗版)
 
 > **极速响应 · 极致低 Token · 全客户端免装依赖通杀**<br>

@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_restx import Api
-
+import os
 from app import routes
 from app.utils import arl_update
 
@@ -79,4 +79,4 @@ arl_app.register_blueprint(github_threat_bp, url_prefix='/api/github_threat')
 arl_update()
 
 if __name__ == '__main__':
-    arl_app.run(debug=True, port=5003, host="0.0.0.0")
+    arl_app.run(debug=os.getenv("FLASK_DEBUG","false").lower()=="true", port=5003, host="0.0.0.0")
