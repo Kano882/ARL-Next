@@ -360,6 +360,11 @@ class EditPolicy(ARLResource):
         if "site_config" in policy_obj and isinstance(policy_obj["site_config"], dict):
             policy_obj["site_config"].pop("site_capture", None)
 
+        incoming_site = incoming_policy.get("site_config", {}) if isinstance(incoming_policy.get("site_config"), dict) else {}
+        if "nuclei_config" in incoming_site and isinstance(incoming_site["nuclei_config"], dict):
+            site_cfg = policy_obj.setdefault("site_config", {})
+            site_cfg["nuclei_config"] = incoming_site["nuclei_config"]
+
         # 🛡️ 排除端口格式校验（防非法字符入库）
         incoming_exclude_ports = incoming_ip.get("exclude_ports")
         if incoming_exclude_ports is not None and str(incoming_exclude_ports).strip():
@@ -450,7 +455,10 @@ def change_policy_dict(old_data, new_data, allow_keys):
         next_old_data_type = type(next_old_data)
 
         if isinstance(next_old_data, dict):
-            change_policy_dict(next_old_data, next_new_data, allow_keys)
+            if key == "nuclei_config":
+                old_data[key] = next_new_data
+            else:
+                change_policy_dict(next_old_data, next_new_data, allow_keys)
 
         elif isinstance(next_old_data, list) and isinstance(next_new_data, list):
             old_data[key] = next_new_data
