@@ -97,6 +97,19 @@ def _get_auth():
     return host.rstrip("/"), token
 
 
+def _api_status(http_status, data):
+    """兼容旧 REST 接口通过 HTTP 200 返回业务错误的约定。"""
+    if http_status != 200 or not isinstance(data, dict):
+        return http_status
+    try:
+        business_code = int(data.get("code", 200))
+    except (TypeError, ValueError):
+        return 502
+    if business_code == 200:
+        return http_status
+    return business_code if 400 <= business_code <= 599 else 502
+
+
 def _request_api(endpoint: str, params: dict = None) -> tuple:
     """向 ARL 后端发送统一 HTTP GET 请求 (返回 status_code, data)，支持快速超时控制"""
     host, token = _get_auth()
@@ -114,17 +127,18 @@ def _request_api(endpoint: str, params: dict = None) -> tuple:
         "User-Agent": "ARL-Next-MCP/2.0"
     }
 
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-
     req = urllib.request.Request(url, headers=headers, method="GET")
 
     try:
+        ca_bundle = os.environ.get("ARL_CA_BUNDLE", "").strip()
+        ctx = ssl.create_default_context(cafile=os.path.expanduser(ca_bundle) if ca_bundle else None)
+        if os.environ.get("ARL_TLS_VERIFY", "true").strip().lower() in ("false", "0", "no", "off"):
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
         # 设置 8 秒快速超时，避免 Agent 终端长时间挂起
         with urllib.request.urlopen(req, context=ctx, timeout=8) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return resp.status, data
+            return _api_status(resp.status, data), data
     except urllib.error.HTTPError as e:
         try:
             err_data = json.loads(e.read().decode("utf-8"))
@@ -146,6 +160,22 @@ def _clean_empty(val, depth=0, max_depth=10):
     elif val is None or val == "":
         return None
     return val
+
+
+def _request_items(endpoint, params):
+    code, data = _request_api(endpoint, params)
+    code = _api_status(code, data)
+    if code == 200 and (not isinstance(data, dict) or not isinstance(data.get("items"), list)):
+        return 502, []
+    return code, data.get("items", []) if isinstance(data, dict) else []
+
+
+def _profile_error(code, target):
+    if code == 200:
+        return None
+    if code in (401, 403):
+        return {"status": "auth_error", "message": "ARL 鉴权失败：Token 无效或已过期，请检查 ARL_TOKEN 配置", "target": target}
+    return {"status": "error", "message": f"ARL 兼容接口查询失败 (HTTP {code})，无法确认资产结果", "target": target}
 
 
 def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
@@ -185,12 +215,12 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
     def fetch_domain():
         if hostname:
             p = {"domain": hostname, "size": 5, **task_param}
-            c, res = _request_api("/domain/", p)
-            return "domain", c, res.get("items", []) if isinstance(res, dict) else []
+            c, items = _request_items("/domain/", p)
+            return "domain", c, items
         elif is_ip:
             p = {"ips": target_ip, "size": 10, **task_param}
-            c, res = _request_api("/domain/", p)
-            return "domain", c, res.get("items", []) if isinstance(res, dict) else []
+            c, items = _request_items("/domain/", p)
+            return "domain", c, items
         return "domain", 200, []
 
     def fetch_site():
@@ -199,8 +229,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["site"] = hostname
         elif target_ip:
             p["ip"] = target_ip
-        c, res = _request_api("/site/", p)
-        return "site", c, res.get("items", []) if isinstance(res, dict) else []
+        c, items = _request_items("/site/", p)
+        return "site", c, items
 
     def fetch_vuln():
         p = {"size": 30, **task_param}
@@ -208,8 +238,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["target"] = hostname
         elif target_ip:
             p["target"] = target_ip
-        c, res = _request_api("/vuln/", p)
-        return "vuln", c, res.get("items", []) if isinstance(res, dict) else []
+        c, items = _request_items("/vuln/", p)
+        return "vuln", c, items
 
     def fetch_nuclei():
         p = {"size": 30, **task_param}
@@ -217,8 +247,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["target"] = hostname
         elif target_ip:
             p["target"] = target_ip
-        c, res = _request_api("/nuclei_result/", p)
-        return "nuclei", c, res.get("items", []) if isinstance(res, dict) else []
+        c, items = _request_items("/nuclei_result/", p)
+        return "nuclei", c, items
 
     def fetch_leak():
         p = {"size": 30, **task_param}
@@ -226,8 +256,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["url"] = hostname
         elif target_ip:
             p["url"] = target_ip
-        c, res = _request_api("/fileleak/", p)
-        return "fileleak", c, res.get("items", []) if isinstance(res, dict) else []
+        c, items = _request_items("/fileleak/", p)
+        return "fileleak", c, items
 
     futures = [
         _EXECUTOR.submit(fetch_domain),
@@ -239,12 +269,9 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
     results = {}
     for f in futures:
         k, c, items = f.result()
-        if c in (401, 403):
-            return {
-                "status": "auth_error",
-                "message": "ARL 鉴权失败：Token 无效或已过期，请检查 ARL_TOKEN 配置",
-                "target": target
-            }
+        error = _profile_error(c, target)
+        if error:
+            return error
         results[k] = items
 
     # 聚合 Domain 与 IP
@@ -282,9 +309,12 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
         profile["resolved_ips"] = sorted(all_ips)
         for ip in all_ips[:3]:
             p = {"ip": ip, "size": 1, **task_param}
-            _, res = _request_api("/ip/", p)
-            if isinstance(res, dict) and res.get("items"):
-                ip_item = res["items"][0]
+            code, items = _request_items("/ip/", p)
+            error = _profile_error(code, target)
+            if error:
+                return error
+            if items:
+                ip_item = items[0]
                 if not geo_parts:
                     g = ip_item.get("geo_city", {})
                     parts = [g.get("country_name"), g.get("region_name"), g.get("city")]

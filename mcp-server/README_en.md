@@ -7,6 +7,10 @@
 
 # ARL-Next MCP Server (v2.0 Lightweight Edition)
 
+HTTPS verifies certificates and hostnames by default. For a self-signed deployment, set `ARL_CA_BUNDLE` to the trusted PEM certificate or CA file and use an `ARL_HOST` matching the certificate hostname. `ARL_TLS_VERIFY=false` explicitly disables verification for temporary testing; remote deployments should use trusted certificates.
+
+Legacy REST fallback reports authentication and query failures as tool errors. `not_found` is returned only after successful queries with no matching asset.
+
 > **Low Token Footprint · Standard Library Implementation · Broad Client Compatibility**<br>
 > An asset reconnaissance intelligence protocol tailored for AI agents including **Antigravity, Claude Code, OpenAI Codex, DeepSeek Harness, ZCode, WorkBuddy**, and others.
 
