@@ -1,7 +1,5 @@
 <template>
-  <div style="padding: 24px; background: var(--arl-bg-white); min-height: 100%;">
-    
-
+  <div class="arl-page-container">
     <a-tabs v-model:activeKey="activeKey">
       <!-- 统一字典与规则库 Tab -->
       <a-tab-pane key="dictionary" tab="字典与规则库">

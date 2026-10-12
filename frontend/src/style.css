@@ -205,3 +205,113 @@ body.dark-mode .ant-table-tbody > tr.ant-table-row-selected > td.ant-table-cell-
     /* 极致纯黑冷淡风，悬浮时使用纯灰半透明底色 */
     background: rgba(26, 26, 26, 0.95) !important;
 }
+
+/* =========================================================
+   ARL-Next 全局通用页面结构与设计系统规范 (Unified Page Architecture)
+   ========================================================= */
+
+/* 1. 统一页面最外层容器 */
+.arl-page-container {
+    background-color: var(--arl-bg-layout);
+    padding: 16px 20px;
+    min-height: calc(100vh - 64px);
+    box-sizing: border-box;
+}
+
+/* 2. 统一吸顶 Hero 头部与操作卡片 */
+.arl-hero-card {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--arl-bg-white);
+    border: 1px solid var(--arl-border-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    padding: 12px 18px;
+    margin-bottom: 12px;
+    transition: all 0.25s ease;
+}
+
+/* 3. Hero 顶层主栏（标题、视角切换、全局控制） */
+.arl-hero-unified-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--arl-border-color);
+}
+
+.arl-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.arl-hero-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--arl-text-color);
+    letter-spacing: -0.2px;
+}
+
+.arl-hero-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* 4. 双翼响应式集成工具栏（左侧检索，右侧操作） */
+.arl-toolbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.arl-filter-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.arl-filter-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.arl-filter-label {
+    font-size: 13px;
+    color: var(--arl-text-color);
+    white-space: nowrap;
+}
+
+.arl-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* 5. 统一微型分页栏 */
+.arl-pagination-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 4px 4px 4px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.arl-pagination-bar .pagination-info {
+    font-size: 13px;
+    color: var(--arl-text-color);
+    opacity: 0.65;
+}
+

@@ -1,95 +1,130 @@
 <template>
-  <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-
-      <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" style="margin-bottom: 16px;" @change="onTabChange">
+  <div class="arl-page-container">
+    <div ref="actionBarRef" class="arl-hero-card">
+      <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" style="margin-bottom: 12px;" @change="onTabChange">
         <a-tab-pane key="planning" tab="扫描计划任务"></a-tab-pane>
         <a-tab-pane key="monitor" tab="资产持续监控"></a-tab-pane>
       </a-tabs>
 
       <!-- 扫描计划任务 操作栏 -->
       <template v-if="activeTab === 'planning'">
-        <div style="margin-bottom: 20px;">
-          <a-button type="primary" @click="openAddModal">添加计划任务</a-button>
-        </div>
+        <div class="arl-toolbar-row">
+          <!-- 左侧：紧凑搜索条件 -->
+          <div class="arl-filter-group">
+            <div class="arl-filter-item">
+              <span class="arl-filter-label">任务名称：</span>
+              <a-input v-model:value="searchForm.name" placeholder="请输入任务名称" style="width: 140px;" allowClear size="small" @pressEnter="onPlanSearch">
+                <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+              </a-input>
+            </div>
+            <div class="arl-filter-item">
+              <span class="arl-filter-label">目标：</span>
+              <a-input v-model:value="searchForm.target" placeholder="请输入目标" style="width: 140px;" allowClear size="small" @pressEnter="onPlanSearch">
+                <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+              </a-input>
+            </div>
+            <div class="arl-filter-item">
+              <span class="arl-filter-label">策略：</span>
+              <a-input v-model:value="searchForm.policy_name" placeholder="请输入策略" style="width: 130px;" allowClear size="small" @pressEnter="onPlanSearch">
+                <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+              </a-input>
+            </div>
+            <div class="arl-filter-item">
+              <span class="arl-filter-label">计划类型：</span>
+              <a-select v-model:value="searchForm.schedule_type" placeholder="全部类型" style="width: 110px;" allowClear size="small" @change="onPlanSearch">
+                <a-select-option value="future_scan">定时任务</a-select-option>
+                <a-select-option value="recurrent_scan">周期任务</a-select-option>
+              </a-select>
+            </div>
+            <div class="arl-filter-item">
+              <span class="arl-filter-label">状态：</span>
+              <a-select v-model:value="searchForm.schedule_status" placeholder="全部状态" style="width: 110px;" allowClear size="small" @change="onPlanSearch">
+                <a-select-option value="done">done</a-select-option>
+                <a-select-option value="scheduled">scheduled</a-select-option>
+                <a-select-option value="stop">stop</a-select-option>
+                <a-select-option value="error">error</a-select-option>
+              </a-select>
+            </div>
 
-        <div class="search-row" style="margin-bottom: 16px;">
-          <div class="search-item">
-            <span class="label">任务名称：</span>
-            <a-input v-model:value="searchForm.name" placeholder="请输入任务名称搜索" style="width: 160px;" allowClear @pressEnter="onPlanSearch">
-              <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-            </a-input>
+            <a-button size="small" @click="resetPlanSearch">
+              <template #icon><undo-outlined /></template>
+              重置
+            </a-button>
           </div>
-          <div class="search-item">
-            <span class="label">目标：</span>
-            <a-input v-model:value="searchForm.target" placeholder="请输入目标搜索" style="width: 160px;" allowClear @pressEnter="onPlanSearch">
-              <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-            </a-input>
-          </div>
-          <div class="search-item">
-            <span class="label">策略名称：</span>
-            <a-input v-model:value="searchForm.policy_name" placeholder="请输入策略搜索" style="width: 160px;" allowClear @pressEnter="onPlanSearch">
-              <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-            </a-input>
-          </div>
-          <div class="search-item">
-            <span class="label">计划类型：</span>
-            <a-select v-model:value="searchForm.schedule_type" placeholder="选择计划类型" style="width: 160px;" allowClear @change="onPlanSearch">
-              <a-select-option value="future_scan">定时任务</a-select-option>
-              <a-select-option value="recurrent_scan">周期任务</a-select-option>
-            </a-select>
-          </div>
-          <div class="search-item">
-            <span class="label">状态：</span>
-            <a-select v-model:value="searchForm.schedule_status" placeholder="请选择状态进行搜索" style="width: 180px;" allowClear @change="onPlanSearch">
-              <a-select-option value="done">done</a-select-option>
-              <a-select-option value="scheduled">scheduled</a-select-option>
-              <a-select-option value="stop">stop</a-select-option>
-              <a-select-option value="error">error</a-select-option>
-            </a-select>
-          </div>
-        </div>
 
-        <div style="margin-bottom: 16px; display: flex; gap: 8px;">
-          <a-button @click="resetPlanSearch">清 除</a-button>
-          <a-popconfirm title="确认删除所选数据吗？" @confirm="handleBatchDelete">
-            <a-button :disabled="!hasPlanSelected">批量删除</a-button>
-          </a-popconfirm>
-          <a-popconfirm title="确认停止所选数据吗？" @confirm="handleBatchStop">
-            <a-button :disabled="!hasPlanSelected">批量停止</a-button>
-          </a-popconfirm>
+          <!-- 右侧：单一主要操作 + 批量动作 -->
+          <div class="arl-actions-group">
+            <a-button type="primary" size="small" @click="openAddModal">
+              <template #icon><plus-outlined /></template>
+              添加计划任务
+            </a-button>
+
+            <a-popconfirm title="确认停止所选计划任务吗？" ok-text="确认" cancel-text="取消" @confirm="handleBatchStop">
+              <a-button size="small" :disabled="!hasPlanSelected">
+                <template #icon><pause-circle-outlined /></template>
+                批量停止
+              </a-button>
+            </a-popconfirm>
+
+            <a-popconfirm title="确认删除所选计划任务吗？" ok-text="确认" cancel-text="取消" @confirm="handleBatchDelete">
+              <a-button danger size="small" :disabled="!hasPlanSelected">
+                <template #icon><delete-outlined /></template>
+                批量删除
+              </a-button>
+            </a-popconfirm>
+          </div>
         </div>
       </template>
 
       <!-- 资产持续监控 操作栏 -->
       <template v-else-if="activeTab === 'monitor'">
-        <div class="search-row" style="margin-bottom: 16px;">
-          <div class="search-item">
-            <span class="label">名称：</span>
-            <a-input v-model:value="monitorSearchForm.name" placeholder="请输入名称进行搜索" style="width: 200px;" allowClear @pressEnter="onMonitorSearch">
-              <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-            </a-input>
-          </div>
-          <div class="search-item">
-            <span class="label">域名：</span>
-            <a-input v-model:value="monitorSearchForm.domain" placeholder="请输入域名进行搜索" style="width: 200px;" allowClear @pressEnter="onMonitorSearch">
-              <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-            </a-input>
-          </div>
-          <div class="search-item">
-            <span class="label">资产范围ID：</span>
-            <a-input v-model:value="monitorSearchForm.scope_id" placeholder="请输入资产范围ID进行搜索" style="width: 200px;" allowClear @pressEnter="onMonitorSearch">
-              <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-            </a-input>
-          </div>
-        </div>
+        <div class="arl-toolbar-row">
+          <!-- 左侧：检索条件 -->
+          <div class="arl-filter-group">
+            <div class="arl-filter-item">
+              <span class="arl-filter-label">名称：</span>
+              <a-input v-model:value="monitorSearchForm.name" placeholder="请输入名称" style="width: 160px;" allowClear size="small" @pressEnter="onMonitorSearch">
+                <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+              </a-input>
+            </div>
+            <div class="arl-filter-item">
+              <span class="arl-filter-label">域名：</span>
+              <a-input v-model:value="monitorSearchForm.domain" placeholder="请输入域名" style="width: 160px;" allowClear size="small" @pressEnter="onMonitorSearch">
+                <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+              </a-input>
+            </div>
+            <div class="arl-filter-item">
+              <span class="arl-filter-label">资产范围ID：</span>
+              <a-input v-model:value="monitorSearchForm.scope_id" placeholder="请输入范围ID" style="width: 160px;" allowClear size="small" @pressEnter="onMonitorSearch">
+                <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+              </a-input>
+            </div>
 
-        <div style="margin-bottom: 16px; display: flex; gap: 8px;">
-          <a-button @click="resetMonitorSearch">清 除</a-button>
-          <a-button :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('delete')">批量删除</a-button>
-          <a-button :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('stop')">批量停止</a-button>
-          <a-button :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('recover')">批量恢复</a-button>
-          <a-button :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('run')">批量下发</a-button>
+            <a-button size="small" @click="resetMonitorSearch">
+              <template #icon><undo-outlined /></template>
+              重置
+            </a-button>
+          </div>
+
+          <!-- 右侧：批量动作 -->
+          <div class="arl-actions-group">
+            <a-button size="small" :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('run')">
+              <template #icon><send-outlined /></template>
+              批量下发
+            </a-button>
+            <a-button size="small" :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('recover')">
+              <template #icon><play-circle-outlined /></template>
+              批量恢复
+            </a-button>
+            <a-button size="small" :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('stop')">
+              <template #icon><pause-circle-outlined /></template>
+              批量停止
+            </a-button>
+            <a-button danger size="small" :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('delete')">
+              <template #icon><delete-outlined /></template>
+              批量删除
+            </a-button>
+          </div>
         </div>
       </template>
 
@@ -103,7 +138,7 @@
           :dataSource="dataSource"
           :columns="columns"
           :pagination="false"
-          size="middle"
+          size="small"
           :rowKey="(record) => record._id"
       >
         <template #emptyText>
@@ -136,29 +171,39 @@
           </template>
 
           <template v-else-if="column.key === 'action'">
-            <a-button
-                size="small"
-                style="margin-right: 8px;"
-                :disabled="record.status === 'stop'"
-                @click="handleSingleAction('stop', record._id)"
-            >停止</a-button>
+            <div style="display: flex; gap: 6px;">
+              <a-button
+                  size="small"
+                  :disabled="record.status === 'stop'"
+                  @click="handleSingleAction('stop', record._id)"
+              >停止</a-button>
 
-            <a-popconfirm title="确认删除？" @confirm="handleSingleAction('delete', record._id)">
-              <a-button size="small" style="margin-right: 8px;">删除</a-button>
-            </a-popconfirm>
+              <a-popconfirm title="确认删除？" @confirm="handleSingleAction('delete', record._id)">
+                <a-button size="small" danger>删除</a-button>
+              </a-popconfirm>
 
-            <a-button
-                size="small"
-                :disabled="record.status === 'scheduled'"
-                @click="handleSingleAction('recover', record._id)"
-            >恢复</a-button>
+              <a-button
+                  size="small"
+                  :disabled="record.status === 'scheduled'"
+                  @click="handleSingleAction('recover', record._id)"
+              >恢复</a-button>
+            </div>
           </template>
         </template>
       </a-table>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
-        <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-        <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handlePlanTableChange" />
+      <div class="arl-pagination-bar">
+        <div class="pagination-info">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+        <a-pagination
+          :pageSizeOptions="$pageSizeOptions"
+          v-model:current="pagination.current"
+          v-model:pageSize="pagination.pageSize"
+          :total="pagination.total"
+          show-size-changer
+          size="small"
+          @change="handlePlanTableChange"
+          @showSizeChange="handlePlanTableChange"
+        />
       </div>
     </template>
 
@@ -170,7 +215,7 @@
           :dataSource="monitorDataSource"
           :columns="monitorColumns"
           :pagination="false"
-          size="middle"
+          size="small"
           :rowKey="(record) => record._id"
       >
         <template #emptyText>
@@ -203,19 +248,28 @@
           </template>
 
           <template v-else-if="column.key === 'action'">
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 6px;">
               <a-button size="small" :disabled="record.status === 'stop'" @click="handleMonitorSingleAction('stop', record)">暂停</a-button>
               <a-button size="small" :disabled="record.status !== 'stop'" @click="handleMonitorSingleAction('resume', record)">恢复</a-button>
               <a-button size="small" @click="handleMonitorSingleAction('run', record)">立即下发</a-button>
-              <a-button size="small" @click="handleMonitorSingleAction('delete', record)">删除</a-button>
+              <a-button size="small" danger @click="handleMonitorSingleAction('delete', record)">删除</a-button>
             </div>
           </template>
         </template>
       </a-table>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
-        <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(monitorPagination.total / monitorPagination.pageSize) || 1 }} 页 / {{ monitorPagination.total }} 条数据</div>
-        <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="monitorPagination.current" v-model:pageSize="monitorPagination.pageSize" :total="monitorPagination.total" show-size-changer @change="handleMonitorTableChange" @showSizeChange="handleMonitorTableChange" />
+      <div class="arl-pagination-bar">
+        <div class="pagination-info">共 {{ Math.ceil(monitorPagination.total / monitorPagination.pageSize) || 1 }} 页 / {{ monitorPagination.total }} 条数据</div>
+        <a-pagination
+          :pageSizeOptions="$pageSizeOptions"
+          v-model:current="monitorPagination.current"
+          v-model:pageSize="monitorPagination.pageSize"
+          :total="monitorPagination.total"
+          show-size-changer
+          size="small"
+          @change="handleMonitorTableChange"
+          @showSizeChange="handleMonitorTableChange"
+        />
       </div>
     </template>
 
@@ -284,7 +338,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useSticky } from '../utils/useSticky';
 import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
-import { SearchOutlined, InboxOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, InboxOutlined, ExclamationCircleOutlined, PlusOutlined, DeleteOutlined, UndoOutlined, PauseCircleOutlined, PlayCircleOutlined, SendOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 
 const route = useRoute();
@@ -644,23 +698,3 @@ onDeactivated(() => {
   addModalVisible.value = false;
 });
 </script>
-
-<style scoped>
-.search-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px 12px;
-  align-items: center;
-}
-.search-item {
-  display: flex;
-  align-items: center;
-}
-.search-item .label {
-  color: var(--arl-text-color);
-  margin-right: 8px;
-  min-width: 60px;
-  text-align: right;
-  white-space: nowrap;
-}
-</style>

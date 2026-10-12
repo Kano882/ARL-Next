@@ -858,10 +858,12 @@ const onServiceEngineChange = () => {
   searchForm.value = tabCache.getTabSearchForm(currentTab);
   tabCache.applyTabOperators(currentTab);
   pagination.current = tabCache.getTabPage(currentTab) || 1;
-  const cached = tabCache.getMemoryCache(currentTab);
+  const cached = tabCache.getMemoryCache(currentTab, pagination.pageSize);
   if (cached) {
     dataSource.value = cached.dataSource;
     pagination.total = cached.total;
+    lastFetchedPage = pagination.current;
+    lastFetchedSize = pagination.pageSize;
   } else {
     fetchData();
   }
@@ -922,13 +924,25 @@ const onSelectChange = (keys) => { selectedRowKeys.value = keys; };
 const searchForm = ref({});
 const globalPageSize = useGlobalPageSize(10);
 const pagination = reactive({ current: 1, pageSize: globalPageSize.value, total: 0 });
+let lastFetchedPage = 1;
+let lastFetchedSize = globalPageSize.value;
 
 watch(() => pagination.pageSize, (newSize) => {
-  globalPageSize.value = newSize;
+  const target = Number(newSize) || 10;
+  if (globalPageSize.value !== target) {
+    globalPageSize.value = target;
+  }
 });
 
 watch(globalPageSize, (newSize) => {
-  pagination.pageSize = newSize;
+  const target = Number(newSize) || 10;
+  if (pagination.pageSize !== target) {
+    pagination.pageSize = target;
+    tabCache.invalidateAllMemoryCaches();
+    if (tabConfig[effectiveTab.value] && activeTab.value !== 'syslog') {
+      fetchData();
+    }
+  }
 });
 
 // 💥 核心修改 3：在配置字典中加入 deleteUrl
@@ -1134,6 +1148,8 @@ const tabConfig = reactive({
   npoc_service: {
     url: '/npoc_service/',
     deleteUrl: '/npoc_service/delete/',
+    exportUrl: '/npoc_service/export/',
+    exportName: 'Python插件服务',
     searchFields: [
       { label: '协议', key: 'scheme', operator: '=' },
       { label: '主机', key: 'host', operator: '=' },
@@ -1295,7 +1311,9 @@ const fetchData = async (isPolling = false) => {
       dataSource.value = res.items || [];
       pagination.total = res.total || 0;
       selectedRowKeys.value = [];
-      tabCache.updateMemoryCache(effectiveTab.value, dataSource.value, pagination.total);
+      lastFetchedPage = pagination.current;
+      lastFetchedSize = pagination.pageSize;
+      tabCache.updateMemoryCache(effectiveTab.value, dataSource.value, pagination.total, pagination.pageSize);
       tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, pagination.current);
     }
   } catch (error) {
@@ -1303,7 +1321,7 @@ const fetchData = async (isPolling = false) => {
       message.error('加载资产数据失败');
     }
   } finally {
-    if (!isPolling && activeTab.value === currentReqTab) {
+    if (!isPolling && effectiveTab.value === currentReqTab) {
       loading.value = false;
     }
   }
@@ -1432,9 +1450,27 @@ const resetSearch = () => {
 };
 
 const handleTableChange = (page, pageSize) => {
-  pagination.current = page;
-  pagination.pageSize = pageSize;
-  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, page);
+  const targetSize = Number(pageSize) || Number(pagination.pageSize) || 10;
+  const sizeChanged = targetSize !== lastFetchedSize;
+  const targetPage = sizeChanged ? 1 : (Number(page) || 1);
+
+  // 防御重复触发：只有在单页条数未变且目标页码与已拉取页码完全相同时才阻断
+  if (!sizeChanged && targetPage === lastFetchedPage && targetSize === lastFetchedSize) {
+    return;
+  }
+
+  lastFetchedPage = targetPage;
+  lastFetchedSize = targetSize;
+
+  pagination.current = targetPage;
+  pagination.pageSize = targetSize;
+
+  if (sizeChanged) {
+    tabCache.invalidateAllMemoryCaches();
+    globalPageSize.value = targetSize;
+  }
+
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, pagination.current);
   fetchData();
 };
 
@@ -1576,11 +1612,13 @@ watch(activeTab, (newVal, oldVal) => {
     tabCache.applyTabOperators(newEffective);
     pagination.current = tabCache.getTabPage(newEffective) || 1;
 
-    // 检查内存数据缓存（运行中任务会自动穿透并强制请求）
-    const cached = tabCache.getMemoryCache(newEffective);
+    // 检查内存数据缓存（传入 pagination.pageSize 进行容量匹配校验）
+    const cached = tabCache.getMemoryCache(newEffective, pagination.pageSize);
     if (cached) {
       dataSource.value = cached.dataSource;
       pagination.total = cached.total;
+      lastFetchedPage = pagination.current;
+      lastFetchedSize = pagination.pageSize;
     } else {
       fetchData();
     }
@@ -1623,10 +1661,12 @@ const reloadTaskData = () => {
       tabCache.applyTabOperators(effectiveTab.value);
       pagination.current = tabCache.getTabPage(effectiveTab.value) || 1;
 
-      const cached = tabCache.getMemoryCache(effectiveTab.value);
+      const cached = tabCache.getMemoryCache(effectiveTab.value, pagination.pageSize);
       if (cached) {
         dataSource.value = cached.dataSource;
         pagination.total = cached.total;
+        lastFetchedPage = pagination.current;
+        lastFetchedSize = pagination.pageSize;
       } else {
         fetchData();
       }
