@@ -1064,6 +1064,7 @@ import {
 } from '@ant-design/icons-vue';
 import dayjs from 'dayjs';
 import request from '../utils/request';
+import { applyTaskStatistics, createTaskListClient } from '../utils/taskStatistics';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import TycTaskModal from '../components/TycTaskModal.vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
@@ -1132,9 +1133,14 @@ const enterpriseMetricCounts = reactive({
 });
 
 const enterpriseRunningCount = ref(0);
+const taskListClient = createTaskListClient(request);
+let taskRequestVersion = 0;
+let enterpriseRequestVersion = 0;
+let taskStatisticsReady = false;
+let enterpriseStatisticsReady = false;
 
 const currentTotalCount = computed(() => {
-  return activeMainTab.value === 'enterprise' ? enterprisePagination.total : pagination.total;
+  return activeMainTab.value === 'enterprise' ? enterpriseMetricCounts.total : taskMetricCounts.total;
 });
 
 const currentRunningCount = computed(() => {
@@ -1172,52 +1178,30 @@ const toggleStatusFilter = (targetStatus) => {
   }
 };
 
-// 拉取资产侦查任务 4 维指标计数
+// 拉取资产侦查任务 4 维指标计数 (单次轻量聚合独立接口)
 const fetchTaskMetricCounts = async () => {
   try {
-    const [runningRes, waitingRes, doneRes, errorRes, stopRes] = await Promise.allSettled([
-      request.get('/task/', { params: { status: 'running', size: 1 } }),
-      request.get('/task/', { params: { status: 'waiting', size: 1 } }),
-      request.get('/task/', { params: { status: 'done', size: 1 } }),
-      request.get('/task/', { params: { status: 'error', size: 1 } }),
-      request.get('/task/', { params: { status: 'stop', size: 1 } })
-    ]);
-
-    const running = (runningRes.status === 'fulfilled' && runningRes.value.code === 200 ? (runningRes.value.total || 0) : 0);
-    const waiting = (waitingRes.status === 'fulfilled' && waitingRes.value.code === 200 ? (waitingRes.value.total || 0) : 0);
-    const done = (doneRes.status === 'fulfilled' && doneRes.value.code === 200 ? (doneRes.value.total || 0) : 0);
-    const error = (errorRes.status === 'fulfilled' && errorRes.value.code === 200 ? (errorRes.value.total || 0) : 0);
-    const stop = (stopRes.status === 'fulfilled' && stopRes.value.code === 200 ? (stopRes.value.total || 0) : 0);
-
-    taskMetricCounts.running = running + waiting;
-    taskMetricCounts.done = done;
-    taskMetricCounts.abnormal = error + stop;
+    const res = await request.get('/task/statistics');
+    const data = res.data || res;
+    if (res.code === 200 && data) {
+      if (applyTaskStatistics(taskMetricCounts, data)) taskStatisticsReady = true;
+    }
   } catch (e) {
     console.error('获取资产侦查指标失败:', e);
   }
 };
 
-// 拉取企业测绘任务 4 维指标计数
+// 拉取企业测绘任务 4 维指标计数 (单次轻量聚合独立接口)
 const fetchEnterpriseMetricCounts = async () => {
   try {
-    const [runningRes, waitingRes, doneRes, errorRes, stopRes] = await Promise.allSettled([
-      request.get('/icp/task', { params: { status: 'running', size: 1 } }),
-      request.get('/icp/task', { params: { status: 'waiting', size: 1 } }),
-      request.get('/icp/task', { params: { status: 'done', size: 1 } }),
-      request.get('/icp/task', { params: { status: 'error', size: 1 } }),
-      request.get('/icp/task', { params: { status: 'stop', size: 1 } })
-    ]);
-
-    const running = (runningRes.status === 'fulfilled' && runningRes.value.code === 200 ? (runningRes.value.total || 0) : 0);
-    const waiting = (waitingRes.status === 'fulfilled' && waitingRes.value.code === 200 ? (waitingRes.value.total || 0) : 0);
-    const done = (doneRes.status === 'fulfilled' && doneRes.value.code === 200 ? (doneRes.value.total || 0) : 0);
-    const error = (errorRes.status === 'fulfilled' && errorRes.value.code === 200 ? (errorRes.value.total || 0) : 0);
-    const stop = (stopRes.status === 'fulfilled' && stopRes.value.code === 200 ? (stopRes.value.total || 0) : 0);
-
-    enterpriseMetricCounts.running = running + waiting;
-    enterpriseMetricCounts.done = done;
-    enterpriseMetricCounts.abnormal = error + stop;
-    enterpriseRunningCount.value = running + waiting;
+    const res = await request.get('/icp/task/statistics');
+    const data = res.data || res;
+    if (res.code === 200 && data) {
+      if (applyTaskStatistics(enterpriseMetricCounts, data)) {
+        enterpriseStatisticsReady = true;
+        enterpriseRunningCount.value = enterpriseMetricCounts.running;
+      }
+    }
   } catch (e) {
     console.error('获取企业测绘指标失败:', e);
   }
@@ -1244,12 +1228,10 @@ const startSmartPolling = () => {
     if (activeMainTab.value === 'enterprise') {
       if (enterpriseMetricCounts.running > 0) {
         await fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
-        fetchEnterpriseMetricCounts();
       }
     } else {
       if (taskMetricCounts.running > 0) {
         await fetchTasks(pagination.current, pagination.pageSize, true);
-        fetchTaskMetricCounts();
       }
     }
   }, 9000);
@@ -1277,10 +1259,8 @@ const handleManualRefresh = async () => {
   try {
     if (activeMainTab.value === 'enterprise') {
       await fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-      await fetchEnterpriseMetricCounts();
     } else {
       await fetchTasks(pagination.current, pagination.pageSize);
-      await fetchTaskMetricCounts();
     }
     lastRefreshTime.value = new Date();
     message.success('任务列表已刷新');
@@ -1318,7 +1298,8 @@ const onEnterpriseSelectChange = (keys) => {
   enterpriseSelectedRowKeys.value = keys;
 };
 
-const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false) => {
+const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false, includeStatistics = true) => {
+  const requestVersion = ++enterpriseRequestVersion;
   if (!silent) enterpriseLoading.value = true;
   try {
     const queryParams = { page, size };
@@ -1330,8 +1311,14 @@ const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false) => {
       queryParams.end_time__lte = dayjs(reconSearchForm.dateRange[1]).endOf('day').format('YYYY-MM-DD HH:mm:ss');
     }
 
-    const res = await request.get('/icp/task', { params: queryParams });
+    const res = await taskListClient.get('/icp/task', queryParams, includeStatistics);
+    if (requestVersion !== enterpriseRequestVersion) return;
+
     if (res.code === 200) {
+      if (applyTaskStatistics(enterpriseMetricCounts, res.statistics)) {
+        enterpriseStatisticsReady = true;
+        enterpriseRunningCount.value = enterpriseMetricCounts.running;
+      }
       enterpriseTaskList.value = res.items || [];
       (res.items || []).forEach(item => {
         if (item && item._id) {
@@ -1346,13 +1333,14 @@ const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false) => {
   } catch (error) {
     console.error('获取企业测绘列表失败:', error);
   } finally {
-    if (!silent) enterpriseLoading.value = false;
+    if (requestVersion === enterpriseRequestVersion) {
+      if (!silent) enterpriseLoading.value = false;
+    }
   }
 };
 
 const onReconSearch = () => {
   fetchEnterpriseTasks(1, enterprisePagination.pageSize);
-  fetchEnterpriseMetricCounts();
 };
 
 const resetReconSearch = () => {
@@ -1363,7 +1351,7 @@ const resetReconSearch = () => {
   onReconSearch();
 };
 
-const handleEnterpriseTableChange = (page, pageSize) => fetchEnterpriseTasks(page, pageSize);
+const handleEnterpriseTableChange = (page, pageSize) => fetchEnterpriseTasks(page, pageSize, false, false);
 
 const TYC_QUERY_TYPE_LABELS = {
   invest: '对外投资',
@@ -1810,7 +1798,8 @@ const onSelectChange = (keys) => {
 };
 
 // 获取任务列表数据
-const fetchTasks = async (page = 1, size = 10, silent = false) => {
+const fetchTasks = async (page = 1, size = 10, silent = false, includeStatistics = true) => {
+  const requestVersion = ++taskRequestVersion;
   if (!silent) loading.value = true;
   try {
     const queryParams = { page, size };
@@ -1833,9 +1822,11 @@ const fetchTasks = async (page = 1, size = 10, silent = false) => {
     appendCountParam(searchForm.domain_count, searchForm.domain_operator, 'statistic.domain_cnt');
     appendCountParam(searchForm.wih_count, searchForm.wih_operator, 'statistic.wih_cnt');
 
-    const res = await request.get('/task/', { params: queryParams });
+    const res = await taskListClient.get('/task/', queryParams, includeStatistics);
+    if (requestVersion !== taskRequestVersion) return;
 
     if (res.code === 200) {
+      if (applyTaskStatistics(taskMetricCounts, res.statistics)) taskStatisticsReady = true;
       taskList.value = res.items || [];
       pagination.total = res.total || 0;
       pagination.current = page;
@@ -1845,13 +1836,14 @@ const fetchTasks = async (page = 1, size = 10, silent = false) => {
   } catch (error) {
     console.error('获取资产侦查任务失败:', error);
   } finally {
-    if (!silent) loading.value = false;
+    if (requestVersion === taskRequestVersion) {
+      if (!silent) loading.value = false;
+    }
   }
 };
 
 const onSearch = () => {
   fetchTasks(1, pagination.pageSize);
-  fetchTaskMetricCounts();
 };
 
 const resetSearch = () => {
@@ -1863,7 +1855,7 @@ const resetSearch = () => {
   onSearch();
 };
 
-const handleTableChange = (page, pageSize) => fetchTasks(page, pageSize);
+const handleTableChange = (page, pageSize) => fetchTasks(page, pageSize, false, false);
 
 // ==========================================
 // 💥 任务批量操作
@@ -2419,10 +2411,8 @@ const handleMainTabChange = (key) => {
   router.replace({ query: nextQuery });
   if (key === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-    fetchEnterpriseMetricCounts();
   } else {
     fetchTasks(pagination.current, pagination.pageSize);
-    fetchTaskMetricCounts();
   }
   startSmartPolling();
 };
@@ -2439,10 +2429,10 @@ onMounted(async () => {
 
   if (activeMainTab.value === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-    fetchEnterpriseMetricCounts();
+    fetchTaskMetricCounts();
   } else {
     fetchTasks(pagination.current, pagination.pageSize);
-    fetchTaskMetricCounts();
+    fetchEnterpriseMetricCounts();
   }
 
   startSmartPolling();
@@ -2465,13 +2455,17 @@ onMounted(async () => {
   }
 });
 
+let firstActivation = true;
 onActivated(() => {
+  // KeepAlive 首次激活时 onMounted 已启动加载，消除并发双重触发
+  if (firstActivation) {
+    firstActivation = false;
+    return;
+  }
   if (activeMainTab.value === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
-    fetchEnterpriseMetricCounts();
   } else {
     fetchTasks(pagination.current, pagination.pageSize, true);
-    fetchTaskMetricCounts();
   }
   startSmartPolling();
 });

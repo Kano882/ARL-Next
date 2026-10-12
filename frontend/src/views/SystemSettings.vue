@@ -3,9 +3,11 @@
     
 
     <a-tabs v-model:activeKey="activeKey">
-      <!-- 统一字典管理 Tab -->
-      <a-tab-pane key="dictionary" tab="字典管理">
-        <a-spin :spinning="loading || bruteLoading">
+      <!-- 统一字典与规则库 Tab -->
+      <a-tab-pane key="dictionary" tab="字典与规则库">
+        <a-tabs v-model:activeKey="dictSubTab" type="card" class="dict-sub-tabs" style="margin-bottom: 16px;">
+          <a-tab-pane key="dict" tab="📖 通用文本字典 (资产 / 弱口令)">
+            <a-spin :spinning="loading || bruteLoading">
             <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> <!-- 左侧语义化菜单与独立滚动 -->
             <div style="width: 256px; flex-shrink: 0; border-right: 1px solid var(--arl-border-color); background: var(--arl-bg-white); display: flex; flex-direction: column;">
               <div style="padding: 16px; border-bottom: 1px solid var(--arl-border-color); display: flex; align-items: center; min-height: 64px; box-sizing: border-box;">
@@ -327,8 +329,7 @@ admin123
         </a-drawer>
       </a-tab-pane>
 
-      <!-- CDN 字典管理 Tab -->
-      <a-tab-pane key="cdn" tab="CDN字典管理" force-render>
+      <a-tab-pane key="cdn" tab="🌐 CDN 特征与规则字典" force-render>
         <a-spin :spinning="cdnLoading">
           <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> 
             
@@ -517,6 +518,8 @@ admin123
             </div>
           </div>
         </a-drawer>
+          </a-tab-pane>
+        </a-tabs>
       </a-tab-pane>
 
       <!-- 安全策略管理 Tab -->
@@ -1132,6 +1135,7 @@ const reloadPage = () => {
 
 const route = useRoute();
 const activeKey = ref('dictionary');
+const dictSubTab = ref('dict');
 const loading = ref(false);
 const searchLoading = ref(false);
 const submitLoading = ref(false);
@@ -2655,7 +2659,12 @@ const scrollToBottom = () => {
 
 onMounted(() => {
   if (route.query.tab) {
-    activeKey.value = route.query.tab;
+    if (route.query.tab === 'cdn') {
+      activeKey.value = 'dictionary';
+      dictSubTab.value = 'cdn';
+    } else {
+      activeKey.value = route.query.tab;
+    }
   }
   checkVersion();
   fetchDictList();

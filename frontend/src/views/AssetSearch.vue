@@ -14,12 +14,20 @@
       <a-tab-pane key="stat_finger" tab="指纹统计"></a-tab-pane>
       <a-tab-pane key="wih" tab="WIH"></a-tab-pane>
       <a-tab-pane key="vuln" tab="风险"></a-tab-pane>
-      <a-tab-pane key="npoc_service" tab="服务（python）"></a-tab-pane>
       <a-tab-pane key="nuclei_result" tab="nuclei"></a-tab-pane>
     </a-tabs>
-<div v-if="tabConfig[activeTab]?.searchFields" style="margin-bottom: 16px;">
+
+    <div v-if="activeTab === 'service'" style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+      <span style="font-size: 13px; color: var(--arl-text-secondary);">识别引擎：</span>
+      <a-radio-group v-model:value="serviceEngineType" button-style="solid" size="small" @change="onServiceEngineChange">
+        <a-radio-button value="nmap">端口扫描 (Nmap / Service)</a-radio-button>
+        <a-radio-button value="npoc">指纹识别 (Python / NPoC)</a-radio-button>
+      </a-radio-group>
+    </div>
+
+    <div v-if="tabConfig[effectiveTab]?.searchFields" style="margin-bottom: 16px;">
       <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
-      <a-form-item v-for="field in tabConfig[activeTab].searchFields" :key="field.key" :label="field.label + '：'">
+      <a-form-item v-for="field in tabConfig[effectiveTab].searchFields" :key="field.key" :label="field.label + '：'">
                 <a-select
             v-if="field.type === 'select'"
             v-model:value="searchForm[field.key]"
@@ -94,7 +102,7 @@
 
     <div style="margin-bottom: 16px;">
       <a-button style="margin-right: 16px;" @click="resetSearch">清 除</a-button>
-      <a-button v-if="tabConfig[activeTab]?.exportName" type="primary" style="margin-right: 16px;" @click="handleExport">导出{{ tabConfig[activeTab].exportName }}</a-button>
+      <a-button v-if="tabConfig[effectiveTab]?.exportName" type="primary" style="margin-right: 16px;" @click="handleExport">导出{{ tabConfig[effectiveTab].exportName }}</a-button>
       <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">风险任务下发</a-button>
     </div>
     </div>
@@ -469,7 +477,14 @@ const tableScrollY = computed(() => {
 
 const route = useRoute();
 const isHydrating = ref(true);
-const activeTab = ref(route.query.tab || 'site');
+const serviceEngineType = ref(route.query.tab === 'npoc_service' ? 'npoc' : 'nmap');
+const activeTab = ref(route.query.tab === 'npoc_service' ? 'service' : (route.query.tab || 'site'));
+const effectiveTab = computed(() => {
+  if (activeTab.value === 'service' && serviceEngineType.value === 'npoc') {
+    return 'npoc_service';
+  }
+  return activeTab.value;
+});
 const loading = ref(false);
 const dataSource = ref([]);
 
@@ -857,14 +872,35 @@ const tabCache = createTabStateCache({
   defaultTab: 'site'
 });
 
-const columns = ref(tabConfig[activeTab.value]?.cols || tabConfig.site.cols);
+const columns = ref(tabConfig[effectiveTab.value]?.cols || tabConfig.site.cols);
+
+// 切换服务识别引擎
+const onServiceEngineChange = () => {
+  const prevTabKey = effectiveTab.value === 'npoc_service' ? 'service' : 'npoc_service';
+  tabCache.saveCurrentTab(prevTabKey, searchForm.value, pagination.current);
+
+  const currentTabKey = effectiveTab.value;
+  searchForm.value = tabCache.getTabSearchForm(currentTabKey);
+  tabCache.applyTabOperators(currentTabKey);
+  pagination.current = tabCache.getTabPage(currentTabKey);
+  columns.value = tabConfig[currentTabKey]?.cols || [];
+
+  const cached = tabCache.getMemoryCache(currentTabKey);
+  if (cached) {
+    dataSource.value = cached.dataSource;
+    pagination.total = cached.total;
+  } else {
+    fetchData();
+  }
+};
 
 // 🚨 核心逻辑调整：去掉 task_id 参数，纯净的全局搜索
 const fetchData = async () => {
-  const config = tabConfig[activeTab.value];
+  const currentTab = effectiveTab.value;
+  const config = tabConfig[currentTab];
   if (!config) return;
 
-  const currentReqTab = activeTab.value;
+  const currentReqTab = currentTab;
   loading.value = true;
   try {
     const params = { page: pagination.current, size: pagination.pageSize };
@@ -884,27 +920,28 @@ const fetchData = async () => {
     }
     const res = await request.get(config.url, { params });
     // 竞态防御：若响应到达时 Tab 已切换，丢弃过期响应
-    if (activeTab.value !== currentReqTab) return;
+    if (effectiveTab.value !== currentReqTab) return;
 
     if (res.code === 200) {
       dataSource.value = res.items || [];
       pagination.total = res.total || 0;
-      tabCache.updateMemoryCache(activeTab.value, dataSource.value, pagination.total);
-      tabCache.saveCurrentTab(activeTab.value, searchForm.value, pagination.current);
+      tabCache.updateMemoryCache(currentTab, dataSource.value, pagination.total);
+      tabCache.saveCurrentTab(currentTab, searchForm.value, pagination.current);
     }
   } catch (error) {
-    if (activeTab.value === currentReqTab) {
+    if (effectiveTab.value === currentReqTab) {
       message.error('加载资产数据失败');
     }
   } finally {
-    if (activeTab.value === currentReqTab) {
+    if (effectiveTab.value === currentReqTab) {
       loading.value = false;
     }
   }
 };
 
 const handleExport = async () => {
-  const config = tabConfig[activeTab.value];
+  const currentTab = effectiveTab.value;
+  const config = tabConfig[currentTab];
   if (!config || !config.exportUrl) return;
 
   try {
@@ -925,7 +962,7 @@ const handleExport = async () => {
       }
     }
     const res = await request.get(config.exportUrl, { params, responseType: 'blob' });
-    const isCert = activeTab.value === 'cert';
+    const isCert = currentTab === 'cert';
     const mimeType = isCert ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
     const ext = isCert ? 'json' : 'txt';
 
@@ -933,7 +970,7 @@ const handleExport = async () => {
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `ARL_Global_${activeTab.value}_Export.${ext}`;
+    link.download = `ARL_Global_${currentTab}_Export.${ext}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -946,38 +983,40 @@ const handleExport = async () => {
 
 const onSearch = () => {
   pagination.current = 1;
-  tabCache.saveCurrentTab(activeTab.value, searchForm.value, 1);
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, 1);
   fetchData();
 };
 const resetSearch = () => {
   searchForm.value = {};
-  tabCache.resetTabState(activeTab.value);
+  tabCache.resetTabState(effectiveTab.value);
   pagination.current = 1;
   fetchData();
 };
 const handleTableChange = (page, pageSize) => {
   pagination.current = page;
   pagination.pageSize = pageSize;
-  tabCache.saveCurrentTab(activeTab.value, searchForm.value, page);
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, page);
   fetchData();
 };
 
 watch(activeTab, (newVal, oldVal) => {
-  if (oldVal && tabConfig[oldVal] && !isHydrating.value) {
-    tabCache.saveCurrentTab(oldVal, searchForm.value, pagination.current);
+  const prevEffective = (oldVal === 'service' && serviceEngineType.value === 'npoc') ? 'npoc_service' : oldVal;
+  if (prevEffective && tabConfig[prevEffective] && !isHydrating.value) {
+    tabCache.saveCurrentTab(prevEffective, searchForm.value, pagination.current);
   }
 
-  if (tabConfig[newVal]) {
-    columns.value = tabConfig[newVal].cols;
+  const currentTab = effectiveTab.value;
+  if (tabConfig[currentTab]) {
+    columns.value = tabConfig[currentTab].cols;
 
     // 恢复新选项卡的搜索表单、操作符与页码
-    searchForm.value = tabCache.getTabSearchForm(newVal);
-    tabCache.applyTabOperators(newVal);
-    pagination.current = tabCache.getTabPage(newVal);
+    searchForm.value = tabCache.getTabSearchForm(currentTab);
+    tabCache.applyTabOperators(currentTab);
+    pagination.current = tabCache.getTabPage(currentTab);
 
     // 检查 URL query 是否为当前 Tab 提供了下钻参数覆盖
     let hasQueryOverrides = false;
-    if (route.query && (route.query.tab === newVal || (!route.query.tab && newVal === 'site'))) {
+    if (route.query && (route.query.tab === currentTab || (!route.query.tab && currentTab === 'site'))) {
       for (const key in route.query) {
         if (key !== 'tab') {
           searchForm.value[key] = route.query[key];
@@ -985,12 +1024,12 @@ watch(activeTab, (newVal, oldVal) => {
         }
       }
       if (hasQueryOverrides) {
-        tabCache.saveCurrentTab(newVal, searchForm.value, pagination.current);
+        tabCache.saveCurrentTab(currentTab, searchForm.value, pagination.current);
       }
     }
 
     // 检查内存数据缓存（若有外部 query 下钻参数则强制穿透缓存）
-    const cached = !hasQueryOverrides ? tabCache.getMemoryCache(newVal) : null;
+    const cached = !hasQueryOverrides ? tabCache.getMemoryCache(currentTab) : null;
     if (cached) {
       dataSource.value = cached.dataSource;
       pagination.total = cached.total;
@@ -1002,21 +1041,31 @@ watch(activeTab, (newVal, oldVal) => {
 
 onMounted(() => {
   const restoredTab = tabCache.init();
-  
+  let queryTab = route.query.tab;
+  if (queryTab === 'npoc_service') {
+    serviceEngineType.value = 'npoc';
+    queryTab = 'service';
+  } else if (queryTab === 'service') {
+    serviceEngineType.value = 'nmap';
+  } else if (!queryTab && restoredTab === 'npoc_service') {
+    serviceEngineType.value = 'npoc';
+  }
+
   // 优先级：若 URL 带了 tab 参数则以 URL 为准，否则以 SessionStorage 恢复的为准
-  const targetTab = (route.query.tab && tabConfig[route.query.tab])
-    ? route.query.tab
-    : ((restoredTab && tabConfig[restoredTab]) ? restoredTab : 'site');
+  const targetTab = (queryTab && tabConfig[queryTab])
+    ? queryTab
+    : ((restoredTab && tabConfig[restoredTab]) ? (restoredTab === 'npoc_service' ? 'service' : restoredTab) : 'site');
 
   window.addEventListener('resize', onWindowResize);
 
   if (activeTab.value !== targetTab) {
     activeTab.value = targetTab;
   } else {
-    columns.value = tabConfig[targetTab].cols;
-    searchForm.value = tabCache.getTabSearchForm(targetTab);
-    tabCache.applyTabOperators(targetTab);
-    pagination.current = tabCache.getTabPage(targetTab);
+    const currentTab = effectiveTab.value;
+    columns.value = tabConfig[currentTab].cols;
+    searchForm.value = tabCache.getTabSearchForm(currentTab);
+    tabCache.applyTabOperators(currentTab);
+    pagination.current = tabCache.getTabPage(currentTab);
 
     // 若 URL query 有额外搜索参数，覆盖进 searchForm 并保存
     let hasQueryOverrides = false;
@@ -1027,10 +1076,10 @@ onMounted(() => {
       }
     }
     if (hasQueryOverrides) {
-      tabCache.saveCurrentTab(targetTab, searchForm.value, 1);
+      tabCache.saveCurrentTab(currentTab, searchForm.value, 1);
     }
 
-    const cached = !hasQueryOverrides ? tabCache.getMemoryCache(targetTab) : null;
+    const cached = !hasQueryOverrides ? tabCache.getMemoryCache(currentTab) : null;
     if (cached) {
       dataSource.value = cached.dataSource;
       pagination.total = cached.total;

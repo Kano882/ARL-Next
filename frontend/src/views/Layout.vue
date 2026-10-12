@@ -124,7 +124,7 @@
       <a-layout-content class="arl-main-content" style="margin: 16px; display: flex; flex-direction: column; overflow-y: auto; height: 0;">
         <div :style="{ background: hasBgImage ? (isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.4)') : (isDarkMode ? '#0f172a' : 'transparent'), flex: '1 0 auto', display: 'flex', flexDirection: 'column', borderRadius: '4px' }">
           <router-view v-slot="{ Component }">
-            <keep-alive include="Dashboard,TaskList,TaskDetail,AssetScope,GroupAssetsDetail,AssetSearch,AssetMonitor,PlanningTasks,GithubManage,PocList,Fingerprint,Policy,SystemSettings">
+            <keep-alive include="Dashboard,TaskList,TaskDetail,AssetScope,GroupAssetsDetail,AssetSearch,PlanningTasks,GithubManage,PocList,Fingerprint,Policy,SystemSettings">
               <component :is="Component" />
             </keep-alive>
           </router-view>
@@ -315,8 +315,7 @@ const defaultMenuItems = [
   { key: '/group', title: '资产分组', icon: AppstoreOutlined },
   { key: '/taskList', title: '任务管理', icon: GlobalOutlined },
   { key: '/asset-search', title: '资产搜索', icon: SearchOutlined },
-  { key: '/assetsMonitor', title: '资产监控', icon: DesktopOutlined },
-  { key: '/planningTasks', title: '计划任务', icon: ClockCircleOutlined },
+  { key: '/planningTasks', title: '计划与调度', icon: ClockCircleOutlined },
   { key: '/GitHubTasks/GitHubTasksList', title: 'GitHub监控', icon: GithubOutlined },
   { key: '/pocList', title: 'POC管理', icon: BugOutlined },
   { key: '/fingerprint', title: '指纹管理', icon: TagsOutlined },
@@ -654,16 +653,14 @@ watch(() => route.path, (newPath) => {
 const currentPageTitle = computed(() => {
   if (route.path.includes('taskDetail')) return '任务详情';
   if (route.path.includes('groupAssetsDetail')) return '资产分组详情';
-  if (route.path.includes('GitHubTasksInfo')) return 'GitHub 任务详情';
-  if (route.path.includes('GitHubMonitorInfo')) return 'GitHub 监控详情';
   if (route.path.includes('policyDetail')) return '策略配置详情';
   const titleMap = {
     '/dashboard': '仪表盘',
     '/group': '资产分组',
     '/taskList': '任务管理',
     '/asset-search': '资产搜索',
-    '/assetsMonitor': '资产监控',
-    '/planningTasks': '计划任务',
+    '/assetsMonitor': '计划与调度',
+    '/planningTasks': '计划与调度',
     '/GitHubTasks/GitHubTasksList': 'GitHub监控',
     '/policy': '策略配置',
     '/pocList': 'POC管理',

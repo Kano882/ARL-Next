@@ -95,21 +95,30 @@
             <template #tab>
               <span class="asm-tab-item">
                 <span>{{ t.label }}</span>
-                <span class="asm-tab-badge" :class="{ 'has-data': asmCounts[t.key] > 0 }">
-                  {{ asmCounts[t.key] || 0 }}
+                <span class="asm-tab-badge" :class="{ 'has-data': (t.key === 'service' ? ((asmCounts.service || 0) + (asmCounts.npoc_service || 0)) : (asmCounts[t.key] || 0)) > 0 }">
+                  {{ t.key === 'service' ? ((asmCounts.service || 0) + (asmCounts.npoc_service || 0)) : (asmCounts[t.key] || 0) }}
                 </span>
               </span>
             </template>
           </a-tab-pane>
         </a-tabs>
 
+        <!-- 系统服务识别引擎筛选控制条 -->
+        <div v-if="activeTab === 'service'" style="margin-top: 8px; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; background: var(--arl-bg-light); padding: 8px 14px; border-radius: 6px; border: 1px solid var(--arl-border-color);">
+          <span style="font-weight: 600; font-size: 13px; color: var(--arl-text-color);">识别引擎：</span>
+          <a-radio-group v-model:value="serviceEngineType" button-style="solid" size="small" @change="onServiceEngineChange">
+            <a-radio-button value="nmap">端口服务 (Nmap) ({{ asmCounts.service || 0 }})</a-radio-button>
+            <a-radio-button value="npoc">Python 插件服务 ({{ asmCounts.npoc_service || 0 }})</a-radio-button>
+          </a-radio-group>
+        </div>
+
         <!-- 普通资产列表检索与操作工具栏 (上下分层：业务操作行 + 直接平铺紧凑检索卡片) -->
         <div class="asm-toolbar-container">
           <div class="toolbar-row">
             <div class="toolbar-left">
-              <span class="toolbar-title-text">{{ tabConfig[activeTab]?.tabName || '资产' }}维度</span>
+              <span class="toolbar-title-text">{{ tabConfig[effectiveTab]?.tabName || '资产' }}维度</span>
               <span class="toolbar-meta-count">
-                共 <b class="font-mono">{{ asmCounts[activeTab] || 0 }}</b> 条记录
+                共 <b class="font-mono">{{ effectiveTab === 'service' ? asmCounts.service : (effectiveTab === 'npoc_service' ? asmCounts.npoc_service : (asmCounts[activeTab] || 0)) }}</b> 条记录
               </span>
             </div>
 
@@ -122,9 +131,9 @@
                 <template #icon><plus-outlined /></template>
                 添加子域名
               </a-button>
-              <a-button v-if="activeTab !== 'ip' && tabConfig[activeTab]?.exportUrl" size="small" @click="handleExport">
+              <a-button v-if="activeTab !== 'ip' && tabConfig[effectiveTab]?.exportUrl" size="small" @click="handleExport">
                 <template #icon><download-outlined /></template>
-                导出{{ tabConfig[activeTab].tabName }}
+                导出{{ tabConfig[effectiveTab].tabName }}
               </a-button>
               <template v-if="activeTab === 'ip'">
                 <a-button size="small" @click="handleIPExport('port')">导出端口</a-button>
@@ -141,7 +150,7 @@
 
               <!-- 高级筛选折叠展开切换按钮 -->
               <a-button
-                v-if="tabConfig[activeTab]?.searchFields?.length"
+                v-if="tabConfig[effectiveTab]?.searchFields?.length"
                 size="small"
                 :type="isAdvancedFilterOpen ? 'primary' : 'default'"
                 :ghost="isAdvancedFilterOpen"
@@ -162,11 +171,11 @@
 
           <!-- 可折叠展开的紧凑多字段栅格筛选卡片 -->
           <transition name="fade-slide">
-            <div v-show="isAdvancedFilterOpen" v-if="tabConfig[activeTab]?.searchFields?.length" class="asm-filter-card">
+            <div v-show="isAdvancedFilterOpen" v-if="tabConfig[effectiveTab]?.searchFields?.length" class="asm-filter-card">
             <a-form :model="searchForm" class="filter-grid-form">
               <a-row :gutter="[12, 6]">
                 <a-col
-                  v-for="field in tabConfig[activeTab].searchFields.filter(f => !f.hidden)"
+                  v-for="field in tabConfig[effectiveTab].searchFields.filter(f => !f.hidden)"
                   :key="field.key"
                   :xs="24" :sm="12" :md="8" :lg="6"
                 >
@@ -677,7 +686,7 @@
     </a-modal>
 
 
-    <div v-if="tabConfig[activeTab]" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; margin-top: 10px;">
+    <div v-if="tabConfig[effectiveTab]" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; margin-top: 10px;">
       <div style="color: var(--arl-text-color); opacity: 0.65; font-size: 12px;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
       <a-pagination size="small" :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
     </div>
@@ -1044,7 +1053,6 @@ const asmTabList = [
   { key: 'stat_finger', label: '指纹统计' },
   { key: 'wih', label: 'WIH' },
   { key: 'vuln', label: '风险' },
-  { key: 'npoc_service', label: '服务(python)' },
   { key: 'nuclei_result', label: 'nuclei' }
 ];
 
@@ -1338,6 +1346,29 @@ const handleOsintSynced = () => {
 
 const isScopeSwitching = ref(false);
 const activeTab = ref('site');
+const serviceEngineType = ref('nmap'); // 'nmap' | 'npoc'
+const effectiveTab = computed(() => {
+  if (activeTab.value === 'service' && serviceEngineType.value === 'npoc') {
+    return 'npoc_service';
+  }
+  return activeTab.value;
+});
+
+const onServiceEngineChange = () => {
+  const currentTab = effectiveTab.value;
+  selectedRowKeys.value = [];
+  columns.value = tabConfig[currentTab]?.cols || [];
+  searchForm.value = tabCache.getTabSearchForm(currentTab);
+  tabCache.applyTabOperators(currentTab);
+  pagination.current = tabCache.getTabPage(currentTab) || 1;
+  const cached = tabCache.getMemoryCache(currentTab);
+  if (cached) {
+    dataSource.value = cached.dataSource;
+    pagination.total = cached.total;
+  } else {
+    fetchData();
+  }
+};
 const loading = ref(false);
 const dataSource = ref([]);
 
@@ -1793,10 +1824,10 @@ const tabCache = createTabStateCache({
 const columns = ref(tabConfig.site.cols);
 
 const fetchData = async () => {
-  const config = tabConfig[activeTab.value];
+  const config = tabConfig[effectiveTab.value];
   if (!config) return;
 
-  const currentReqTab = activeTab.value;
+  const currentReqTab = effectiveTab.value;
   loading.value = true;
   try {
     // 🚨 修复 2：获取 computed 响应式对象的最新值
@@ -1828,23 +1859,23 @@ const fetchData = async () => {
     }
     const res = await request.get(config.url, { params });
     // 竞态防御：若响应到达时 Tab 已切换，丢弃过期响应
-    if (activeTab.value !== currentReqTab) return;
+    if (effectiveTab.value !== currentReqTab) return;
 
     if (res.code === 200) {
       dataSource.value = res.items || [];
       pagination.total = res.total || 0;
-      asmCounts[activeTab.value] = res.total || 0;
+      asmCounts[effectiveTab.value] = res.total || 0;
       selectedRowKeys.value = [];
       // 更新当前 Tab 内存数据缓存并持久化轻量搜索状态
-      tabCache.updateMemoryCache(activeTab.value, dataSource.value, pagination.total);
-      tabCache.saveCurrentTab(activeTab.value, searchForm.value, pagination.current);
+      tabCache.updateMemoryCache(effectiveTab.value, dataSource.value, pagination.total);
+      tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, pagination.current);
     }
   } catch (error) {
-    if (activeTab.value === currentReqTab) {
+    if (effectiveTab.value === currentReqTab) {
       message.error('加载数据失败');
     }
   } finally {
-    if (activeTab.value === currentReqTab) {
+    if (effectiveTab.value === currentReqTab) {
       loading.value = false;
     }
   }
@@ -1852,19 +1883,19 @@ const fetchData = async () => {
 
 const onSearch = () => {
   pagination.current = 1;
-  tabCache.saveCurrentTab(activeTab.value, searchForm.value, 1);
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, 1);
   fetchData();
 };
 const resetSearch = () => {
   searchForm.value = {};
-  tabCache.resetTabState(activeTab.value);
+  tabCache.resetTabState(effectiveTab.value);
   pagination.current = 1;
   fetchData();
 };
 const handleTableChange = (page, pageSize) => {
   pagination.current = page;
   pagination.pageSize = pageSize;
-  tabCache.saveCurrentTab(activeTab.value, searchForm.value, page);
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, page);
   fetchData();
 };
 
@@ -1879,7 +1910,7 @@ const handleBatchDelete = () => {
     cancelText: '取 消',
     onOk: async () => {
       try {
-        const config = tabConfig[activeTab.value];
+        const config = tabConfig[effectiveTab.value];
         if (!config || !config.url) return;
 
         // 🚨 优先读取专用配置，否则动态拼接删除 API 路径：例如 /asset_domain/ -> /asset_domain/delete/
@@ -1899,7 +1930,7 @@ const handleBatchDelete = () => {
           }
 
           selectedRowKeys.value = []; // 清空选中状态
-          tabCache.invalidateMemoryCache(activeTab.value);
+          tabCache.invalidateMemoryCache(effectiveTab.value);
           fetchData(); // 🚨 完美对齐抓包里的第二个请求：自动刷新表格数据
         } else {
           message.error('删除失败: ' + res.message);
@@ -1912,22 +1943,25 @@ const handleBatchDelete = () => {
 };
 
 watch(activeTab, (newVal, oldVal) => {
-  if (oldVal && tabConfig[oldVal] && !isScopeSwitching.value) {
+  const oldEffective = (oldVal === 'service' && serviceEngineType.value === 'npoc') ? 'npoc_service' : oldVal;
+  const newEffective = (newVal === 'service' && serviceEngineType.value === 'npoc') ? 'npoc_service' : newVal;
+
+  if (oldEffective && tabConfig[oldEffective] && !isScopeSwitching.value) {
     // 离开旧选项卡前，仅在非切组且有效交互时保存当前搜索表单、操作符和页码
-    tabCache.saveCurrentTab(oldVal, searchForm.value, pagination.current);
+    tabCache.saveCurrentTab(oldEffective, searchForm.value, pagination.current);
   }
 
-  if (tabConfig[newVal]) {
-    columns.value = tabConfig[newVal].cols;
+  if (tabConfig[newEffective]) {
+    columns.value = tabConfig[newEffective].cols;
     selectedRowKeys.value = [];
 
     // 恢复新选项卡的搜索表单、操作符与页码
-    searchForm.value = tabCache.getTabSearchForm(newVal);
-    tabCache.applyTabOperators(newVal);
-    pagination.current = tabCache.getTabPage(newVal);
+    searchForm.value = tabCache.getTabSearchForm(newEffective);
+    tabCache.applyTabOperators(newEffective);
+    pagination.current = tabCache.getTabPage(newEffective) || 1;
 
     // 检查内存数据缓存：若已加载过则直接秒开渲染，不重复向后端发请求
-    const cached = tabCache.getMemoryCache(newVal);
+    const cached = tabCache.getMemoryCache(newEffective);
     if (cached) {
       dataSource.value = cached.dataSource;
       pagination.total = cached.total;
@@ -1960,20 +1994,24 @@ watch(scope_id, (newId) => {
     dataSource.value = [];
     selectedRowKeys.value = [];
 
-    const restoredTab = tabCache.init();
+    let restoredTab = tabCache.init();
+    if (restoredTab === 'npoc_service') {
+      serviceEngineType.value = 'npoc';
+      restoredTab = 'service';
+    }
     if (restoredTab && tabConfig[restoredTab] && restoredTab !== activeTab.value) {
       activeTab.value = restoredTab;
       nextTick(() => {
         isScopeSwitching.value = false;
       });
     } else {
-      if (tabConfig[activeTab.value]) {
-        columns.value = tabConfig[activeTab.value].cols;
-        searchForm.value = tabCache.getTabSearchForm(activeTab.value);
-        tabCache.applyTabOperators(activeTab.value);
-        pagination.current = tabCache.getTabPage(activeTab.value);
+      if (tabConfig[effectiveTab.value]) {
+        columns.value = tabConfig[effectiveTab.value].cols;
+        searchForm.value = tabCache.getTabSearchForm(effectiveTab.value);
+        tabCache.applyTabOperators(effectiveTab.value);
+        pagination.current = tabCache.getTabPage(effectiveTab.value) || 1;
       }
-      const cached = tabCache.getMemoryCache(activeTab.value);
+      const cached = tabCache.getMemoryCache(effectiveTab.value);
       if (cached) {
         dataSource.value = cached.dataSource;
         pagination.total = cached.total;
@@ -1998,7 +2036,7 @@ watch(scope_id, (newId) => {
 
 // ================= 导出功能 (站点、域名、WIH 通用) =================
 const handleExport = async () => {
-  const config = tabConfig[activeTab.value];
+  const config = tabConfig[effectiveTab.value];
   if (!config || !config.exportUrl) return;
 
   try {
@@ -2013,7 +2051,7 @@ const handleExport = async () => {
       size: 100000,
       scope_id: scope_id.value,
       targetName: targetName.value,
-      tabIndex: tabIndexMap[activeTab.value]
+      tabIndex: tabIndexMap[effectiveTab.value]
     };
 
     // 🚨 补全缺失的搜索参数：确保用户过滤后导出的数据也是精准的！
@@ -2042,7 +2080,7 @@ const handleExport = async () => {
 
     const res = await request.get(config.exportUrl, { params, responseType: 'blob' });
 
-    const isCert = activeTab.value === 'cert';
+    const isCert = effectiveTab.value === 'cert';
     const mimeType = isCert ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
     const ext = isCert ? 'json' : 'txt';
 
@@ -2050,7 +2088,7 @@ const handleExport = async () => {
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `ARL_Group_Export_${activeTab.value}_${new Date().getTime()}.${ext}`;
+    link.download = `ARL_Group_Export_${effectiveTab.value}_${new Date().getTime()}.${ext}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
