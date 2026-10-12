@@ -1,7 +1,12 @@
 export function applyTaskStatistics(metrics, statistics) {
   if (!statistics) return false;
   const running = Number.isInteger(statistics.active) ? statistics.active : (Number.isInteger(statistics.running) ? statistics.running : null);
-  if (!Number.isInteger(statistics.total) || running === null || !Number.isInteger(statistics.done) || !Number.isInteger(statistics.abnormal)) {
+  if (
+    !Number.isInteger(statistics.total) || statistics.total < 0 ||
+    running === null || running < 0 ||
+    !Number.isInteger(statistics.done) || statistics.done < 0 ||
+    !Number.isInteger(statistics.abnormal) || statistics.abnormal < 0
+  ) {
     return false;
   }
   metrics.total = statistics.total;

@@ -5,7 +5,7 @@ def get_task_statistics(collection, include_stage_statuses=False):
     counts = {key: 0 for key in ('total', 'running', 'waiting', 'done', 'error', 'stop')}
     groups = collection.aggregate([{'$group': {'_id': '$status', 'count': {'$sum': 1}}}])
     for group in groups:
-        status, count = group.get('_id'), group.get('count', 0)
+        status, count = group['_id'], group['count']
         counts['total'] += count
         if status in ('waiting', 'done', 'error', 'stop'):
             counts[status] += count
@@ -13,13 +13,6 @@ def get_task_statistics(collection, include_stage_statuses=False):
             counts['running'] += count
     counts['active'] = counts['running'] + counts['waiting']
     counts['abnormal'] = counts['error'] + counts['stop']
-    counts['details'] = {
-        'waiting': counts['waiting'],
-        'running': counts['running'],
-        'done': counts['done'],
-        'error': counts['error'],
-        'stop': counts['stop']
-    }
     return counts
 
 

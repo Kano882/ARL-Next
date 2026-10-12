@@ -61,14 +61,9 @@ class TestIssue55TaskOverviewCount(unittest.TestCase):
             self.assertEqual(data.get("running"), 0)
             self.assertEqual(data.get("active"), 0)
             self.assertEqual(data.get("done"), 0)
-            self.assertEqual(data.get("abnormal"), 0)
-            self.assertEqual(data.get("details"), {
-                "waiting": 0,
-                "running": 0,
-                "done": 0,
-                "error": 0,
-                "stop": 0
-            })
+            self.assertEqual(data.get("waiting"), 0)
+            self.assertEqual(data.get("error"), 0)
+            self.assertEqual(data.get("stop"), 0)
 
     def test_task_overview_count_aggregation_logic(self):
         """场景 2：数据库包含各种状态分布时，指标分类与总计计算正确"""
@@ -97,9 +92,9 @@ class TestIssue55TaskOverviewCount(unittest.TestCase):
             self.assertEqual(data.get("abnormal"), 7)
             # total: 2 + 5 + 1 + 42 + 3 + 4 = 57
             self.assertEqual(data.get("total"), 57)
-            self.assertEqual(data.get("details", {}).get("waiting"), 2)
-            self.assertEqual(data.get("details", {}).get("error"), 3)
-            self.assertEqual(data.get("details", {}).get("stop"), 4)
+            self.assertEqual(data.get("waiting"), 2)
+            self.assertEqual(data.get("error"), 3)
+            self.assertEqual(data.get("stop"), 4)
 
     def test_task_overview_count_exception_resilience(self):
         """场景 3：数据库异常时，优雅降级返回错误响应，不引发未捕获崩溃"""
@@ -109,7 +104,7 @@ class TestIssue55TaskOverviewCount(unittest.TestCase):
             response = resource.get()
 
             self.assertNotEqual(response.get("code"), 200)
-            self.assertIn("Database connection timed out", str(response))
+            self.assertIn("获取任务统计失败", str(response))
 
     def test_icp_task_overview_count_aggregation(self):
         """场景 4：企业测绘任务指标聚合接口同样正确计算 4 维指标"""

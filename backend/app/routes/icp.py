@@ -172,18 +172,19 @@ class IcpTask(ARLResource):
 @ns.route('/task/statistics/')
 @ns.route('/task/overview_count')
 @ns.route('/task/overview_count/')
-class IcpTaskOverviewCount(ARLResource):
+class IcpTaskStatistics(ARLResource):
     @auth
     def get(self):
-        """
-        获取企业测绘任务全局状态指标统计 (全量单次聚合)
-        """
+        """仅返回企业查询任务的全局状态数量。"""
         try:
-            stats = get_task_statistics(conn_db('icp_task'))
-            return build_ret(ErrorMsg.Success, stats)
-        except Exception as e:
-            logger.exception(f"获取企业测绘指标异常: {e}")
-            return build_ret(ErrorMsg.Error, {"error": str(e)})
+            return build_ret(ErrorMsg.Success, get_task_statistics(conn_db('icp_task')))
+        except Exception:
+            logger.exception('Failed to aggregate enterprise task status statistics')
+            return build_ret(ErrorMsg.Error, {'error': '获取企业查询统计失败'})
+
+
+# 向下兼容别名引用
+IcpTaskOverviewCount = IcpTaskStatistics
 
 
 @ns.route('/tyc_check')

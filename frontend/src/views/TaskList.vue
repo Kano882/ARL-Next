@@ -18,9 +18,9 @@
             >
               <bank-outlined class="capsule-icon" />
               <span>企业测绘任务</span>
-              <span class="capsule-count" v-if="enterpriseRunningCount > 0">
+              <span class="capsule-count" v-if="enterpriseMetricCounts.running > 0">
                 <span class="pulse-dot"></span>
-                {{ enterpriseRunningCount }} 运行中
+                {{ enterpriseMetricCounts.running }} 运行中
               </span>
             </button>
             <button
@@ -1178,35 +1178,6 @@ const toggleStatusFilter = (targetStatus) => {
   }
 };
 
-// 拉取资产侦查任务 4 维指标计数 (单次轻量聚合独立接口)
-const fetchTaskMetricCounts = async () => {
-  try {
-    const res = await request.get('/task/statistics');
-    const data = res.data || res;
-    if (res.code === 200 && data) {
-      if (applyTaskStatistics(taskMetricCounts, data)) taskStatisticsReady = true;
-    }
-  } catch (e) {
-    console.error('获取资产侦查指标失败:', e);
-  }
-};
-
-// 拉取企业测绘任务 4 维指标计数 (单次轻量聚合独立接口)
-const fetchEnterpriseMetricCounts = async () => {
-  try {
-    const res = await request.get('/icp/task/statistics');
-    const data = res.data || res;
-    if (res.code === 200 && data) {
-      if (applyTaskStatistics(enterpriseMetricCounts, data)) {
-        enterpriseStatisticsReady = true;
-        enterpriseRunningCount.value = enterpriseMetricCounts.running;
-      }
-    }
-  } catch (e) {
-    console.error('获取企业测绘指标失败:', e);
-  }
-};
-
 // ==========================================
 // 🔄 自适应静默轮询机制 (Smart Polling)
 // ==========================================
@@ -1226,11 +1197,11 @@ const startSmartPolling = () => {
   pollingTimer = setInterval(async () => {
     // 仅在有进行中任务或激活状态时静默更新
     if (activeMainTab.value === 'enterprise') {
-      if (enterpriseMetricCounts.running > 0) {
+      if (!enterpriseStatisticsReady || enterpriseMetricCounts.running > 0) {
         await fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
       }
     } else {
-      if (taskMetricCounts.running > 0) {
+      if (!taskStatisticsReady || taskMetricCounts.running > 0) {
         await fetchTasks(pagination.current, pagination.pageSize, true);
       }
     }
@@ -1333,9 +1304,7 @@ const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false, include
   } catch (error) {
     console.error('获取企业测绘列表失败:', error);
   } finally {
-    if (requestVersion === enterpriseRequestVersion) {
-      if (!silent) enterpriseLoading.value = false;
-    }
+    if (requestVersion === enterpriseRequestVersion) enterpriseLoading.value = false;
   }
 };
 
@@ -1830,9 +1799,7 @@ const fetchTasks = async (page = 1, size = 10, silent = false, includeStatistics
   } catch (error) {
     console.error('获取资产侦查任务失败:', error);
   } finally {
-    if (requestVersion === taskRequestVersion) {
-      if (!silent) loading.value = false;
-    }
+    if (requestVersion === taskRequestVersion) loading.value = false;
   }
 };
 
@@ -2416,10 +2383,8 @@ onMounted(async () => {
 
   if (activeMainTab.value === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-    fetchTaskMetricCounts();
   } else {
     fetchTasks(pagination.current, pagination.pageSize);
-    fetchEnterpriseMetricCounts();
   }
 
   startSmartPolling();

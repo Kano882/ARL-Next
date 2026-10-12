@@ -700,18 +700,19 @@ class TaskRestart(ARLResource):
 @ns.route('/statistics/')
 @ns.route('/overview_count')
 @ns.route('/overview_count/')
-class TaskOverviewCount(ARLResource):
+class TaskStatistics(ARLResource):
     @auth
     def get(self):
-        """
-        获取资产发现任务全局状态指标统计 (全量单次聚合)
-        """
+        """仅返回全局状态数量，运行中包含扫描阶段状态。"""
         try:
-            stats = get_task_statistics(utils.conn_db('task'), include_stage_statuses=True)
-            return utils.build_ret(ErrorMsg.Success, stats)
-        except Exception as e:
-            logger.exception(f"获取任务统计指标异常: {e}")
-            return utils.build_ret(ErrorMsg.Error, {"error": str(e)})
+            return utils.build_ret(ErrorMsg.Success, get_task_statistics(utils.conn_db('task'), include_stage_statuses=True))
+        except Exception:
+            logger.exception('Failed to aggregate task status statistics')
+            return utils.build_ret(ErrorMsg.Error, {'error': '获取任务统计失败'})
+
+
+# 向下兼容别名引用
+TaskOverviewCount = TaskStatistics
 
 
 

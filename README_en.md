@@ -331,7 +331,9 @@ Navigate to your ARL-Next installation directory on the server and run the upgra
 
 | Operation | Method & Path | Parameters |
 | :--- | :--- | :--- |
-| Query Tasks | `GET /api/task/` | Optional query params: `target`, `status`, `page`, `size` |
+| Query Tasks | `GET /api/task/` | Optional query params: `target`, `status`, `page`, `size`; `include_statistics=1` adds global status counts |
+| Scan Task Statistics | `GET /api/task/statistics` | Global status counts without loading task records |
+| Enterprise Task Statistics | `GET /api/icp/task/statistics` | Global enterprise-query status counts |
 | Stop Single Task | `GET /api/task/stop/<task_id>` | Task ID in path; **note that this GET request modifies task state** |
 | Batch Stop Tasks | `POST /api/task/batch_stop/` | Request body per Swagger documentation |
 | Delete Task | `POST /api/task/delete/` | JSON: `{"task_id": ["<task_id>"], "del_task_data": false}` |
@@ -340,6 +342,10 @@ Navigate to your ARL-Next installation directory on the server and run the upgra
 The deletion endpoint only accepts tasks in `done`, `stop`, or `error` states; other states return business code `104` ("Task is currently running"). If deletion is required, verify the status, terminate the task via the stop endpoint if necessary, and then issue the deletion call. Stopping a task uses **GET** in the current implementation; do not assume it is read-only, and avoid guessing endpoints like `DELETE /api/task/<id>` or `POST /api/task/stop/`.
 
 ### Query Result Namespaces
+
+`GET /api/task/?include_statistics=1` and `GET /api/icp/task?include_statistics=1` add `statistics` to the list response. Fields are `total`, `running`, `waiting`, `done`, `error`, `stop`, `active`, and `abnormal`. `active` includes running and waiting; `abnormal` includes error and stop. Scan-task `running` includes intermediate scan stages. Statistics are global to each task collection, while the existing list `total` remains the filtered count. Statistics-only endpoints return the same structure under `data` and use existing Token authentication.
+
+Requests without `include_statistics=1` retain the existing list response. If aggregation fails, a successful list response includes `statistics_error=true` without `statistics`; clients should retain previous counts rather than show zero tasks.
 
 Task-scoped results are queried under endpoints such as `/api/domain/`, `/api/ip/`, and `/api/site/`. Results synced to Asset Groups reside under the `asset_*` namespace, including `/api/asset_domain/`, `/api/asset_ip/`, and `/api/asset_site/`. These represent distinct datasets: task queries require `task_id`, whereas asset group queries require `scope_id`. Refer to `/api/doc` for current parameter specifications and pagination schema.
 
