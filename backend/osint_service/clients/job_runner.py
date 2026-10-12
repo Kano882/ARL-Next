@@ -16,6 +16,19 @@ def curr_date():
     tz = timezone(timedelta(hours=8))
     return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
 
+
+async def _claim_recon_task(task_id):
+    result = await db['icp_task'].update_one(
+        {"_id": ObjectId(task_id), "status": "waiting"},
+        {"$set": {"status": "running", "start_time": curr_date()}}
+    )
+    return result.matched_count == 1
+
+
+async def _task_is_running(task_id):
+    task = await db['icp_task'].find_one({"_id": ObjectId(task_id)}, {"status": 1})
+    return task is not None and task.get("status") == "running"
+
 async def run_recon_job(options):
     logger.info(f"Entering run_recon_job with options: {options}")
     options.get("task_id")
@@ -34,7 +47,8 @@ async def run_icp_job(options):
         logger.error(f"Missing required ICP params for task {task_id}")
         return
         
-    await db['icp_task'].update_one({"_id": ObjectId(task_id)}, {"$set": {"status": "running", "start_time": curr_date()}})
+    if not await _claim_recon_task(task_id):
+        return
     
     total_assets = 0
     error_msg = []
@@ -83,7 +97,7 @@ async def run_icp_job(options):
     for idx, qt in enumerate(query_types):
         # 实时检测任务是否被主动终止
         task_info = await db['icp_task'].find_one({"_id": ObjectId(task_id)}, {"status": 1})
-        if task_info and task_info.get("status") == "stop":
+        if not task_info or task_info.get("status") != "running":
             await insert_syslog("warning", "任务中止", "检测到 ICP 查询任务已被手动停止，退出执行流程。")
             logger.info(f"ICP task {task_id} manually stopped.")
             return
@@ -95,6 +109,8 @@ async def run_icp_job(options):
             try:
                 await insert_syslog("info", f"{qt}查询", f"开始获取 {qt} 资产数据...")
                 res = await handlers[qt](target, "", "", proxy=None)
+                if not await _task_is_running(task_id):
+                    return
                 if res.get("code") == 200 and res.get("params"):
                     assets = res["params"].get("list", [])
                     if assets:
@@ -144,7 +160,7 @@ async def run_icp_job(options):
     }
     if error_msg:
         update_data["$set"]["error_msg"] = "; ".join(error_msg)
-    await db['icp_task'].update_one({"_id": ObjectId(task_id), "status": {"$ne": "stop"}}, update_data)
+    await db['icp_task'].update_one({"_id": ObjectId(task_id), "status": "running"}, update_data)
     await insert_syslog("info", "任务完成", f"ICP查询任务执行结束，共获取 {total_assets} 条资产")
     logger.info(f"ICP query task {task_id} completed.")
 
@@ -219,6 +235,9 @@ async def _upsert_task_asset(task_id, query_type, asset, company_name, task_asse
     冲突处理：智能增量合并，以最新记录优先更新主体 unitName 与非空技术字段，不重复计入资产总数。
     返回值：is_new (bool) - 是否为首发新资产
     """
+    if not await _task_is_running(task_id):
+        return False
+
     key = None
     lic_key = None
 
@@ -396,7 +415,7 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
 
     # 检查任务是否中止
     task_info = await db['icp_task'].find_one({"_id": ObjectId(task_id)}, {"status": 1})
-    if task_info and task_info.get("status") == "stop":
+    if not task_info or task_info.get("status") != "running":
         return
 
     await insert_syslog("info", "工信部查重", f"正在对主体【{company_name}】发起工信部官方备案双轨查重与补全...")
@@ -411,7 +430,7 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
     for qt, (handler, label) in handlers.items():
         # 实时检测任务是否被主动终止
         task_info = await db['icp_task'].find_one({"_id": ObjectId(task_id)}, {"status": 1})
-        if task_info and task_info.get("status") == "stop":
+        if not task_info or task_info.get("status") != "running":
             logger.info(f"Task {task_id} manually stopped during ICP enrichment.")
             return
 
@@ -482,7 +501,8 @@ async def run_tyc_job(options):
     if not task_id or not tyc_id or not tyc_token:
         logger.error(f"Missing required TYC params for task {task_id}")
         return
-    await db['icp_task'].update_one({"_id": ObjectId(task_id)}, {"$set": {"status": "running", "start_time": curr_date()}})
+    if not await _claim_recon_task(task_id):
+        return
     total_assets_holder = [0]
     error_msg = []
     counts = {"web": 0, "app": 0, "mapp": 0, "wechat": 0, "weibo": 0, "invest": 0, "kapp": 0}
@@ -588,7 +608,7 @@ async def run_tyc_job(options):
             for idx, current_gid in enumerate(gids_to_query):
                 # 在抓取每家公司前检查任务是否被中止
                 task_info = await db['icp_task'].find_one({"_id": ObjectId(task_id)}, {"status": 1})
-                if task_info and task_info.get("status") == "stop":
+                if not task_info or task_info.get("status") != "running":
                     await insert_syslog("warning", "任务中止", "检测到任务已被手动停止，退出执行流程。")
                     logger.info(f"Task {task_id} manually stopped.")
                     return
@@ -877,6 +897,6 @@ async def run_tyc_job(options):
     }
     if error_msg:
         update_data["$set"]["error_msg"] = "; ".join(error_msg)
-    await db['icp_task'].update_one({"_id": ObjectId(task_id)}, update_data)
+    await db['icp_task'].update_one({"_id": ObjectId(task_id), "status": "running"}, update_data)
     await insert_syslog("info", "任务完成", f"TYC+工信部联合测绘任务执行结束，共获取 {total_assets_holder[0]} 条资产")
     logger.info(f"TYC query task {task_id} completed.")

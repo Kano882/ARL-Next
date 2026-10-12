@@ -53,6 +53,21 @@ class TaskManager:
     def get_task(self, task_name):
         """获取任务"""
         return self._tasks.get(task_name)
+
+    async def cancel_task(self, task_name):
+        """等待协程取消完成，使停止响应能够作为删除前的确认。"""
+        task = self._tasks.get(task_name)
+        if task is None:
+            return
+        try:
+            if not task.done():
+                task.cancel()
+            await task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if self._tasks.get(task_name) is task:
+                del self._tasks[task_name]
         
     def remove_task(self, task_name):
         """移除任务"""

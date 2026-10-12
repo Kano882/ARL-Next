@@ -1,6 +1,7 @@
 from aiohttp import web
 import asyncio
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,9 @@ async def watchdog_task(app):
 def submit_recon_job(task_manager, data):
     """将 Recon 任务提交至受信号量限制的协程池"""
     task_id = data.get("task_id")
+    existing = task_manager.get_task(task_id)
+    if existing is not None and not existing.done():
+        return existing
     semaphore = task_manager.get_semaphore("recon_task", 1, dynamic=True)
     from clients.job_runner import run_recon_job
 
@@ -43,6 +47,8 @@ def submit_recon_job(task_manager, data):
         background_tasks.discard(t)
         try:
             t.result()
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
             logger.error(f"Background task {task_id} crashed: {e}", exc_info=True)
 
@@ -53,29 +59,31 @@ def submit_recon_job(task_manager, data):
 async def start_recon(request):
     try:
         data = await request.json()
-        task_id = data.get("task_id")
-        if not task_id:
-            return web.json_response({"code": 400, "msg": "Missing task_id"})
+        task_id = data.get("task_id") if isinstance(data, dict) else None
+        if not isinstance(task_id, str) or not re.fullmatch(r"[0-9a-fA-F]{24}", task_id):
+            return web.json_response({"code": 400, "msg": "Invalid task_id"}, status=400)
+        if data.get("type") not in ("icp", "tyc"):
+            return web.json_response({"code": 400, "msg": "Invalid task type"}, status=400)
 
         task_manager = request.app.get('task_manager')
         submit_recon_job(task_manager, data)
         return web.json_response({"code": 200, "msg": "Task accepted", "task_id": task_id})
     except Exception as e:
-        return web.json_response({"code": 500, "msg": str(e)})
+        return web.json_response({"code": 500, "msg": str(e)}, status=500)
 
 async def stop_recon(request):
     try:
         data = await request.json()
-        task_id = data.get("task_id")
-        if not task_id:
-            return web.json_response({"code": 400, "msg": "Missing task_id"})
+        task_id = data.get("task_id") if isinstance(data, dict) else None
+        if not isinstance(task_id, str) or not re.fullmatch(r"[0-9a-fA-F]{24}", task_id):
+            return web.json_response({"code": 400, "msg": "Invalid task_id"}, status=400)
         
         task_manager = request.app.get('task_manager')
-        task_manager.remove_task(task_id)
-        logger.info(f"Task {task_id} cancel requested via API.")
+        await task_manager.cancel_task(task_id)
+        logger.info(f"Task {task_id} cancellation completed via API.")
         return web.json_response({"code": 200, "msg": "Task stopped", "task_id": task_id})
     except Exception as e:
-        return web.json_response({"code": 500, "msg": str(e)})
+        return web.json_response({"code": 500, "msg": str(e)}, status=500)
 
 
 async def reconcile_orphan_tasks(app):

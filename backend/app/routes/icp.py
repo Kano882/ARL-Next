@@ -7,6 +7,18 @@ import bson
 ns = Namespace('icp', description="ICP 备案查询")
 logger = get_logger()
 
+
+def _request_recon(action, options):
+    """只有微服务确认接收或停止后，调用方才报告成功。"""
+    import requests
+    response = requests.post(f"http://osint-service:16181/api/v1/recon/{action}", json=options, timeout=5)
+    response.raise_for_status()
+    result = response.json()
+    if not isinstance(result, dict) or result.get("code") != 200 or result.get("task_id") != options.get("task_id"):
+        message = result.get("msg", "微服务未确认操作") if isinstance(result, dict) else "微服务响应格式错误"
+        raise RuntimeError(message)
+    return result
+
 # 基础搜索字段
 base_search_icp_task_fields = {
     'name': fields.String(required=False, description="任务名"),
@@ -151,13 +163,12 @@ class IcpTask(ARLResource):
 
         # 将任务发给 celery
         options["type"] = "icp"
-        import requests
         try:
-            res = requests.post("http://osint-service:16181/api/v1/recon/start", json=options, timeout=5)
-            res.raise_for_status()
+            _request_recon("start", options)
         except Exception as e:
             logger.error(f"Failed to trigger osint-service: {e}")
-            conn.update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+            conn.update_one({"_id": result.inserted_id, "status": TaskStatus.WAITING}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+            return build_ret(ErrorMsg.Error, {"task_id": task_id, "error": "微服务未确认任务派发，请核对任务状态"})
 
         return build_ret(ErrorMsg.Success, {"task_id": task_id})
 
@@ -258,13 +269,12 @@ class TycTask(ARLResource):
         options["type"] = "tyc"
         options["tyc_id"] = client.gid
         options["tyc_token"] = client.token
-        import requests
         try:
-            res = requests.post("http://osint-service:16181/api/v1/recon/start", json=options, timeout=5)
-            res.raise_for_status()
+            _request_recon("start", options)
         except Exception as e:
             logger.error(f"Failed to trigger osint-service: {e}")
-            conn.update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+            conn.update_one({"_id": result.inserted_id, "status": TaskStatus.WAITING}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+            return build_ret(ErrorMsg.Error, {"task_id": task_id, "error": "微服务未确认任务派发，请核对任务状态"})
 
         return build_ret(ErrorMsg.Success, {"task_id": task_id})
 
@@ -559,11 +569,11 @@ class IcpTaskStop(ARLResource):
             conn_db('icp_task').update_one(query, update)
             
             # 及时通知微服务终止正在执行或等待的协程任务释放锁
-            import requests
             try:
-                requests.post("http://osint-service:16181/api/v1/recon/stop", json={"task_id": task_id}, timeout=5)
+                _request_recon("stop", {"task_id": task_id})
             except Exception as e:
                 logger.error(f"Failed to stop osint-service task {task_id}: {e}")
+                return build_ret(ErrorMsg.Error, {"task_id": task_id, "error": "微服务未确认停止，请稍后重试停止操作"})
                 
             return build_ret(ErrorMsg.Success, {"task_id": task_id})
         except Exception as e:
@@ -625,6 +635,10 @@ class IcpTaskBatchDelete(ARLResource):
                 )
 
             success_count = 0
+            # 停止记录可能来自失败的停止请求，删除前再次确认后台协程已经退出。
+            stopped_tasks = conn_db('icp_task').find({"_id": {"$in": obj_ids}, "status": TaskStatus.STOP}, {"_id": 1})
+            for stopped in stopped_tasks:
+                _request_recon("stop", {"task_id": str(stopped["_id"])})
             for tid in task_ids:
                 try:
                     obj_id = bson.ObjectId(tid)
@@ -673,6 +687,9 @@ class IcpTaskDelete(ARLResource):
                     {"code": 400, "message": "无法删除正在运行或排队中的任务，请先手动停止后再行删除"},
                     {"task_id": task_id}
                 )
+
+            if task.get("status") == TaskStatus.STOP:
+                _request_recon("stop", {"task_id": str(task_id)})
 
             # 原子性状态条件删除
             del_res = conn_db('icp_task').delete_one({
@@ -759,13 +776,11 @@ def _restart_single_icp_task(task_id: str):
                 "type": "icp"
             }
 
-        import requests
         try:
-            res = requests.post("http://osint-service:16181/api/v1/recon/start", json=options, timeout=5)
-            res.raise_for_status()
+            _request_recon("start", options)
         except Exception as e:
             logger.error(f"Failed to trigger osint-service: {e}")
-            conn_db('icp_task').update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+            conn_db('icp_task').update_one({"_id": result.inserted_id, "status": TaskStatus.WAITING}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
             return False, "trigger_failed", {"task_id": task_id, "error": f"微服务调度失败: {e}"}
 
         return True, "success", {"old_task_id": task_id, "new_task_id": new_task_id}
