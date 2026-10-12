@@ -102,6 +102,7 @@ add_task_fields = ns.model('AddTask', { # 创建添加任务命名空间。
     "dns_query_plugin": fields.Boolean(example=False, default=False),
     "skip_scan_cdn_ip": fields.Boolean(example=False, default=False),
     "nuclei_scan": fields.Boolean(description="nuclei 扫描", example=False, default=False),
+    "nuclei_config": fields.Raw(description="nuclei 细粒度配置", example={}),
     "findvhost": fields.Boolean(example=False, default=False),
     "web_info_hunter": fields.Boolean(example=False, default=False, description="WEB JS 中的信息收集"),
     "npoc_service_detection": fields.Boolean(example=False, default=False, description="服务(python)识别"),

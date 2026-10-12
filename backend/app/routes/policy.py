@@ -68,6 +68,7 @@ site_config_fields = ns.model('siteConfig', {
     "search_engines": fields.Boolean(description="搜索引擎调用", default=False),
     "site_spider": fields.Boolean(description="站点爬虫", default=False),
     "nuclei_scan": fields.Boolean(description="nuclei 扫描", default=False),
+    "nuclei_config": fields.Raw(description="nuclei 扫描细粒度配置", default={}),
     "findvhost": fields.Boolean(description="Host 碰撞", default=False),
     "web_info_hunter": fields.Boolean(example=False, default=False, description="web JS 中的信息收集"),
 })

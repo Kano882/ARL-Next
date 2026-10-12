@@ -1,6 +1,8 @@
 <template>
   <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+    <a-tabs v-model:activeKey="mainTab" size="large" style="margin-bottom: 16px;">
+      <a-tab-pane key="arl" tab="ARL 插件 (Python)">
+        <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -16px -24px 16px -24px; padding: 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
 
 
     <div style="display: flex; align-items: center; margin-bottom: 20px; gap: 16px;">
@@ -215,7 +217,13 @@
         />
       </div>
     </a-modal>
+      </a-tab-pane>
 
+      <!-- Nuclei 模板中心 -->
+      <a-tab-pane key="nuclei" tab="Nuclei 模板 (YAML)">
+        <NucleiManage />
+      </a-tab-pane>
+    </a-tabs>
   </div>
 </template>
 
@@ -223,9 +231,20 @@
 defineOptions({ name: 'PocList' });
 
 import { ref, reactive, onMounted, onDeactivated, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import NucleiManage from '../components/NucleiManage.vue';
 import { useSticky } from '../utils/useSticky';
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
+
+const route = useRoute();
+const mainTab = ref(route.query.tab === 'nuclei' ? 'nuclei' : 'arl');
+
+watch(() => route.query.tab, (newTab) => {
+  if (newTab === 'nuclei' || newTab === 'arl') {
+    mainTab.value = newTab;
+  }
+});
 
 import { Codemirror } from 'vue-codemirror';
 import { python } from '@codemirror/lang-python';

@@ -1,27 +1,30 @@
 import json
-import os.path
+import os
+import shutil
 import subprocess
 
 from app.config import Config
 from app import utils
 
-
 logger = utils.get_logger()
 
 
 class NucleiScan(object):
-    def __init__(self, targets: list):
+    def __init__(self, targets: list, options: dict = None):
         self.targets = targets
+        self.options = options or {}
 
         tmp_path = Config.TMP_PATH
         rand_str = utils.random_choices()
 
         self.nuclei_target_path = os.path.join(tmp_path,
-                                               "nuclei_target_{}.txt".format(rand_str))
+                                               f"nuclei_target_{rand_str}.txt")
 
         self.nuclei_result_path = os.path.join(tmp_path,
-                                               "nuclei_result_{}.json".format(rand_str))
+                                               f"nuclei_result_{rand_str}.json")
 
+        self.custom_templates_path = None
+        self.nuclei_exclude_file = None
         self.nuclei_bin_path = "nuclei"
 
         # 在nuclei 2.9.1 中 将-json 参数改成了 -jsonl 参数。
@@ -38,12 +41,89 @@ class NucleiScan(object):
 
         assert self.nuclei_json_flag
 
+    def _materialize_custom_templates(self):
+        """从数据库物化已启用的自建 Nuclei 模板到临时扫描目录"""
+        try:
+            nuclei_config = self.options.get("nuclei_config") or self.options.get("site_config", {}).get("nuclei_config") or {}
+            mode = nuclei_config.get("custom_template_mode", "all_enabled")
+
+            query = {"enable": True}
+            if mode == "selected" and nuclei_config.get("selected_custom_templates"):
+                query = {"template_id": {"$in": nuclei_config["selected_custom_templates"]}, "enable": True}
+            elif mode == "tags" and nuclei_config.get("selected_tags"):
+                query = {"tags": {"$in": nuclei_config["selected_tags"]}, "enable": True}
+
+            col = utils.conn_db('nuclei_template')
+            custom_docs = list(col.find(query))
+
+            if custom_docs:
+                rand_str = utils.random_choices(8)
+                self.custom_templates_path = os.path.join(Config.TMP_PATH, f"nuclei_custom_{rand_str}")
+                os.makedirs(self.custom_templates_path, exist_ok=True)
+
+                written_cnt = 0
+                for doc in custom_docs:
+                    content = doc.get("content", "")
+                    t_id = doc.get("template_id", "temp")
+                    if content:
+                        file_path = os.path.join(self.custom_templates_path, f"{t_id}.yaml")
+                        with open(file_path, "w", encoding="utf-8") as f:
+                            f.write(content)
+                        written_cnt += 1
+
+                logger.info(f"Materialized {written_cnt} custom nuclei templates to {self.custom_templates_path}")
+        except Exception as e:
+            logger.warning(f"Failed to materialize custom nuclei templates: {e}")
+
+    def _prepare_exclude_file(self) -> str:
+        """根据策略配置与全局黑名单生成 Nuclei 排除清单文件 (-eid)"""
+        try:
+            nuclei_config = self.options.get("nuclei_config") or self.options.get("site_config", {}).get("nuclei_config") or {}
+            exclude_blacklist = nuclei_config.get("exclude_blacklist", True)
+
+            exclude_ids = set()
+            if exclude_blacklist:
+                docs = utils.conn_db('nuclei_blacklist').find({}, {"template_id": 1})
+                for d in docs:
+                    tid = d.get("template_id")
+                    if tid and isinstance(tid, str) and tid.strip():
+                        exclude_ids.add(tid.strip())
+
+            extra_ids = nuclei_config.get("extra_exclude_ids") or []
+            if isinstance(extra_ids, list):
+                for eid in extra_ids:
+                    if eid and isinstance(eid, str) and eid.strip():
+                        exclude_ids.add(eid.strip())
+
+            if exclude_ids:
+                rand_str = utils.random_choices(8)
+                self.nuclei_exclude_file = os.path.join(Config.TMP_PATH, f"nuclei_exclude_{rand_str}.txt")
+                with open(self.nuclei_exclude_file, "w", encoding="utf-8") as f:
+                    written_set = set()
+                    for tid in sorted(exclude_ids):
+                        for variant in [tid, tid.lower(), tid.upper()]:
+                            if variant not in written_set:
+                                f.write(variant + "\n")
+                                written_set.add(variant)
+                logger.info(f"Generated Nuclei exclude file with {len(written_set)} template entries: {self.nuclei_exclude_file}")
+                return self.nuclei_exclude_file
+        except Exception as e:
+            logger.warning(f"Failed to prepare nuclei exclude file: {e}")
+        return None
+
     def _delete_file(self):
         try:
-            os.unlink(self.nuclei_target_path)
+            if os.path.exists(self.nuclei_target_path):
+                os.unlink(self.nuclei_target_path)
             # 删除结果临时文件
             if os.path.exists(self.nuclei_result_path):
                 os.unlink(self.nuclei_result_path)
+            # 安全清理自建模板物化目录
+            if self.custom_templates_path and os.path.exists(self.custom_templates_path):
+                shutil.rmtree(self.custom_templates_path, ignore_errors=True)
+            # 安全清理排除清单文件
+            if self.nuclei_exclude_file and os.path.exists(self.nuclei_exclude_file):
+                os.unlink(self.nuclei_exclude_file)
         except Exception as e:
             logger.warning(e)
 
@@ -54,7 +134,7 @@ class NucleiScan(object):
             if pro.returncode == 0:
                 return True
         except Exception as e:
-            logger.debug("{}".format(str(e)))
+            logger.debug(f"{e}")
 
         return False
 
@@ -68,43 +148,76 @@ class NucleiScan(object):
 
     def dump_result(self) -> list:
         results = []
-        with open(self.nuclei_result_path, "r") as f:
+        if not os.path.exists(self.nuclei_result_path):
+            return results
+
+        with open(self.nuclei_result_path, "r", encoding="utf-8", errors="replace") as f:
             while True:
                 line = f.readline()
                 if not line:
                     break
+                line = line.strip()
+                if not line:
+                    continue
 
-                data = json.loads(line)
-                item = {
-                    "template_url": data.get("template-url", ""),
-                    "template_id": data.get("template-id", ""),
-                    "vuln_name": data.get("info", {}).get("name", ""),
-                    "vuln_severity": data.get("info", {}).get("severity", ""),
-                    "vuln_url": data.get("matched-at", ""),
-                    "curl_command": data.get("curl-command", ""),
-                    "target": data.get("host") or data.get("matched-at", ""),
-                    "host": data.get("host") or data.get("matched-at", ""),
-                    "extracted_results": data.get("extracted-results", [])
-                }
-                results.append(item)
+                try:
+                    data = json.loads(line)
+                    item = {
+                        "template_url": data.get("template-url", ""),
+                        "template_id": data.get("template-id", ""),
+                        "vuln_name": data.get("info", {}).get("name", ""),
+                        "vuln_severity": data.get("info", {}).get("severity", ""),
+                        "vuln_url": data.get("matched-at", ""),
+                        "curl_command": data.get("curl-command", ""),
+                        "target": data.get("host") or data.get("matched-at", ""),
+                        "host": data.get("host") or data.get("matched-at", ""),
+                        "extracted_results": data.get("extracted-results", [])
+                    }
+                    results.append(item)
+                except Exception as e:
+                    logger.debug(f"Failed to parse nuclei line: {e}")
 
         return results
 
     def exec_nuclei(self):
         self._gen_target_file()
+        self._materialize_custom_templates()
 
-        command = [self.nuclei_bin_path, "-duc",
-                   "-tags cve,http",
-                   "-severity low,medium,high,critical",
-                   "-l {}".format(self.nuclei_target_path),
-                   self.nuclei_json_flag,  # 在nuclei 2.9.1 中 将 -json 参数改成了 -jsonl 参数
-                   "-stats",
-                   "-stats-interval 60",
-                   "-o {}".format(self.nuclei_result_path),
-                   ]
+        nuclei_config = self.options.get("nuclei_config") or self.options.get("site_config", {}).get("nuclei_config") or {}
+        severities = nuclei_config.get("severity") or ["low", "medium", "high", "critical"]
+        if isinstance(severities, list) and severities:
+            sev_arg = "-severity " + ",".join([s.strip().lower() for s in severities if s.strip()])
+        else:
+            sev_arg = "-severity low,medium,high,critical"
+
+        command = [
+            self.nuclei_bin_path, "-duc",
+            "-tags cve,http",
+            sev_arg,
+            f"-l {self.nuclei_target_path}",
+            self.nuclei_json_flag,
+            "-stats",
+            "-stats-interval 60",
+            f"-o {self.nuclei_result_path}",
+        ]
+
+        # 若存在排除清单文件，拼接 -eid 参数排除误报模板
+        exclude_file = self._prepare_exclude_file()
+        if exclude_file and os.path.exists(exclude_file):
+            command.append(f"-eid {exclude_file}")
+
+        # 若存在物化的自建模板目录，拼接 -t 参数加载
+        if self.custom_templates_path and os.path.exists(self.custom_templates_path):
+            from app.routes.nuclei import get_community_templates_dir
+            comm_dir = get_community_templates_dir()
+            # 当显式指定 -t 自建模板时，Nuclei 默认只扫 -t 路径；
+            # 若同时存在官方模板目录，一并注入保证社区底座不丢失
+            if comm_dir:
+                command.insert(2, f"-t {comm_dir}")
+            command.insert(2, f"-t {self.custom_templates_path}")
 
         logger.info(" ".join(command))
-        utils.exec_system(command, timeout=15*24*60*60)
+        utils.exec_system(command, timeout=15 * 24 * 60 * 60)
 
     def run(self):
         if not self.check_have_nuclei():
@@ -112,21 +225,16 @@ class NucleiScan(object):
             return []
 
         self._check_json_flag()
-
         self.exec_nuclei()
-
         results = self.dump_result()
-
-        # 删除临时文件
         self._delete_file()
 
         return results
 
 
-def nuclei_scan(targets: list):
+def nuclei_scan(targets: list, options: dict = None):
     if not targets:
         return []
 
-    n = NucleiScan(targets=targets)
+    n = NucleiScan(targets=targets, options=options)
     return n.run()
-

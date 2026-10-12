@@ -48,13 +48,21 @@ def create_index():
         "dict_upload_task": "task_id",
         "asset_scope": "group_id",
         "asset_group": "sort_order",
+        "nuclei_template": ["name", "severity", "tags", "enable", "updated_at"],
+        "nuclei_blacklist": ["severity", "created_at"],
     }
     for table in index_map:
         if isinstance(index_map[table], list):
             for index in index_map[table]:
-                conn_db(table).create_index(index, background=True)
+                try:
+                    conn_db(table).create_index(index, background=True)
+                except Exception as ie:
+                    logging.getLogger().warning(f"Failed to create normal index {index} on {table}: {ie}")
         else:
-            conn_db(table).create_index(index_map[table], background=True)
+            try:
+                conn_db(table).create_index(index_map[table], background=True)
+            except Exception as ie:
+                logging.getLogger().warning(f"Failed to create normal index {index_map[table]} on {table}: {ie}")
 
     # Scheduler 核心轮询复合索引
     conn_db('scheduler').create_index([("status", 1), ("next_run_time", 1)], background=True)
@@ -88,6 +96,8 @@ def create_index():
         "poc": [("plugin_name", 1)],
         "fingerprint_deleted": [("name", 1)],
         "asset_group": [("name", 1)],
+        "nuclei_template": [("template_id", 1)],
+        "nuclei_blacklist": [("template_id", 1)],
     }
 
     def _deduplicate_and_create_unique(col, keys, drop_idx=None):
@@ -1060,11 +1070,25 @@ def update_policy_schema():
             {"$set": {"policy.npoc_service_detection": True}}
         )
 
-        if res_unset.modified_count or res_svc1.modified_count or res_svc2.modified_count:
+        # 🛡️【平滑兼容】为存量策略补充 nuclei_config 默认值，规避取值报错与配置丢失
+        res_nuclei = col.update_many(
+            {"policy.site_config.nuclei_config": {"$exists": False}},
+            {"$set": {
+                "policy.site_config.nuclei_config": {
+                    "severity": ["critical", "high", "medium"],
+                    "custom_template_mode": "all_enabled",
+                    "selected_custom_templates": [],
+                    "selected_tags": []
+                }
+            }}
+        )
+
+        if res_unset.modified_count or res_svc1.modified_count or res_svc2.modified_count or res_nuclei.modified_count:
             import logging
             logging.getLogger().info(
                 f"update_policy_schema synced: dead_fields={res_unset.modified_count}, "
-                f"npoc_to_svc={res_svc1.modified_count}, svc_to_npoc={res_svc2.modified_count}"
+                f"npoc_to_svc={res_svc1.modified_count}, svc_to_npoc={res_svc2.modified_count}, "
+                f"nuclei_config={res_nuclei.modified_count}"
             )
     except Exception as e:
         import logging
