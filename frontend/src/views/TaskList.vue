@@ -1457,7 +1457,6 @@ const showTycModal = () => {
 
 const handleEnterpriseCreateSuccess = () => {
   fetchEnterpriseTasks(1, enterprisePagination.pageSize);
-  fetchEnterpriseMetricCounts();
 };
 
 const handleSyncEnterprise = (record) => {
@@ -1568,7 +1567,6 @@ const handleBatchDeleteEnterprise = async () => {
       const maxPage = Math.max(1, Math.ceil(remainingCount / enterprisePagination.pageSize));
       const targetPage = Math.min(enterprisePagination.current, maxPage);
       fetchEnterpriseTasks(targetPage, enterprisePagination.pageSize);
-      fetchEnterpriseMetricCounts();
     } else {
       message.error({ content: res.message || '批量删除失败', key: 'batchDelete', duration: 3 });
     }
@@ -1588,12 +1586,11 @@ const handleBatchRestartEnterprise = async () => {
       message.success({ content: '成功下发批量重启', key: 'batchRestart', duration: 3 });
       enterpriseSelectedRowKeys.value = [];
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-      fetchEnterpriseMetricCounts();
     } else {
       message.error({ content: res.message || '批量重启失败', key: 'batchRestart', duration: 3 });
     }
   } catch (error) {
-    message.error({ content: '批量重启失败', key: 'batchRestart', duration: 3 });
+    message.error({ content: '批量重启失败', key: 'batchRestart', duration: 2 });
   }
 };
 
@@ -1603,7 +1600,6 @@ const handleStopEnterprise = async (record) => {
     if (res.code === 200) {
       message.success('已停止任务');
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-      fetchEnterpriseMetricCounts();
     } else {
       message.error(res.message || '停止失败');
     }
@@ -1618,7 +1614,6 @@ const handleRestartEnterprise = async (record) => {
     if (res.code === 200) {
       message.success('已重启任务');
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-      fetchEnterpriseMetricCounts();
     } else {
       message.error(res.message || '重启失败');
     }
@@ -1651,7 +1646,6 @@ const handleDeleteEnterprise = async (record) => {
           const maxPage = Math.max(1, Math.ceil(remainingCount / enterprisePagination.pageSize));
           const targetPage = Math.min(enterprisePagination.current, maxPage);
           fetchEnterpriseTasks(targetPage, enterprisePagination.pageSize);
-          fetchEnterpriseMetricCounts();
         } else {
           message.error(res.message || '删除失败');
         }
