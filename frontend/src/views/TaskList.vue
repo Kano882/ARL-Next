@@ -2263,7 +2263,6 @@ const handleOk = async () => {
       message.success('任务下发成功！');
       visible.value = false;
       fetchTasks(1, pagination.pageSize);
-      fetchTaskMetricCounts();
     } else {
       message.error('下发失败: ' + (res.message || '未知错误'));
     }
@@ -2355,7 +2354,6 @@ const submitFofaTask = async () => {
       message.success('FOFA 任务下发成功！');
       fofaVisible.value = false;
       fetchTasks(1, pagination.pageSize);
-      fetchTaskMetricCounts();
     } else {
       message.error(res.message || '任务下发失败');
     }
