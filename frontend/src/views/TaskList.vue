@@ -1889,7 +1889,6 @@ const handleBatchDelete = () => {
           message.success(`成功删除 ${validKeys.length} 项任务`);
           selectedRowKeys.value = [];
           fetchTasks(1, pagination.pageSize);
-          fetchTaskMetricCounts();
         } else {
           message.error('删除失败: ' + (res.message || '未知错误'));
         }
@@ -1931,7 +1930,6 @@ const handleBatchStop = () => {
           message.success('停止指令已下发');
           selectedRowKeys.value = [];
           fetchTasks(pagination.current, pagination.pageSize);
-          fetchTaskMetricCounts();
         } else {
           message.error('停止失败: ' + (res.message || '未知错误'));
         }
@@ -2007,7 +2005,6 @@ const restartTask = async (record) => {
         message.success('任务已重启，已生成新任务！🚀');
       }
       fetchTasks(pagination.current, pagination.pageSize);
-      fetchTaskMetricCounts();
     } else {
       const errMsg = res.data?.error || res.message || '未知错误';
       message.error('重启失败: ' + errMsg);
@@ -2025,7 +2022,6 @@ const stopSingleTask = async (record) => {
     if (res.code === 200) {
       message.success('已发送停止指令 🛑');
       fetchTasks(pagination.current, pagination.pageSize);
-      fetchTaskMetricCounts();
     } else {
       message.error('停止失败: ' + (res.message || '未知错误'));
     }
@@ -2060,7 +2056,6 @@ const deleteSingleTask = (record) => {
         if (res.code === 200) {
           message.success('任务删除成功');
           fetchTasks(pagination.current, pagination.pageSize);
-          fetchTaskMetricCounts();
         } else {
           message.error('删除失败: ' + (res.message || '未知错误'));
         }
