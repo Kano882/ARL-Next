@@ -1032,6 +1032,45 @@ def normalize_threat_radar_configs():
         logging.getLogger().error(f"normalize_threat_radar_configs failed: {e}")
 
 
+def update_policy_schema():
+    """
+    🛡️【策略配置架构平滑演进与死字段清理】
+    1. 物理清理 scope_config 死字段与 site_capture 失效字段，规避存量脏数据
+    2. 双向对齐服务识别：统一同步 ip_config.service_detection 与 npoc_service_detection
+    """
+    try:
+        col = conn_db("policy")
+        res_unset = col.update_many(
+            {"$or": [
+                {"policy.scope_config": {"$exists": True}},
+                {"policy.site_config.site_capture": {"$exists": True}}
+            ]},
+            {"$unset": {
+                "policy.scope_config": "",
+                "policy.site_config.site_capture": ""
+            }}
+        )
+
+        res_svc1 = col.update_many(
+            {"policy.npoc_service_detection": True, "policy.ip_config.service_detection": {"$ne": True}},
+            {"$set": {"policy.ip_config.service_detection": True}}
+        )
+        res_svc2 = col.update_many(
+            {"policy.ip_config.service_detection": True, "policy.npoc_service_detection": {"$ne": True}},
+            {"$set": {"policy.npoc_service_detection": True}}
+        )
+
+        if res_unset.modified_count or res_svc1.modified_count or res_svc2.modified_count:
+            import logging
+            logging.getLogger().info(
+                f"update_policy_schema synced: dead_fields={res_unset.modified_count}, "
+                f"npoc_to_svc={res_svc1.modified_count}, svc_to_npoc={res_svc2.modified_count}"
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger().error(f"update_policy_schema failed: {e}")
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -1101,6 +1140,7 @@ def arl_update():
         _run_step("backfill_icp_task_synced_scopes", backfill_icp_task_synced_scopes)
         _run_step("migrate_asset_group_sort_order", migrate_asset_group_sort_order)
         _run_step("normalize_threat_radar_configs", normalize_threat_radar_configs)
+        _run_step("update_policy_schema", update_policy_schema)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:
         import logging

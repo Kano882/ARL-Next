@@ -53,27 +53,29 @@
       <template #expandedRowRender="{ record }">
         <div class="policy-expanded-box">
           <div class="policy-section">
-            <div class="policy-title">域名和IP配置</div>
-            <div class="policy-row"><span class="policy-label">域名爆破字典</span><span class="policy-val">{{ getDictName(record.policy?.domain_config?.domain_brute_type) }}</span></div>
-            <div class="policy-row"><span class="policy-label">智能子域爆破字典</span><span class="policy-val">{{ record.policy?.domain_config?.alt_dns_dict || 'altdnsdict.txt' }}</span></div>
-            <div class="policy-row"><span class="policy-label">端口扫描类型</span><span class="policy-val">{{ getDictName(record.policy?.ip_config?.port_scan_type) }}</span></div>
-            <div class="policy-row"><span class="policy-label">配置信息</span><span class="policy-val">{{ getDomainIpConfigText(record.policy) }}</span></div>
+            <div class="policy-title">🌐 域名与资产发现</div>
+            <div class="policy-row"><span class="policy-label">域名爆破字典</span><span class="policy-val">{{ getDomainBruteText(record.policy) }}</span></div>
+            <div class="policy-row"><span class="policy-label">智能子域字典</span><span class="policy-val">{{ getAltDnsText(record.policy) }}</span></div>
+            <div class="policy-row"><span class="policy-label">已开启功能</span><span class="policy-val">{{ getDomainConfigText(record.policy) }}</span></div>
           </div>
           <div class="policy-divider"></div>
           <div class="policy-section">
-            <div class="policy-title">站点和风险配置</div>
-            <div class="policy-row"><span class="policy-label">目录文件泄露字典</span><span class="policy-val">{{ record.policy?.file_leak_dict || 'file_top_2000.txt' }}</span></div>
-            <div class="policy-row"><span class="policy-label">配置信息</span><span class="policy-val">{{ getSiteRiskConfigText(record.policy) }}</span></div>
+            <div class="policy-title">⚡️ 端口与服务发现</div>
+            <div class="policy-row"><span class="policy-label">端口扫描策略</span><span class="policy-val">{{ getPortScanPolicyText(record.policy) }}</span></div>
+            <div class="policy-row"><span class="policy-label">已开启功能</span><span class="policy-val">{{ getIpConfigText(record.policy) }}</span></div>
           </div>
           <div class="policy-divider"></div>
           <div class="policy-section">
-            <div class="policy-title">PoC配置</div>
-            <div class="policy-row"><span class="policy-label">配置信息</span><span class="policy-val">{{ getPocConfigText(record.policy) }}</span></div>
+            <div class="policy-title">🕷️ Web 深度探测</div>
+            <div class="policy-row"><span class="policy-label">文件泄露字典</span><span class="policy-val">{{ getFileLeakText(record.policy) }}</span></div>
+            <div class="policy-row"><span class="policy-label">已开启功能</span><span class="policy-val">{{ getSiteConfigText(record.policy) }}</span></div>
           </div>
           <div class="policy-divider"></div>
           <div class="policy-section">
-            <div class="policy-title">弱口令爆破配置</div>
-            <div class="policy-row"><span class="policy-label">配置信息</span><span class="policy-val">{{ getBruteConfigText(record.policy) }}</span></div>
+            <div class="policy-title">🛡️ 漏洞与风险巡航</div>
+            <div class="policy-row"><span class="policy-label">Nuclei 扫描</span><span class="policy-val">{{ record.policy?.site_config?.nuclei_scan ? '已启用' : '未启用' }}</span></div>
+            <div class="policy-row"><span class="policy-label">PoC 验证</span><span class="policy-val">{{ getPocConfigText(record.policy) }}</span></div>
+            <div class="policy-row"><span class="policy-label">弱口令爆破</span><span class="policy-val">{{ getBruteConfigText(record.policy) }}</span></div>
           </div>
         </div>
       </template>
@@ -180,34 +182,87 @@ const goToDetail = () => {
   router.push('/policyDetail'); // 跳往独立的配置页面
 };
 
-// ======================== 展开行字典翻译 ========================
-const getDictName = (val) => ({ 'big':'大字典', 'test':'测试字典', 'top100':'TOP100', 'top1000':'TOP1000', 'all':'全部端口' }[val] || val || '-');
-const getDomainIpConfigText = (p) => {
+// ======================== 展开行字典与摘要翻译 ========================
+const dictNameMap = {
+  'big': '大字典 (domain_2w.txt)',
+  'test': '测试字典 (domain_top300.txt)',
+  'domain_2w.txt': '大字典 (domain_2w.txt)',
+  'domain_top300.txt': '测试字典 (domain_top300.txt)',
+  'top100': 'TOP100 端口',
+  'top1000': 'TOP1000 端口',
+  'bughunter': 'Bughunter 端口',
+  'port_top100.txt': 'TOP100 端口',
+  'port_top1000.txt': 'TOP1000 端口',
+  'port_bughunter.txt': 'Bughunter 端口',
+  'all': '全部端口'
+};
+const getDictName = (val) => (dictNameMap[val] || val || '-');
+
+const getDomainBruteText = (p) => {
+  if (!p?.domain_config?.domain_brute) return '未开启';
+  return getDictName(p.domain_config.domain_brute_type);
+};
+
+const getAltDnsText = (p) => {
+  if (!p?.domain_config?.alt_dns) return '未开启';
+  return p.domain_config.alt_dns_dict || 'altdnsdict.txt';
+};
+
+const getPortScanPolicyText = (p) => {
+  if (!p?.ip_config?.port_scan) return '未开启';
+  if (p.ip_config.port_scan_type === 'custom') {
+    return `自定义端口 (${p.ip_config.port_custom || '-'})`;
+  }
+  return getDictName(p.ip_config.port_scan_type);
+};
+
+const getFileLeakText = (p) => {
+  const enabled = p?.file_leak || p?.site_config?.file_leak;
+  if (!enabled) return '未开启';
+  return p?.file_leak_dict || p?.site_config?.file_leak_dict || 'file_top_2000.txt';
+};
+
+const getDomainConfigText = (p) => {
   if (!p) return '-'; const l = [];
+  if (p.domain_config?.dns_query_plugin) l.push('域名查询插件');
   if (p.domain_config?.domain_brute) l.push('域名爆破');
   if (p.domain_config?.alt_dns) l.push('DNS字典智能生成');
   if (p.domain_config?.arl_search) l.push('ARL历史查询');
-  if (p.domain_config?.dns_query_plugin) l.push('域名查询插件');
+  return l.join('、') || '-';
+};
+
+const getIpConfigText = (p) => {
+  if (!p) return '-'; const l = [];
+  if (p.ip_config?.skip_scan_cdn_ip) l.push('跳过CDN');
   if (p.ip_config?.port_scan) l.push('端口扫描');
-  if (p.ip_config?.service_detection) l.push('服务识别');
+  if (p.ip_config?.service_detection || p.npoc_service_detection) l.push('服务识别');
   if (p.ip_config?.os_detection) l.push('操作系统识别');
   if (p.ip_config?.ssl_cert) l.push('SSL证书获取');
-  if (p.ip_config?.skip_scan_cdn_ip) l.push('跳过CDN');
-  if (p.npoc_service_detection) l.push('服务(python)识别');
   return l.join('、') || '-';
 };
-const getSiteRiskConfigText = (p) => {
+
+const getSiteConfigText = (p) => {
   if (!p) return '-'; const l = [];
   if (p.site_config?.site_identify) l.push('站点与指纹识别');
+  if (p.file_leak || p.site_config?.file_leak) l.push('文件泄露');
   if (p.site_config?.search_engines) l.push('搜索引擎调用');
   if (p.site_config?.site_spider) l.push('站点爬虫');
-  if (p.file_leak) l.push('文件泄露');
-  if (p.site_config?.nuclei_scan) l.push('nuclei 调用');
   if (p.site_config?.web_info_hunter) l.push('WIH 调用');
+  if (p.site_config?.findvhost) l.push('Host 碰撞');
   return l.join('、') || '-';
 };
-const getPocConfigText = (p) => p?.poc_config?.filter(x => x.enable).map(x => x.vul_name).join('、') || '-';
-const getBruteConfigText = (p) => p?.brute_config?.filter(x => x.enable).map(x => x.vul_name).join('、') || '-';
+
+const getPocConfigText = (p) => {
+  const active = p?.poc_config?.filter(x => x.enable) || [];
+  if (active.length === 0) return '未启用插件';
+  return `已启用 ${active.length} 个（${active.slice(0, 3).map(x => x.vul_name || x.plugin_name).join('、')}${active.length > 3 ? ' 等' : ''}）`;
+};
+
+const getBruteConfigText = (p) => {
+  const active = p?.brute_config?.filter(x => x.enable) || [];
+  if (active.length === 0) return '未启用爆破';
+  return `已启用 ${active.length} 个（${active.slice(0, 3).map(x => x.vul_name || x.plugin_name).join('、')}${active.length > 3 ? ' 等' : ''}）`;
+};
 
 onMounted(() => fetchData());
 

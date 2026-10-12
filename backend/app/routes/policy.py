@@ -111,17 +111,20 @@ class AddARLPolicy(ARLResource):
         策略添加
         """
         args = self.parse_args(add_policy_fields)
-        name = args.pop("name")
+        name = str(args.pop("name", "")).strip()
+        if not name:
+            return utils.build_ret("策略名称不能为空", {})
+
         policy = args.pop("policy", {})
         if policy is None:
             return utils.build_ret("Missing policy parameter", {})
 
-        domain_config = policy.pop("domain_config", {})
+        domain_config = policy.pop("domain_config", {}) or {}
         domain_config = self._update_arg(domain_config, domain_config_fields)
-        ip_config = policy.pop("ip_config", {})
+        ip_config = policy.pop("ip_config", {}) or {}
         port_scan_type = ip_config.get("port_scan_type", "test")
         if port_scan_type == "custom":
-            port_custom = ip_config.get("port_custom", "80,443")
+            port_custom = ip_config.get("port_custom") or "80,443"
             port_list = utils.arl.build_port_custom(port_custom)
             if isinstance(port_list, str):
                 return utils.build_ret(ErrorMsg.PortCustomInvalid, {"port_custom": port_list})
@@ -133,9 +136,28 @@ class AddARLPolicy(ARLResource):
             if not utils.is_valid_exclude_ports(exclude_ports):
                 return utils.build_ret(ErrorMsg.ExcludePortsInvalid, {"exclude_ports": exclude_ports})
 
+        # 🛡️ 发包并发与速率参数范围防御与归一化
+        try:
+            p_val = int(ip_config.get("port_parallelism", 32) or 32)
+            ip_config["port_parallelism"] = 32 if p_val <= 0 else min(p_val, 1000)
+        except (ValueError, TypeError):
+            ip_config["port_parallelism"] = 32
+
+        try:
+            r_val = int(ip_config.get("port_min_rate", 60) or 60)
+            ip_config["port_min_rate"] = 60 if r_val <= 0 else min(r_val, 10000)
+        except (ValueError, TypeError):
+            ip_config["port_min_rate"] = 60
+
+        try:
+            t_val = int(ip_config.get("host_timeout", 900) or 900)
+            ip_config["host_timeout"] = 900 if t_val <= 0 else min(t_val, 86400)
+        except (ValueError, TypeError):
+            ip_config["host_timeout"] = 900
+
         ip_config = self._update_arg(ip_config, ip_config_fields)
 
-        site_config = policy.pop("site_config", {})
+        site_config = policy.pop("site_config", {}) or {}
         site_config = self._update_arg(site_config, site_config_fields)
 
         poc_config = policy.pop("poc_config", [])
@@ -154,13 +176,32 @@ class AddARLPolicy(ARLResource):
             return utils.build_ret(brute_config, {})
 
         file_leak = fields.boolean(policy.pop("file_leak", False))
-        file_leak_dict = str(policy.pop("file_leak_dict", "file_top_2000.txt"))
-        npoc_service_detection = fields.boolean(policy.pop("npoc_service_detection", False))
+        raw_leak_dict = policy.pop("file_leak_dict", None)
+        if not raw_leak_dict or not str(raw_leak_dict).strip():
+            file_leak_dict = "file_top_2000.txt"
+        else:
+            file_leak_dict = str(raw_leak_dict).strip()
+        
+        # 兼容若从 site_config 传入 file_leak 的情形
+        if "file_leak" in site_config and not file_leak:
+            file_leak = fields.boolean(site_config.get("file_leak", False))
+        if "file_leak_dict" in site_config and (file_leak_dict == "file_top_2000.txt" or not file_leak_dict):
+            site_val = site_config.get("file_leak_dict")
+            if site_val and str(site_val).strip():
+                file_leak_dict = str(site_val).strip()
+
+        # 统一服务识别：类型安全解析并自动双轨协同
+        raw_npoc = policy.pop("npoc_service_detection", None)
+        npoc_val = fields.boolean(raw_npoc) if raw_npoc is not None else False
+        is_service_detect = bool(ip_config.get("service_detection", False) or npoc_val)
+        ip_config["service_detection"] = is_service_detect
+        npoc_service_detection = is_service_detect
+
         desc = args.pop("desc", "")
 
-        # 只要获得关联资产组的配置
-        scope_config = policy.pop("scope_config", {})
-        scope_config = self._update_arg(scope_config, scope_config_fields)
+        # 宽容处理并丢弃 scope_config / site_capture 死字段
+        policy.pop("scope_config", None)
+        site_config.pop("site_capture", None)
 
         item = {
             "name": name,
@@ -172,8 +213,7 @@ class AddARLPolicy(ARLResource):
                 "brute_config": brute_config,
                 "file_leak": file_leak,
                 "file_leak_dict": file_leak_dict,
-                "npoc_service_detection": npoc_service_detection,
-                "scope_config": scope_config
+                "npoc_service_detection": npoc_service_detection
             },
             "desc": desc,
             "update_date": utils.curr_date()
@@ -236,7 +276,7 @@ class DeletePolicy(ARLResource):
         args = self.parse_args(delete_policy_fields)
         policy_id_list = args.pop('policy_id')
         for policy_id in policy_id_list:
-            if not policy_id:
+            if not policy_id or not ObjectId.is_valid(str(policy_id)):
                 continue
             utils.conn_db('policy').delete_one({'_id': ObjectId(policy_id)})
 
@@ -259,7 +299,10 @@ class EditPolicy(ARLResource):
         策略编辑
         """
         args = self.parse_args(edit_policy_fields)
-        policy_id = args.pop('policy_id')
+        policy_id = args.pop('policy_id', '')
+        if not policy_id or not ObjectId.is_valid(str(policy_id)):
+            return utils.build_ret(ErrorMsg.PolicyIDNotFound, {})
+
         policy_data = args.pop('policy_data', {})
         query = {'_id': ObjectId(policy_id)}
         item = utils.conn_db('policy').find_one(query)
@@ -269,6 +312,14 @@ class EditPolicy(ARLResource):
 
         if not policy_data:
             return utils.build_ret(ErrorMsg.PolicyDataIsEmpty, {})
+
+        # 兼容外部传入扁平化 policy_data (未显式包含 policy 根键)
+        if "policy" not in policy_data:
+            extracted_policy = {}
+            for k in list(policy_data.keys()):
+                if k not in ["name", "desc"]:
+                    extracted_policy[k] = policy_data.pop(k)
+            policy_data["policy"] = extracted_policy
 
         allow_keys = gen_model_policy_keys(add_policy_fields["policy"])
         allow_keys.extend(["name", "desc", "policy"])
@@ -286,6 +337,65 @@ class EditPolicy(ARLResource):
         if isinstance(brute_config, str):
             return utils.build_ret(brute_config, {})
         item["policy"]["brute_config"] = brute_config
+
+        # 🛡️ 统一服务识别合并与死字段清理：精准捕获外部更新意图并保持双轨协同
+        policy_obj = item.setdefault("policy", {})
+        ip_cfg = policy_obj.setdefault("ip_config", {})
+
+        incoming_policy = policy_data.get("policy", {}) if isinstance(policy_data.get("policy"), dict) else {}
+        incoming_ip = incoming_policy.get("ip_config", {}) if isinstance(incoming_policy.get("ip_config"), dict) else {}
+
+        if "service_detection" in incoming_ip:
+            is_svc_detect = bool(incoming_ip["service_detection"])
+        elif "npoc_service_detection" in incoming_policy:
+            is_svc_detect = bool(incoming_policy["npoc_service_detection"])
+        else:
+            is_svc_detect = bool(ip_cfg.get("service_detection", False) or policy_obj.get("npoc_service_detection", False))
+
+        ip_cfg["service_detection"] = is_svc_detect
+        policy_obj["npoc_service_detection"] = is_svc_detect
+
+        policy_obj.pop("scope_config", None)
+        if "site_config" in policy_obj and isinstance(policy_obj["site_config"], dict):
+            policy_obj["site_config"].pop("site_capture", None)
+
+        # 🛡️ 排除端口格式校验（防非法字符入库）
+        incoming_exclude_ports = incoming_ip.get("exclude_ports")
+        if incoming_exclude_ports is not None and str(incoming_exclude_ports).strip():
+            if not utils.is_valid_exclude_ports(str(incoming_exclude_ports).strip()):
+                return utils.build_ret(ErrorMsg.ExcludePortsInvalid, {"exclude_ports": str(incoming_exclude_ports).strip()})
+
+        # 🛡️ 自定义端口格式校验
+        if incoming_ip.get("port_scan_type") == "custom":
+            port_custom = incoming_ip.get("port_custom") or ip_cfg.get("port_custom") or "80,443"
+            port_list = utils.arl.build_port_custom(port_custom)
+            if isinstance(port_list, str):
+                return utils.build_ret(ErrorMsg.PortCustomInvalid, {"port_custom": port_list})
+            ip_cfg["port_custom"] = ",".join(port_list)
+
+        # 🛡️ 发包并发与速率参数范围防御与归一化
+        try:
+            p_val = int(ip_cfg.get("port_parallelism", 32) or 32)
+            ip_cfg["port_parallelism"] = 32 if p_val <= 0 else min(p_val, 1000)
+        except (ValueError, TypeError):
+            ip_cfg["port_parallelism"] = 32
+
+        try:
+            r_val = int(ip_cfg.get("port_min_rate", 60) or 60)
+            ip_cfg["port_min_rate"] = 60 if r_val <= 0 else min(r_val, 10000)
+        except (ValueError, TypeError):
+            ip_cfg["port_min_rate"] = 60
+
+        try:
+            t_val = int(ip_cfg.get("host_timeout", 900) or 900)
+            ip_cfg["host_timeout"] = 900 if t_val <= 0 else min(t_val, 86400)
+        except (ValueError, TypeError):
+            ip_cfg["host_timeout"] = 900
+
+        # 兼容文件泄露字典判空与默认回退
+        if policy_obj.get("file_leak"):
+            if not policy_obj.get("file_leak_dict") or not str(policy_obj.get("file_leak_dict")).strip():
+                policy_obj["file_leak_dict"] = "file_top_2000.txt"
 
         item["update_date"] = utils.curr_date()
         utils.conn_db('policy').find_one_and_replace(query, item)

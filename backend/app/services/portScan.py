@@ -28,8 +28,21 @@ class PortScan:
         self.nmap_arguments = "-sT -n --open"
         self.max_retries = 3
         self.host_timeout = 60*5
-        self.parallelism = port_parallelism  # 默认 32，控制并发探针数
-        self.min_rate = port_min_rate  # 默认64，控制发包速率底线
+        # 🛡️ 第一性原理：类型安全与数值边界保底，彻底杜绝 None 或非法值注入导致的 Nmap 崩溃
+        try:
+            self.parallelism = int(port_parallelism) if port_parallelism is not None else 32
+            if not (1 <= self.parallelism <= 1000):
+                self.parallelism = 32
+        except (ValueError, TypeError):
+            self.parallelism = 32
+
+        try:
+            self.min_rate = int(port_min_rate) if port_min_rate is not None else 64
+            if not (1 <= self.min_rate <= 10000):
+                self.min_rate = 64
+        except (ValueError, TypeError):
+            self.min_rate = 64
+
         self.exclude_ports = exclude_ports
 
         # [动态参数调优策略]
@@ -71,8 +84,12 @@ class PortScan:
 
         # 依据传过来的超时为准
         if custom_host_timeout is not None:
-            if int(custom_host_timeout) > 0:
-                self.host_timeout = custom_host_timeout
+            try:
+                timeout_val = int(custom_host_timeout)
+                if 1 <= timeout_val <= 86400:
+                    self.host_timeout = timeout_val
+            except (ValueError, TypeError):
+                pass
         self.nmap_arguments += " --host-timeout {}s".format(self.host_timeout)
         self.nmap_arguments += " --min-parallelism {}".format(self.parallelism)
         self.nmap_arguments += " --max-retries {}".format(self.max_retries)

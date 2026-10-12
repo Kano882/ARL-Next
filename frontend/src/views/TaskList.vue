@@ -903,29 +903,29 @@
           </div>
           <a-row :gutter="12">
             <a-col :span="12">
-              <a-form-item label="域名爆破字典" name="domain_brute_type" :rules="[{ required: true }]">
-                <a-select v-model:value="formState.domain_brute_type" placeholder="请选择字典">
+              <a-form-item label="域名爆破字典" name="domain_brute_type" :rules="[{ required: !!formState.domain_brute, message: '请选择域名爆破字典' }]">
+                <a-select v-model:value="formState.domain_brute_type" :disabled="!formState.domain_brute" placeholder="请选择字典">
                   <a-select-option v-for="item in domainDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
                 </a-select>
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="智能子域字典" name="alt_dns_dict" :rules="[{ required: true }]">
-                <a-select v-model:value="formState.alt_dns_dict" placeholder="请选择字典">
+              <a-form-item label="智能子域字典" name="alt_dns_dict" :rules="[{ required: !!formState.alt_dns, message: '请选择智能字典' }]">
+                <a-select v-model:value="formState.alt_dns_dict" :disabled="!formState.alt_dns" placeholder="请选择字典">
                   <a-select-option v-for="item in altDnsDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
                 </a-select>
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="端口扫描类型" name="port_scan_type" :rules="[{ required: true }]">
-                <a-select v-model:value="formState.port_scan_type" placeholder="请选择策略">
+              <a-form-item label="端口扫描类型" name="port_scan_type" :rules="[{ required: !!formState.port_scan, message: '请选择端口策略' }]">
+                <a-select v-model:value="formState.port_scan_type" :disabled="!formState.port_scan" placeholder="请选择策略">
                   <a-select-option v-for="item in portDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
                 </a-select>
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="目录泄露字典" name="file_leak_dict" :rules="[{ required: true }]">
-                <a-select v-model:value="formState.file_leak_dict" placeholder="请选择字典">
+              <a-form-item label="目录泄露字典" name="file_leak_dict" :rules="[{ required: !!formState.file_leak, message: '请选择泄露字典' }]">
+                <a-select v-model:value="formState.file_leak_dict" :disabled="!formState.file_leak" placeholder="请选择字典">
                   <a-select-option v-for="item in fileLeakDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
                 </a-select>
               </a-form-item>
@@ -2173,7 +2173,7 @@ const formRef = ref();
 
 const pluginCategories = [
   {
-    title: '🌐 基础资产侦查',
+    title: '🌐 域名与资产发现',
     plugins: [
       { key: 'dns_query_plugin', label: '域名查询插件' },
       { key: 'domain_brute', label: '域名爆破' },
@@ -2199,9 +2199,13 @@ const pluginCategories = [
       { key: 'site_spider', label: '站点爬虫' },
       { key: 'web_info_hunter', label: 'WIH 调用' },
       { key: 'file_leak', label: '文件泄露' },
-      { key: 'findvhost', label: 'Host 碰撞' },
-      { key: 'npoc_service_detection', label: '服务(python)识别' },
-      { key: 'nuclei_scan', label: 'nuclei 扫描' }
+      { key: 'findvhost', label: 'Host 碰撞' }
+    ]
+  },
+  {
+    title: '🛡️ 漏洞与风险巡航',
+    plugins: [
+      { key: 'nuclei_scan', label: 'Nuclei 扫描' }
     ]
   }
 ];
@@ -2270,7 +2274,10 @@ const handleOk = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    const res = await request.post('/task/', formState);
+    const payload = { ...formState };
+    // 🛡️ 服务识别双向严格协同（开启同开，关闭同关）
+    payload.npoc_service_detection = !!payload.service_detection;
+    const res = await request.post('/task/', payload);
     if (res.code === 200) {
       message.success('任务下发成功！');
       visible.value = false;
