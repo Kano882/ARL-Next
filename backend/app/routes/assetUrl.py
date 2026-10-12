@@ -2,6 +2,7 @@ from bson import ObjectId
 from flask_restx import fields, Namespace
 from app.utils import get_logger, auth
 from . import base_query_fields, ARLResource, get_arl_parser
+from .http_status import HttpStatusCodes, HttpStatusResource
 from app.modules import ErrorMsg
 from app import utils
 
@@ -15,6 +16,7 @@ base_search_fields = {
     'url': fields.String(required=False, description="URL"),
     'content_length': fields.Integer(description="body 长度"),
     'status_code': fields.Integer(description="状态码"),
+    'status_code__in': HttpStatusCodes(description="状态码多选，逗号分隔，例如 200,301,403"),
     'title': fields.String(description="标题"),
     'source': fields.String(description="来源"),
     "update_date__dgt": fields.String(description="更新时间大于"),
@@ -28,7 +30,7 @@ base_search_fields.update(base_query_fields)
 
 
 @ns.route('/')
-class ARLAssetUrl(ARLResource):
+class ARLAssetUrl(HttpStatusResource):
     parser = get_arl_parser(base_search_fields, location='args')
 
     @auth
@@ -43,7 +45,7 @@ class ARLAssetUrl(ARLResource):
 
 
 @ns.route('/export/')
-class ARLAssetUrlExport(ARLResource):
+class ARLAssetUrlExport(HttpStatusResource):
     parser = get_arl_parser(base_search_fields, location='args')
 
     @auth

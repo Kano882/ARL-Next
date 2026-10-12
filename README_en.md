@@ -343,6 +343,19 @@ The deletion endpoint only accepts tasks in `done`, `stop`, or `error` states; o
 
 Task-scoped results are queried under endpoints such as `/api/domain/`, `/api/ip/`, and `/api/site/`. Results synced to Asset Groups reside under the `asset_*` namespace, including `/api/asset_domain/`, `/api/asset_ip/`, and `/api/asset_site/`. These represent distinct datasets: task queries require `task_id`, whereas asset group queries require `scope_id`. Refer to `/api/doc` for current parameter specifications and pagination schema.
 
+### Multiple HTTP Status Codes
+
+The site, URL, and file leak lists in Global Asset Search, Task Details, and Asset Group Details support searchable multiple status selection. Selecting or clearing values applies the filter immediately. Codes within one field are matched with OR; other filters and `task_id` / `scope_id` are combined with AND. Lists, existing export endpoints, and site result sets share the same filter conversion.
+
+- `/api/site/` and `/api/asset_site/` accept `status__in=200,301,403`.
+- `/api/url/`, `/api/asset_url/`, `/api/fileleak/`, and `/api/asset_fileleak/` accept `status_code__in=200,403`.
+- Send one comma-separated parameter containing integer codes from 100 to 599, with at most 500 entries. Empty strings, invalid values, and repeated parameters return HTTP 400. Omit the parameter to clear the filter.
+- Existing scalar parameters (`status=200`, `status_code=200`) remain supported. If both scalar and multiple filters are supplied, their intersection applies. Task execution status filters retain their existing format.
+
+For example, `GET /api/site/?task_id=<task_id>&status__in=200,403` selects sites from that task with either status. The same parameters work on `/api/site/export/` and `/api/site/save_result_set/`. Asset group queries use `scope_id` and the corresponding `/api/asset_site/` endpoints.
+
+This implements the HTTP status multiselect suggestion in Issue #51. Free-form expressions, parentheses, and OR across arbitrary fields are not implemented. Update the frontend and backend together.
+
 ---
 
 ## ❓ FAQ & Troubleshooting
