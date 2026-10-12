@@ -385,23 +385,9 @@ def oneshot_domain_exec(options):
 
 
 def domain_task_sync(options):
-    """域名同步任务"""
-    from app.services.syncAsset import sync_asset
-    scope_id = options.get("scope_id")
-    task_id = options.get("task_id")
-    query = {"_id": ObjectId(task_id)}
-    try:
-        update = {"$set": {"sync_status": TaskSyncStatus.RUNNING}}
-        utils.conn_db('task').update_one(query, update)
-
-        sync_asset(task_id, scope_id, update_flag=False)
-
-        update = {"$set": {"sync_status": TaskSyncStatus.DEFAULT}}
-        utils.conn_db('task').update_one(query, update)
-    except Exception as e:
-        update = {"$set": {"sync_status": TaskSyncStatus.ERROR}}
-        utils.conn_db('task').update_one(query, update)
-        logger.exception(e)
+    """同步域名或 IP 任务的已有资产结果。"""
+    from app.services.task_scope_sync import sync_task_to_scope
+    sync_task_to_scope(options.get("task_id"), options.get("scope_id"))
 
 
 def domain_task(options):

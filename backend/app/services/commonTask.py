@@ -152,11 +152,23 @@ class CommonTask(object):
             return
 
         related_scope_id = options.get("related_scope_id", "")
-        if not related_scope_id or len(related_scope_id) != 24:
+        if not related_scope_id:
             self._push_task_result_only()
             return
 
-        services.sync_asset(task_id=self.task_id, scope_id=related_scope_id, push_flag=True)
+        task = utils.conn_db('task').find_one({"_id": ObjectId(self.task_id)})
+        if not task:
+            return
+        if task.get("task_tag") == "task" and task.get("type") in ("domain", "ip"):
+            from app.services.task_scope_sync import sync_task_to_scope
+            if not sync_task_to_scope(self.task_id, related_scope_id, push_flag=True):
+                return
+        else:
+            # 添加站点、风险巡航等任务继续使用各自的既有同步行为。
+            if len(related_scope_id) != 24:
+                self._push_task_result_only()
+                return
+            services.sync_asset(task_id=self.task_id, scope_id=related_scope_id, push_flag=True)
 
         from app.utils.monitor_diff import log_monitor_diff_summary
         log_monitor_diff_summary(self.task_id)

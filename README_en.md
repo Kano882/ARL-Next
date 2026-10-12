@@ -327,6 +327,24 @@ Navigate to your ARL-Next installation directory on the server and run the upgra
 - If platform authentication is disabled, endpoints do not validate tokens; review your gateway and access control policies when exposing to external networks.
 - API responses utilize business fields `code` and `message`; an HTTP 200 response alone does not indicate operational success.
 
+### Associate New Scan Tasks with Asset Groups
+
+When creating a reconnaissance task, optionally select an existing asset group. The selector supports name search and pagination. Completed tasks use the existing asset synchronization pipeline; this does not create periodic monitoring or extend the group's configured scope.
+
+`POST /api/task/` accepts an optional JSON field `related_scope_id`, for example:
+
+```json
+{"name": "Boundary discovery", "target": "www.example.com", "related_scope_id": "<asset_scope_id>"}
+```
+
+Before creating any tasks in a batch, the backend checks group existence and verifies that all domain, IP, or CIDR targets belong to its scope. Existing target validation and blacklist checks remain active. Omitting the field preserves ordinary scan behavior. Restarting an associated task retains the group ID, revalidates the current scope, and clears the new task's previous sync outcome.
+
+The task list distinguishes synchronization after completion, queued synchronization, active synchronization, success, and failure. Failure reasons appear in a tooltip. Scan results and synchronization status are retained independently; selecting a group does not indicate successful synchronization. The group and target scope are checked again before synchronization.
+
+`POST /api/task/sync/` supports finished domain and IP tasks with `task_id` and `scope_id`. Full scope validation still applies. The request records a queued state before dispatch and records dispatch errors. Both automatic and manual synchronization record `synced_scope_id` / `synced_scope_name` on success or `sync_error` on failure, without automatic retries.
+
+This implements the task asset-group selection request in Issue #50. Nuclei YAML/ZIP import already exists in the main branch's PoC management page. Update the frontend, API, and Worker together.
+
 ### Task Operations (Note HTTP Methods)
 
 | Operation | Method & Path | Parameters |

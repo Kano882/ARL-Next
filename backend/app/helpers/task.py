@@ -1,7 +1,7 @@
 import bson
 import re
 from app import utils
-from app.modules import TaskStatus, TaskTag, TaskType, CeleryAction, SchedulerStatus
+from app.modules import TaskStatus, TaskTag, TaskType, CeleryAction, SchedulerStatus, TaskSyncStatus
 
 # 初始化日志记录器
 logger = utils.get_logger()
@@ -174,6 +174,16 @@ def submit_task(task_data):
     from app import celerytask
 
     target = task_data["target"]
+    options = task_data.get("options", {})
+    related_scope_id = options.get("related_scope_id")
+    if (related_scope_id and task_data.get("task_tag") == TaskTag.TASK
+            and task_data.get("type") in (TaskType.DOMAIN, TaskType.IP)):
+        from app.helpers.scope import validate_task_scope
+        scope = validate_task_scope(target, related_scope_id)
+        options["related_scope_id"] = str(scope["_id"])
+        task_data["related_scope_name"] = scope.get("name", "")
+        task_data["sync_status"] = TaskSyncStatus.DEFAULT
+
     # 1. 存档：把刚建好的任务工单先存进 MongoDB 的 'task' 表里
     utils.conn_db('task').insert_one(task_data)
 
@@ -251,6 +261,10 @@ def submit_task_task(target, name, options):
 
     # 1. 唤醒第一道安检门：把目标分流成 IP 筐和 域名筐
     ip_list, domain_list = get_ip_domain_list(target)
+    if options.get("related_scope_id"):
+        from app.helpers.scope import validate_task_scope
+        # 批量目标在任何任务创建、消息派发之前统一校验。
+        validate_task_scope(target, options["related_scope_id"])
 
     # 2. 处理 IP 筐：把所有 IP 缝合在一起，当成【一个大任务】下发！
     if ip_list:
@@ -354,6 +368,8 @@ def restart_task(task_id):
     task_data.pop("error_msg", None)
     task_data.pop("end_reason", None)
     task_data.pop("sync_status", None)
+    for field in ("sync_error", "sync_scope_id", "sync_scope_name", "synced_scope_id", "synced_scope_name"):
+        task_data.pop(field, None)
     task_data.pop("task_id", None)
 
     name = task_data.get("name") or ""

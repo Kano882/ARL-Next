@@ -11,10 +11,11 @@ def check_target_in_scope(target, scope_data):
     domain_array = scope_data.get("domain_array")
     ip_array = scope_data.get("ip_array")
     
-    if domain_array is None or ip_array is None:
-        st = scope_data.get("scope_type", "domain")
-        sa = scope_data.get("scope_array", [])
+    st = scope_data.get("scope_type", "domain")
+    sa = scope_data.get("scope_array", [])
+    if domain_array is None:
         domain_array = sa if st == "domain" else []
+    if ip_array is None:
         ip_array = sa if st == "ip" else []
 
     for ip in ip_list:
@@ -26,6 +27,19 @@ def check_target_in_scope(target, scope_data):
             raise Exception("{}不在范围{}中".format(domain, ",".join(domain_array)))
 
     return ip_list, domain_list
+
+
+def validate_task_scope(target, scope_id):
+    """校验普通扫描的关联组及全部目标，不修改任务或资产组。"""
+    if not isinstance(scope_id, str) or not bson.ObjectId.is_valid(scope_id):
+        raise ValueError("资产组 ID 格式无效")
+    scope = get_scope_by_scope_id(scope_id)
+    if not scope:
+        raise ValueError("所选资产组已不存在，请重新选择")
+    ips, domains = check_target_in_scope(target, scope)
+    if not ips and not domains:
+        raise ValueError("任务目标为空")
+    return scope
 
 
 def get_scope_by_scope_id(scope_id):
