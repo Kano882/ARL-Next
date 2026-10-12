@@ -277,55 +277,30 @@
               <span class="feature-hint">调用 Nuclei 引擎针对已发现 Web 站点执行模板化漏洞探测</span>
             </div>
 
-            <!-- Nuclei 细粒度过滤与自建模板配置 -->
+            <!-- Nuclei 细粒度过滤与自建模板配置 (纯开关矩阵，极简交互) -->
             <div v-if="policyForm.site_config.nuclei_scan" class="sub-config-box" style="margin-top: 12px;">
               <a-row :gutter="16">
-                <a-col :span="12">
+                <a-col :span="13">
                   <a-form-item label="探测危害级别 (Severity)" class="inline-form-item">
                     <a-checkbox-group v-model:value="policyForm.site_config.nuclei_config.severity" :options="nucleiSeverityOptions" />
                   </a-form-item>
                 </a-col>
-                <a-col :span="12">
-                  <a-form-item label="自建模板加载策略" class="inline-form-item">
-                    <a-select v-model:value="policyForm.site_config.nuclei_config.custom_template_mode" style="width: 100%;">
-                      <a-select-option value="all_enabled">全部已启用自建模板 (推荐)</a-select-option>
-                      <a-select-option value="tags">按指定标签 Tag 过滤</a-select-option>
-                    </a-select>
+                <a-col :span="11">
+                  <a-form-item label="防御与自建模板联动" class="inline-form-item">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <a-checkbox v-model:checked="policyForm.site_config.nuclei_config.exclude_blacklist">
+                        自动排除全局误报黑名单 (推荐)
+                      </a-checkbox>
+                      <a-checkbox
+                        :checked="policyForm.site_config.nuclei_config.custom_template_mode === 'all_enabled'"
+                        @change="(e) => policyForm.site_config.nuclei_config.custom_template_mode = e.target.checked ? 'all_enabled' : 'none'"
+                      >
+                        自动加载所有已启用的自建模板 (推荐)
+                      </a-checkbox>
+                    </div>
                   </a-form-item>
                 </a-col>
               </a-row>
-
-              <!-- 误报黑名单排除与个性化过滤 -->
-              <a-row :gutter="16" style="margin-top: 10px;">
-                <a-col :span="10">
-                  <a-form-item label="误报防御联动" class="inline-form-item">
-                    <a-checkbox v-model:checked="policyForm.site_config.nuclei_config.exclude_blacklist">
-                      自动排除全局误报黑名单 (推荐)
-                    </a-checkbox>
-                  </a-form-item>
-                </a-col>
-                <a-col :span="14">
-                  <a-form-item label="策略级额外排除模板 ID (按回车添加)" class="inline-form-item">
-                    <a-select
-                      v-model:value="policyForm.site_config.nuclei_config.extra_exclude_ids"
-                      mode="tags"
-                      placeholder="输入模板 ID 按回车添加 (如: cve-2021-xxxx)"
-                      style="width: 100%;"
-                    />
-                  </a-form-item>
-                </a-col>
-              </a-row>
-
-              <div v-if="policyForm.site_config.nuclei_config.custom_template_mode === 'tags'" style="margin-top: 8px;">
-                <a-form-item label="匹配自建标签 Tags (按回车添加)" class="inline-form-item">
-                  <a-select
-                    v-model:value="policyForm.site_config.nuclei_config.selected_tags"
-                    mode="tags"
-                    placeholder="输入标签按回车添加 (如: rce, spring, cve)"
-                    style="width: 100%;"
-                  />
-                </a-form-item>
-              </div>
             </div>
           </div>
 
@@ -446,12 +421,9 @@ const initPolicyForm = () => ({
     findvhost: false,
     nuclei_scan: false,
     nuclei_config: {
-      severity: ['critical', 'high', 'medium'],
+      severity: ['critical', 'high', 'medium', 'low'],
       custom_template_mode: 'all_enabled',
-      selected_custom_templates: [],
-      selected_tags: [],
-      exclude_blacklist: true,
-      extra_exclude_ids: []
+      exclude_blacklist: true
     },
     web_info_hunter: false
   },
@@ -637,19 +609,16 @@ onMounted(async () => {
         Object.assign(policyForm.site_config, data.policy?.site_config || {});
         if (!policyForm.site_config.nuclei_config) {
           policyForm.site_config.nuclei_config = {
-            severity: ['critical', 'high', 'medium'],
+            severity: ['critical', 'high', 'medium', 'low'],
             custom_template_mode: 'all_enabled',
-            selected_custom_templates: [],
-            selected_tags: [],
-            exclude_blacklist: true,
-            extra_exclude_ids: []
+            exclude_blacklist: true
           };
         } else {
           if (policyForm.site_config.nuclei_config.exclude_blacklist === undefined) {
             policyForm.site_config.nuclei_config.exclude_blacklist = true;
           }
-          if (!policyForm.site_config.nuclei_config.extra_exclude_ids) {
-            policyForm.site_config.nuclei_config.extra_exclude_ids = [];
+          if (!policyForm.site_config.nuclei_config.custom_template_mode) {
+            policyForm.site_config.nuclei_config.custom_template_mode = 'all_enabled';
           }
         }
 
