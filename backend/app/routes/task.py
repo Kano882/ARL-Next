@@ -122,11 +122,18 @@ class ARLTask(ARLResource): # 继承我们在阶段一拆解过的“大基类�
 
     def build_db_query(self, args):
         status_val = args.get("status")
-        if status_val == "running":
+        # 聚合态筛选：与统计口径保持一致（active = running + waiting，abnormal = error + stop），
+        # 避免指标卡展示数量与点击筛选后的结果集数量不一致。
+        aggregate_status = {
+            "active": {"$nin": ["done", "error", "stop"]},
+            "abnormal": {"$in": ["error", "stop"]},
+            "running": {"$nin": ["done", "error", "stop", "waiting"]},
+        }
+        if status_val in aggregate_status:
             args_copy = dict(args)
             args_copy.pop("status", None)
             q = super().build_db_query(args_copy)
-            q["status"] = {"$nin": ["done", "error", "stop", "waiting"]}
+            q["status"] = aggregate_status[status_val]
             return q
         return super().build_db_query(args)
 

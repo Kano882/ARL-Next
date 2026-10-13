@@ -102,3 +102,18 @@ ARL-Next separates reconnaissance outputs into **Task-Specific Outputs** and **A
 > - Task-level queries require a valid `task_id`;
 > - Group-level queries require a valid `scope_id`;
 > - These namespaces map to separate underlying MongoDB collections and indexing schemes. Consult `/api/doc` for exact query fields and filtering options.
+
+---
+
+## 5. Error Code Conventions & Client Branching
+
+| Code | Meaning | Typical Scenario |
+| :--- | :--- | :--- |
+| `200` | Business success | All successful responses |
+| `104` | Task is running | Returned when deleting/operating on a running task; stop the task first |
+| `999` | Parameter validation error | Missing/invalid parameters or exceeded limits (e.g. empty asset group ID list or more than 500 in a single request, invalid asset group/group ID) |
+
+> [!NOTE]
+> - `999` is a generic parameter-validation code; read `message` and `data.error` for the specific cause.
+> - Clients should always keep a `default` branch in `switch/if` handling to avoid silently ignoring unmapped codes.
+> - Error codes are not yet fully unified between task and enterprise-task endpoints (for example, enterprise task deletion may return `400` when the task is active); always verify against `/api/doc` and actual responses.

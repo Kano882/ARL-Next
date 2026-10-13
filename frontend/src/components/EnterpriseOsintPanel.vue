@@ -77,17 +77,17 @@
 
           <div class="toolbar-right">
             <template v-if="activeTab !== 'log'">
-              <!-- 一键扩充本组按钮 (仅在 Web 备案维度且存在未纳管域名时呈现) -->
+              <!-- 扩充本组按钮 (仅在 Web 备案维度且存在未纳管域名时呈现) -->
               <a-popconfirm
                 v-if="props.scopeId && activeTab === 'web' && untrackedWebDomains.length > 0"
-                :title="`确认将发现的 ${untrackedWebDomains.length} 个未纳管域名一键扩充至当前资产组？`"
+                :title="`确认将发现的 ${untrackedWebDomains.length} 个未纳管域名扩充至当前资产组？`"
                 ok-text="确认扩充"
                 cancel-text="取消"
                 @confirm="handleOneClickExpandScope"
               >
                 <a-button type="primary" size="small" :loading="expandingScopeLoading" style="background: #52c41a; border-color: #52c41a;">
                   <template #icon><plus-circle-outlined /></template>
-                  一键扩充本组 (+{{ untrackedWebDomains.length }})
+                  扩充本组 (+{{ untrackedWebDomains.length }})
                 </a-button>
               </a-popconfirm>
 
@@ -486,12 +486,12 @@
             <span class="log-title">[{{ log.title }}]</span>
             <span class="log-msg">{{ log.message }}</span>
           </div>
-          <div v-if="syslogList.length === 0" class="log-empty">[System] 暂无日志记录... (历史任务或日志正在生成中)</div>
+          <div v-if="syslogList.length === 0" class="log-empty">[System] 暂无日志记录（任务未产生日志，或日志仍在生成中）</div>
         </div>
       </div>
     </div>
 
-    <!-- 同步至资产分组弹窗 -->
+    <!-- 同步至资产组弹窗 -->
     <SyncToScopeModal
       v-model:open="syncModalVisible"
       :task="taskRecord"
@@ -729,11 +729,11 @@ const taskTypeLabel = computed(() => {
 
 const taskStatusLabel = computed(() => {
   const map = {
-    waiting: '等待中',
-    running: '运行中',
+    waiting: '排队中',
+    running: '进行中',
     done: '已完成',
     stop: '已停止',
-    error: '执行失败'
+    error: '异常失败'
   };
   return map[taskStatus.value] || taskStatus.value;
 });
@@ -753,7 +753,7 @@ const syncModalVisible = ref(false);
 const selectedWebRowKeys = ref([]);
 const selectedWebDomains = ref([]);
 
-// 资产组当前已纳管域名集合 & 任务全量 Web 域名
+// 资产组当前已纳管域名集合 & 任务 Web 域名（后端单次返回上限 5000 条）
 const managedDomainSet = ref(new Set());
 const allTaskWebDomains = ref([]);
 const expandingScopeLoading = ref(false);
@@ -791,7 +791,7 @@ const fetchAllTaskWebDomains = async () => {
       allTaskWebDomains.value = Array.from(set);
     }
   } catch (e) {
-    console.error('获取全量任务域名列表失败', e);
+    console.error('获取任务域名列表失败', e);
   }
 };
 
@@ -855,7 +855,13 @@ const handleOneClickExpandScope = async () => {
     };
     const res = await request.post(`/icp/sync/${props.taskId}`, payload);
     if (res && res.code === 200) {
-      message.success(`成功扩充 ${res.data?.insert_count ?? untrackedWebDomains.value.length} 个新域名至当前资产组`);
+      // 以后端实际入库数为准；缺失该字段时如实说明，不将提交数当作成功数展示
+      const inserted = res.data?.insert_count;
+      if (Number.isInteger(inserted)) {
+        message.success(`成功扩充 ${inserted} 个新域名至当前资产组`);
+      } else {
+        message.success(`已提交 ${untrackedWebDomains.value.length} 个域名扩充请求，实际入库数量请以列表刷新结果为准`);
+      }
       await fetchManagedDomains();
       await fetchAllTaskWebDomains();
       emit('synced', res);
@@ -863,7 +869,7 @@ const handleOneClickExpandScope = async () => {
       message.error(res?.message || '扩充资产组失败');
     }
   } catch (err) {
-    console.error('一键扩充资产组失败', err);
+    console.error('扩充资产组失败', err);
     message.error('请求网络错误');
   } finally {
     expandingScopeLoading.value = false;

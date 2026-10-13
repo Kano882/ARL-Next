@@ -57,13 +57,13 @@ const routes = [
                 path: '/group',
                 name: 'AssetScope',
                 component: () => import('../views/AssetScope.vue'),
-                meta: { title: '资产分组' }
+                meta: { title: '资产组' }
             },
             {
                 path: '/groupAssetsManagement/groupAssetsDetail',
                 name: 'GroupAssetsDetail',
                 component: () => import('../views/GroupAssetsDetail.vue'),
-                meta: { title: '资产分组详情' }
+                meta: { title: '资产组详情' }
             },
             // 在你的 routes 数组中添加：
 // 找到你之前加 /policy 的地方，紧挨着追加这一段：

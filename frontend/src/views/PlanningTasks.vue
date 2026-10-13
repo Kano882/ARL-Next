@@ -251,7 +251,7 @@
             <div style="display: flex; gap: 6px;">
               <a-button size="small" :disabled="record.status === 'stop'" @click="handleMonitorSingleAction('stop', record)">暂停</a-button>
               <a-button size="small" :disabled="record.status !== 'stop'" @click="handleMonitorSingleAction('resume', record)">恢复</a-button>
-              <a-button size="small" @click="handleMonitorSingleAction('run', record)">立即下发</a-button>
+              <a-button size="small" @click="handleMonitorSingleAction('run', record)">立即下发任务</a-button>
               <a-button size="small" danger @click="handleMonitorSingleAction('delete', record)">删除</a-button>
             </div>
           </template>
@@ -619,12 +619,17 @@ const executeMonitorAction = async (actionType, ids) => {
 };
 
 const handleMonitorSingleAction = (actionType, record) => {
-  const actionName = actionType === 'delete' ? '删除' : actionType === 'stop' ? '暂停' : actionType === 'resume' ? '恢复' : '立即下发';
+  const actionName = actionType === 'delete' ? '删除' : actionType === 'stop' ? '暂停' : actionType === 'resume' ? '恢复' : '下发';
   if (actionType === 'delete' || actionType === 'run') {
     Modal.confirm({
-      title: '操作确认',
-      icon: createVNode(ExclamationCircleOutlined),
-      content: `确认要 ${actionName} 监控任务 [${record.name}] 吗？`,
+      title: actionType === 'delete' ? '删除监控任务确认' : '下发监控任务确认',
+      icon: createVNode(ExclamationCircleOutlined, actionType === 'delete' ? { style: 'color: #ff4d4f;' } : undefined),
+      content: actionType === 'delete'
+        ? `确认删除监控任务 [${record.name}] 吗？删除后该任务的调度配置将一并移除，不可恢复。`
+        : `确认立即下发监控任务 [${record.name}] 吗？任务将进入调度队列，由执行引擎按序取用。`,
+      okText: actionType === 'delete' ? '确认删除' : '确 定',
+      okButtonProps: actionType === 'delete' ? { danger: true } : undefined,
+      cancelText: '取 消',
       onOk: () => executeMonitorAction(actionType, [record._id])
     });
   } else {

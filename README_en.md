@@ -67,7 +67,7 @@
 
 ### <span id="core-features"></span>✨ Core Feature Matrix
 
-* 🤖 **Native MCP Protocol Integration**: Standalone standard library-based MCP client protocol enabling AI agents to inspect multi-dimensional target asset profiles via standard interfaces. (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
+* 🤖 **Native MCP Protocol Integration**: Standalone standard library-based MCP client protocol enabling AI agents to inspect multi-dimensional target asset profiles via standard interfaces (task dispatch and policy scheduling capabilities are still being integrated). (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
 * ⚙️ **Asynchronous Decoupled Scheduling**: Microservice isolation with dedicated queues and bulk MongoDB operations ensures stable execution under high-throughput scanning workloads.
 * 🌐 **Hierarchical Asset Group Management**: Integrated corporate asset discovery supporting multi-tier organizational structures, multi-category ICP association (Web / APP / Mini-program / Quick App), and unified attack surface mapping.
 * 🔍 **Modern Reconnaissance Baseline**: Standardized on Nmap 7.95 Stable; native Python streaming engine for sensitive information and credential discovery.
@@ -202,8 +202,9 @@ graph TD
 **Estimated Time**: ~**1–2 minutes** with existing Docker environment; ~**3–5 minutes** on a fresh bare-metal host.
 
 **Key Operational Advantages**:
+* ⚡ **Mainland China Mirror Acceleration**: Pulls directly from the Alibaba Cloud ACR private mirror repository, avoiding cross-border network timeouts and pull interruptions.
 * 📦 **Out-of-the-Box Delivery**: Pre-built container images eliminate local toolchain compilation and dependency configuration.
-* 🛡️ **Dual-Layer Security**: Bundled local SSL encryption with **frontline Basic Auth gateway protection**; core internal services isolated within a private Docker bridge network.
+* 🛡️ **Dual-Layer Security**: Bundled local SSL encryption with optional **frontline Basic Auth gateway protection** (disabled by default); core internal services isolated within a private Docker bridge network.
 * 🔄 **One-Click Hot Updates**: Web console-driven upgrade triggers the background daemon to pull updated images and orchestrations automatically.
 * 🩺 **Health Readiness Probing**: Integrated startup probe loops verify API readiness before allowing incoming traffic, preventing intermittent startup errors.
 
@@ -211,23 +212,12 @@ graph TD
 
 #### 🚀 Deployment Methods
 
-##### Method 1: Git Clone Source Deployment (Recommended for Global / Standard Deployments)
+##### Method 1: Accelerated Mirror Deployment (Recommended · Avoids GitHub Network Fluctuations)
+
+On your server terminal (root required), paste and run the chained command for your OS. The script extracts the deployment orchestration from the Alibaba Cloud ACR mirror, then automatically configures Swap, installs/pads Docker and the Compose plugin, and brings the stack up:
 
 > [!TIP]
-> The `start-prod.sh` script automatically detects system dependencies. If Docker or Compose is missing, it installs and configures them with optimized kernel settings.
-
-```bash
-git clone --depth 1 https://github.com/owl234/ARL-Next.git && cd ARL-Next
-chmod +x start-prod.sh
-bash start-prod.sh
-```
-
-##### Method 2: Accelerated One-Liner via China Mirror (Alternative for Mainland China Servers)
-
-For servers located in Mainland China, execute the chained command corresponding to your operating system to extract deployment files from the Alibaba Cloud ACR mirror and launch the service:
-
-> [!TIP]
-> `start-prod.sh` includes environment probes that configure Swap, install Docker / Docker Compose plugins, and tune kernel parameters on bare-metal systems.
+> `start-prod.sh` includes built-in environment probes that configure Swap, install Docker / Docker Compose plugins, and tune kernel parameters, so it runs on bare-metal systems as well.
 
 **Ubuntu / Debian / UOS Systems**:
 ```bash
@@ -270,6 +260,14 @@ docker rm -f arl-temp && \
 chmod +x start-prod.sh && bash start-prod.sh
 ```
 
+##### Method 2: Git Clone Source Deployment (For Overseas Servers / Source-Based Deployments)
+
+```bash
+git clone --depth 1 https://github.com/owl234/ARL-Next.git && cd ARL-Next
+chmod +x start-prod.sh
+bash start-prod.sh
+```
+
 ---
 
 #### 🔑 Access & Default Credentials
@@ -300,12 +298,12 @@ The host update daemon pulls the latest images, synchronizes orchestration scrip
 
 Navigate to your ARL-Next installation directory on the server and run the upgrade commands matching your installation method:
 
-* **Git Clone Users (Method 1)**:
+* **Git Clone Users (Method 2)**:
   ```bash
   cd ~/ARL-Next && git pull && sudo bash start-prod.sh
   ```
 
-* **One-Liner / Container Sync Users (Method 2)**:
+* **One-Liner / Container Sync Users (Method 1)**:
   ```bash
   cd ~/ARL-Next && \
   docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \

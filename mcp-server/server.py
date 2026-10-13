@@ -114,6 +114,8 @@ def _request_api(endpoint: str, params: dict = None) -> tuple:
         "User-Agent": "ARL-Next-MCP/2.0"
     }
 
+    # ARL-Next 默认使用自签名证书，为兼容开箱即用场景不校验服务端证书。
+    # 若部署了受信任的正式证书，可移除下面两行以启用完整的 TLS 校验。
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE

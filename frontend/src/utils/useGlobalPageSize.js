@@ -15,8 +15,10 @@ const getInitialPageSize = (defaultSize = 10) => {
   return defaultSize;
 };
 
-// 单例响应式状态，全站各组件共享同一引用
-const globalPageSize = ref(getInitialPageSize(10));
+// 单例响应式状态，全站各组件共享同一引用。
+// 首次调用者传入的 defaultSize 决定无本地存储时的初始值；后续调用复用同一引用。
+let initialized = false;
+const globalPageSize = ref(10);
 
 // 监听变动并安全同步到 localStorage
 watch(globalPageSize, (newSize) => {
@@ -29,7 +31,11 @@ watch(globalPageSize, (newSize) => {
   }
 });
 
-export function useGlobalPageSize() {
+export function useGlobalPageSize(defaultSize = 10) {
+  if (!initialized) {
+    globalPageSize.value = getInitialPageSize(defaultSize);
+    initialized = true;
+  }
   return globalPageSize;
 }
 

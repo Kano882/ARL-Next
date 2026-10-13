@@ -14,6 +14,9 @@
 
 ## 🌟 Core Features & Design Principles
 
+> [!NOTE]
+> **TLS Certificate Verification**: ARL-Next ships with a self-signed certificate by default, so the MCP client **does not verify the server certificate** to keep the out-of-the-box flow frictionless. If you deploy a trusted certificate, remove the two lines disabling verification inside `_request_api` in `server.py` to enable full verification.
+
 1. **⚡ Standard Library Implementation**:
    - Eliminates third-party package dependencies (no `mcp[cli]`, no `pydantic`, no `requests`).
    - Built exclusively on Python 3.8+ standard libraries (`sys`, `json`, `urllib`, `ssl`), enabling instant execution with system Python and avoiding virtual environment conflicts.

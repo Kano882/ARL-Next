@@ -26,7 +26,7 @@
       <div class="sidebar-header">
         <div style="display: flex; align-items: center; gap: 8px;">
           <ApartmentOutlined style="font-size: 16px; color: var(--arl-theme-color);" />
-          <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">集团分组</span>
+          <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">资产组视图</span>
           <span class="sidebar-total-badge">{{ groupList.length }}</span>
         </div>
         <a-tooltip title="新建集团">
@@ -215,6 +215,9 @@
                 <template #title>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-weight: 600;">企业全景测绘建组队列 ({{ runningReconTasks.length }})</span>
+                    <a-button type="link" size="small" style="padding: 0; font-size: 11px; height: auto;" @click="clearAllRunningReconTasks">
+                      清空队列
+                    </a-button>
                   </div>
                 </template>
                 <template #content>
@@ -232,9 +235,17 @@
                           天眼查与工商双轨穿透 · 自动建组托管中
                         </div>
                       </div>
-                      <a-tag color="processing" style="margin: 0; font-size: 11px;">
-                        <sync-outlined spin /> 测绘中
-                      </a-tag>
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <a-tag color="processing" style="margin: 0; font-size: 11px;">
+                          <sync-outlined spin /> 测绘中
+                        </a-tag>
+                        <a-tooltip title="停止追踪并移出队列">
+                          <close-outlined 
+                            style="cursor: pointer; color: #8c8c8c; font-size: 12px; padding: 2px; transition: color 0.2s;"
+                            @click.stop="dismissPendingReconTask(t.taskId)" 
+                          />
+                        </a-tooltip>
+                      </div>
                     </div>
                   </div>
                 </template>
@@ -301,7 +312,7 @@
             <div v-if="hasSelected" class="selection-indicator">
               <InfoCircleOutlined style="color: var(--arl-theme-color);" />
               <span>已勾选 <strong>{{ selectedRowKeys.length }}</strong> 项</span>
-              <a-button type="link" size="small" @click="selectedRowKeys = []" style="padding: 0 4px;">清空已选</a-button>
+              <a-button type="link" size="small" @click="selectedRowKeys = []" style="padding: 0 4px;">取消选择</a-button>
             </div>
           </div>
 
@@ -619,7 +630,7 @@
               >
                 <template #message>
                   <span style="color: var(--arl-text-color); line-height: 1.5;">
-                    输入天眼查企业链接或纯数字 GID，系统将全自动深度穿透投资控股树，并联动工信部 ICP 双轨查重，免等待自动纳管建组。
+                    输入天眼查企业链接或纯数字 GID，系统将穿透投资控股树，并联动工信部 ICP 双轨查重；建组后由当前页面自动纳管入库。
                   </span>
                 </template>
               </a-alert>
@@ -643,10 +654,10 @@
                   </template>
                 </a-input>
                 <div v-if="parsedTycGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
-                  <check-circle-outlined /> <span>已自动识别天眼查 GID: <b>{{ parsedTycGid }}</b> (全景双轨穿透)</span>
+                  <check-circle-outlined /> <span>按天眼查 GID 解析: <b>{{ parsedTycGid }}</b> (将在提交后校验并执行全景双轨穿透)</span>
                 </div>
                 <div v-else-if="isWizardCompanyName" style="margin-top: 4px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
-                  <safety-certificate-outlined /> <span>已识别企业工商主体: <b>{{ wizardForm.target.trim() }}</b> (工信部权威备案)</span>
+                  <safety-certificate-outlined /> <span>已识别企业工商主体: <b>{{ wizardForm.target.trim() }}</b> (来源：工信部 ICP 备案)</span>
                 </div>
               </a-form-item>
 
@@ -686,7 +697,7 @@
                   <a-checkbox v-model:checked="wizardAutoSync">
                     <b>测绘完成后自动纳管建组</b>
                     <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7; margin-left: 6px;">
-                      (推荐，无需盯盘等待，后台完成后自动成组入库)
+                      (由当前浏览器页面轮询追踪任务状态并自动成组入库；关闭或离开本页面将暂停追踪，24 小时后需手动挑选建组)
                     </span>
                   </a-checkbox>
                 </div>
@@ -745,12 +756,12 @@
                         :label-col="{ style: { width: '90px' } }"
                         :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
                         style="margin-bottom: 8px;"
-                        tooltip="穿透控股子公司与参股公司的递归深度 (1~5)"
+                        tooltip="穿透控股子公司与参股公司的递归深度 (1~20)"
                       >
                         <a-input-number
                           v-model:value="wizardForm.depth"
                           :min="1"
-                          :max="5"
+                          :max="20"
                           size="small"
                           style="width: 110px;"
                           addon-after="层"
@@ -782,7 +793,7 @@
                     :label-col="{ style: { width: '90px' } }"
                     :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
                     style="margin-bottom: 0;"
-                    tooltip="自动调用工信部官方权威备案接口进行双轨校对与兜底补全"
+                    tooltip="调用工信部 ICP 备案数据接口进行双轨校对与兜底补全"
                   >
                     <a-switch v-model:checked="wizardForm.enable_icp" size="small" />
                     <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
@@ -818,7 +829,7 @@
             <div style="display: flex; gap: 6px; align-items: center;">
               <a-input v-model:value="wizardDomainSearch" placeholder="过滤域名..." size="small" style="width: 160px;" allowClear />
               <a-button size="small" @click="selectAllWizardDomains">全选</a-button>
-              <a-button size="small" @click="selectedWizardDomains = []">清空</a-button>
+              <a-button size="small" @click="selectedWizardDomains = []">取消全选</a-button>
             </div>
             <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7;">
               已勾选 <b style="color: var(--arl-theme-color);">{{ selectedWizardDomains.length }}</b> / {{ wizardDomains.length }} 项
@@ -898,6 +909,10 @@
         </a-form-item>
 
         <a-form-item label="资产范围" name="scope">
+          <!-- 提前告知剔除范围的级联后果，避免用户仅在点击保存后才被动获知 -->
+          <div style="background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 12px; color: #ad6800; line-height: 1.5;">
+            ⚠️ 移除资产范围将同时级联清理该范围内已发现的子域名、IP、站点与 WIH 资产，且不可恢复；保存前会再次确认。
+          </div>
           <!-- 模式切换与统计栏 -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.85;">
@@ -1280,7 +1295,7 @@
 <script setup>
 defineOptions({ name: 'AssetScope' });
 
-import { ref, reactive, computed, createVNode, watch, onActivated, onDeactivated, onUnmounted, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, reactive, computed, createVNode, watch, onActivated, onDeactivated, onUnmounted, onMounted, nextTick } from 'vue';
 import Sortable from 'sortablejs';
 import { useSticky } from '../utils/useSticky';
 const sidebarAnchorRef = ref(null);
@@ -1310,16 +1325,6 @@ import {
   QuestionCircleOutlined, 
   PlusOutlined, 
   DeleteOutlined,
-  CopyOutlined,
-  FileTextOutlined,
-  TagsOutlined,
-  AppstoreOutlined,
-  InboxOutlined,
-  MoreOutlined,
-  RightOutlined,
-  LeftOutlined,
-  CloudDownloadOutlined,
-  ProfileOutlined,
   BankOutlined,
   SyncOutlined,
   ReloadOutlined,
@@ -1329,15 +1334,11 @@ import {
   DashboardOutlined,
   GlobalOutlined,
   RadarChartOutlined,
-  HistoryOutlined,
   ApartmentOutlined,
   InfoCircleOutlined,
-  HolderOutlined,
   RightCircleOutlined,
   ScheduleOutlined,
-  CheckCircleOutlined,
-  SettingOutlined,
-  RocketOutlined
+  CloseOutlined
 } from '@ant-design/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
@@ -1510,7 +1511,7 @@ const fetchData = async (silent = false) => {
     }
   } catch (error) {
     if (currentFetchContextId === fetchContextId) {
-      message.error('加载资产分组失败');
+      message.error('加载资产组失败');
     }
   } finally {
     if (currentFetchContextId === fetchContextId) {
@@ -1652,7 +1653,7 @@ const handleGroupSwitch = (info) => {
   if (selectedRowKeys.value.length > 0) {
     Modal.confirm({
       title: '切换分组提示',
-      content: `您在当前分组下已勾选了 ${selectedRowKeys.value.length} 个资产组尚未处理。切换分组将清空当前勾选，是否继续？`,
+      content: `您当前已勾选 ${selectedRowKeys.value.length} 个资产组尚未处理。切换左侧视图将取消这些勾选，是否继续？`,
       onOk: () => {
         selectedRowKeys.value = [];
         activeGroupId.value = newKey;
@@ -1829,7 +1830,7 @@ onActivated(() => {
 
 // Update the initial addForm and editGroupForm state definitions
 
-// ================= 新建资产分组逻辑 =================
+// ================= 新建资产组逻辑 =================
 const addModalVisible = ref(false);
 const addLoading = ref(false);
 const addFormRef = ref();
@@ -1845,7 +1846,7 @@ const addRules = {
   scope: [{ required: true, message: '请输入资产范围', trigger: 'blur' }]
 };
 
-// 新建资产分组模式与向导状态
+// 新建资产组模式与向导状态
 const creationMode = ref('wizard'); // 'wizard' | 'manual'
 const wizardStep = ref(1);
 const wizardLoading = ref(false);
@@ -1854,7 +1855,7 @@ const wizardTaskId = ref('');
 const wizardDomains = ref([]);
 const selectedWizardDomains = ref([]);
 const wizardDomainSearch = ref('');
-const wizardAutoSync = ref(true); // 测绘完成后是否全自动成组入库
+const wizardAutoSync = ref(true); // 测绘完成后是否由当前页面轮询追踪并自动成组入库
 const wizardAutoScan = ref(false);
 const wizardTaskType = ref('oneshot');
 const wizardPolicyId = ref('');
@@ -1880,7 +1881,9 @@ const parseTycInput = (input) => {
   if (urlMatch && urlMatch[1]) {
     return { gid: urlMatch[1], isUrl: true, isName: false, raw: str };
   }
-  if (/^[a-zA-Z0-9]+$/.test(str)) {
+  // 仅纯数字串视为 GID（天眼查 GID 为数字）；其余字母数字混排（如 "alibaba"）
+  // 按企业名称处理，交由后端检索匹配，避免误把普通输入当成 GID。
+  if (/^\d+$/.test(str)) {
     return { gid: str, isUrl: false, isName: false, raw: str };
   }
   if (str.length >= 2) {
@@ -1939,7 +1942,18 @@ const loadPendingReconTasks = () => {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         const now = Date.now();
-        pendingReconTasks.value = parsed.filter(t => (now - (t.startTime || 0)) < 86400000);
+        const valid = parsed.filter(t => (now - (t.startTime || 0)) < 86400000);
+        const expired = parsed.filter(t => (now - (t.startTime || 0)) >= 86400000);
+        pendingReconTasks.value = valid;
+        // 超期追踪记录不再轮询，仅如实告知，避免任务静默停留于“测绘中”
+        if (expired.length > 0) {
+          notification.warning({
+            key: 'recon_expired_notice',
+            message: `有 ${expired.length} 个企业全景测绘任务已超出自动追踪时限`,
+            description: '自动纳管建组仅在浏览器页面保持打开时持续生效，超过 24 小时的追踪记录已停止。请前往任务中心确认任务结果后手动挑选建组。',
+            duration: 10
+          });
+        }
       }
     }
   } catch (e) {
@@ -1971,9 +1985,12 @@ const dismissPendingReconTask = (taskId) => {
   notification.close(`recon_done_${taskId}`);
 };
 
-const completedReconTasks = computed(() => {
-  return pendingReconTasks.value.filter(t => t.status === 'done' && !t.autoSync && t.domains && t.domains.length > 0);
-});
+const clearAllRunningReconTasks = () => {
+  pendingReconTasks.value = [];
+  savePendingReconTasks();
+  stopReconPoller();
+  message.success('已清空后台企业测绘建组队列');
+};
 
 const runningReconTasks = computed(() => {
   return pendingReconTasks.value.filter(t => t.status === 'running');
@@ -2003,91 +2020,120 @@ const pollRunningReconTasks = async () => {
   for (const task of runningTasks) {
     try {
       const checkRes = await request.get('/icp/task', { params: { _id: task.taskId } });
-      if (checkRes.code === 200 && checkRes.items && checkRes.items.length > 0) {
-        const taskObj = checkRes.items[0];
-        if (taskObj.status === 'done' || taskObj.status === 'stop') {
-          const assetRes = await request.get('/icp/asset', { params: { task_id: task.taskId, query_type: 'web', size: 5000 } });
-          const domainSet = new Set();
-          if (assetRes.code === 200 && assetRes.items) {
-            assetRes.items.forEach(item => {
-              const d = item.domain || item.ym;
-              if (d && typeof d === 'string') domainSet.add(d.trim().toLowerCase());
-            });
-          }
-          const domainList = Array.from(domainSet);
-          task.status = 'done';
-          task.domains = domainList;
-          savePendingReconTasks();
-
-          // 若开启了免等自动建组 (autoSync 默认开启)
-          if (task.autoSync) {
-            if (domainList.length === 0) {
-              dismissPendingReconTask(task.taskId);
-              notification.warning({
-                key: `recon_done_${task.taskId}`,
-                message: `企业全景测绘未发现网站域名：${task.name || task.target}`,
-                description: '已完成企业关系与备案检索，但在工信部与天眼查未发现可纳管的网站域名。',
-                duration: 6
-              });
-            } else {
-              const targetName = task.groupName || taskObj.company_name || (task.name ? task.name.replace(/(?:企业测绘|全景测绘)$/, '') : ('TYC_' + task.target));
-              const syncPayload = {
-                mode: 'new',
-                target_name: targetName,
-                group_id: task.group_id || '',
-                selected_domains: domainList,
-                auto_scan: !!task.autoScan,
-                task_type: task.taskType || 'oneshot',
-                policy_id: task.policyId || ''
-              };
-              const syncRes = await request.post(`/icp/sync/${task.taskId}`, syncPayload);
-              dismissPendingReconTask(task.taskId);
-              if (syncRes.code === 200) {
-                notification.success({
-                  key: `recon_done_${task.taskId}`,
-                  message: `🎉 企业资产组已自动创建完成`,
-                  description: `企业【${targetName}】已成功建组并纳管 ${domainList.length} 个网站域名${task.autoScan ? '，已同步下发主动探测扫描' : ''}！`,
-                  duration: 8
-                });
-                fetchData();
-              } else {
-                notification.error({
-                  key: `recon_done_${task.taskId}`,
-                  message: `自动建组失败：${targetName}`,
-                  description: syncRes.message || '资产导入异常'
-                });
-              }
-            }
-          } else {
-            // 用户显式取消了自动成组，保留手动确认
-            notification.success({
-              key: `recon_done_${task.taskId}`,
-              message: `企业全景测绘已完成：${task.name || task.target}`,
-              description: `共发现 ${domainList.length} 个网站域名资产，可立即挑选入库并激活资产组。`,
-              btn: () => h(
-                Button,
-                {
-                  type: 'primary',
-                  size: 'small',
-                  onClick: () => {
-                    notification.close(`recon_done_${task.taskId}`);
-                    resumeWizardFromCompletedTask(task);
-                  }
-                },
-                { default: () => '立即挑选建组 →' }
-              ),
-              duration: 0
-            });
-          }
-        } else if (taskObj.status === 'error') {
-          task.status = 'error';
-          savePendingReconTasks();
+      if (checkRes.code === 200 && checkRes.items) {
+        if (checkRes.items.length === 0) {
+          // 数据库中该任务已不存在（已被删除），立即收敛移除追踪，不再轮询
           dismissPendingReconTask(task.taskId);
-          notification.error({
-            key: `recon_err_${task.taskId}`,
-            message: `企业全景测绘执行异常：${task.name || task.target}`,
-            description: taskObj.error_msg || '测绘任务执行发生错误，您可前往任务中心查看详细执行日志。'
-          });
+          continue;
+        }
+
+        const taskObj = checkRes.items[0];
+        // 关键：只要任务不是 running 也不是 waiting，一律从运行追踪队列收敛
+        if (taskObj.status !== 'running' && taskObj.status !== 'waiting') {
+          if (taskObj.status === 'stop') {
+            task.status = 'stop';
+            savePendingReconTasks();
+            dismissPendingReconTask(task.taskId);
+            notification.warning({
+              key: `recon_stop_${task.taskId}`,
+              message: `企业全景测绘已手动停止：${task.name || task.target}`,
+              description: '任务已被停止，系统不会自动建组或纳管资产。',
+              duration: 6
+            });
+            continue;
+          }
+
+          if (taskObj.status === 'error') {
+            task.status = 'error';
+            savePendingReconTasks();
+            dismissPendingReconTask(task.taskId);
+            notification.error({
+              key: `recon_err_${task.taskId}`,
+              message: `企业全景测绘执行异常：${task.name || task.target}`,
+              description: taskObj.error_msg || '测绘任务执行发生错误，您可前往任务管理查看详细执行日志。'
+            });
+            continue;
+          }
+
+          if (taskObj.status === 'done') {
+            const assetRes = await request.get('/icp/asset', { params: { task_id: task.taskId, query_type: 'web', size: 5000 } });
+            const domainSet = new Set();
+            if (assetRes.code === 200 && assetRes.items) {
+              assetRes.items.forEach(item => {
+                const d = item.domain || item.ym;
+                if (d && typeof d === 'string') domainSet.add(d.trim().toLowerCase());
+              });
+            }
+            const domainList = Array.from(domainSet);
+            task.status = 'done';
+            task.domains = domainList;
+            savePendingReconTasks();
+
+            // 若开启了免等自动建组 (autoSync 默认开启)
+            if (task.autoSync) {
+              if (domainList.length === 0) {
+                dismissPendingReconTask(task.taskId);
+                notification.warning({
+                  key: `recon_done_${task.taskId}`,
+                  message: `企业全景测绘未发现网站域名：${task.name || task.target}`,
+                  description: '已完成企业关系与备案检索，但在工信部与天眼查未发现可纳管的网站域名。',
+                  duration: 6
+                });
+              } else {
+                const targetName = task.groupName || taskObj.company_name || (task.name ? task.name.replace(/(?:企业测绘|全景测绘)$/, '') : ('TYC_' + task.target));
+                const syncPayload = {
+                  mode: 'new',
+                  target_name: targetName,
+                  group_id: task.group_id || '',
+                  selected_domains: domainList,
+                  auto_scan: !!task.autoScan,
+                  task_type: task.taskType || 'oneshot',
+                  policy_id: task.policyId || ''
+                };
+                const syncRes = await request.post(`/icp/sync/${task.taskId}`, syncPayload);
+                dismissPendingReconTask(task.taskId);
+                if (syncRes.code === 200) {
+                  notification.success({
+                    key: `recon_done_${task.taskId}`,
+                    message: `🎉 企业资产组已自动创建完成`,
+                    description: `企业【${targetName}】已成功建组并纳管 ${domainList.length} 个网站域名${task.autoScan ? '，已同步下发主动探测扫描' : ''}！`,
+                    duration: 8
+                  });
+                  fetchData();
+                } else {
+                  notification.error({
+                    key: `recon_done_${task.taskId}`,
+                    message: `自动建组失败：${targetName}`,
+                    description: syncRes.message || '资产导入异常'
+                  });
+                }
+              }
+            } else {
+              // 用户显式取消了自动成组，保留手动确认
+              notification.success({
+                key: `recon_done_${task.taskId}`,
+                message: `企业全景测绘已完成：${task.name || task.target}`,
+                description: `共发现 ${domainList.length} 个网站域名资产，可立即挑选入库并激活资产组。`,
+                btn: () => h(
+                  Button,
+                  {
+                    type: 'primary',
+                    size: 'small',
+                    onClick: () => {
+                      notification.close(`recon_done_${task.taskId}`);
+                      resumeWizardFromCompletedTask(task);
+                    }
+                  },
+                  { default: () => '立即挑选建组 →' }
+                ),
+                duration: 0
+              });
+            }
+            continue;
+          }
+
+          // 兜底任何其他非运行状态
+          dismissPendingReconTask(task.taskId);
         }
       }
     } catch (err) {
@@ -2177,6 +2223,9 @@ const startWizardRecon = async () => {
       const payload = {
         name: taskName,
         target: rawTarget,
+        depth: wizardForm.depth || 1,
+        invest_ratio: wizardForm.invest_ratio || 50,
+        enable_icp: wizardForm.enable_icp !== false,
         query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
       };
       const taskRes = await request.post('/icp/task', payload);
@@ -2191,7 +2240,7 @@ const startWizardRecon = async () => {
 
     wizardTaskId.value = taskId;
 
-    // 立即关闭弹窗，提供零等待异步建组体验
+    // 立即关闭弹窗，改为后台异步追踪建组状态
     addModalVisible.value = false;
     wizardLoading.value = false;
 
@@ -2219,7 +2268,7 @@ const startWizardRecon = async () => {
       key: `recon_start_${taskId}`,
       message: '企业全景测绘建组任务已提交后台',
       description: wizardAutoSync.value
-        ? `目标【${taskName}】全景测绘已下发。后台正自动检索并纳管资产，完成后将全自动创建资产组并导入资产。`
+        ? `目标【${taskName}】全景测绘已下发。系统将检索并纳管资产，完成后自动创建资产组并导入资产。`
         : `目标【${taskName}】全景测绘已下发，完成后将通知您挑选域名建组。`,
       duration: 4.5
     });
@@ -2394,7 +2443,7 @@ const handleAddSubmit = async () => {
     const res = await request.post('/asset_scope/', addForm);
 
     if (res.code === 200) {
-      message.success('新建资产分组成功！');
+      message.success('新建资产组成功！');
       addModalVisible.value = false;
       pagination.current = 1;
       fetchData();
@@ -2408,7 +2457,7 @@ const handleAddSubmit = async () => {
   }
 };
 
-// ================= 编辑资产分组逻辑 =================
+// ================= 编辑资产组逻辑 =================
 const editGroupModalVisible = ref(false);
 const editGroupLoading = ref(false);
 const editGroupFormRef = ref();
@@ -2582,7 +2631,7 @@ const submitEditGroupUpdate = async (scopeList) => {
     });
 
     if (res.code === 200) {
-      message.success('资产分组更新成功！');
+      message.success('资产组更新成功！');
       editGroupModalVisible.value = false;
       fetchData();
     } else {
@@ -2634,13 +2683,13 @@ const handleRemoveSingleScope = (record, scopeItem) => {
   });
 };
 
-// ================= 单行删除资产分组 =================
+// ================= 单行删除资产组 =================
 const handleSingleDelete = (record) => {
   Modal.confirm({
-    title: '⚠️ 资产分组彻底销毁确认',
+    title: '⚠️ 资产组彻底销毁确认',
     icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
     content: createVNode('div', null, [
-      createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, `确定要彻底删除资产分组【${record.name}】吗？`),
+      createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, `确定要彻底删除资产组【${record.name}】吗？`),
       createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, '警告：该操作将同时物理级联清理该组关联的所有已发现子域名、IP、站点、WIH 以及所有定时监控任务，此操作不可逆！')
     ]),
     okText: '彻底删除',
@@ -2653,7 +2702,7 @@ const handleSingleDelete = (record) => {
         });
 
         if (res.code === 200) {
-          message.success('资产分组删除成功！');
+          message.success('资产组删除成功！');
           if (dataSource.value.length === 1 && pagination.current > 1) {
             pagination.current -= 1;
           }
@@ -2671,9 +2720,9 @@ const handleSingleDelete = (record) => {
 // ================= 批量删除逻辑 =================
 const handleBatchDelete = () => {
   Modal.confirm({
-    title: '⚠️ 批量删除资产分组确认',
+    title: '⚠️ 批量删除资产组确认',
     icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
-    content: `确定要彻底删除选中的 ${selectedRowKeys.value.length} 个资产分组吗？删除后将同时物理级联清理所有关联的子资产与监控任务，不可恢复。`,
+    content: `确定要彻底删除选中的 ${selectedRowKeys.value.length} 个资产组吗？删除后将同时物理级联清理所有关联的子资产与监控任务，不可恢复。`,
     okText: '彻底删除',
     okType: 'danger',
     cancelText: '取 消',

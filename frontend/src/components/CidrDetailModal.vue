@@ -9,6 +9,13 @@
       :loading="cipDetailLoading"
       rowKey="ip"
     >
+      <template #emptyText>
+        <a-empty v-if="loadFailed"
+                 description="C段详情加载失败，请关闭后重试">
+          <a-button size="small" type="primary" @click="fetchDetail">重新加载</a-button>
+        </a-empty>
+        <a-empty v-else description="该 C 段暂无关联域名记录" />
+      </template>
       <template #bodyCell="{ column, record, index }">
         <template v-if="column.key === 'index'">
           {{ index + 1 }}
@@ -41,6 +48,7 @@ const emit = defineEmits(['update:open']);
 const cipDetailLoading = ref(false);
 const cipDetailData = ref([]);
 const currentCidrIp = ref('');
+const loadFailed = ref(false);
 
 const cipDetailColumns = [
   { title: '序号', key: 'index', width: 60, align: 'center' },
@@ -48,26 +56,31 @@ const cipDetailColumns = [
   { title: 'IP对应的域名', key: 'domains', width: 300 }
 ];
 
-watch(() => props.open, async (newVal) => {
+const fetchDetail = async () => {
+  if (!props.record) return;
+  cipDetailLoading.value = true;
+  loadFailed.value = false;
+  cipDetailData.value = [];
+  try {
+    const res = await request.get('/asset_cip/ip_domain_detail/', { params: { cidr_id: props.record._id || props.record.id } });
+    if (res.code === 200) {
+      cipDetailData.value = res.data?.items || res.items || [];
+    } else {
+      loadFailed.value = true;
+      message.error(res.message || '获取C段详情失败');
+    }
+  } catch (error) {
+    loadFailed.value = true;
+    message.error('获取C段详情失败，请重试');
+  } finally {
+    cipDetailLoading.value = false;
+  }
+};
+
+watch(() => props.open, (newVal) => {
   if (newVal && props.record) {
     currentCidrIp.value = props.record.cidr_ip || '-';
-    cipDetailLoading.value = true;
-    cipDetailData.value = [];
-    try {
-      const res = await request.get('/asset_cip/ip_domain_detail/', { params: { cidr_id: props.record._id || props.record.id } });
-      if (res.message && res.message !== 'success') {
-        message.warning(res.message);
-      }
-      if (res.code === 200) {
-        cipDetailData.value = res.data?.items || res.items || [];
-      } else {
-        message.error(res.message || '获取C段详情失败');
-      }
-    } catch (error) {
-      message.error('请求出错');
-    } finally {
-      cipDetailLoading.value = false;
-    }
+    fetchDetail();
   }
 });
 </script>

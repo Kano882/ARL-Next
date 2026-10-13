@@ -41,7 +41,7 @@
 
         <!-- 右侧：全局自适应静默轮询开关 + 手动刷新 + 主操作按钮 -->
         <div class="task-hero-right">
-          <a-tooltip :title="autoRefreshEnabled ? '自动刷新已开启：有运行任务时每 8 秒静默同步' : '自动刷新已暂停'">
+          <a-tooltip :title="autoRefreshEnabled ? '自动刷新已开启：有运行任务时每 9 秒静默同步' : '自动刷新已暂停'">
             <div class="auto-refresh-toggle">
               <a-switch
                 v-model:checked="autoRefreshEnabled"
@@ -113,8 +113,8 @@
 
         <div
           class="metric-stat-card"
-          :class="{ active: currentStatusFilter === 'running' }"
-          @click="toggleStatusFilter('running')"
+          :class="{ active: currentStatusFilter === 'active' }"
+          @click="toggleStatusFilter('active')"
           title="点击快速筛选进行中/排队中的任务"
         >
           <div class="stat-card-inner">
@@ -150,8 +150,8 @@
 
         <div
           class="metric-stat-card"
-          :class="{ active: currentStatusFilter === 'error' || currentStatusFilter === 'stop' }"
-          @click="toggleStatusFilter('error')"
+          :class="{ active: currentStatusFilter === 'abnormal' }"
+          @click="toggleStatusFilter('abnormal')"
           title="点击快速筛选异常或已停止的任务"
         >
           <div class="stat-card-inner">
@@ -200,6 +200,9 @@
                 @change="onReconSearch"
               >
                 <a-select-option value="">全部状态</a-select-option>
+                <a-select-option value="active">
+                  <span class="status-option-item"><span class="status-dot running"></span> 进行中 / 排队</span>
+                </a-select-option>
                 <a-select-option value="running">
                   <span class="status-option-item"><span class="status-dot running"></span> 进行中</span>
                 </a-select-option>
@@ -215,12 +218,15 @@
                 <a-select-option value="error">
                   <span class="status-option-item"><span class="status-dot error"></span> 异常失败</span>
                 </a-select-option>
+                <a-select-option value="abnormal">
+                  <span class="status-option-item"><span class="status-dot error"></span> 异常 / 已停止</span>
+                </a-select-option>
               </a-select>
 
               <a-range-picker
                 v-model:value="reconSearchForm.dateRange"
                 :presets="rangePresets"
-                :placeholder="['结束开始日期', '结束截止日期']"
+                :placeholder="['开始日期', '结束日期']"
                 format="YYYY-MM-DD"
                 style="width: 240px;"
                 allowClear
@@ -267,6 +273,9 @@
                 @change="onSearch"
               >
                 <a-select-option value="">全部状态</a-select-option>
+                <a-select-option value="active">
+                  <span class="status-option-item"><span class="status-dot running"></span> 进行中 / 排队</span>
+                </a-select-option>
                 <a-select-option value="running">
                   <span class="status-option-item"><span class="status-dot running"></span> 进行中</span>
                 </a-select-option>
@@ -281,6 +290,9 @@
                 </a-select-option>
                 <a-select-option value="error">
                   <span class="status-option-item"><span class="status-dot error"></span> 异常失败</span>
+                </a-select-option>
+                <a-select-option value="abnormal">
+                  <span class="status-option-item"><span class="status-dot error"></span> 异常 / 已停止</span>
                 </a-select-option>
               </a-select>
             </div>
@@ -978,7 +990,7 @@
     <!-- 5. 同步至资产组弹窗 -->
     <a-modal
       v-model:open="syncVisible"
-      title="同步任务至资产分组"
+      title="同步任务至资产组"
       @ok="handleSyncOk"
       :confirmLoading="syncLoading"
       width="480px"
@@ -988,19 +1000,19 @@
       cancelText="取 消"
     >
       <div style="margin: 16px 0 8px 0;">
-        <p style="color: var(--arl-text-secondary); font-size: 13px;">请选择将该任务探测出的资产数据关联归属的资产分组：</p>
+        <p style="color: var(--arl-text-secondary); font-size: 13px;">请选择将该任务探测出的资产数据关联归属的资产组：</p>
       </div>
       <a-form :model="syncFormState" layout="vertical">
-        <a-form-item label="目标资产组" name="scope_id" :rules="[{ required: true, message: '请选择资产分组' }]">
+        <a-form-item label="目标资产组" name="scope_id" :rules="[{ required: true, message: '请选择资产组' }]">
           <a-select
             v-model:value="syncFormState.scope_id"
-            placeholder="请选择资产分组"
+            placeholder="请选择资产组"
             :options="syncOptions"
             allowClear
           >
             <template #notFoundContent>
               <div style="text-align: center; padding: 20px 0;">
-                <p style="color: var(--arl-text-secondary); margin-top: 8px;">未找到匹配的目标资产分组</p>
+                <p style="color: var(--arl-text-secondary); margin-top: 8px;">未找到匹配的目标资产组</p>
               </div>
             </template>
           </a-select>
@@ -1065,11 +1077,12 @@ import { useSticky } from '../utils/useSticky';
 import { Modal, message, Checkbox } from 'ant-design-vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
-  SearchOutlined, DownOutlined, ExclamationCircleOutlined, ExportOutlined,
-  ReloadOutlined, FilterOutlined, CheckCircleOutlined,
-  CloseCircleOutlined, ClockCircleOutlined, StopOutlined, PlusOutlined,
-  DeleteOutlined, SyncOutlined, SettingOutlined, AppstoreOutlined,
-  GlobalOutlined, BankOutlined, ThunderboltOutlined, CompassOutlined
+  ExclamationCircleOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+  StopOutlined,
+  SyncOutlined
 } from '@ant-design/icons-vue';
 import dayjs from 'dayjs';
 import request from '../utils/request';
@@ -1116,13 +1129,20 @@ const pluginNameMap = {
   nuclei_scan: 'Nuclei扫描',
   weak_brute: '弱口令爆破',
   wih_domain_update: 'WIH更新',
-  web_info_hunter: 'WIH探测',
-  running: '运行中',
-  waiting: '排队等待',
+  web_info_hunter: 'WIH探测'
+};
+
+// 任务状态文案（全站统一口径，勿与插件名混用）
+const TASK_STATUS_LABEL = {
+  running: '进行中',
+  waiting: '排队中',
   done: '已完成',
   stop: '已停止',
   error: '异常失败'
 };
+
+// 阶段状态（后端返回插件/阶段标识时表示任务正在该阶段执行）
+const isStageStatus = (status) => !!status && !(status in TASK_STATUS_LABEL);
 
 // ==========================================
 // 📊 顶部指标统计数据模型
@@ -1575,7 +1595,19 @@ const handleBatchRestartEnterprise = async () => {
   }
 };
 
-const handleStopEnterprise = async (record) => {
+const handleStopEnterprise = (record) => {
+  Modal.confirm({
+    title: '停止企业测绘任务确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认停止企业测绘任务「${record.name}」吗？停止后不会自动建组或纳管资产。`,
+    okText: '确认停止',
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: () => executeStopEnterprise(record)
+  });
+};
+
+const executeStopEnterprise = async (record) => {
   try {
     const res = await request.get(`/icp/stop/${record._id}`);
     if (res.code === 200) {
@@ -1589,7 +1621,18 @@ const handleStopEnterprise = async (record) => {
   }
 };
 
-const handleRestartEnterprise = async (record) => {
+const handleRestartEnterprise = (record) => {
+  Modal.confirm({
+    title: '重启企业测绘任务确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认重启企业测绘任务「${record.name}」吗？重启将基于原目标重新发起一次测绘，并生成新的任务记录。`,
+    okText: '确认重启',
+    cancelText: '取 消',
+    onOk: () => executeRestartEnterprise(record)
+  });
+};
+
+const executeRestartEnterprise = async (record) => {
   try {
     const res = await request.get(`/icp/restart/${record._id}`);
     if (res.code === 200) {
@@ -1688,13 +1731,11 @@ const getStatusIcon = (status) => {
 };
 
 const formatStatusText = (status) => {
-  if (status === 'done') return '已完成';
-  if (status === 'error') return '异常失败';
-  if (status === 'stop') return '已停止';
-  if (status === 'waiting') return '排队中';
+  if (TASK_STATUS_LABEL[status]) return TASK_STATUS_LABEL[status];
 
-  const pluginName = pluginNameMap[status] || status;
-  return `${pluginName}`;
+  // 阶段状态：明确标注为“进行中”，避免把插件名误读为任务状态
+  const stageName = pluginNameMap[status] || status;
+  return stageName ? `进行中 · ${stageName}` : '进行中';
 };
 
 const formatOptionsSummary = (options) => {
@@ -1842,17 +1883,34 @@ const handleBatchDelete = () => {
   const validKeys = selectedRowKeys.value.filter(key => key != null);
   if (validKeys.length === 0) return;
 
-  let isDeleteData = true;
+  // 默认不勾选：级联删除资产数据不可恢复，须由用户显式确认
+  let isDeleteData = false;
+
+  // 跨页选择时勾选项可能不在当前可见页，列出名称便于用户复核范围
+  const selectedNames = taskList.value
+    .filter(item => validKeys.includes(item._id || item.task_id))
+    .map(item => item.name)
+    .filter(Boolean);
+  const visibleCount = taskList.value.filter(item => validKeys.includes(item._id || item.task_id)).length;
 
   Modal.confirm({
     title: '批量删除任务确认',
     icon: createVNode(ExclamationCircleOutlined),
     content: createVNode('div', { style: 'margin-top: 8px;' }, [
       createVNode('div', { style: 'margin-bottom: 14px; color: var(--arl-text-color);' }, `确认要删除选中的 ${validKeys.length} 项任务吗？`),
+      selectedNames.length > 0 ? createVNode('div', {
+        style: 'max-height: 120px; overflow-y: auto; background: var(--arl-bg-light, rgba(0,0,0,0.03)); padding: 6px 8px; border-radius: 4px; margin-bottom: 14px; font-size: 12px; color: var(--arl-text-color); opacity: 0.85; line-height: 1.6;'
+      }, [
+        createVNode('div', { style: 'font-weight: 500; margin-bottom: 4px;' }, `本次将删除以下任务：`),
+        createVNode('div', null, `· ${selectedNames.join('\n· ')}`),
+        visibleCount < validKeys.length
+          ? createVNode('div', { style: 'margin-top: 4px; color: #faad14;' }, `其中 ${validKeys.length - visibleCount} 项来自其他页（跨页保留的勾选）。`)
+          : null
+      ]) : null,
       createVNode(Checkbox, {
         defaultChecked: isDeleteData,
         onChange: (e) => { isDeleteData = e.target.checked; }
-      }, () => '同时级联删除该任务关联的所有资产数据 (不可恢复)')
+      }, () => '同时级联删除本次删除任务名下的全部资产数据 (不可恢复，其他任务共享的资产不受影响)')
     ]),
     okText: '确认删除',
     cancelText: '取 消',

@@ -839,10 +839,10 @@
               </template>
             </a-input>
             <div v-if="parsedBindGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
-              <check-circle-outlined /> <span>已自动识别天眼查 GID: <b>{{ parsedBindGid }}</b> (全景双轨穿透)</span>
+              <check-circle-outlined /> <span>按天眼查 GID 解析: <b>{{ parsedBindGid }}</b> (将在提交后校验并执行全景双轨穿透)</span>
             </div>
             <div v-else-if="newEnterpriseTarget.trim().length >= 2" style="margin-top: 4px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
-              <safety-certificate-outlined /> <span>已识别企业工商主体 (工信部权威备案)</span>
+              <safety-certificate-outlined /> <span>已识别企业工商主体 (来源：工信部 ICP 备案)</span>
             </div>
           </a-form-item>
         </template>
@@ -959,32 +959,9 @@ import ChainDrawer from '../components/ChainDrawer.vue';
 import RawDataDrawer from '../components/RawDataDrawer.vue';
 import { copyText } from '../utils/clipboard';
 import {
-  SearchOutlined,
   ExclamationCircleOutlined,
-  InfoCircleOutlined,
-  GlobalOutlined,
-  CloudServerOutlined,
-  SafetyCertificateOutlined,
-  ApiOutlined,
-  FileSearchOutlined,
-  BugOutlined,
-  CompassOutlined,
-  ClusterOutlined,
   LinkOutlined,
-  DownloadOutlined,
-  CloseOutlined,
-  BankOutlined,
-  ArrowLeftOutlined,
-  FilterOutlined,
-  DownOutlined,
-  UpOutlined,
-  CopyOutlined,
-  CheckCircleFilled,
-  DeleteOutlined,
-  RocketOutlined,
-  PlusOutlined,
-  RedoOutlined,
-  SyncOutlined
+  BankOutlined
 } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { createTabStateCache } from '../utils/useTabStateCache';
@@ -1149,7 +1126,7 @@ const fetchBoundTaskDetail = async (taskId) => {
       boundTaskRecord.value = task;
       taskTarget.value = task.target || '';
       taskTypeLabel.value = task.task_type === 'tyc' ? '全景双轨' : '官方备案';
-      const mapStatus = { waiting: '等待中', running: '运行中', done: '已完成', stop: '已停止', error: '执行失败' };
+      const mapStatus = { waiting: '排队中', running: '进行中', done: '已完成', stop: '已停止', error: '异常失败' };
       taskStatusLabel.value = mapStatus[task.status] || task.status;
       const mapColor = { waiting: 'warning', running: 'processing', done: 'success', stop: 'default', error: 'error' };
       taskStatusColor.value = mapColor[task.status] || 'default';
@@ -1193,7 +1170,6 @@ const bindMode = ref('existing');
 const selectedBindTaskId = ref(undefined);
 const completedIcpTasks = ref([]);
 const newEnterpriseTarget = ref('');
-const newEnterpriseEngine = ref('tyc');
 
 const parseBindTargetInput = (input) => {
   if (!input) return { gid: '', isUrl: false, isName: false };
@@ -1202,7 +1178,9 @@ const parseBindTargetInput = (input) => {
   if (urlMatch && urlMatch[1]) {
     return { gid: urlMatch[1], isUrl: true, isName: false };
   }
-  if (/^[a-zA-Z0-9]+$/.test(str)) {
+  // 仅纯数字串视为 GID（天眼查 GID 为数字）；其余字母数字混排按企业名称处理，
+  // 交由后端检索匹配，避免误把普通输入当成 GID。
+  if (/^\d+$/.test(str)) {
     return { gid: str, isUrl: false, isName: false };
   }
   if (str.length >= 2) {

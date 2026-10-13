@@ -312,7 +312,7 @@ let timeInterval = null;
 // ---------- 左侧边栏动态菜单与拖拽重排逻辑 ----------
 const defaultMenuItems = [
   { key: '/dashboard', title: '仪表盘', icon: DashboardOutlined },
-  { key: '/group', title: '资产分组', icon: AppstoreOutlined },
+  { key: '/group', title: '资产组', icon: AppstoreOutlined },
   { key: '/taskList', title: '任务管理', icon: GlobalOutlined },
   { key: '/asset-search', title: '资产搜索', icon: SearchOutlined },
   { key: '/planningTasks', title: '计划与调度', icon: ClockCircleOutlined },
@@ -652,11 +652,11 @@ watch(() => route.path, (newPath) => {
 // 动态计算页面标题
 const currentPageTitle = computed(() => {
   if (route.path.includes('taskDetail')) return '任务详情';
-  if (route.path.includes('groupAssetsDetail')) return '资产分组详情';
+  if (route.path.includes('groupAssetsDetail')) return '资产组详情';
   if (route.path.includes('policyDetail')) return '策略配置详情';
   const titleMap = {
     '/dashboard': '仪表盘',
-    '/group': '资产分组',
+    '/group': '资产组',
     '/taskList': '任务管理',
     '/asset-search': '资产搜索',
     '/assetsMonitor': '计划与调度',

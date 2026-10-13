@@ -28,9 +28,12 @@ search_icp_task_fields = ns.model('SearchIcpTask', base_search_icp_task_fields)
 
 # 新建任务参数
 add_icp_task_fields = ns.model('AddIcpTask', {
-    'name': fields.String(required=True, example="腾讯备案查询", description="任务名"),
+    'name': fields.String(required=False, example="腾讯备案查询", description="任务名"),
     'target': fields.String(required=True, example="深圳市腾讯计算机系统有限公司", description="查询目标"),
-    'query_type': fields.List(fields.String, required=True, example=["web", "app"], description="查询类型列表(web/app/mapp/kapp)")
+    'query_type': fields.List(fields.String, required=False, example=["web", "app"], description="查询类型列表(web/app/mapp/kapp)"),
+    'depth': fields.Integer(required=False, default=1, description="递归查询层数(1~20)"),
+    'invest_ratio': fields.Float(required=False, default=50, description="对外投资最小比例(%)"),
+    'enable_icp': fields.Boolean(required=False, default=True, description="是否联动工信部ICP双轨查重与补全")
 })
 
 add_tyc_task_fields = ns.model('AddTycTask', {
@@ -46,6 +49,23 @@ add_tyc_task_fields = ns.model('AddTycTask', {
 @ns.route('/task')
 class IcpTask(ARLResource):
     parser = get_arl_parser(search_icp_task_fields, location='args')
+
+    def build_db_query(self, args):
+        status_val = args.get("status")
+        # 聚合态筛选：与统计口径保持一致（active = running + waiting，abnormal = error + stop），
+        # 避免指标卡展示数量与点击筛选后的结果集数量不一致。
+        aggregate_status = {
+            "active": {"$nin": ["done", "error", "stop"]},
+            "abnormal": {"$in": ["error", "stop"]},
+            "running": {"$nin": ["done", "error", "stop", "waiting"]},
+        }
+        if status_val in aggregate_status:
+            args_copy = dict(args)
+            args_copy.pop("status", None)
+            q = super().build_db_query(args_copy)
+            q["status"] = aggregate_status[status_val]
+            return q
+        return super().build_db_query(args)
 
     @auth
     @ns.expect(parser)
@@ -131,6 +151,24 @@ class IcpTask(ARLResource):
         target = args.get('target')
         query_type = args.get('query_type')
 
+        depth_val = args.get('depth')
+        try:
+            depth = min(20, max(1, int(depth_val))) if depth_val is not None else 1
+        except (ValueError, TypeError):
+            depth = 1
+
+        invest_ratio_val = args.get('invest_ratio')
+        try:
+            invest_ratio = float(invest_ratio_val) if invest_ratio_val is not None else 50.0
+        except (ValueError, TypeError):
+            invest_ratio = 50.0
+
+        enable_icp = args.get('enable_icp')
+        if enable_icp is None:
+            enable_icp = True
+        else:
+            enable_icp = bool(enable_icp)
+
         target_str = str(target or '').strip()
         custom_name = str(name or '').strip()
 
@@ -166,10 +204,10 @@ class IcpTask(ARLResource):
                 "company_name": official_company_name,
                 "target": f"TYC_{gid}",
                 "gid": gid,
-                "depth": 1,
-                "invest_ratio": 50,
+                "depth": depth,
+                "invest_ratio": invest_ratio,
                 "query_type": full_query_type,
-                "enable_icp": True,
+                "enable_icp": enable_icp,
                 "task_type": "tyc",
                 "status": TaskStatus.WAITING,
                 "start_time": curr_date(),
@@ -184,10 +222,10 @@ class IcpTask(ARLResource):
             options = {
                 "task_id": task_id,
                 "gid": gid,
-                "depth": 1,
-                "invest_ratio": 50,
+                "depth": depth,
+                "invest_ratio": invest_ratio,
                 "query_type": full_query_type,
-                "enable_icp": True,
+                "enable_icp": enable_icp,
                 "company_name": official_company_name,
                 "name": final_name,
                 "type": "tyc",
@@ -287,12 +325,14 @@ class TycTask(ARLResource):
         name = args.get('name')
         company_name_arg = args.get('company_name')
         gid = args.get('gid')
-        depth = min(25, max(1, int(args.get('depth', 1) or 1)))
+        depth = min(20, max(1, int(args.get('depth', 1) or 1)))
         invest_ratio = args.get('invest_ratio', 0)
         query_type = args.get('query_type')
         enable_icp = args.get('enable_icp', True)
         if enable_icp is None:
             enable_icp = True
+
+        official_company_name = (company_name_arg or "").strip()
 
         # 校验天眼查配置是否有效
         from app.services.tycClient import TycClient
@@ -318,13 +358,10 @@ class TycTask(ARLResource):
 
         # 定向解析企业官方工商全称（彻底脱钩用户任务自定义名称）
         if not official_company_name:
-            if company_name_arg and company_name_arg.strip():
-                official_company_name = company_name_arg.strip()
-            else:
-                try:
-                    official_company_name = client.get_company_name(gid)
-                except Exception as e:
-                    logger.warning(f"Failed to resolve company name for GID {gid}: {e}")
+            try:
+                official_company_name = client.get_company_name(gid)
+            except Exception as e:
+                logger.warning(f"Failed to resolve company name for GID {gid}: {e}")
 
         if not name or not name.strip():
             name = f"{official_company_name}企业测绘" if official_company_name else f"TYC_{gid}"
@@ -1108,7 +1145,7 @@ class IcpTaskSync(ARLResource):
         """将 ICP/TYC 任务中的网站域名同步至资产分组"""
         try:
             from flask import request as flask_request
-            from app.helpers.scope import update_scope_domain_status, trigger_scope_domain_scan
+            from app.helpers.scope import trigger_scope_domain_scan
             args = flask_request.json or {}
             mode = args.get('mode', 'new') # 'new' or 'existing'
             target_name = args.get('target_name', '').strip()

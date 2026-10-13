@@ -705,7 +705,7 @@ admin123
                 <a-col :span="12">
                   <a-card title="🏢 企业全景测绘凭据 (天眼查 API)" size="small" style="margin-bottom: 16px; border-radius: 6px; min-height: 190px;">
                     <template #extra>
-                      <a-tooltip title="选配项。配置后支持投资控股树深度穿透与工信部双轨校对；未配置时系统仍可平滑通过工信部官方权威备案进行资产归集。">
+                      <a-tooltip title="选配项。配置后支持投资控股树深度穿透与工信部双轨校对；未配置时系统仍可通过工信部 ICP 备案数据进行资产归集。">
                         <info-circle-outlined style="color: #bfbfbf;" />
                       </a-tooltip>
                     </template>
@@ -1125,8 +1125,8 @@ admin123
 
 <script setup>
 defineOptions({ name: 'SystemSettings' });
-import { InfoCircleOutlined } from '@ant-design/icons-vue';
-import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, watch } from 'vue';
+import { InfoCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
+import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, watch, createVNode } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
 import { copyText } from '@/utils/clipboard';
@@ -1745,13 +1745,25 @@ const handleAppendAndClose = async () => {
   if (ok) appendDrawerVisible.value = false;
 };
 
-const handleDeleteBatchCustom = async () => {
+const handleDeleteBatchCustom = () => {
   if (!batchDeleteEntries.value.trim()) return;
-  const ok = await deleteEntries(batchDeleteEntries.value);
-  if (ok) {
-    batchDeleteEntries.value = '';
-    searchDrawerVisible.value = false;
-  }
+  const entryCount = batchDeleteEntries.value.split('\n').map(x => x.trim()).filter(Boolean).length;
+  Modal.confirm({
+    title: '批量删除字典条目确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认从当前字典中删除提交的 ${entryCount} 条条目吗？未匹配的条目不生效。`,
+    okText: '确认删除',
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: async () => {
+      const ok = await deleteEntries(batchDeleteEntries.value);
+      if (ok) {
+        batchDeleteEntries.value = '';
+        searchDrawerVisible.value = false;
+      }
+      return ok;
+    }
+  });
 };
 
 // 分类选择状态（默认对齐首个分类的唯一分组 key）
@@ -2008,26 +2020,49 @@ const handleAppend = async () => {
 
 
 // 单条删除
-const handleDeleteSingle = async (item) => {
+const handleDeleteSingle = (item) => {
   if (!item) return false;
-  const ok = await deleteEntries(item);
-  if (ok && searchResult.value) {
-    searchResult.value = searchResult.value.filter(x => x !== item);
-  }
-  return ok;
+  Modal.confirm({
+    title: '删除字典条目确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认从当前字典中删除条目「${item}」吗？`,
+    okText: '确认删除',
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: async () => {
+      const ok = await deleteEntries(item);
+      if (ok && searchResult.value) {
+        searchResult.value = searchResult.value.filter(x => x !== item);
+      }
+      return ok;
+    }
+  });
+  return true;
 };
 
 // 删除选中字典文件
-const handleDeleteDict = async () => {
+const handleDeleteDict = () => {
   if (!selectedDict.value) return;
-  
+  const targetName = selectedDict.value;
+  Modal.confirm({
+    title: '删除字典文件确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认删除字典文件「${targetName}」及其全部条目吗？此操作不可恢复。`,
+    okText: '确认删除',
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: () => executeDeleteDict(targetName)
+  });
+};
+
+const executeDeleteDict = async (targetName) => {
   loading.value = true;
   try {
     const res = await request.post(`${dictApiBase.value}/delete_file`, {
-      name: selectedDict.value
+      name: targetName
     });
     if (res.code === 200) {
-      message.success(`字典 ${selectedDict.value} 删除成功！`);
+      message.success(`字典 ${targetName} 删除成功！`);
       // 重置选中状态
       unifiedSelectedKeys.value = [];
       selectedDict.value = '';

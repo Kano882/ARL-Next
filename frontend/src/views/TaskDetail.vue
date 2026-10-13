@@ -121,7 +121,7 @@
     </div>
 
     <div v-show="activeTab !== 'syslog'" style="margin-bottom: 16px;">
-      <a-button style="margin-right: 16px;" @click="resetSearch">清 除</a-button>
+      <a-button style="margin-right: 16px;" @click="resetSearch">清空筛选条件</a-button>
       <a-button :disabled="!hasSelected" style="margin-right: 16px;" @click="handleBatchDelete">批量删除</a-button>
       <a-button v-if="tabConfig[effectiveTab]?.exportName" type="primary" style="margin-right: 16px;" @click="handleExport">导出{{ tabConfig[effectiveTab].exportName }}</a-button>
       <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">风险任务下发</a-button>
@@ -472,14 +472,17 @@
         </template>
 
         <template v-else-if="column.key === 'wih_risk_level'">
+          <!-- 缺失风险等级时如实显示“未知”，避免被误读为已确认低危 -->
           <a-tag :color="record.risk_level === 'CRITICAL' ? 'red' : (record.risk_level === 'MEDIUM' ? 'orange' : 'default')">
-            {{ record.risk_level || 'LOW' }}
+            {{ record.risk_level || '未知' }}
           </a-tag>
         </template>
 
         <template v-else-if="column.key === 'ip_cdn_tag'">
           <a-tag v-if="record.is_cdn || record.cdn_name" color="blue">{{ record.cdn_name || 'CDN节点' }}</a-tag>
-          <a-tag v-else color="green">独立源站</a-tag>
+          <!-- is_cdn 为 null/undefined 表示该字段未采集，不应表述为“已确认独立源站” -->
+          <a-tag v-else-if="record.is_cdn === false" color="green">独立源站</a-tag>
+          <a-tag v-else color="default">未识别</a-tag>
         </template>
 
         <template v-else-if="column.key === 'content' && activeTab === 'wih'">
@@ -1085,8 +1088,8 @@ const tabConfig = reactive({
     ]
   },
   url: {
-    url: '/url/',
-    deleteUrl: '/site/delete/',
+    url: '/asset_url/',
+    deleteUrl: '/asset_url/delete/',
     exportUrl: '/url/export/',
     exportName: 'URL信息',
     searchFields: [
@@ -1167,8 +1170,8 @@ const tabConfig = reactive({
     ]
   },
   cip: {
-    url: '/cip/',
-    deleteUrl: '/site/delete/',
+    url: '/asset_cip/',
+    deleteUrl: '/asset_cip/delete/',
     exportUrl: '/cip/export/',
     exportName: 'C段',
     searchFields: [
@@ -1204,8 +1207,8 @@ const tabConfig = reactive({
     ]
   },
   stat_finger: {
-    url: '/stat_finger/',
-    deleteUrl: '/site/delete/',
+    url: '/asset_stat_finger/',
+    deleteUrl: '/asset_stat_finger/delete/',
     searchFields: [
       { 
         label: 'finger', 
@@ -1398,7 +1401,7 @@ const handleBatchDelete = () => {
 
   // 2. 如果过滤后全是空的，说明 rowKey 绑定失败，直接拦截并弹窗警告
   if (validKeys.length === 0) {
-    message.error('未能获取到有效的资产ID，请按 F12 检查接口返回的字段名！');
+    message.error('未能获取到可删除的资产记录，请刷新页面后重试。');
     return;
   }
 
@@ -1409,9 +1412,9 @@ const handleBatchDelete = () => {
   }
 
   Modal.confirm({
-    title: '操作确认',
-    icon: createVNode(ExclamationCircleOutlined),
-    content: `确认要删除选中的 ${validKeys.length} 项资产吗？`,
+    title: '批量删除确认',
+    icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
+    content: `确认要删除选中的 ${validKeys.length} 项${config.exportName || '资产'}记录吗？`,
     okText: '确认',
     cancelText: '取消',
     onOk: async () => {

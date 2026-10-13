@@ -24,7 +24,7 @@
             已就绪：支持<b>天眼查股权穿透</b>与<b>工信部官方 ICP</b> 双轨测绘。输入天眼查链接、ID 或企业全称即可发起。
           </span>
           <span v-else style="color: var(--arl-text-color); line-height: 1.5;">
-            未配置天眼查 API：系统将自动通过<b>工信部官方权威备案</b>归集资产；若需投资穿透可至 <a @click="goToApiConfig">系统设置</a> 完善凭据。
+            未配置天眼查 API：系统将自动通过<b>工信部 ICP 备案数据</b>归集资产；若需投资穿透可至 <a @click="goToApiConfig">系统设置</a> 完善凭据。
           </span>
         </template>
       </a-alert>
@@ -46,7 +46,6 @@
             v-model:value="formState.rawTarget"
             placeholder="粘贴天眼查链接 / GID 或输入企业工商全称"
             allowClear
-            @change="handleTargetChange"
             @pressEnter="handleSubmit"
           >
             <template #prefix>
@@ -57,11 +56,11 @@
           <!-- 智能识别反馈状态 -->
           <div v-if="parsedGid" style="margin-top: 5px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
             <check-circle-outlined />
-            <span>已自动识别天眼查 GID: <b>{{ parsedGid }}</b> (全景双轨穿透)</span>
+            <span>按天眼查 GID 解析: <b>{{ parsedGid }}</b> (将在提交后校验并执行全景双轨穿透)</span>
           </div>
           <div v-else-if="isCompanyName" style="margin-top: 5px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
             <safety-certificate-outlined />
-            <span>已识别企业主体: <b>{{ formState.rawTarget.trim() }}</b> (工信部权威备案)</span>
+            <span>已识别企业主体: <b>{{ formState.rawTarget.trim() }}</b> (来源：工信部 ICP 备案)</span>
           </div>
         </a-form-item>
 
@@ -101,12 +100,12 @@
                   :label-col="{ style: { width: '80px' } }"
                   :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }"
                   style="margin-bottom: 8px;"
-                  tooltip="穿透控股子公司与参股公司的递归深度 (1~5)"
+                  tooltip="穿透控股子公司与参股公司的递归深度 (1~20)"
                 >
                   <a-input-number
                     v-model:value="formState.depth"
                     :min="1"
-                    :max="5"
+                    :max="20"
                     size="small"
                     style="width: 100px;"
                     addon-after="层"
@@ -138,7 +137,7 @@
               :label-col="{ style: { width: '85px' } }"
               :wrapper-col="{ style: { width: 'calc(100% - 85px)' } }"
               style="margin-bottom: 8px;"
-              tooltip="自动调用工信部官方权威备案接口进行双轨校对与兜底补全"
+              tooltip="调用工信部 ICP 备案数据接口进行双轨校对与兜底补全"
             >
               <a-switch v-model:checked="formState.enable_icp" size="small" />
               <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
@@ -171,13 +170,10 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { message, Modal } from 'ant-design-vue';
+import { message } from 'ant-design-vue';
 import {
   LinkOutlined,
   BankOutlined,
-  CheckCircleOutlined,
-  SafetyCertificateOutlined,
-  SettingOutlined,
   UpOutlined,
   DownOutlined
 } from '@ant-design/icons-vue';
@@ -220,7 +216,9 @@ const parseTargetInput = (input) => {
   if (urlMatch && urlMatch[1]) {
     return { gid: urlMatch[1], isUrl: true, isName: false };
   }
-  if (/^[a-zA-Z0-9]+$/.test(str)) {
+  // 仅纯数字串视为 GID（天眼查 GID 为数字）；其余字母数字混排按企业名称处理，
+  // 交由后端检索匹配，避免误把普通输入当成 GID。
+  if (/^\d+$/.test(str)) {
     return { gid: str, isUrl: false, isName: false };
   }
   if (str.length >= 2) {
@@ -238,10 +236,6 @@ const isCompanyName = computed(() => {
   const parsed = parseTargetInput(formState.rawTarget);
   return parsed.isName;
 });
-
-const handleTargetChange = () => {
-  // 清除即时校验错误
-};
 
 const checkTycConfig = async () => {
   configChecking.value = true;
@@ -335,6 +329,9 @@ const handleSubmit = async () => {
     const payload = {
       name: taskName,
       target: targetStr,
+      depth: formState.depth || 1,
+      invest_ratio: formState.invest_ratio || 50,
+      enable_icp: formState.enable_icp !== false,
       query_type: formState.query_type
     };
     const res = await request.post('/icp/task', payload);

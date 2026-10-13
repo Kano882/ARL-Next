@@ -439,7 +439,7 @@ class MCPAssetProfile(Resource):
     @auth
     def get(self):
         """
-        MCP 资产全链路画像接口（站点/IP/子域名维度精准聚合，极致低 Token 剪枝输出）
+        MCP 资产画像接口（站点/IP/子域名维度聚合，按需裁剪字段以收敛上下文开销）
         """
         target = request.args.get('target', '').strip()
         task_id = request.args.get('task_id', '').strip()

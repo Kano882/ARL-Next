@@ -248,7 +248,7 @@ check_and_install_compose() {
 
 # ==================== 极简生产化不再需要民间镜像代理 ====================
 # 由于所有的镜像（包含 mongo、rabbitmq）现均由 GitHub Actions 自动推送到阿里云高可用个人私有库
-# 因此直接让 docker-compose 从国内的阿里云仓库 pull，享受极限满速下载。
+# 因此直接让 docker-compose 从国内的阿里云仓库 pull，规避跨国网络超时。
 
 # 5. 检查并配置 2G Swap 以防 OOM
 check_and_configure_swap() {
@@ -750,11 +750,11 @@ verify_and_heal_port_forwarding() {
     # 若多次探测均失败（常见于防火墙操作清空了内核 iptables 转发链），触发自动自愈
     if [ $probe_ok -eq 0 ]; then
         echo "⚠️ 警告：检测到前端 5173 端口握手失败（常见于防火墙操作清空了内核转发链）！"
-        echo "🛠️ 正在执行全自动网络链自愈修复 (重启 Docker 恢复内核转发规则)..."
+        echo "🛠️ 正在执行网络链自愈修复 (重启 Docker 恢复内核转发规则)..."
         if (run_cmd_with_timeout 30 systemctl restart docker &>/dev/null || run_cmd_with_timeout 30 service docker restart &>/dev/null) && wait_docker_daemon; then
             sleep 3
             if curl -k -s -m 5 -o /dev/null https://127.0.0.1:5173/ 2>/dev/null; then
-                echo "✅ 端口转发与 NAT 规则全自动自愈成功！5173 端口已恢复秒级连通。"
+                echo "✅ 端口转发与 NAT 规则已自动修复，5173 端口连通已恢复。"
             else
                 echo "⚠️ 自愈复检存在轻微延迟，后台服务正在就绪中。"
             fi
