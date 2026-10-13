@@ -574,11 +574,11 @@
                 <a-tag
                   color="blue"
                   class="synced-scope-tag"
-                  @click="goToScope(record.synced_scope_id)"
-                  title="点击前往该资产分组"
+                  @click="goToScope(record.synced_scope_id, record.synced_scope_name)"
+                  title="点击前往该资产组"
                 >
                   <export-outlined />
-                  <span>{{ record.synced_scope_name || '已同步' }}</span>
+                  <span>{{ record.synced_scope_name || '已纳管' }}</span>
                 </a-tag>
                 <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
               </div>
@@ -1441,9 +1441,12 @@ const handleSyncSuccess = (result) => {
   fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
 };
 
-const goToScope = (scopeId) => {
+const goToScope = (scopeId, scopeName) => {
   if (scopeId) {
-    router.push({ path: '/group', query: { scope_id: scopeId } });
+    router.push({
+      path: '/groupAssetsManagement/groupAssetsDetail',
+      query: { scope_id: scopeId, targetName: scopeName || '', view: 'osint' }
+    });
   }
 };
 

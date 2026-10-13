@@ -77,6 +77,20 @@
 
           <div class="toolbar-right">
             <template v-if="activeTab !== 'log'">
+              <!-- 一键扩充本组按钮 (仅在 Web 备案维度且存在未纳管域名时呈现) -->
+              <a-popconfirm
+                v-if="props.scopeId && activeTab === 'web' && untrackedWebDomains.length > 0"
+                :title="`确认将发现的 ${untrackedWebDomains.length} 个未纳管域名一键扩充至当前资产组？`"
+                ok-text="确认扩充"
+                cancel-text="取消"
+                @confirm="handleOneClickExpandScope"
+              >
+                <a-button type="primary" size="small" :loading="expandingScopeLoading" style="background: #52c41a; border-color: #52c41a;">
+                  <template #icon><plus-circle-outlined /></template>
+                  一键扩充本组 (+{{ untrackedWebDomains.length }})
+                </a-button>
+              </a-popconfirm>
+
               <a-tooltip :title="isUpdating ? '主体资产正在后台更新测绘中...' : '重新抓取企业最新备案、APP与投资数据，比对发现增量资产'">
                 <a-button type="primary" size="small" :loading="refreshLoading || isUpdating" :disabled="isUpdating" @click="handleRefreshTask">
                   <template #icon><sync-outlined :spin="refreshLoading || isUpdating" /></template>
@@ -266,6 +280,17 @@
             </div>
           </template>
 
+          <!-- 纳管状态 -->
+          <template v-else-if="column.key === 'managedStatus'">
+            <a-tag v-if="!props.scopeId" color="default" style="font-size: 11px;">未关联组</a-tag>
+            <a-tag v-else-if="isDomainManaged(record)" color="success" style="font-size: 11px;">
+              <check-circle-outlined /> 已纳管
+            </a-tag>
+            <a-tag v-else color="orange" style="font-size: 11px;">
+              <plus-circle-outlined /> 未纳管
+            </a-tag>
+          </template>
+
           <!-- 首页网址外链与快捷复制 -->
           <template v-else-if="column.key === 'homeUrl'">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
@@ -419,9 +444,14 @@
             <span>已选中 <b style="color: var(--arl-theme-color); margin: 0 4px;">{{ selectedWebRowKeys.length }}</b> 项备案域名</span>
           </div>
           <div class="floating-actions">
-            <a-button type="primary" size="middle" @click="openSyncModalWithSelected">
+            <!-- 若在资产组内，优先提供直达扩充当前组，免弹窗！ -->
+            <a-button v-if="props.scopeId" type="primary" size="middle" :loading="expandingScopeLoading" @click="handleExpandSelectedToScope">
+              <template #icon><plus-circle-outlined /></template>
+              扩充至当前资产组 ({{ selectedWebRowKeys.length }})
+            </a-button>
+            <a-button size="middle" @click="openSyncModalWithSelected">
               <template #icon><cloud-sync-outlined /></template>
-              同步至资产组 ({{ selectedWebRowKeys.length }})
+              {{ props.scopeId ? '同步至其他资产组...' : `同步至资产组 (${selectedWebRowKeys.length})` }}
             </a-button>
             <a-button size="middle" @click="handleBatchCopyDomains">
               <template #icon><copy-outlined /></template>
@@ -491,6 +521,8 @@ import {
   RedoOutlined,
   CodeOutlined,
   CheckCircleFilled,
+  CheckCircleOutlined,
+  PlusCircleOutlined,
   LinkOutlined,
   FilterOutlined,
   DownOutlined,
@@ -721,6 +753,59 @@ const syncModalVisible = ref(false);
 const selectedWebRowKeys = ref([]);
 const selectedWebDomains = ref([]);
 
+// 资产组当前已纳管域名集合 & 任务全量 Web 域名
+const managedDomainSet = ref(new Set());
+const allTaskWebDomains = ref([]);
+const expandingScopeLoading = ref(false);
+
+const fetchManagedDomains = async () => {
+  if (!props.scopeId) {
+    managedDomainSet.value = new Set();
+    return;
+  }
+  try {
+    const res = await request.get('/asset_scope/', { params: { _id: props.scopeId } });
+    if (res.code === 200 && res.items && res.items.length > 0) {
+      const scopeItem = res.items[0];
+      const domains = scopeItem.domain_array || (scopeItem.scope ? scopeItem.scope.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : []);
+      managedDomainSet.value = new Set(domains.map(d => String(d).trim().toLowerCase()));
+    }
+  } catch (e) {
+    console.error('获取资产组已纳管域名失败', e);
+  }
+};
+
+const fetchAllTaskWebDomains = async () => {
+  if (!props.taskId) {
+    allTaskWebDomains.value = [];
+    return;
+  }
+  try {
+    const res = await request.get('/icp/asset', { params: { task_id: props.taskId, query_type: 'web', size: 5000 } });
+    if (res.code === 200 && res.items) {
+      const set = new Set();
+      res.items.forEach(item => {
+        const d = (item.domain || item.ym || '').trim().toLowerCase();
+        if (d) set.add(d);
+      });
+      allTaskWebDomains.value = Array.from(set);
+    }
+  } catch (e) {
+    console.error('获取全量任务域名列表失败', e);
+  }
+};
+
+const untrackedWebDomains = computed(() => {
+  if (!props.scopeId || allTaskWebDomains.value.length === 0) return [];
+  return allTaskWebDomains.value.filter(d => !managedDomainSet.value.has(d.toLowerCase()));
+});
+
+const isDomainManaged = (record) => {
+  if (!props.scopeId) return false;
+  const d = (record.domain || record.ym || '').trim().toLowerCase();
+  return managedDomainSet.value.has(d);
+};
+
 const onWebSelectChange = (keys, rows) => {
   selectedWebRowKeys.value = keys;
   const domains = [];
@@ -747,9 +832,74 @@ const openSyncModalWithSelected = () => {
   syncModalVisible.value = true;
 };
 
-const handleSyncSuccess = (res) => {
+const handleSyncSuccess = async (res) => {
   fetchTaskStatistic();
+  await fetchManagedDomains();
+  await fetchAllTaskWebDomains();
   emit('synced', res);
+};
+
+const handleOneClickExpandScope = async () => {
+  if (!props.scopeId || !props.taskId) return;
+  if (untrackedWebDomains.value.length === 0) {
+    message.info('当前主体所有备案域名已全部纳管在组内');
+    return;
+  }
+  expandingScopeLoading.value = true;
+  try {
+    const payload = {
+      mode: 'existing',
+      scope_id: props.scopeId,
+      selected_domains: untrackedWebDomains.value,
+      auto_scan: false
+    };
+    const res = await request.post(`/icp/sync/${props.taskId}`, payload);
+    if (res && res.code === 200) {
+      message.success(`成功扩充 ${res.data?.insert_count ?? untrackedWebDomains.value.length} 个新域名至当前资产组`);
+      await fetchManagedDomains();
+      await fetchAllTaskWebDomains();
+      emit('synced', res);
+    } else {
+      message.error(res?.message || '扩充资产组失败');
+    }
+  } catch (err) {
+    console.error('一键扩充资产组失败', err);
+    message.error('请求网络错误');
+  } finally {
+    expandingScopeLoading.value = false;
+  }
+};
+
+const handleExpandSelectedToScope = async () => {
+  if (!props.scopeId || !props.taskId) return;
+  if (selectedWebDomains.value.length === 0) {
+    message.warning('请至少选择一个域名');
+    return;
+  }
+  expandingScopeLoading.value = true;
+  try {
+    const payload = {
+      mode: 'existing',
+      scope_id: props.scopeId,
+      selected_domains: selectedWebDomains.value,
+      auto_scan: false
+    };
+    const res = await request.post(`/icp/sync/${props.taskId}`, payload);
+    if (res && res.code === 200) {
+      message.success(`成功将所选域名扩充至当前资产组`);
+      clearWebSelection();
+      await fetchManagedDomains();
+      await fetchAllTaskWebDomains();
+      emit('synced', res);
+    } else {
+      message.error(res?.message || '扩充资产组失败');
+    }
+  } catch (err) {
+    console.error('扩充资产组失败', err);
+    message.error('请求网络错误');
+  } finally {
+    expandingScopeLoading.value = false;
+  }
 };
 
 const handleRefreshTask = async () => {
@@ -884,6 +1034,7 @@ const columnConfigs = {
   web: [
     { title: '序号', key: 'index', width: 55, align: 'center' },
     { title: '域名', dataIndex: 'domain', key: 'domain', width: 170 },
+    { title: '纳管状态', key: 'managedStatus', width: 95, align: 'center' },
     { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName', width: 160, ellipsis: true },
     { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
     { title: '单位性质', dataIndex: 'companyType', key: 'companyType', width: 90, align: 'center' },
@@ -1213,6 +1364,8 @@ const handleExport = async () => {
 watch(() => props.taskId, (newVal) => {
   if (newVal) {
     fetchTaskDetail();
+    fetchAllTaskWebDomains();
+    if (props.scopeId) fetchManagedDomains();
     if (activeTab.value === 'log') {
       fetchLogs(true);
       startLogPolling();
@@ -1220,6 +1373,12 @@ watch(() => props.taskId, (newVal) => {
       stopLogPolling();
       fetchAssets(pagination.current, pagination.pageSize);
     }
+  }
+}, { immediate: true });
+
+watch(() => props.scopeId, (newVal) => {
+  if (newVal) {
+    fetchManagedDomains();
   }
 }, { immediate: true });
 

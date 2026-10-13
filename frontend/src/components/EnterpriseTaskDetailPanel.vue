@@ -23,11 +23,11 @@
               v-if="taskRecord.synced_scope_id"
               color="blue"
               style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"
-              @click="goToScope(taskRecord.synced_scope_id)"
-              title="点击前往该资产分组"
+              @click="goToScope(taskRecord.synced_scope_id, taskRecord.synced_scope_name)"
+              title="点击前往该资产组"
             >
               <export-outlined />
-              <span>已同步至: {{ taskRecord.synced_scope_name || '资产分组' }}</span>
+              <span>已纳管至: {{ taskRecord.synced_scope_name || '资产组' }}</span>
             </a-tag>
           </div>
         </template>
@@ -224,9 +224,12 @@ const handleSyncSuccess = (res) => {
   fetchTaskStatistic();
 };
 
-const goToScope = (scopeId) => {
+const goToScope = (scopeId, scopeName) => {
   if (scopeId) {
-    router.push({ path: '/group', query: { scope_id: scopeId } });
+    router.push({
+      path: '/groupAssetsManagement/groupAssetsDetail',
+      query: { scope_id: scopeId, targetName: scopeName || '', view: 'osint' }
+    });
   }
 };
 
