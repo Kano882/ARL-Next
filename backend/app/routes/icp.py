@@ -124,17 +124,95 @@ class IcpTask(ARLResource):
     @ns.expect(add_icp_task_fields)
     def post(self):
         """
-        新建 ICP 查询任务
+        新建企业全景测绘/ICP 查询任务 (支持企业名称自动天眼查全景升级)
         """
         args = self.parse_args(add_icp_task_fields)
         name = args.get('name')
         target = args.get('target')
         query_type = args.get('query_type')
 
+        target_str = str(target or '').strip()
+        custom_name = str(name or '').strip()
+
+        # 尝试通过天眼查 API 进行智能识别与全景升级
+        matched_tyc = None
+        from app.services.tycClient import TycClient
+        try:
+            client = TycClient()
+            if client.gid and client.token:
+                if target_str.startswith("TYC_"):
+                    raw_gid = target_str.replace("TYC_", "").strip()
+                    cname = client.get_company_name(raw_gid)
+                    matched_tyc = {"gid": raw_gid, "company_name": cname or target_str}
+                elif target_str.isdigit() and len(target_str) >= 6:
+                    cname = client.get_company_name(target_str)
+                    matched_tyc = {"gid": target_str, "company_name": cname or target_str}
+                else:
+                    matched_tyc = client.search_suggest(target_str)
+        except Exception as e:
+            logger.warning(f"Failed to auto-suggest tyc for target {target_str}: {e}")
+
+        conn = conn_db('icp_task')
+
+        # 分支 1: 成功匹配到天眼查企业 -> 全景双轨任务升级
+        if matched_tyc and matched_tyc.get("gid"):
+            gid = str(matched_tyc["gid"])
+            official_company_name = matched_tyc.get("company_name") or target_str
+            final_name = custom_name or (f"{official_company_name}全景测绘" if official_company_name else f"TYC_{gid}")
+            full_query_type = ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+
+            task_data = {
+                "name": final_name,
+                "company_name": official_company_name,
+                "target": f"TYC_{gid}",
+                "gid": gid,
+                "depth": 1,
+                "invest_ratio": 50,
+                "query_type": full_query_type,
+                "enable_icp": True,
+                "task_type": "tyc",
+                "status": TaskStatus.WAITING,
+                "start_time": curr_date(),
+                "end_time": "-",
+                "statistic": {
+                    "asset_cnt": 0
+                }
+            }
+            result = conn.insert_one(task_data)
+            task_id = str(result.inserted_id)
+
+            options = {
+                "task_id": task_id,
+                "gid": gid,
+                "depth": 1,
+                "invest_ratio": 50,
+                "query_type": full_query_type,
+                "enable_icp": True,
+                "company_name": official_company_name,
+                "name": final_name,
+                "type": "tyc",
+                "tyc_id": client.gid,
+                "tyc_token": client.token
+            }
+            import requests
+            try:
+                res = requests.post("http://osint-service:16181/api/v1/recon/start", json=options, timeout=5)
+                res.raise_for_status()
+            except Exception as e:
+                logger.error(f"Failed to trigger osint-service for tyc task: {e}")
+                conn.update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+
+            return build_ret(ErrorMsg.Success, {"task_id": task_id, "matched_tyc": True})
+
+        # 分支 2: 未配置天眼查或未匹配到 -> 工信部全维度官方备案直连
+        final_query_type = query_type if (query_type and len(query_type) > 1) else ['web', 'app', 'mapp', 'kapp']
+        final_name = custom_name or target_str
+
         task_data = {
-            "name": name,
-            "target": target,
-            "query_type": query_type,
+            "name": final_name,
+            "target": target_str,
+            "query_type": final_query_type,
+            "task_type": "icp",
             "status": TaskStatus.WAITING,
             "start_time": curr_date(),
             "end_time": "-",
@@ -142,30 +220,24 @@ class IcpTask(ARLResource):
                 "asset_cnt": 0
             }
         }
-
-        # 存入数据库
-        conn = conn_db('icp_task')
         result = conn.insert_one(task_data)
         task_id = str(result.inserted_id)
 
-        # 异步调度 celery
         options = {
             "task_id": task_id,
-            "target": target,
-            "query_type": query_type
+            "target": target_str,
+            "query_type": final_query_type,
+            "type": "icp"
         }
-
-        # 将任务发给 celery
-        options["type"] = "icp"
         import requests
         try:
             res = requests.post("http://osint-service:16181/api/v1/recon/start", json=options, timeout=5)
             res.raise_for_status()
         except Exception as e:
-            logger.error(f"Failed to trigger osint-service: {e}")
+            logger.error(f"Failed to trigger osint-service for icp task: {e}")
             conn.update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
 
-        return build_ret(ErrorMsg.Success, {"task_id": task_id})
+        return build_ret(ErrorMsg.Success, {"task_id": task_id, "matched_tyc": False})
 
 
 @ns.route('/task/statistics')
@@ -232,15 +304,27 @@ class TycTask(ARLResource):
         except Exception as e:
             return build_ret(f"校验天眼查配置异常: {e}", {})
 
-        # 定向解析企业官方工商全称（彻底脱钩用户任务自定义名称）
-        official_company_name = ""
-        if company_name_arg and company_name_arg.strip():
-            official_company_name = company_name_arg.strip()
-        else:
+        # 若 gid 为企业名称而非纯数字ID，自动通过 search_suggest 提取真实 GID
+        gid_str = str(gid or '').strip()
+        if not gid_str.isdigit() and len(gid_str) >= 2:
             try:
-                official_company_name = client.get_company_name(gid)
+                suggest_res = client.search_suggest(gid_str)
+                if suggest_res and suggest_res.get("gid"):
+                    gid = str(suggest_res["gid"])
+                    if not official_company_name:
+                        official_company_name = suggest_res.get("company_name", "")
             except Exception as e:
-                logger.warning(f"Failed to resolve company name for GID {gid}: {e}")
+                logger.warning(f"Failed to auto-suggest tyc for {gid_str}: {e}")
+
+        # 定向解析企业官方工商全称（彻底脱钩用户任务自定义名称）
+        if not official_company_name:
+            if company_name_arg and company_name_arg.strip():
+                official_company_name = company_name_arg.strip()
+            else:
+                try:
+                    official_company_name = client.get_company_name(gid)
+                except Exception as e:
+                    logger.warning(f"Failed to resolve company name for GID {gid}: {e}")
 
         if not name or not name.strip():
             name = f"{official_company_name}企业测绘" if official_company_name else f"TYC_{gid}"

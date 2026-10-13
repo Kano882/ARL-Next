@@ -335,11 +335,12 @@ const handleSubmit = async () => {
     const payload = {
       name: taskName,
       target: targetStr,
-      query_type: ['web']
+      query_type: formState.query_type
     };
     const res = await request.post('/icp/task', payload);
     if (res.code === 200) {
-      message.success(`企业全景测绘任务【${taskName}】创建成功`);
+      const modeTip = res.data?.matched_tyc ? ' (已自动识别并升级为全景双轨测绘)' : '';
+      message.success(`企业全景测绘任务【${taskName}】创建成功${modeTip}`);
       emit('update:open', false);
       emit('success', res);
     } else {

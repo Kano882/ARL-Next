@@ -2150,6 +2150,7 @@ const startWizardRecon = async () => {
   try {
     let taskId = '';
     let taskName = '';
+    let isTycUpgraded = false;
 
     if (parsed.gid) {
       taskName = customName ? (customName + '全景测绘') : ('TYC_' + parsed.gid);
@@ -2176,15 +2177,16 @@ const startWizardRecon = async () => {
       const payload = {
         name: taskName,
         target: rawTarget,
-        query_type: ['web']
+        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
       };
       const taskRes = await request.post('/icp/task', payload);
       if (!taskRes || taskRes.code !== 200) {
-        message.error(taskRes?.message || '发起工信部官方备案查询失败');
+        message.error(taskRes?.message || '发起企业全景测绘失败');
         wizardLoading.value = false;
         return;
       }
       taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
+      isTycUpgraded = !!taskRes.data?.matched_tyc;
     }
 
     wizardTaskId.value = taskId;
@@ -2196,7 +2198,7 @@ const startWizardRecon = async () => {
     // 注册到后台追踪队列
     addPendingReconTask({
       taskId: taskId,
-      engine: parsed.gid ? 'tyc' : 'icp',
+      engine: (parsed.gid || isTycUpgraded) ? 'tyc' : 'icp',
       name: taskName,
       target: parsed.gid || rawTarget,
       groupName: customName,

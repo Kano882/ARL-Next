@@ -1304,7 +1304,7 @@ const executeBindNew = async () => {
       createRes = await request.post('/icp/task', {
         name: `${targetName.value}全景测绘`,
         target: targetVal,
-        query_type: ['web']
+        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
       });
     }
 
