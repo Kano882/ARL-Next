@@ -1,0 +1,104 @@
+<div align="center">
+  <p>
+    <a href="./API_GUIDE_en.md"><b>English</b></a> |
+    <b>简体中文</b>
+  </p>
+</div>
+
+# ARL-Next REST API 调用与二次开发约定指南
+
+> 本指南汇总了 ARL-Next 平台的 API 基础规范、鉴权机制、特殊 HTTP 方法约定、状态流转约束以及数据命名空间说明，供自动化脚本、CI/CD 流水线及安全编排系统对接参考。<br>
+> 完整且实时的 OpenAPI / Swagger 接口文档，可在平台部署拉起后访问 `https://<your-arl-host>:5173/api/doc` 在线调试。
+
+---
+
+## 1. 基础规范与网关路由
+
+- **基础路径**：后端接口统一以 `/api` 为前缀。
+- **协议与端口**：生产环境下所有请求均通过前端 Nginx 网关反向代理，默认地址为 `https://<your-arl-host>:5173/api/...`。
+- **响应体格式**：所有接口均返回 JSON 格式数据，标准顶层响应字段包含业务码 `code` 与提示信息 `message`：
+  ```json
+  {
+    "code": 200,
+    "message": "success",
+    "data": { ... }
+  }
+  ```
+  > [!IMPORTANT]
+  > 客户端**不能仅凭 HTTP 200 状态码判定业务成功**，必须同时校验响应体中的 `code === 200`（或对应业务成功码）。
+
+---
+
+## 2. 身份鉴权与安全机制
+
+- **Header 鉴权（强烈推荐）**：启用平台鉴权时，请在 HTTP 请求头中传入：
+  ```http
+  Token: <your-token>
+  ```
+- **Query 参数鉴权（备用）**：后端亦兼容 URL 查询参数 `?token=<your-token>`。但在生产环境中，URL 参数易留存在 Web 服务器访问日志、网关日志与客户端历史中，**建议优先采用请求头传递**。
+- **安全红线**：严禁将真实 API Token 提交至公开代码仓库、Issue 讨论、公开运行日志或终端命令历史。
+- **免鉴权环境**：若在测试或私有内网环境下于配置中关闭了平台鉴权，接口将跳过 Token 校验。对外开放部署时请务必确认网关与平台鉴权策略处于启用状态。
+
+---
+
+## 3. 任务操作约定与状态流转约束
+
+> [!WARNING]
+> ARL-Next 任务管理接口包含部分由于历史兼容保留的特定 HTTP 方法与前置状态约束，对接时请务必遵循以下规范，避免盲目猜测 RESTful 动词。
+
+### 核心任务接口速查表
+
+| 操作事项 | HTTP 方法及完整路径 | 请求参数 / 请求体格式 | 状态要求与注意事项 |
+| :--- | :--- | :--- | :--- |
+| **查询任务列表** | `GET /api/task/` | 查询参数：`target`、`status`、`page`、`size`；可追加 `include_statistics=1` | 分页返回任务列表 |
+| **查询扫描任务统计** | `GET /api/task/statistics` | 无 | 仅返回各状态任务数量汇总，不遍历任务详情 |
+| **查询企业任务统计** | `GET /api/icp/task/statistics` | 无 | 仅返回企业工商/ICP 任务的全局状态统计 |
+| **停止单个任务** | `GET /api/task/stop/<task_id>` | URL 路径参数：`task_id` (24位十六进制) | ⚠️ **注意：此接口使用 GET 方法执行状态变更**（终止任务执行），切勿误认为只读接口，亦不要使用 `POST` 或 `DELETE` |
+| **批量停止任务** | `POST /api/task/batch_stop/` | JSON：接口文档所示请求体 | 批量停止指定任务列表 |
+| **删除任务** | `POST /api/task/delete/` | JSON：`{"task_id": ["<task_id>"], "del_task_data": false}` | ⚠️ **前置条件约束**：仅允许删除处于 `done`、`stop` 或 `error` 结束态的任务；运行中任务将返回错误码 `104`（“任务运行中”） |
+| **重启任务** | `POST /api/task/restart/` | JSON：`{"task_id": ["<task_id>"]}` | 仅允许重启已结束的任务 |
+
+### 任务生命周期与删除最佳实践
+
+若需通过自动化脚本删除正在执行中的任务，必须严格执行两阶段操作：
+1. 先调用 `GET /api/task/stop/<task_id>` 将任务终止至 `stop` 状态；
+2. 校验任务状态确认进入终态后，再调用 `POST /api/task/delete/` 提交删除。直接对运行态任务请求删除将被服务端拒绝并返回 `{"code": 104, "message": "任务运行中"}`。
+
+### 统计指标参数 (`include_statistics=1`)
+
+- 在调用 `GET /api/task/?include_statistics=1` 或 `GET /api/icp/task?include_statistics=1` 时，响应结构中将附加 `statistics` 字段：
+  ```json
+  {
+    "total": 120,
+    "running": 2,
+    "waiting": 1,
+    "done": 110,
+    "error": 5,
+    "stop": 2,
+    "active": 3,
+    "abnormal": 7
+  }
+  ```
+  - `active`：活跃任务总数（`running + waiting`）。
+  - `abnormal`：非正常结束任务总数（`error + stop`）。
+  - `running`：对于扫描任务，涵盖了端口扫描、服务识别、风险巡航等各阶段中间态。
+  - **统计范围**：统计数据是按对应任务集合全局聚合计算的，不随当前分页或关键词筛选发生变动。
+- **容错降级设计**：若后端在统计聚合阶段遇到偶发异常，列表主数据依然会正常返回，并附加 `statistics_error: true`（省略 `statistics` 字段）。客户端应做容错兜底，保留上一轮有效统计值，避免界面闪烁或误显为零任务。
+
+---
+
+## 4. 查询结果的命名空间隔离规范
+
+ARL-Next 将资产数据分为**任务临时成果**与**资产分组归档资产**两个独立的数据集，在接口路径上存在明确的命名空间隔离：
+
+| 资产类型 | 单任务检索命名空间 (按 `task_id`) | 资产分组检索命名空间 (按 `scope_id`) |
+| :--- | :--- | :--- |
+| **子域名** | `/api/domain/` | `/api/asset_domain/` |
+| **IP 地址** | `/api/ip/` | `/api/asset_ip/` |
+| **Web 站点** | `/api/site/` | `/api/asset_site/` |
+| **其他维度** | `/api/wih/`、`/api/vuln/`、`/api/fileleak/` 等 | `/api/asset_wih/`、`/api/asset_vuln/` 等 |
+
+> [!NOTE]
+> - 按任务查询时，入参必须指定对应探测的 `task_id`；
+> - 按资产分组查询时，入参必须指定目标资产组的 `scope_id`；
+> - 两个命名空间对应不同的 MongoDB 底层持久化集合与联合索引，字段定义与筛选维度请以 `/api/doc` 最新说明为准。

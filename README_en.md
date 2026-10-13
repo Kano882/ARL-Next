@@ -32,6 +32,7 @@
     <a href="#quick-deploy"><b>⚡ Quick Deployment</b></a> •
     <a href="#comparison"><b>💡 Architectural Comparison</b></a> •
     <a href="#core-features"><b>✨ Core Features</b></a> •
+    <a href="./docs/API_GUIDE_en.md"><b>🔌 API Guide</b></a> •
     <a href="./mcp-server/README_en.md"><b>🤖 MCP Guide</b></a> •
     <a href="./CHANGELOG.md"><b>📜 Changelog</b></a> •
     <a href="./LICENSE"><b>📄 License</b></a>
@@ -54,11 +55,11 @@
 | Evaluation Dimension | Legacy ARL Architecture & Implementation | ARL-Next Re-engineered Architecture |
 | :--- | :--- | :--- |
 | **Concurrency & Task Scheduling** | All scan tasks shared a single Celery queue, causing frequent queue stalling and process hangs under high concurrency | **Decoupled OSINT and screenshot capture into dedicated microservices**; implemented dual-track light/heavy task queues and bulk database persistence to resolve concurrency bottlenecks |
-| **Automation Protocol Integration** | Lacked standardized external integration interfaces; restricted to manual Web UI interactions | **Built-in native Python MCP Server**, providing standard protocol endpoints for 13-dimensional panoramic asset profiling and aggregated telemetry |
-| **Enterprise Asset Topology** | Lacked organizational equity mapping and multi-tier digital asset drill-downs | **Unified Asset Group Management**: correlates corporate equity with full-spectrum ICP registrations (websites, APPs, mini-programs, quick apps) to construct hierarchical group topologies |
+| **Automation Protocol Integration** | Lacked standardized external integration interfaces; restricted to manual Web UI interactions | **Supports native Python MCP Server**, providing standard protocol endpoints for multi-dimensional asset profiling |
+| **Enterprise Asset Topology** | Lacked organizational equity mapping and multi-tier digital asset drill-downs | **Integrated Asset Group Management**: correlates corporate equity with multi-category ICP registrations (websites, APPs, mini-programs, quick apps) to construct hierarchical group topologies |
 | **Containerization & Delivery** | Outdated dependencies lacking mirror acceleration; vulnerable to network disruption during installation | **Multi-stage Docker builds with pre-compiled artifacts on Alibaba Cloud ACR**, enhancing build reliability and rapid container deployment |
-| **Runtime Environment Baseline** | Python 3.6 / Vue 2 / MongoDB 3.x / Nmap 7.70 | **Python 3.13 / Vue 3.5 / MongoDB 7.0 / Nmap 7.95 Stable**; fully upgraded to a modern, actively supported runtime baseline |
-| **Sensitive Data Extraction** | Relied on external Go binaries with cross-platform build and runtime overhead | **Pure-Python streaming extraction engine**, eliminating external binary dependencies for sensitive credential and file leak discovery |
+| **Runtime Environment Baseline** | Python 3.6 / Vue 2 / MongoDB 3.x / Nmap 7.70 | **Python 3.13 / Vue 3.5 / MongoDB 7.0 / Nmap 7.95 Stable**; modernized runtime baseline |
+| **Sensitive Data Extraction** | Relied on external Go binaries with cross-platform build and runtime overhead | **Pure-Python streaming extraction engine**, sensitive data module requires no external binary dependencies, supporting stream extraction |
 | **Web UI / User Experience** | Long tables lacked sticky headers, pagination states were lost on refresh, and policy menus were fragmented | **Sticky table headers and floating action bars**, local pagination state persistence, and a modern 3-pane dictionary manager |
 | **Threat Intelligence Integration** | Lacked continuous intelligence feeds; unaligned timestamps led to redundant alerts | **Automated CVE synchronization & GitHub credential leak monitoring**, deduplicated via database atomic upsert locks with strict timezone normalization |
 
@@ -66,9 +67,9 @@
 
 ### <span id="core-features"></span>✨ Core Feature Matrix
 
-* 🤖 **Native MCP Protocol Integration**: Built-in standard library-based MCP server enabling AI agents to inspect 13-dimensional asset intelligence and summary dashboards via standard protocol interfaces. (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
+* 🤖 **Native MCP Protocol Integration**: Standalone standard library-based MCP client protocol enabling AI agents to inspect multi-dimensional target asset profiles via standard interfaces. (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
 * ⚙️ **Asynchronous Decoupled Scheduling**: Microservice isolation with dedicated queues and bulk MongoDB operations ensures stable execution under high-throughput scanning workloads.
-* 🌐 **Hierarchical Asset Group Management**: Integrated corporate asset discovery supporting multi-tier organizational structures, full-spectrum ICP association, and unified attack surface mapping.
+* 🌐 **Hierarchical Asset Group Management**: Integrated corporate asset discovery supporting multi-tier organizational structures, multi-category ICP association (Web / APP / Mini-program / Quick App), and unified attack surface mapping.
 * 🔍 **Modern Reconnaissance Baseline**: Standardized on Nmap 7.95 Stable; native Python streaming engine for sensitive information and credential discovery.
 * 🛡️ **Vulnerability & Leak Monitoring**: Continuous tracking of authoritative CVE feeds and automated GitHub credential leak monitoring with atomic lock deduplication.
 * ⚡ **High Availability & Fault Tolerance**: Container health probes, readiness polling, automated container watchdog auto-restart, and seamless web-based updates.
@@ -145,7 +146,7 @@ graph TD
 
     %% 2. API Gateway Layer
     Nginx -->|"REST API Reverse Proxy (5000)"| Backend["⚙️ Backend API (Gunicorn / Python 3.13)"]
-    MCP -->|"API Token Auth"| Backend
+    MCP -->|"HTTPS / API Token Reverse Proxy (5173)"| Nginx
 
     %% 3. Dispatch & Task Routing (Dual-Track Decoupling)
     Backend -->|"1. Async Direct Dispatch (16181)"| OSINT["🧩 OSINT Microservice"]
@@ -184,12 +185,12 @@ graph TD
 
 ### Key Architectural Highlights:
 
-1. 🖥️ **Presentation & Gateway (Frontend / Nginx)**: Built with **Vue 3.5 + Nginx**, featuring sticky table headers, floating action toolbars, and optional **Basic Auth gateway protection**.
-2. ⚙️ **Core API & Protocol Integration (Backend / MCP)**: Powered by **Python 3.13 + Gunicorn**; features an embedded **native Python MCP Server** providing standard protocol interfaces and 13-dimensional asset profile exports.
+1. 🖥️ **Presentation & Gateway (Frontend / Nginx)**: Built with **Vue 3.5 + Nginx**, featuring core table sticky headers, floating action toolbars, and optional **Basic Auth gateway protection**.
+2. ⚙️ **Core API & Protocol Integration (Backend / MCP)**: Powered by **Python 3.13 + Gunicorn**; provides **native Python MCP** protocol adaptation supporting standard interfaces and multi-dimensional asset profile queries.
 3. 🧩 **Dedicated OSINT Microservice**: Dedicated asynchronous engine for corporate asset discovery and ICP lookup; directly invoked by the backend via coroutines to **prevent long-running OSINT tasks from stalling scan queues**.
 4. ⚡ **Multi-Queue Worker Cluster**: Segregated into **lightweight**, **heavyweight**, and **threat intelligence** task queues; controls worker memory growth through subprocess lifecycle recycling; standardizes on **Nmap 7.95 Stable**.
 5. 🛡️ **Microservices & Autoheal Watchdog (Puppeteer / Autoheal)**: Containerized headless browser isolation with request-count recycling; **Autoheal watchdog periodically checks scan workers and automatically restarts unresponsive containers**; pure Python engine for streaming sensitive data discovery.
-6. 🗄️ **High-Throughput Persistence (MongoDB 7.0)**: Migrated asset ingestion pipelines to `bulk_write` interfaces; compound unique indexes across core collections backed by a 1GB memory buffer pool to maintain scanning throughput and database stability.
+6. 🗄️ **High-Throughput Persistence (MongoDB 7.0)**: High-throughput asset ingestion utilizes `bulk_write` and `safe_insert_asset_many` batch interfaces; compound unique indexes across core collections backed by a 1GB memory buffer pool to maintain scanning throughput and database stability.
 
 ---
 
@@ -320,34 +321,12 @@ Navigate to your ARL-Next installation directory on the server and run the upgra
 
 ---
 
-## 🔌 API Calling Conventions
+## 🔌 Developer API & Integration
 
-- Backend endpoints are prefixed with `/api`; interactive Swagger documentation is available at `/api/doc`. Paths are relative to your deployment address, e.g., `https://<your-arl-host>:5173`.
-- When platform authentication is enabled, provide the request header `Token: <your-token>`. The backend also accepts `?token=` as a query parameter, but headers are strongly recommended to keep credentials out of access logs and browser history. **Never commit tokens into public issues, logs, or command histories.**
-- If platform authentication is disabled, endpoints do not validate tokens; review your gateway and access control policies when exposing to external networks.
-- API responses utilize business fields `code` and `message`; an HTTP 200 response alone does not indicate operational success.
+ARL-Next provides standardized RESTful APIs for automation scripts, CI/CD pipelines, and security orchestration (SOAR) integrations.
 
-### Task Operations (Note HTTP Methods)
-
-| Operation | Method & Path | Parameters |
-| :--- | :--- | :--- |
-| Query Tasks | `GET /api/task/` | Optional query params: `target`, `status`, `page`, `size`; `include_statistics=1` adds global status counts |
-| Scan Task Statistics | `GET /api/task/statistics` | Global status counts without loading task records |
-| Enterprise Task Statistics | `GET /api/icp/task/statistics` | Global enterprise-query status counts |
-| Stop Single Task | `GET /api/task/stop/<task_id>` | Task ID in path; **note that this GET request modifies task state** |
-| Batch Stop Tasks | `POST /api/task/batch_stop/` | Request body per Swagger documentation |
-| Delete Task | `POST /api/task/delete/` | JSON: `{"task_id": ["<task_id>"], "del_task_data": false}` |
-| Restart Task | `POST /api/task/restart/` | JSON: `{"task_id": ["<task_id>"]}` |
-
-The deletion endpoint only accepts tasks in `done`, `stop`, or `error` states; other states return business code `104` ("Task is currently running"). If deletion is required, verify the status, terminate the task via the stop endpoint if necessary, and then issue the deletion call. Stopping a task uses **GET** in the current implementation; do not assume it is read-only, and avoid guessing endpoints like `DELETE /api/task/<id>` or `POST /api/task/stop/`.
-
-### Query Result Namespaces
-
-`GET /api/task/?include_statistics=1` and `GET /api/icp/task?include_statistics=1` add `statistics` to the list response. Fields are `total`, `running`, `waiting`, `done`, `error`, `stop`, `active`, and `abnormal`. `active` includes running and waiting; `abnormal` includes error and stop. Scan-task `running` includes intermediate scan stages. Statistics are global to each task collection, while the existing list `total` remains the filtered count. Statistics-only endpoints return the same structure under `data` and use existing Token authentication.
-
-Requests without `include_statistics=1` retain the existing list response. If aggregation fails, a successful list response includes `statistics_error=true` without `statistics`; clients should retain previous counts rather than show zero tasks.
-
-Task-scoped results are queried under endpoints such as `/api/domain/`, `/api/ip/`, and `/api/site/`. Results synced to Asset Groups reside under the `asset_*` namespace, including `/api/asset_domain/`, `/api/asset_ip/`, and `/api/asset_site/`. These represent distinct datasets: task queries require `task_id`, whereas asset group queries require `scope_id`. Refer to `/api/doc` for current parameter specifications and pagination schema.
+* 📖 **Interactive Swagger UI**: After deployment, access `https://<your-arl-host>:5173/api/doc` in your browser to inspect full OpenAPI schemas and test endpoints interactively.
+* 📘 **Calling Conventions & Gotchas**: For token authentication, task lifecycle constraints, HTTP method conventions (e.g., GET for stopping tasks), and asset query namespaces, refer to ➔ [**API Calling Guide (API_GUIDE_en.md)**](./docs/API_GUIDE_en.md).
 
 ---
 
