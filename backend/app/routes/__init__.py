@@ -526,6 +526,8 @@ class ARLResource(Resource):
             "asset_fileleak": "url",
             "cip": "cidr_ip",
             "wih": "content",
+            "npoc_service": "target",
+            "asset_npoc_service": "target",
         }
 
         # 2. 复用之前讲过的总调度室 build_data，去数据库里把符合条件的数据全捞出来

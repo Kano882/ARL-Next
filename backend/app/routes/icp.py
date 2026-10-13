@@ -1,6 +1,7 @@
 from flask_restx import Namespace, fields
 from app.utils import get_logger, auth, build_ret, curr_date, conn_db
 from app.modules import TaskStatus, ErrorMsg
+from app.utils.task_statistics import get_task_statistics, attach_task_statistics
 from . import ARLResource, get_arl_parser, base_query_fields
 import bson
 
@@ -12,6 +13,7 @@ base_search_icp_task_fields = {
     'name': fields.String(required=False, description="任务名"),
     'target': fields.String(description="查询目标"),
     'status': fields.String(description="任务状态"),
+    'include_statistics': fields.Integer(description="设为 1 时附带全局企业查询状态统计"),
     'query_type': fields.String(description="查询类型"),
     'end_time__gte': fields.String(description="结束时间大于等于"),
     'end_time__lte': fields.String(description="结束时间小于等于"),
@@ -52,6 +54,7 @@ class IcpTask(ARLResource):
         获取 ICP 任务列表
         """
         args = self.parser.parse_args()
+        include_statistics = args.pop('include_statistics', 0) == 1
         data = self.build_data(args=args, collection='icp_task')
         items = data.get('items', [])
         if items:
@@ -112,6 +115,9 @@ class IcpTask(ARLResource):
                     item['sync_badge_status'] = 'unsynced'
                     item['has_increment'] = False
 
+        if include_statistics:
+            attach_task_statistics(data, conn_db('icp_task'), logger)
+
         return data
 
     @auth
@@ -160,6 +166,25 @@ class IcpTask(ARLResource):
             conn.update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
 
         return build_ret(ErrorMsg.Success, {"task_id": task_id})
+
+
+@ns.route('/task/statistics')
+@ns.route('/task/statistics/')
+@ns.route('/task/overview_count')
+@ns.route('/task/overview_count/')
+class IcpTaskStatistics(ARLResource):
+    @auth
+    def get(self):
+        """仅返回企业查询任务的全局状态数量。"""
+        try:
+            return build_ret(ErrorMsg.Success, get_task_statistics(conn_db('icp_task')))
+        except Exception:
+            logger.exception('Failed to aggregate enterprise task status statistics')
+            return build_ret(ErrorMsg.Error, {'error': '获取企业查询统计失败'})
+
+
+# 向下兼容别名引用
+IcpTaskOverviewCount = IcpTaskStatistics
 
 
 @ns.route('/tyc_check')

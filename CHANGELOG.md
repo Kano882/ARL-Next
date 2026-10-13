@@ -4,6 +4,33 @@
 
 ---
 
+## [v1.4.1] - 2026-10-13
+
+### 🚀 新增功能
+- **Nuclei 漏洞探测与 PoC 资产治理引擎**：新增独立 Nuclei PoC 管理体系（`NucleiManage.vue`、`backend/app/routes/nuclei.py`），支持官方社区模板库定时/离线同步、自定义 PoC 上传与增删改查；建立模板误报黑名单拦截与自动排除机制（`nuclei_blacklist`），与底层扫描调度引擎（`nuclei_scan.py`）深度打通。
+- **GitHub 威胁情报雷达异步解耦与并发治理**：威胁监控（CVE、安全工具、白帽子动态）任务执行全面解耦为 Celery 异步任务模型（`github_threat_monitor.py`），引入基于 MongoDB CAS 状态锁（`is_running`）的防重入并发控制；前端（`GithubManage.vue`）即时联动呈现运行态监控指标与交互式刷新。
+- **资产任务完成推送纯净结构化重构**：资产任务完成消息推送服务全面重构（`backend/app/utils/push.py`），剥离混杂 Markdown 渲染语法并升级为标准结构化统计概要，提升各消息推送终端（飞书、钉钉、企业微信、Server酱等）的可读性与格式一致性。
+- **全链路资产画像 IP 维度 CDN 属性增强**：在 `ChainDrawer.vue` 资产画像侧边抽屉中穿透识别并呈现 IP 级别的 CDN 标签与服务商属性，提升源站定位与网络资产辨识精度。
+
+### 🛠️ 性能与重构
+- **任务概览单 RPC 聚合指标优化与防重复加载**：重构资产任务与企业任务列表统计计数链路，合并为单 RPC 状态聚合请求（`task_statistics.py`、`taskStatistics.js`），消除任务新建与生命周期变更操作后的冗余重复请求，收敛页面初次挂载与 KeepAlive 激活时的重复打点与网络开销 (PR #60, Issue #55)。
+- **调度中心与资产视图收敛整合及死代码清理**：将旧有零散的资产监控与调度中心整合至统一的计划任务管理视图（`PlanningTasks.vue`），物理清理调用链废弃的视图文件（`AssetMonitor.vue`、`GitHubMonitorInfo.vue`、`GitHubTasksInfo.vue`）及对应废弃路由，精简路由注册表与前端打包产物体积。
+- **策略配置交互全流程重构与边界防御**：重构策略编辑与详情页面（`PolicyDetail.vue`），精简 Nuclei 策略面板并移除低效的手工标签与冗余输入；支持动态精准更新策略中的 `nuclei_config`；前端样式与交互规范全面对齐 Ant Design Vue 现代体系。
+- **多 Tab 状态持久化与插件服务加载状态流转优化**：优化 `useTabStateCache.js` 多 Tab 状态记忆机制，修复 Python 插件服务在分页切换与多 Tab 复用时的加载死锁与状态脱节异常。
+
+### 🐛 问题修复与加固
+- **工信部 ICP 测绘任务删除拦截与风控熔断**：企业测绘任务删除增设活跃状态前置拦截保护；工信部接口发生频控或风控封禁时自动触发熔断降级与级联解绑保护，规避任务死锁与资产脏写 (`backend/app/routes/icp.py`)。
+- **失联与 OOM 僵尸任务日志收敛诊断**：完善针对 Worker 进程因 OOM 或意外终止导致的任务状态失联诊断机制，系统日志收敛告警并更新任务状态 (`scheduler.py`)。
+- **FOFA 客户端运行时配置防污染修复**：修复运行时合并用户参数时就地修改全局插件配置字典的副作用缺陷，保障高并发多任务场景下的配置隔离与一致性 (PR #52, `fofaClient.py`)。
+- **字典上传 TTL 自动清理生效**：修复历史整型时间戳无法触发 MongoDB 原生 TTL 索引清理的问题，平滑迁移至绝对 `expire_at` (BSON Date) 与 TTL=0 自动过期 (PR #53, `dict_upload.py`)。
+- **策略动态更新缺陷修复**：修复 `policy/edit` 接口中 `nuclei_config` 字典无法被动态更新的问题。
+
+### 🛡️ 安全与配置
+- **数据库平滑演进与复合唯一索引防崩**：在 `arlupdate.py` 中为 `nuclei_template`、`nuclei_blacklist` 建立安全联合唯一索引并内置基于聚合管道的动态去重降级机制；增设 `normalize_threat_radar_configs` 自动初始化系统威胁雷达配置与自愈重启状态；增设 `update_policy_schema` 自动物理清理死字段（`scope_config`、`site_capture`）并双向对齐服务检测配置。
+- **部署容错与规范化技术文档校准**：更新 `README.md`、`README_en.md` 与 MCP 服务文档，客观严谨校准架构描述、MCP 能力规范与部署脚本容错，消除不可证伪断言。
+
+---
+
 ## [v1.4.0] - 2026-09-24
 
 ### 🚀 新增功能

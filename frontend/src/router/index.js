@@ -48,11 +48,9 @@ const routes = [
                 meta: { title: '资产搜索' } // 可选：如果有面包屑或页面标题依赖 meta，可以加上
             },
             {
-                // 🚨 核心修改：将 '/asset-monitor' 改为 '/assetsMonitor'
+                // 调度中心整合：/assetsMonitor 平滑重定向至 /planningTasks?tab=monitor
                 path: '/assetsMonitor',
-                name: 'AssetMonitor',
-                component: () => import('../views/AssetMonitor.vue'),
-                meta: { title: '资产监控' }
+                redirect: '/planningTasks?tab=monitor'
             },
             {
                 // 🚨 核心修改：将 '/asset-scope' 改为 '/group'
@@ -97,7 +95,7 @@ const routes = [
                 path: '/planningTasks', // 请确保这和你菜单配置的路径一致
                 name: 'PlanningTasks',
                 component: () => import('../views/PlanningTasks.vue'),
-                meta: { title: '计划任务' }
+                meta: { title: '计划与调度' }
             },
 
 
@@ -108,36 +106,10 @@ const routes = [
                 meta: { title: 'GitHub监控' }
             },
             {
-                path: '/GitHubTasks/GitHubTasksInfo', // 这个路径必须和列表页跳转时写的一模一样
-                name: 'GitHubTasksInfo',
-                component: () => import('../views/GitHubTasksInfo.vue'), // 这里的组件文件名大小写必须和实际文件一字不差！
-                meta: { title: 'GitHub 任务详情' }
-            },
-            {
-                path: '/GitHubMonitor/GitHubMonitorInfo', // 这个路径必须和列表页跳转时写的一模一样
-                name: 'GitHubMonitorInfo',
-                component: () => import('../views/GitHubMonitorInfo.vue'), // 这里的组件文件名大小写必须和实际文件一字不差！
-                meta: { title: 'GitHub 监控详情' }
-            },
-            {
                 path: '/systemSettings',
                 name: 'SystemSettings',
                 component: () => import('../views/SystemSettings.vue'),
                 meta: { title: '系统设置' }
-            },
-            {
-                path: '/assetRecon',
-                name: 'AssetRecon',
-                redirect: to => {
-                    return { path: '/taskList', query: { tab: 'enterprise', ...to.query } };
-                }
-            },
-            {
-                path: '/assetRecon/assetDetail',
-                name: 'AssetReconDetail',
-                redirect: to => {
-                    return { path: '/taskList/taskDetail', query: { task_type: 'icp', ...to.query } };
-                }
             }
         ]
 

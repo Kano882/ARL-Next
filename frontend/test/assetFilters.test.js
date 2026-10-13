@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import { parse, compileScript } from 'vue/compiler-sfc';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import dayjs from 'dayjs';
 import { buildAssetFilterParams, normalizeHttpStatuses } from '../src/utils/assetFilters.js';
 import { serializeSearchForm, deserializeSearchForm } from '../src/utils/useTabStateCache.js';
@@ -19,7 +19,7 @@ function sourceBindings(file) {
   for (const node of scriptSetupAst) {
     if (node.type === 'VariableDeclaration') {
       for (const item of node.declarations) {
-        if (item.id.type === 'Identifier') bindings[item.id.name] = descriptor.scriptSetup.content.slice(item.init.start, item.init.end);
+        if (item.id.type === 'Identifier' && item.init) bindings[item.id.name] = descriptor.scriptSetup.content.slice(item.init.start, item.init.end);
       }
     }
   }
@@ -30,13 +30,14 @@ function pageFixture(name, tab = 'site') {
   const { bindings } = sourceBindings(`views/${name}.vue`);
   const calls = [];
   const notices = [];
-  const ref = value => ({ value });
   const context = vm.createContext({
-    reactive: value => value, buildAssetFilterParams,
+    reactive: value => value, computed, buildAssetFilterParams,
+    serviceEngineType: ref('nmap'), columns: ref([]), lastFetchedPage: 1, lastFetchedSize: 20,
     activeTab: ref(tab), searchForm: ref(tab === 'site' ? { status: ['403', '200'], title: 'admin' } : { status_code: ['403', '200'], title: 'admin' }),
     pagination: { current: 2, pageSize: 20, total: 2 }, taskId: ref('task-a'), scope_id: ref('scope-a'), targetName: ref('fixture'),
     loading: ref(false), dataSource: ref([]), selectedRowKeys: ref([]), hasSelected: ref(false), asmCounts: {},
-    tabCache: { updateMemoryCache() {}, saveCurrentTab() {}, resetTabState() {} },
+    tabCache: { updateMemoryCache() {}, saveCurrentTab() {}, resetTabState() {},
+      getTabSearchForm: () => ({}), applyTabOperators() {}, getTabPage: () => 1, getMemoryCache: () => null },
     request: { async get(url, options) {
       calls.push({ url, ...plain(options) });
       if (url === '/policy/') return { code: 200, items: [] };
@@ -50,6 +51,7 @@ function pageFixture(name, tab = 'site') {
     riskVisible: ref(false), selectedRiskTargets: ref([]), currentTargetCount: ref(0), riskModalVisible: ref(false)
   });
   vm.runInContext(`var tabConfig = ${bindings.tabConfig};`, context);
+  vm.runInContext(`var effectiveTab = ${bindings.effectiveTab};`, context);
   vm.runInContext(`var fetchData = ${bindings.fetchData};`, context);
   const invoke = async name => {
     assert.ok(bindings[name], `Missing original function: ${name}`);
@@ -168,5 +170,53 @@ for (const name of ['AssetSearch', 'TaskDetail', 'GroupAssetsDetail']) {
     await fixture.invoke('fetchData');
     assert.equal(fixture.calls.length, 0);
     assert.equal(fixture.notices.filter(item => item.key === 'error').length, 1);
+  });
+}
+
+for (const name of ['AssetSearch', 'TaskDetail', 'GroupAssetsDetail']) {
+  test(`${name}: switching service engines uses effective tab and restores that engine's filters`, async () => {
+    const fixture = pageFixture(name, 'service');
+    fixture.context.tabCache.getTabSearchForm = tab => tab === 'npoc_service'
+      ? { host: '192.0.2.1', port: 443, scheme: 'https', status: ['200'], service_name: 'ignored' }
+      : { service_name: 'http', 'service_info.ip': '192.0.2.2', host: 'ignored', status: ['403'] };
+    fixture.context.tabCache.getTabPage = () => 3;
+    fixture.context.serviceEngineType.value = 'npoc';
+    await fixture.invoke('onServiceEngineChange');
+    assert.equal(fixture.calls[0].url, fixture.context.tabConfig.npoc_service.url);
+    assert.equal(fixture.calls[0].params.host, '192.0.2.1');
+    assert.equal(fixture.calls[0].params.port, 443);
+    assert.equal(fixture.calls[0].params.page, 3);
+    assert.ok(!('service_name' in fixture.calls[0].params));
+    assert.ok(!('status__in' in fixture.calls[0].params));
+    await fixture.invoke('handleExport');
+    if (fixture.context.tabConfig.npoc_service.exportUrl) {
+      assert.equal(fixture.calls[1].url, fixture.context.tabConfig.npoc_service.exportUrl);
+      assert.equal(fixture.calls[1].params.host, '192.0.2.1');
+    } else {
+      assert.equal(fixture.calls.length, 1);
+    }
+    fixture.context.serviceEngineType.value = 'nmap';
+    await fixture.invoke('onServiceEngineChange');
+    const nmapCall = fixture.calls.at(-1);
+    assert.equal(nmapCall.url, fixture.context.tabConfig.service.url);
+    assert.equal(nmapCall.params.service_name, 'http');
+    assert.equal(nmapCall.params['service_info.ip'], '192.0.2.2');
+    assert.ok(!('host' in nmapCall.params));
+    assert.equal(fixture.notices.filter(item => item.key === 'error').length, 0);
+  });
+
+  test(`${name}: a response from the previous service engine cannot replace the current data`, async () => {
+    const fixture = pageFixture(name, 'service');
+    let finishOld;
+    fixture.context.request.get = url => url === fixture.context.tabConfig.service.url
+      ? new Promise(resolve => { finishOld = resolve; })
+      : Promise.resolve({ code: 200, total: 1, items: [{ id: 'current-engine' }] });
+    const oldRequest = fixture.invoke('fetchData');
+    fixture.context.serviceEngineType.value = 'npoc';
+    await fixture.invoke('fetchData');
+    finishOld({ code: 200, total: 9, items: [{ id: 'old-engine' }] });
+    await oldRequest;
+    assert.deepEqual(plain(fixture.context.dataSource.value), [{ id: 'current-engine' }]);
+    assert.equal(fixture.context.pagination.total, 1);
   });
 }

@@ -333,13 +333,19 @@ ARL-Next 支持 **Web 管理后台一键热更新**（在「系统设置」中�
 
 | 操作 | 方法及路径 | 参数 |
 | --- | --- | --- |
-| 查询任务 | `GET /api/task/` | 可选查询参数 `target`、`status`、`page`、`size` |
+| 查询任务 | `GET /api/task/` | 可选查询参数 `target`、`status`、`page`、`size`；`include_statistics=1` 附带全局状态统计 |
+| 只查扫描任务统计 | `GET /api/task/statistics` | 返回全局状态数量，不加载任务列表 |
+| 只查企业查询统计 | `GET /api/icp/task/statistics` | 返回企业查询任务的全局状态数量 |
 | 停止单个任务 | `GET /api/task/stop/<task_id>` | 路径中的任务 ID；**这是会改变任务状态的操作** |
 | 批量停止 | `POST /api/task/batch_stop/` | 以接口文档所示请求体为准 |
 | 删除任务 | `POST /api/task/delete/` | JSON：`{"task_id": ["<task_id>"], "del_task_data": false}` |
 | 重启任务 | `POST /api/task/restart/` | JSON：`{"task_id": ["<task_id>"]}` |
 
 删除接口只接受状态为 `done`、`stop` 或 `error` 的任务；其他状态返回业务码 `104`（“任务运行中”）。如需删除，先核对任务状态，必要时通过停止接口结束任务，再调用删除。停止接口使用 **GET** 是现有实现，不应将它误认为只读查询；也不要猜测使用 `DELETE /api/task/<id>` 或 `POST /api/task/stop/`。
+
+`GET /api/task/?include_statistics=1` 和 `GET /api/icp/task?include_statistics=1` 在列表响应中增加 `statistics`，包含 `total`、`running`、`waiting`、`done`、`error`、`stop`、`active` 和 `abnormal`。`active` 为运行中与等待之和，`abnormal` 为失败与停止之和；扫描任务的 `running` 包含各扫描阶段状态。统计按对应任务集合全局计算，不随列表筛选变化，列表原有 `total` 仍为筛选后的数量。单独统计接口以 `data` 返回相同结构，并使用现有 Token 鉴权。
+
+未传 `include_statistics=1` 时保持原列表响应。统计失败时，列表仍可返回，附带 `statistics_error=true` 并省略 `statistics`；客户端应保留之前的统计，避免把失败显示成零任务。
 
 ### 查询结果的命名空间
 

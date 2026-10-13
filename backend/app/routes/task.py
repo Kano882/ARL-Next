@@ -8,6 +8,7 @@ from app.modules import TaskStatus, ErrorMsg, TaskSyncStatus, CeleryAction, Task
 from app.helpers import get_options_by_policy_id, submit_task_task,\
     submit_risk_cruising, get_scope_by_scope_id, check_target_in_scope
 from app.helpers.task import get_task_data, restart_task
+from app.utils.task_statistics import get_task_statistics, attach_task_statistics
 
 
 # 1. 成立“任务部门”：在 API 中划分出一个独立的命名空间 (Namespace)，
@@ -26,6 +27,7 @@ base_search_task_fields = {
     'name': fields.String(required=False, description="任务名"),
     'target': fields.String(description="任务目标"),
     'status': fields.String(description="任务状态"),
+    'include_statistics': fields.Integer(description="设为 1 时附带全局任务状态统计"),
     '_id': fields.String(description="任务ID"),
     'task_tag': fields.String(description="监控任务和侦查任务tag"),
 
@@ -139,6 +141,7 @@ class ARLTask(ARLResource): # 继承我们在阶段一拆解过的“大基类�
         """
         # 1. 提取参数：获取前端传来的页码、过滤条件（比如任务状态、任务名字）
         args = self.parser.parse_args()
+        include_statistics = args.pop('include_statistics', 0) == 1
 
         # 2. 一键查库：调用基类强大的 build_data 方法，
         # 自动完成“翻译Mongo语句、分页、查 task 表、包装”一条龙服务！
@@ -160,7 +163,11 @@ class ARLTask(ARLResource): # 继承我们在阶段一拆解过的“大基类�
                     except Exception as e:
                         logger.error(f"Failed to compute or auto-heal task statistic for {task_id}: {e}")
 
-        # 4. 直接把查到的标准格式数据返回给前端
+        # 4. 可选附带全局状态统计
+        if include_statistics:
+            attach_task_statistics(data, utils.conn_db('task'), logger, include_stage_statuses=True)
+
+        # 5. 直接把查到的标准格式数据返回给前端
         return data
 
 
@@ -684,6 +691,29 @@ class TaskRestart(ARLResource):
             "task_id": task_id_list,
             "new_task_id": new_task_id_list
         })
+
+
+# ==========================================
+# 接口 D：任务全局 4 维指标统计 (GET /statistics 或 /overview_count)
+# ==========================================
+@ns.route('/statistics')
+@ns.route('/statistics/')
+@ns.route('/overview_count')
+@ns.route('/overview_count/')
+class TaskStatistics(ARLResource):
+    @auth
+    def get(self):
+        """仅返回全局状态数量，运行中包含扫描阶段状态。"""
+        try:
+            return utils.build_ret(ErrorMsg.Success, get_task_statistics(utils.conn_db('task'), include_stage_statuses=True))
+        except Exception:
+            logger.exception('Failed to aggregate task status statistics')
+            return utils.build_ret(ErrorMsg.Error, {'error': '获取任务统计失败'})
+
+
+# 向下兼容别名引用
+TaskOverviewCount = TaskStatistics
+
 
 
 
