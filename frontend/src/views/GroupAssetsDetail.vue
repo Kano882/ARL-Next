@@ -42,7 +42,10 @@
                   <bank-outlined class="meta-icon" />
                 </span>
               </a-tooltip>
-              <a-tag v-if="taskStatusLabel" :color="taskStatusColor" class="hero-mini-tag">
+              <a-tag v-if="scopeUpdatingTaskId" color="processing" class="hero-mini-tag">
+                <sync-outlined :spin="true" style="margin-right: 3px;" /> 测绘更新中
+              </a-tag>
+              <a-tag v-else-if="taskStatusLabel" :color="taskStatusColor" class="hero-mini-tag">
                 {{ taskStatusLabel }}
               </a-tag>
               <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
@@ -721,12 +724,13 @@
       :task-id="boundIcpTaskId"
       :scope-id="scope_id"
       :enterprise-name="scopeEnterpriseName"
+      :updating-task-id="scopeUpdatingTaskId"
       :hide-header="true"
       :sticky-top-offset="heroHeight"
       @taskLoaded="handleOsintLoaded"
       @synced="handleOsintSynced"
       @openBind="openBindModal"
-      @refreshed="(newTid) => { if (newTid) { boundIcpTaskId = newTid; fetchBoundTaskDetail(newTid); } }"
+      @refreshed="(newTid) => { if (newTid) { boundIcpTaskId = newTid; scopeUpdatingTaskId = ''; fetchBoundTaskDetail(newTid); fetchScopeMeta(); } }"
     />
     <div v-else class="osint-unbound-box">
       <a-empty description="尚未关联企业主体" />
@@ -980,7 +984,8 @@ import {
   DeleteOutlined,
   RocketOutlined,
   PlusOutlined,
-  RedoOutlined
+  RedoOutlined,
+  SyncOutlined
 } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { createTabStateCache } from '../utils/useTabStateCache';
@@ -1030,6 +1035,7 @@ watch(() => route.query.view, (newVal) => {
 
 const osintPanelRef = ref(null);
 const boundIcpTaskId = ref('');
+const scopeUpdatingTaskId = ref('');
 const scopeHasIncrement = ref(false);
 const scopeGroupName = ref('');
 const scopeType = ref('');
@@ -1197,6 +1203,7 @@ const fetchScopeMeta = async () => {
     if (res && res.code === 200 && res.items && res.items.length > 0) {
       const item = res.items[0];
       boundIcpTaskId.value = item.synced_icp_task_id || '';
+      scopeUpdatingTaskId.value = item.updating_icp_task_id || '';
       scopeEnterpriseName.value = item.enterprise_name || item.name || '';
       scopeHasIncrement.value = !!item.has_increment;
       scopeGroupName.value = item.group_name || '';

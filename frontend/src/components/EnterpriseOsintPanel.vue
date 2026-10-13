@@ -11,10 +11,10 @@
           <a-badge v-if="hasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
-            <a-button type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
-              <template #icon><sync-outlined :spin="refreshLoading" /></template>
-              更新主体资产
+          <a-tooltip :title="isUpdating ? '主体资产正在后台更新测绘中...' : '重新抓取企业最新备案、APP与投资数据，比对发现增量资产'">
+            <a-button type="primary" size="small" :loading="refreshLoading || isUpdating" :disabled="isUpdating" @click="handleRefreshTask">
+              <template #icon><sync-outlined :spin="refreshLoading || isUpdating" /></template>
+              {{ isUpdating ? '正在更新主体...' : '更新主体资产' }}
             </a-button>
           </a-tooltip>
         </div>
@@ -28,6 +28,17 @@
       class="osint-sticky-control-box"
       :style="{ top: (props.stickyTopOffset || 0) + 'px' }"
     >
+      <!-- 测绘更新中顶部平滑提示条 -->
+      <div v-if="isUpdating" class="osint-updating-banner">
+        <div class="updating-banner-content">
+          <sync-outlined :spin="true" class="updating-spin-icon" />
+          <span class="updating-banner-text">
+            <b>主体资产测绘更新中</b>：后台正在抓取企业最新工商、备案与生态资产<span v-if="updateElapsed > 0">（已执行 {{ updateElapsed }} 秒）</span>，当前视图完整保留历史快照。测绘完成后将自动切换并比对增量资产。
+          </span>
+        </div>
+        <a-tag color="processing" class="updating-banner-tag">正在比对增量</a-tag>
+      </div>
+
       <!-- 维度 Tabs 导航 (微徽标胶囊风格) -->
       <a-tabs v-model:activeKey="activeTab" type="card" size="small" class="arl-detail-tabs osint-tabs-nav" @change="onTabChange">
         <a-tab-pane v-for="t in osintTabList" :key="t.key">
@@ -66,10 +77,10 @@
 
           <div class="toolbar-right">
             <template v-if="activeTab !== 'log'">
-              <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
-                <a-button type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
-                  <template #icon><sync-outlined :spin="refreshLoading" /></template>
-                  更新主体资产
+              <a-tooltip :title="isUpdating ? '主体资产正在后台更新测绘中...' : '重新抓取企业最新备案、APP与投资数据，比对发现增量资产'">
+                <a-button type="primary" size="small" :loading="refreshLoading || isUpdating" :disabled="isUpdating" @click="handleRefreshTask">
+                  <template #icon><sync-outlined :spin="refreshLoading || isUpdating" /></template>
+                  {{ isUpdating ? '正在更新主体...' : '更新主体资产' }}
                 </a-button>
               </a-tooltip>
               <a-tooltip title="更换当前资产组绑定的企业主体并重新拉取全域资产">
@@ -468,7 +479,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
-import { message } from 'ant-design-vue';
+import { message, notification } from 'ant-design-vue';
 import {
   SearchOutlined,
   DownloadOutlined,
@@ -510,10 +521,89 @@ const props = defineProps({
   stickyTopOffset: {
     type: Number,
     default: 120
+  },
+  updatingTaskId: {
+    type: String,
+    default: ''
   }
 });
 
 const emit = defineEmits(['synced', 'refreshed', 'taskLoaded', 'update:taskId', 'openBind']);
+
+const activeUpdatingTaskId = ref('');
+const isUpdating = ref(false);
+const updateElapsed = ref(0);
+let updateTimer = null;
+let elapsedTimer = null;
+
+const stopUpdatePolling = () => {
+  if (updateTimer) {
+    clearInterval(updateTimer);
+    updateTimer = null;
+  }
+  if (elapsedTimer) {
+    clearInterval(elapsedTimer);
+    elapsedTimer = null;
+  }
+};
+
+const startUpdatePolling = (targetUpdatingId) => {
+  if (!targetUpdatingId) return;
+  stopUpdatePolling();
+  isUpdating.value = true;
+  activeUpdatingTaskId.value = targetUpdatingId;
+  updateElapsed.value = 0;
+  elapsedTimer = setInterval(() => {
+    updateElapsed.value += 1;
+  }, 1000);
+
+  updateTimer = setInterval(async () => {
+    try {
+      const res = await request.get('/icp/task', { params: { _id: targetUpdatingId } });
+      if (res && res.code === 200 && res.items && res.items.length > 0) {
+        const task = res.items[0];
+        if (task.status === 'done') {
+          stopUpdatePolling();
+          isUpdating.value = false;
+          activeUpdatingTaskId.value = '';
+          notification.success({
+            message: '主体资产更新完成',
+            description: `企业生态资产画像已更新至最新版本，共检索到 ${task.statistic?.asset_cnt || 0} 项资产记录。`,
+            duration: 4
+          });
+          emit('update:taskId', targetUpdatingId);
+          emit('refreshed', targetUpdatingId);
+          fetchTaskDetail();
+          fetchAssets(1, pagination.pageSize);
+        } else if (task.status === 'error' || task.status === 'stop') {
+          stopUpdatePolling();
+          isUpdating.value = false;
+          activeUpdatingTaskId.value = '';
+          notification.error({
+            message: '主体资产更新未完成',
+            description: task.error_msg || '后台测绘任务执行异常，已为您保留当前存量资产。',
+            duration: 5
+          });
+          fetchTaskDetail();
+        }
+      }
+    } catch (e) {
+      console.warn('轮询更新任务状态失败', e);
+    }
+  }, 3000);
+};
+
+watch(() => props.updatingTaskId, (newVal) => {
+  if (newVal && !isUpdating.value) {
+    startUpdatePolling(newVal);
+  }
+}, { immediate: true });
+
+watch(isUpdating, () => {
+  nextTick(() => {
+    updateOsintHeight();
+  });
+});
 
 const osintControlRef = ref(null);
 const isAdvancedFilterOpen = ref(true);
@@ -554,6 +644,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopLogPolling();
+  stopUpdatePolling();
   if (osintResizeObserver) osintResizeObserver.disconnect();
 });
 
@@ -662,18 +753,16 @@ const handleSyncSuccess = (res) => {
 };
 
 const handleRefreshTask = async () => {
-  if (!props.taskId) return;
+  if (!props.taskId || isUpdating.value) return;
   refreshLoading.value = true;
   try {
     const res = await request.get(`/icp/restart/${props.taskId}`);
     if (res.code === 200) {
-      message.success('已触发主体资产更新任务');
-      const newTaskId = res.data?.task_id;
+      message.success('已触发主体资产更新任务，正在后台测绘与比对');
+      const newTaskId = res.data?.task_id || res.data?.updating_task_id;
       if (newTaskId) {
-        emit('update:taskId', newTaskId);
+        startUpdatePolling(newTaskId);
       }
-      fetchTaskDetail();
-      emit('refreshed', newTaskId);
     } else {
       message.error(res.message || '触发失败');
     }
@@ -1137,6 +1226,8 @@ watch(() => props.taskId, (newVal) => {
 defineExpose({
   handleRefreshTask,
   refreshLoading,
+  isUpdating,
+  activeUpdatingTaskId,
   queryCounts,
   taskRecord,
   fetchTaskDetail
@@ -1144,6 +1235,38 @@ defineExpose({
 </script>
 
 <style scoped>
+/* ================= 测绘更新中顶部平滑提示条 ================= */
+.osint-updating-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: #e6f7ff;
+  border-bottom: 1px solid #91d5ff;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  font-size: 13px;
+  color: #1890ff;
+}
+
+.updating-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.updating-spin-icon {
+  font-size: 14px;
+}
+
+.updating-banner-text {
+  color: var(--arl-text-color, #1f2225);
+}
+
+.updating-banner-tag {
+  margin: 0;
+}
+
 /* ================= OSINT 吸顶控制区 (与 ASM 完全对齐) ================= */
 .osint-sticky-control-box {
   position: sticky;

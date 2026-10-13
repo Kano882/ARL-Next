@@ -738,21 +738,31 @@ def _restart_single_icp_task(task_id: str):
         task['end_time'] = "-"
         task['statistic'] = {"asset_cnt": 0}
         task['error_msg'] = ""
+        task['prev_task_id'] = str(task_id)
 
         # 插入新任务
         result = conn_db('icp_task').insert_one(task)
         new_task_id = str(result.inserted_id)
 
-        # 若原任务关联了资产组，同步更新资产组关联至新任务
+        # 若原任务关联了资产组，记录 updating_icp_task_id，保持原有主指针 synced_icp_task_id 不变
         synced_scope_id = task.get('synced_scope_id')
+        if not synced_scope_id:
+            scope_doc = conn_db('asset_scope').find_one({"synced_icp_task_id": str(task_id)})
+            if scope_doc:
+                synced_scope_id = str(scope_doc['_id'])
+                conn_db('icp_task').update_one(
+                    {"_id": result.inserted_id},
+                    {"$set": {"synced_scope_id": synced_scope_id}}
+                )
+
         if synced_scope_id:
             try:
                 conn_db('asset_scope').update_one(
                     {"_id": bson.ObjectId(synced_scope_id)},
-                    {"$set": {"synced_icp_task_id": new_task_id}}
+                    {"$set": {"updating_icp_task_id": new_task_id}}
                 )
             except Exception as scope_err:
-                logger.warning(f"Failed to update asset_scope synced_icp_task_id: {scope_err}")
+                logger.warning(f"Failed to update asset_scope updating_icp_task_id: {scope_err}")
 
         # 格式化 query_type 确保为 list
         query_type = task.get("query_type", ["web"])
@@ -791,9 +801,18 @@ def _restart_single_icp_task(task_id: str):
         except Exception as e:
             logger.error(f"Failed to trigger osint-service: {e}")
             conn_db('icp_task').update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+            # 若调度失败，同步清理 updating_icp_task_id 熔断回滚
+            if synced_scope_id:
+                try:
+                    conn_db('asset_scope').update_one(
+                        {"_id": bson.ObjectId(synced_scope_id)},
+                        {"$unset": {"updating_icp_task_id": ""}}
+                    )
+                except Exception:
+                    pass
             return False, "trigger_failed", {"task_id": task_id, "error": f"微服务调度失败: {e}"}
 
-        return True, "success", {"old_task_id": task_id, "new_task_id": new_task_id}
+        return True, "success", {"old_task_id": task_id, "new_task_id": new_task_id, "updating_task_id": new_task_id}
     except Exception as e:
         logger.error(f"Restart task {task_id} failed: {e}")
         return False, "error", {"task_id": task_id, "error": str(e)}
@@ -814,7 +833,12 @@ class IcpTaskRestart(ARLResource):
     def _restart(self, task_id):
         ok, reason, res = _restart_single_icp_task(task_id)
         if ok:
-            return build_ret(ErrorMsg.Success, {"task_id": res["new_task_id"]})
+            return build_ret(ErrorMsg.Success, {
+                "task_id": res["new_task_id"],
+                "old_task_id": res.get("old_task_id"),
+                "updating_task_id": res["new_task_id"],
+                "status": "waiting"
+            })
         if reason == "not_found":
             return build_ret(ErrorMsg.NotFoundTask, {"task_id": task_id})
         if reason == "running":
