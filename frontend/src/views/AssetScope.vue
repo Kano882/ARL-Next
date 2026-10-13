@@ -179,35 +179,6 @@
         position: 'relative'
       }"
     >
-      <!-- 后台完成待建组的测绘任务横幅 -->
-      <div v-if="completedReconTasks.length > 0" style="margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px;">
-        <a-alert
-          v-for="task in completedReconTasks"
-          :key="task.taskId"
-          type="success"
-          show-icon
-          closable
-          @close="dismissPendingReconTask(task.taskId)"
-          style="border-radius: 6px; box-shadow: 0 2px 8px rgba(82, 196, 26, 0.1);"
-        >
-          <template #message>
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-              <span>
-                <b>企业测绘已完成</b>：目标【<b>{{ task.name || task.target }}</b>】已完成天眼查与工信部联合测绘，共发现 <b>{{ (task.domains || []).length }}</b> 个网站域名
-              </span>
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <a-button type="primary" size="small" @click="resumeWizardFromCompletedTask(task)">
-                  立即挑选建组 &rarr;
-                </a-button>
-                <a-button size="small" @click="dismissPendingReconTask(task.taskId)">
-                  忽略
-                </a-button>
-              </div>
-            </div>
-          </template>
-        </a-alert>
-      </div>
-
       <div class="arl-scope-main-card">
         <!-- 头部吸附操作区 (含标题、全局搜索与批量操作) -->
         <div ref="actionBarRef" class="arl-scope-action-bar">
@@ -216,7 +187,7 @@
           <div class="scope-header-top">
             <div class="scope-title-area">
               <a-breadcrumb v-if="isSidebarCollapsed">
-                <a-breadcrumb-item>资产分组</a-breadcrumb-item>
+                <a-breadcrumb-item>资产组</a-breadcrumb-item>
                 <a-breadcrumb-item>
                   <a-dropdown :getPopupContainer="getBodyContainer">
                     <span class="group-switch-trigger">
@@ -238,9 +209,42 @@
                 <span class="scope-total-tag" v-if="pagination.total !== undefined">共 {{ pagination.total }} 个资产组</span>
               </div>
             </div>
-            <div class="scope-header-actions">
+            <div class="scope-header-actions" style="display: flex; align-items: center; gap: 12px;">
+              <!-- 后台正在自动建组中的任务轻量状态标签 -->
+              <a-popover v-if="runningReconTasks.length > 0" placement="bottomRight">
+                <template #title>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600;">企业测绘自动建组队列 ({{ runningReconTasks.length }})</span>
+                  </div>
+                </template>
+                <template #content>
+                  <div style="min-width: 280px; max-width: 360px;">
+                    <div 
+                      v-for="t in runningReconTasks" 
+                      :key="t.taskId"
+                      style="padding: 8px 0; border-bottom: 1px solid var(--arl-border-color); display: flex; justify-content: space-between; align-items: center; gap: 10px;"
+                    >
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                          {{ t.name || t.target }}
+                        </div>
+                        <div style="font-size: 11px; color: var(--arl-text-color); opacity: 0.65; margin-top: 2px;">
+                          {{ t.engine === 'icp' ? '工信部 ICP 检索' : '天眼查穿透测绘' }} · 自动建组托管中
+                        </div>
+                      </div>
+                      <a-tag color="processing" style="margin: 0; font-size: 11px;">
+                        <sync-outlined spin /> 测绘中
+                      </a-tag>
+                    </div>
+                  </div>
+                </template>
+                <a-tag color="processing" style="cursor: pointer; padding: 4px 10px; border-radius: 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;">
+                  <sync-outlined spin /> <b>{{ runningReconTasks.length }}</b> 个企业自动测绘中
+                </a-tag>
+              </a-popover>
+
               <a-button type="primary" @click="openAddModal" class="header-action-btn">
-                <PlusOutlined /> 新建资产分组
+                <PlusOutlined /> 新建资产组
               </a-button>
             </div>
           </div>
@@ -310,7 +314,7 @@
           :dataSource="dataSource"
           :columns="columns"
           :pagination="false"
-          :scroll="{ x: 1360 }"
+          :scroll="{ x: 1000 }"
           bordered
           class="arl-scope-table"
           size="middle"
@@ -339,137 +343,130 @@
               <span v-else style="color: var(--arl-text-color); opacity: 0.45;">-</span>
             </template>
 
-            <template v-else-if="column.key === 'scope_array'">
-              <div class="domain-scope-tags-wrapper">
-                <a-tooltip
-                  v-for="(item, idx) in (record._sorted_scopes || record.scope_array || []).slice(0, 5)"
-                  :key="idx"
-                  placement="topLeft"
-                  :getPopupContainer="getBodyContainer"
-                >
-                  <template #title>
-                    <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
-                      <div><b>目标:</b> {{ item }}</div>
-                      <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
-                      <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
-                        <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
-                        <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
-                        <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
-                        <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
-                          <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
-                            查看企业资产任务详情 &rarr;
-                          </a>
-                        </div>
-                      </template>
-                      <div v-else-if="record.domain_status?.[item]?.sync_time">
-                        <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
-                      </div>
-                    </div>
-                  </template>
-                  <a-tag
-                    closable
-                    class="domain-scope-item-tag"
-                    @close="(e) => { e.preventDefault(); handleRemoveSingleScope(record, item); }"
-                    :style="getDomainTagStyle(record, item)"
+            <template v-else-if="column.key === 'scope_and_stat'">
+              <div class="scope-stat-compact-cell">
+                <!-- 顶行：前两个核心主域 + 总数胶囊 -->
+                <div class="scope-compact-header">
+                  <div class="scope-compact-tags">
+                    <span 
+                      v-for="(item, idx) in (record.scope_array || []).slice(0, 2)" 
+                      :key="idx" 
+                      class="scope-compact-domain"
+                      :title="item"
+                    >
+                      <span class="domain-status-dot" :class="'status-' + getDomainStatus(record, item)"></span>
+                      {{ item }}
+                    </span>
+                  </div>
+                  <a-popover 
+                    v-if="(record.scope_array || []).length > 0" 
+                    placement="bottomLeft" 
+                    :getPopupContainer="getBodyContainer"
+                    trigger="hover"
                   >
-                    <span class="domain-status-dot" :class="'status-' + getDomainStatus(record, item)"></span>
-                    <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: var(--arl-theme-color); margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
-                    <span class="domain-name-text">{{ item }}</span>
-                  </a-tag>
-                </a-tooltip>
-                <a-popover v-if="(record.scope_array || []).length > 5" placement="bottomLeft" :getPopupContainer="getBodyContainer">
-                  <template #content>
-                    <div style="max-width: 440px; max-height: 300px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px;">
-                      <a-tooltip
-                        v-for="(item, idx) in (record._sorted_scopes || record.scope_array || []).slice(5)"
-                        :key="idx"
-                        placement="topLeft"
-                        :getPopupContainer="getBodyContainer"
-                      >
-                        <template #title>
-                          <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
-                            <div><b>目标:</b> {{ item }}</div>
-                            <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
-                            <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
-                              <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
-                              <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
-                              <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
-                              <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
-                                <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
-                                  查看企业资产任务详情 &rarr;
-                                </a>
+                    <template #content>
+                      <div class="scope-popover-panel">
+                        <div class="scope-popover-header">
+                          <span class="scope-popover-title">种子目标清单 ({{ (record.scope_array || []).length }})</span>
+                          <a-button type="link" size="small" class="scope-popover-copy-btn" @click="copyText((record.scope_array || []).join('\n'))">
+                            <copy-outlined /> 复制全部
+                          </a-button>
+                        </div>
+                        <div class="scope-popover-list">
+                          <a-tooltip
+                            v-for="(item, idx) in (record._sorted_scopes || record.scope_array || [])"
+                            :key="idx"
+                            placement="right"
+                            :getPopupContainer="getBodyContainer"
+                          >
+                            <template #title>
+                              <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
+                                <div><b>目标:</b> {{ item }}</div>
+                                <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
+                                <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
+                                  <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
+                                  <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
+                                  <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
+                                  <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
+                                    <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
+                                      查看企业资产任务详情 &rarr;
+                                    </a>
+                                  </div>
+                                </template>
+                                <div v-else-if="record.domain_status?.[item]?.sync_time">
+                                  <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
+                                </div>
                               </div>
                             </template>
-                            <div v-else-if="record.domain_status?.[item]?.sync_time">
-                              <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
+                            <div class="scope-popover-item">
+                              <div class="scope-popover-item-main">
+                                <span class="domain-status-dot" :class="'status-' + getDomainStatus(record, item)"></span>
+                                <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: var(--arl-theme-color); margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
+                                <span class="scope-popover-item-text">{{ item }}</span>
+                              </div>
+                              <span class="scope-popover-item-status" :class="'text-' + getDomainStatus(record, item)">
+                                {{ getDomainStatusLabel(record, item) }}
+                              </span>
                             </div>
-                          </div>
-                        </template>
-                        <a-tag
-                          closable
-                          class="domain-scope-item-tag"
-                          @close="(e) => { e.preventDefault(); handleRemoveSingleScope(record, item); }"
-                          :style="getDomainTagStyle(record, item)"
-                        >
-                          <span class="domain-status-dot" :class="'status-' + getDomainStatus(record, item)"></span>
-                          <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: var(--arl-theme-color); margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
-                          <span class="domain-name-text">{{ item }}</span>
-                        </a-tag>
-                      </a-tooltip>
-                    </div>
-                  </template>
-                  <a-tag class="domain-scope-more-tag">
-                    +{{ record.scope_array.length - 5 }} 更多
-                  </a-tag>
-                </a-popover>
-                <a-tag 
-                  class="domain-scope-add-tag" 
-                  @click="openEditGroupModal(record)"
-                >
-                  <plus-outlined /> 添加
-                </a-tag>
-              </div>
-            </template>
+                          </a-tooltip>
+                        </div>
+                      </div>
+                    </template>
+                    <span class="scope-compact-count-badge">
+                      共 {{ (record.scope_array || []).length }} 个
+                    </span>
+                  </a-popover>
+                  <span v-else style="color: var(--arl-text-color); opacity: 0.45; font-size: 12px;">无目标</span>
+                </div>
 
-            <template v-else-if="column.key === 'domain_stat'">
-              <a-tooltip
-                v-if="record.domain_stat && record.domain_stat.total > 0"
-                placement="top"
-              >
-                <template #title>
-                  <div style="line-height: 1.8;">
-                    <div>总资产范围数: <strong>{{ record.domain_stat.total }}</strong></div>
-                    <div v-if="record.domain_stat.scanning > 0">探测中数量: <strong style="color: #1890ff;">{{ record.domain_stat.scanning }}</strong></div>
-                    <div>已探测数量: <strong style="color: #52c41a;">{{ record.domain_stat.probed }}</strong> ({{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}%)</div>
-                    <div v-if="record.domain_stat.unprobed > 0">待探测数量: <strong style="color: #faad14;">{{ record.domain_stat.unprobed }}</strong></div>
-                    <div v-if="record.domain_stat.error > 0">探测异常数量: <strong style="color: #ff4d4f;">{{ record.domain_stat.error }}</strong></div>
-                  </div>
-                </template>
-                <div class="stat-badge-group">
-                  <span v-if="record.domain_stat.scanning > 0" class="stat-pill-badge badge-scanning">
-                    {{ record.domain_stat.scanning }} 探测中
-                  </span>
-                  <span v-if="record.domain_stat.probed > 0 || (!record.domain_stat.scanning && !record.domain_stat.unprobed)" class="stat-pill-badge badge-probed">
-                    {{ record.domain_stat.probed }} 已测
-                  </span>
-                  <span v-if="record.domain_stat.unprobed > 0" class="stat-pill-badge badge-unprobed">
-                    {{ record.domain_stat.unprobed }} 待测
-                  </span>
-                  <span v-if="record.domain_stat.error > 0" class="stat-pill-badge badge-error">
-                    {{ record.domain_stat.error }} 异常
+                <!-- 底行：微型健康进度条与覆盖率 -->
+                <div v-if="record.domain_stat && record.domain_stat.total > 0" class="scope-compact-progress-row">
+                  <a-tooltip placement="top">
+                    <template #title>
+                      <div style="line-height: 1.8; font-size: 12px;">
+                        <div>总种子数: <strong>{{ record.domain_stat.total }}</strong></div>
+                        <div v-if="record.domain_stat.scanning > 0">探测中: <strong style="color: #1890ff;">{{ record.domain_stat.scanning }}</strong></div>
+                        <div>已探测: <strong style="color: #52c41a;">{{ record.domain_stat.probed }}</strong> ({{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}%)</div>
+                        <div v-if="record.domain_stat.unprobed > 0">待探测: <strong style="color: #faad14;">{{ record.domain_stat.unprobed }}</strong></div>
+                        <div v-if="record.domain_stat.error > 0">探测异常: <strong style="color: #ff4d4f;">{{ record.domain_stat.error }}</strong></div>
+                      </div>
+                    </template>
+                    <div class="scope-mini-progress-bar">
+                      <div 
+                        class="progress-seg probed" 
+                        :style="{ width: ((record.domain_stat.probed / record.domain_stat.total) * 100) + '%' }"
+                      ></div>
+                      <div 
+                        v-if="record.domain_stat.scanning > 0" 
+                        class="progress-seg scanning" 
+                        :style="{ width: ((record.domain_stat.scanning / record.domain_stat.total) * 100) + '%' }"
+                      ></div>
+                      <div 
+                        v-if="record.domain_stat.error > 0" 
+                        class="progress-seg error" 
+                        :style="{ width: ((record.domain_stat.error / record.domain_stat.total) * 100) + '%' }"
+                      ></div>
+                      <div 
+                        v-if="record.domain_stat.unprobed > 0" 
+                        class="progress-seg unprobed" 
+                        :style="{ width: ((record.domain_stat.unprobed / record.domain_stat.total) * 100) + '%' }"
+                      ></div>
+                    </div>
+                  </a-tooltip>
+                  <span class="scope-compact-progress-text">
+                    {{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}% 覆盖
                   </span>
                 </div>
-              </a-tooltip>
-              <span v-else style="color: var(--arl-text-color); opacity: 0.45;">-</span>
+              </div>
             </template>
 
             <template v-else-if="column.key === 'scope_id'">
               <div style="display: flex; align-items: center; gap: 8px;">
                 <a class="scope-id-text" @click="goToDetail(record)">{{ record._id }}</a>
-                <a-tooltip title="复制所有资产范围">
+                <a-tooltip title="复制资产组 ID">
                   <copy-outlined
                     class="copy-id-icon"
-                    @click="copyText(record.scope_array ? record.scope_array.join('\n') : '')"
+                    @click="copyText(record._id)"
                   />
                 </a-tooltip>
               </div>
@@ -477,23 +474,50 @@
 
             <template v-else-if="column.key === 'action'">
               <div class="table-actions-container">
+                <a-button type="link" size="small" class="grid-action-btn btn-theme" @click="goToDetail(record)">
+                  <RightCircleOutlined />进入
+                </a-button>
                 <a-button type="link" size="small" class="grid-action-btn" @click="openEditGroupModal(record)">
                   <EditOutlined />编辑
                 </a-button>
-                <a-button v-if="record.has_increment" type="link" size="small" class="grid-action-btn btn-success" @click="openSyncIncrement(record)">
+                <a-dropdown :getPopupContainer="getBodyContainer">
+                  <a-button type="link" size="small" class="grid-action-btn">
+                    <ScheduleOutlined />调度 <DownOutlined style="font-size: 10px;" />
+                  </a-button>
+                  <template #overlay>
+                    <a-menu>
+                      <a-menu-item key="monitor" @click="openAddMonitorModal(record)">
+                        <DashboardOutlined style="color: #1890ff; margin-right: 6px;" />资产监控扫描
+                      </a-menu-item>
+                      <a-menu-item key="site" @click="openAddSiteMonitorModal(record)">
+                        <GlobalOutlined style="color: #52c41a; margin-right: 6px;" />站点存活监控
+                      </a-menu-item>
+                      <a-menu-item key="wih" @click="openAddWihMonitorModal(record)">
+                        <RadarChartOutlined style="color: #722ed1; margin-right: 6px;" />WIH 监控
+                      </a-menu-item>
+                    </a-menu>
+                  </template>
+                </a-dropdown>
+                <a-button
+                  v-if="record.has_increment"
+                  type="link"
+                  size="small"
+                  class="grid-action-btn btn-success"
+                  @click="openSyncIncrement(record)"
+                  title="发现新增资产，点击同步入库"
+                >
                   <SyncOutlined />增量
                 </a-button>
-                <a-button v-else-if="!record.synced_icp_task_id" type="link" size="small" class="grid-action-btn btn-theme" @click="openBindEnterprise(record)">
-                  <LinkOutlined />绑定企业
-                </a-button>
-                <a-button type="link" size="small" class="grid-action-btn" @click="openAddMonitorModal(record)">
-                  <DashboardOutlined />资产监控
-                </a-button>
-                <a-button type="link" size="small" class="grid-action-btn" @click="openAddSiteMonitorModal(record)">
-                  <GlobalOutlined />站点监控
-                </a-button>
-                <a-button type="link" size="small" class="grid-action-btn" @click="openAddWihMonitorModal(record)">
-                  <RadarChartOutlined />WIH
+                <a-button
+                  v-else-if="!record.synced_icp_task_id"
+                  type="link"
+                  size="small"
+                  class="grid-action-btn"
+                  style="color: #fa8c16;"
+                  @click="openBindEnterprise(record)"
+                  title="尚未绑定企业主体，点击关联"
+                >
+                  <LinkOutlined />绑定
                 </a-button>
                 <a-button type="link" danger size="small" class="grid-action-btn btn-danger" @click="handleSingleDelete(record)">
                   <DeleteOutlined />删除
@@ -518,14 +542,14 @@
         </div>
       </div>
 
-    <!-- 新建资产分组弹窗 -->
+    <!-- 新建资产组弹窗 -->
     <a-modal
       v-model:open="addModalVisible"
-      title="新建资产分组"
-      :width="creationMode === 'wizard' && wizardStep === 2 ? '780px' : '620px'"
+      title="新建资产组"
+      :width="creationMode === 'wizard' && wizardStep === 2 ? '780px' : '640px'"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      :footer="creationMode === 'wizard' ? null : undefined"
+      :footer="creationMode === 'wizard' && wizardStep === 1 ? null : (creationMode === 'wizard' ? null : undefined)"
       @ok="handleAddSubmit"
       :confirmLoading="addLoading"
       okText="确 定"
@@ -534,8 +558,8 @@
     >
       <div style="margin-bottom: 20px; text-align: center;">
         <a-radio-group v-model:value="creationMode" button-style="solid" size="middle">
-          <a-radio-button value="manual">✍️ 手工录入</a-radio-button>
-          <a-radio-button value="wizard">🏢 自动测绘</a-radio-button>
+          <a-radio-button value="wizard">🏢 企业智能测绘建组</a-radio-button>
+          <a-radio-button value="manual">✍️ 手工录入资产</a-radio-button>
         </a-radio-group>
       </div>
 
@@ -575,58 +599,99 @@
         </a-form-item>
       </a-form>
 
-      <!-- 企业测绘向导模式 -->
+      <!-- 企业智能测绘建组模式 -->
       <div v-else-if="creationMode === 'wizard'">
-        <!-- Stage 1: 测绘检索表单 -->
+        <!-- Stage 1: 智能测绘建组表单 -->
         <div v-if="wizardStep === 1">
           <a-spin :spinning="wizardLoading" :tip="wizardLoadingTip">
             <a-form
               ref="wizardFormRef"
               :model="wizardForm"
-              :label-col="{ style: { width: '110px' } }"
-              :wrapper-col="{ style: { width: 'calc(100% - 110px)' } }"
-              style="margin-top: 6px;"
+              :label-col="{ style: { width: '120px' } }"
+              :wrapper-col="{ style: { width: 'calc(100% - 120px)' } }"
+              style="margin-top: 8px;"
             >
+              <!-- 测绘引擎选择 -->
+              <a-form-item label="测绘引擎">
+                <a-radio-group v-model:value="wizardEngine" button-style="solid" size="small">
+                  <a-radio-button value="tyc">🏢 天眼查工商联合测绘 (推荐)</a-radio-button>
+                  <a-radio-button value="icp">🏛️ 工信部官方 ICP 备案</a-radio-button>
+                </a-radio-group>
+              </a-form-item>
+
+              <!-- 引擎动态引导提示 -->
               <a-alert
                 type="info"
                 show-icon
-                style="margin-bottom: 20px; border-radius: 6px;"
+                style="margin-bottom: 16px; border-radius: 6px; font-size: 12px;"
               >
                 <template #message>
-                  <span style="font-weight: 600; font-size: 13px;">天眼查工商联合测绘</span>
-                </template>
-                <template #description>
-                  <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.85; line-height: 1.5;">
-                    通过企业天眼查 ID 穿透投资控股树，并无缝联动工信部官方备案接口进行双轨查重与补全，自动聚合产出完整域名底账。
+                  <span v-if="wizardEngine === 'tyc'" style="color: var(--arl-text-color); line-height: 1.5;">
+                    输入天眼查企业链接或纯数字 GID，系统将全自动深度穿透投资控股树，并联动工信部 ICP 双轨查重，免等待自动纳管建组。
+                  </span>
+                  <span v-else style="color: var(--arl-text-color); line-height: 1.5;">
+                    直接输入企业工商注册全称，系统向工信部官方权威备案库检索，自动归集有效网站域名建组。
                   </span>
                 </template>
               </a-alert>
 
-              <a-form-item
-                label="天眼查 ID"
-                required
-                tooltip="天眼查企业详情页 URL 中的纯数字 ID，例如 https://www.tianyancha.com/company/25174642 中的 25174642"
-              >
-                <a-input
-                  v-model:value="wizardForm.target"
-                  placeholder="请输入天眼查公司 ID（纯数字/字母，例如：25174642）"
-                  allowClear
-                  @pressEnter="startWizardRecon"
-                />
-              </a-form-item>
+              <!-- 输入目标: 天眼查模式 (支持链接与纯数字ID) -->
+              <template v-if="wizardEngine === 'tyc'">
+                <a-form-item
+                  label="天眼查企业"
+                  required
+                  :validateStatus="wizardTargetError ? 'error' : ''"
+                  :help="wizardTargetError"
+                >
+                  <a-input
+                    v-model:value="wizardForm.target"
+                    placeholder="可直接粘贴天眼查链接（如 https://www.tianyancha.com/company/25174642）或纯数字 ID"
+                    allowClear
+                    @change="onTycTargetChange"
+                    @pressEnter="startWizardRecon"
+                  >
+                    <template #prefix><link-outlined style="color: #bfbfbf;" /></template>
+                  </a-input>
+                  <div v-if="parsedTycGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
+                    <check-circle-outlined /> <span>已自动识别天眼查 GID: <b>{{ parsedTycGid }}</b></span>
+                  </div>
+                </a-form-item>
+              </template>
 
+              <!-- 输入目标: 工信部 ICP 模式 (按企业全称) -->
+              <template v-else>
+                <a-form-item
+                  label="企业工商全称"
+                  required
+                  :validateStatus="wizardTargetError ? 'error' : ''"
+                  :help="wizardTargetError"
+                >
+                  <a-input
+                    v-model:value="wizardForm.target"
+                    placeholder="请输入企业工商注册全称（例如：深圳市腾讯计算机系统有限公司）"
+                    allowClear
+                    @change="onTycTargetChange"
+                    @pressEnter="startWizardRecon"
+                  >
+                    <template #prefix><bank-outlined style="color: #bfbfbf;" /></template>
+                  </a-input>
+                </a-form-item>
+              </template>
+
+              <!-- 资产组名称 (选填，留空自动生成) -->
               <a-form-item
-                label="企业全称"
-                tooltip="企业官方工商全称（选填）。若留空，资产组将默认命名为 TYC_公司ID，工信部查重将自动从天眼查解析官方全称"
+                label="资产组名称"
+                tooltip="留空将默认采用企业官方工商全称或 TYC_公司ID 自动命名"
               >
                 <a-input
                   v-model:value="wizardForm.name"
-                  placeholder="请输入企业工商全称（可选，留空默认使用 TYC_公司ID）"
+                  :placeholder="wizardEngine === 'tyc' ? '选填，留空将自动根据企业工商全称命名' : '选填，留空默认与企业全称一致'"
                   allowClear
                   @pressEnter="startWizardRecon"
                 />
               </a-form-item>
 
+              <!-- 所属集团 (选填) -->
               <a-form-item label="所属集团">
                 <a-select
                   v-model:value="wizardForm.group_id"
@@ -640,44 +705,133 @@
                 </a-select>
               </a-form-item>
 
-              <a-row :gutter="16">
-                <a-col :span="12">
-                  <a-form-item
-                    label="投资层级"
-                    :label-col="{ style: { width: '110px' } }"
-                    :wrapper-col="{ style: { width: 'calc(100% - 110px)' } }"
-                  >
-                    <a-input-number
-                      v-model:value="wizardForm.depth"
-                      :min="1"
-                      :max="25"
-                      style="width: 130px;"
-                      addon-after="层"
-                    />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item
-                    label="投资比例"
-                    :label-col="{ style: { width: '85px' } }"
-                    :wrapper-col="{ style: { width: 'calc(100% - 85px)' } }"
-                  >
-                    <a-input-number
-                      v-model:value="wizardForm.invest_ratio"
-                      :min="1"
-                      :max="100"
-                      style="width: 130px;"
-                      addon-after="%"
-                    />
-                  </a-form-item>
-                </a-col>
-              </a-row>
+              <!-- 自动化托管与探测偏好 -->
+              <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 12px 14px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                  <span style="font-weight: 500; font-size: 13px;">⚡ 自动化建组与探测偏好</span>
+                </div>
+                <div style="margin-bottom: 10px;">
+                  <a-checkbox v-model:checked="wizardAutoSync">
+                    <b>测绘完成后自动纳管建组</b>
+                    <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7; margin-left: 6px;">
+                      (推荐，无需盯盘等待，后台完成后自动成组入库)
+                    </span>
+                  </a-checkbox>
+                </div>
+                <div>
+                  <a-checkbox v-model:checked="wizardAutoScan">
+                    <b>建组后立即发起主动探测扫描</b>
+                    <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7; margin-left: 6px;">
+                      (对新发现网站域名自动下发端口与指纹探测)
+                    </span>
+                  </a-checkbox>
+                </div>
 
-              <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
+                <div v-if="wizardAutoScan" style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--arl-border-color);">
+                  <a-row :gutter="12">
+                    <a-col :span="12">
+                      <a-form-item label="扫描策略" :label-col="{ style: { width: '80px' } }" :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }" style="margin-bottom: 0;" required>
+                        <a-select
+                          v-model:value="wizardPolicyId"
+                          placeholder="请选择扫描策略"
+                          size="small"
+                          :options="policyList.map(p => ({ value: p._id, label: p.name }))"
+                        />
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                      <a-form-item label="任务类型" :label-col="{ style: { width: '80px' } }" :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }" style="margin-bottom: 0;">
+                        <a-radio-group v-model:value="wizardTaskType" size="small">
+                          <a-radio-button value="oneshot">一次性扫描</a-radio-button>
+                          <a-radio-button value="periodic">周期监控</a-radio-button>
+                        </a-radio-group>
+                      </a-form-item>
+                    </a-col>
+                  </a-row>
+                </div>
+              </div>
+
+              <!-- 高级测绘参数（渐进折叠面板） -->
+              <div style="margin-bottom: 20px;">
+                <div 
+                  @click="showWizardAdvanced = !showWizardAdvanced" 
+                  style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--arl-text-color); opacity: 0.8; user-select: none; padding: 4px 0;"
+                >
+                  <span>
+                    <setting-outlined style="margin-right: 4px;" />
+                    高级测绘参数
+                    <span style="opacity: 0.6; margin-left: 4px;">{{ showWizardAdvanced ? '(点击收起)' : '(穿透层级、控股比例、双轨查重，默认已调优)' }}</span>
+                  </span>
+                  <component :is="showWizardAdvanced ? 'UpOutlined' : 'DownOutlined'" style="font-size: 11px;" />
+                </div>
+
+                <div v-show="showWizardAdvanced" style="margin-top: 10px; padding: 12px 14px; background: var(--arl-bg-light); border-radius: 6px; border: 1px solid var(--arl-border-color);">
+                  <template v-if="wizardEngine === 'tyc'">
+                    <a-row :gutter="16">
+                      <a-col :span="12">
+                        <a-form-item
+                          label="投资层级"
+                          :label-col="{ style: { width: '90px' } }"
+                          :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                          style="margin-bottom: 8px;"
+                          tooltip="穿透控股子公司与参股公司的递归深度 (1~5)"
+                        >
+                          <a-input-number
+                            v-model:value="wizardForm.depth"
+                            :min="1"
+                            :max="5"
+                            size="small"
+                            style="width: 110px;"
+                            addon-after="层"
+                          />
+                        </a-form-item>
+                      </a-col>
+                      <a-col :span="12">
+                        <a-form-item
+                          label="控股比例"
+                          :label-col="{ style: { width: '90px' } }"
+                          :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                          style="margin-bottom: 8px;"
+                          tooltip="对外投资的最小持股比例 (1~100%)"
+                        >
+                          <a-input-number
+                            v-model:value="wizardForm.invest_ratio"
+                            :min="1"
+                            :max="100"
+                            size="small"
+                            style="width: 110px;"
+                            addon-after="%"
+                          />
+                        </a-form-item>
+                      </a-col>
+                    </a-row>
+
+                    <a-form-item
+                      label="ICP 双轨查重"
+                      :label-col="{ style: { width: '90px' } }"
+                      :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                      style="margin-bottom: 0;"
+                      tooltip="自动调用工信部官方权威备案接口进行双轨校对与兜底补全"
+                    >
+                      <a-switch v-model:checked="wizardForm.enable_icp" size="small" />
+                      <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
+                        {{ wizardForm.enable_icp ? '已启用（推荐）' : '已关闭' }}
+                      </span>
+                    </a-form-item>
+                  </template>
+                  <template v-else>
+                    <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7;">
+                      工信部官方 ICP 模式直连备案库，默认检索单位主体备案网站资产。
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
                 <a-button @click="addModalVisible = false">取 消</a-button>
                 <a-button type="primary" :loading="wizardLoading" @click="startWizardRecon">
-                  <template #icon><search-outlined /></template>
-                  开始检索并解析 &rarr;
+                  <template #icon><rocket-outlined /></template>
+                  {{ wizardAutoSync ? '🚀 开始测绘并自动建组' : '开始检索并解析 →' }}
                 </a-button>
               </div>
             </a-form>
@@ -747,10 +901,10 @@
       </div>
     </a-modal>
 
-    <!-- 编辑资产分组弹窗 -->
+    <!-- 编辑资产组弹窗 -->
     <a-modal
       v-model:open="editGroupModalVisible"
-      title="编辑资产分组"
+      title="编辑资产组"
       @ok="handleEditGroupSubmit"
       :confirmLoading="editGroupLoading"
       width="640px"
@@ -1186,6 +1340,7 @@ import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 import { 
   SearchOutlined, 
   DownOutlined, 
+  UpOutlined,
   ExclamationCircleOutlined, 
   QuestionCircleOutlined, 
   PlusOutlined, 
@@ -1212,7 +1367,12 @@ import {
   HistoryOutlined,
   ApartmentOutlined,
   InfoCircleOutlined,
-  HolderOutlined
+  HolderOutlined,
+  RightCircleOutlined,
+  ScheduleOutlined,
+  CheckCircleOutlined,
+  SettingOutlined,
+  RocketOutlined
 } from '@ant-design/icons-vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
@@ -1244,11 +1404,10 @@ const onSelectChange = (keys) => { selectedRowKeys.value = keys; };
 // 表格列定义
 const columns = computed(() => {
   const baseColumns = [
-    { title: '资产组名称', key: 'name', width: 210, sorter: true },
-    { title: '资产范围', key: 'scope_array', minWidth: 260 },
-    { title: '探测覆盖度', key: 'domain_stat', width: 130 },
-    { title: '资产范围ID', key: 'scope_id', width: 180 },
-    { title: '操作', key: 'action', width: 420, fixed: 'right' }
+    { title: '资产组名称', key: 'name', width: 220, sorter: true },
+    { title: '种子目标与覆盖度', key: 'scope_and_stat', minWidth: 260 },
+    { title: '组 ID', key: 'scope_id', width: 150 },
+    { title: '操作', key: 'action', width: 250, fixed: 'right' }
   ];
   if (activeGroupId.value === 'all') {
     baseColumns.splice(1, 0, { title: '所属集团', key: 'group_name', width: 120 });
@@ -1722,7 +1881,7 @@ const addRules = {
 };
 
 // 新建资产分组模式与向导状态
-const creationMode = ref('manual'); // 'manual' | 'wizard'
+const creationMode = ref('wizard'); // 'wizard' | 'manual'
 const wizardStep = ref(1);
 const wizardLoading = ref(false);
 const wizardLoadingTip = ref('正在发起企业测绘...');
@@ -1730,11 +1889,15 @@ const wizardTaskId = ref('');
 const wizardDomains = ref([]);
 const selectedWizardDomains = ref([]);
 const wizardDomainSearch = ref('');
+const wizardAutoSync = ref(true); // 测绘完成后是否全自动成组入库
 const wizardAutoScan = ref(false);
 const wizardTaskType = ref('oneshot');
 const wizardPolicyId = ref('');
 const wizardSubmitting = ref(false);
 const policyList = ref([]);
+const wizardEngine = ref('tyc'); // 'tyc' | 'icp'
+const showWizardAdvanced = ref(false);
+const wizardTargetError = ref('');
 
 const wizardForm = reactive({
   group_id: undefined,
@@ -1744,6 +1907,29 @@ const wizardForm = reactive({
   invest_ratio: 50,
   enable_icp: true
 });
+
+const parseTycInput = (input) => {
+  if (!input) return { gid: '', isUrl: false, raw: '' };
+  const str = input.trim();
+  const urlMatch = str.match(/(?:tianyancha\.com\/company\/|^company\/)([a-zA-Z0-9]+)/i);
+  if (urlMatch && urlMatch[1]) {
+    return { gid: urlMatch[1], isUrl: true, raw: str };
+  }
+  if (/^[a-zA-Z0-9]+$/.test(str)) {
+    return { gid: str, isUrl: false, raw: str };
+  }
+  return { gid: '', isUrl: false, raw: str };
+};
+
+const parsedTycGid = computed(() => {
+  if (wizardEngine.value !== 'tyc' || !wizardForm.target) return '';
+  const parsed = parseTycInput(wizardForm.target);
+  return parsed.gid;
+});
+
+const onTycTargetChange = () => {
+  wizardTargetError.value = '';
+};
 
 const getGroupName = (gid) => {
   const g = groupList.value.find(item => item._id === gid);
@@ -1767,7 +1953,7 @@ const selectAllWizardDomains = () => {
   selectedWizardDomains.value = wizardDomains.value.slice();
 };
 
-// ================= 企业测绘后台异步追踪与建组唤回 =================
+// ================= 企业测绘后台异步追踪与免等建组 =================
 const PENDING_RECON_KEY = 'arl_pending_wizard_recon_tasks';
 const pendingReconTasks = ref([]);
 const activeResumeTaskId = ref('');
@@ -1812,7 +1998,11 @@ const dismissPendingReconTask = (taskId) => {
 };
 
 const completedReconTasks = computed(() => {
-  return pendingReconTasks.value.filter(t => t.status === 'done' && t.domains && t.domains.length > 0);
+  return pendingReconTasks.value.filter(t => t.status === 'done' && !t.autoSync && t.domains && t.domains.length > 0);
+});
+
+const runningReconTasks = computed(() => {
+  return pendingReconTasks.value.filter(t => t.status === 'running');
 });
 
 let reconPollerTimer = null;
@@ -1855,30 +2045,74 @@ const pollRunningReconTasks = async () => {
           task.domains = domainList;
           savePendingReconTasks();
 
-          notification.success({
-            key: `recon_done_${task.taskId}`,
-            message: `企业测绘已完成：${task.name || task.target}`,
-            description: `共发现 ${domainList.length} 个网站域名资产，可立即挑选入库并激活资产组。`,
-            btn: () => h(
-              Button,
-              {
-                type: 'primary',
-                size: 'small',
-                onClick: () => {
-                  notification.close(`recon_done_${task.taskId}`);
-                  resumeWizardFromCompletedTask(task);
-                }
-              },
-              { default: () => '立即挑选建组 →' }
-            ),
-            duration: 0
-          });
+          // 若开启了免等自动建组 (autoSync 默认开启)
+          if (task.autoSync) {
+            if (domainList.length === 0) {
+              dismissPendingReconTask(task.taskId);
+              notification.warning({
+                key: `recon_done_${task.taskId}`,
+                message: `企业测绘未发现网站域名：${task.name || task.target}`,
+                description: '已完成企业关系与备案检索，但在工信部与天眼查未发现可纳管的网站域名。',
+                duration: 6
+              });
+            } else {
+              const targetName = task.groupName || taskObj.company_name || (task.name ? task.name.replace(/企业测绘$/, '') : ('TYC_' + task.target));
+              const syncPayload = {
+                mode: 'new',
+                target_name: targetName,
+                group_id: task.group_id || '',
+                selected_domains: domainList,
+                auto_scan: !!task.autoScan,
+                task_type: task.taskType || 'oneshot',
+                policy_id: task.policyId || ''
+              };
+              const syncRes = await request.post(`/icp/sync/${task.taskId}`, syncPayload);
+              dismissPendingReconTask(task.taskId);
+              if (syncRes.code === 200) {
+                notification.success({
+                  key: `recon_done_${task.taskId}`,
+                  message: `🎉 企业资产组已自动创建完成`,
+                  description: `企业【${targetName}】已成功建组并纳管 ${domainList.length} 个网站域名${task.autoScan ? '，已同步下发主动探测扫描' : ''}！`,
+                  duration: 8
+                });
+                fetchData();
+              } else {
+                notification.error({
+                  key: `recon_done_${task.taskId}`,
+                  message: `自动建组失败：${targetName}`,
+                  description: syncRes.message || '资产导入异常'
+                });
+              }
+            }
+          } else {
+            // 用户显式取消了自动成组，保留手动确认
+            notification.success({
+              key: `recon_done_${task.taskId}`,
+              message: `企业测绘已完成：${task.name || task.target}`,
+              description: `共发现 ${domainList.length} 个网站域名资产，可立即挑选入库并激活资产组。`,
+              btn: () => h(
+                Button,
+                {
+                  type: 'primary',
+                  size: 'small',
+                  onClick: () => {
+                    notification.close(`recon_done_${task.taskId}`);
+                    resumeWizardFromCompletedTask(task);
+                  }
+                },
+                { default: () => '立即挑选建组 →' }
+              ),
+              duration: 0
+            });
+          }
         } else if (taskObj.status === 'error') {
           task.status = 'error';
           savePendingReconTasks();
+          dismissPendingReconTask(task.taskId);
           notification.error({
+            key: `recon_err_${task.taskId}`,
             message: `企业测绘执行异常：${task.name || task.target}`,
-            description: taskObj.error_msg || '测绘任务执行发生错误，您可前往【企业测绘任务】查看日志。'
+            description: taskObj.error_msg || '测绘任务执行发生错误，您可前往任务中心查看详细执行日志。'
           });
         }
       }
@@ -1917,49 +2151,98 @@ const resumeWizardFromCompletedTask = async (task) => {
 };
 
 const startWizardRecon = async () => {
-  const target = (wizardForm.target || '').trim();
-  const name = (wizardForm.name || '').trim();
+  wizardTargetError.value = '';
+  const rawTarget = (wizardForm.target || '').trim();
+  const customName = (wizardForm.name || '').trim();
 
-  if (!target) {
-    message.warning('请输入天眼查 ID');
+  if (!rawTarget) {
+    wizardTargetError.value = wizardEngine.value === 'tyc' ? '请输入天眼查企业链接或数字 ID' : '请输入企业工商注册全称';
     return;
   }
-  if (!/^[a-zA-Z0-9]+$/.test(target)) {
-    message.warning('天眼查 ID 格式不正确，请输入纯数字/字母 ID（例如：25174642）');
+
+  let finalGid = '';
+  let finalTarget = rawTarget;
+
+  if (wizardEngine.value === 'tyc') {
+    const parsed = parseTycInput(rawTarget);
+    if (!parsed.gid) {
+      wizardTargetError.value = '未能识别有效的天眼查 ID，请输入企业主页链接或纯数字/字母 ID';
+      return;
+    }
+    finalGid = parsed.gid;
+    finalTarget = finalGid;
+  } else {
+    if (rawTarget.length < 2) {
+      wizardTargetError.value = '请输入有效的企业工商全称（至少2个字符）';
+      return;
+    }
+  }
+
+  // 校验自动扫描策略
+  if (wizardAutoScan.value && !wizardPolicyId.value) {
+    message.warning('已勾选自动探测，请选择扫描策略');
     return;
   }
 
   wizardLoading.value = true;
   try {
-    const tName = name ? (name + '企业测绘') : ('TYC_' + target);
-    const taskRes = await request.post('/icp/tyc_task', {
-      name: tName,
-      gid: target,
-      depth: wizardForm.depth || 1,
-      invest_ratio: wizardForm.invest_ratio || 50,
-      enable_icp: true,
-      query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
-    });
+    let taskId = '';
+    let taskName = '';
 
-    if (!taskRes || taskRes.code !== 200) {
-      message.error(taskRes?.message || '发起测绘失败');
-      wizardLoading.value = false;
-      return;
+    if (wizardEngine.value === 'tyc') {
+      taskName = customName ? (customName + '企业测绘') : ('TYC_' + finalGid);
+      const payload = {
+        name: taskName,
+        gid: finalGid,
+        depth: wizardForm.depth || 1,
+        invest_ratio: wizardForm.invest_ratio || 50,
+        enable_icp: wizardForm.enable_icp !== false,
+        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+      };
+      if (customName) {
+        payload.company_name = customName;
+      }
+      const taskRes = await request.post('/icp/tyc_task', payload);
+      if (!taskRes || taskRes.code !== 200) {
+        message.error(taskRes?.message || '发起天眼查测绘失败');
+        wizardLoading.value = false;
+        return;
+      }
+      taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
+    } else {
+      taskName = customName || rawTarget;
+      const payload = {
+        name: taskName,
+        target: rawTarget,
+        query_type: ['web']
+      };
+      const taskRes = await request.post('/icp/task', payload);
+      if (!taskRes || taskRes.code !== 200) {
+        message.error(taskRes?.message || '发起工信部备案查询失败');
+        wizardLoading.value = false;
+        return;
+      }
+      taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
     }
 
-    const taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
     wizardTaskId.value = taskId;
 
-    // 立即关闭向导弹窗，彻底消除等待遮罩与阻断体验
+    // 立即关闭弹窗，提供零等待异步建组体验
     addModalVisible.value = false;
     wizardLoading.value = false;
 
     // 注册到后台追踪队列
     addPendingReconTask({
       taskId: taskId,
-      name: tName,
-      target: target,
+      engine: wizardEngine.value,
+      name: taskName,
+      target: finalTarget,
+      groupName: customName,
       group_id: wizardForm.group_id || '',
+      autoSync: wizardAutoSync.value,
+      autoScan: wizardAutoScan.value,
+      taskType: wizardTaskType.value,
+      policyId: wizardPolicyId.value,
       status: 'running',
       startTime: Date.now()
     });
@@ -1967,12 +2250,14 @@ const startWizardRecon = async () => {
     // 启动非阻塞轮询器
     startReconPoller();
 
-    // 弹出优雅通知
+    // 弹出通知
     notification.info({
       key: `recon_start_${taskId}`,
-      message: '企业测绘任务已转入后台运行',
-      description: `已下发针对【${tName}】的联合测绘任务。系统正在后台自动执行股权穿透与工信部双轨查重，完成后将通知您挑选域名建组。`,
-      duration: 5
+      message: '企业测绘建组任务已提交后台',
+      description: wizardAutoSync.value
+        ? `目标【${taskName}】测绘已下发。后台正自动穿透股权与工信部数据，完成后将全自动创建资产组并导入资产。`
+        : `目标【${taskName}】测绘已下发，完成后将通知您挑选域名建组。`,
+      duration: 4.5
     });
 
   } catch (err) {
@@ -2095,10 +2380,18 @@ const goToOsintDetail = (record) => {
   });
 };
 
-const openAddModal = () => {
-  creationMode.value = 'manual';
+const openAddModal = async () => {
+  creationMode.value = 'wizard';
   wizardStep.value = 1;
-  wizardForm.group_id = activeGroupId.value === 'all' || activeGroupId.value === 'unassigned' ? undefined : activeGroupId.value;
+  wizardEngine.value = 'tyc';
+  wizardAutoSync.value = true;
+  wizardAutoScan.value = false;
+  wizardTaskType.value = 'oneshot';
+  showWizardAdvanced.value = false;
+  wizardTargetError.value = '';
+
+  const defaultGroupId = (activeGroupId.value === 'all' || activeGroupId.value === 'unassigned') ? undefined : activeGroupId.value;
+  wizardForm.group_id = defaultGroupId;
   wizardForm.target = '';
   wizardForm.name = '';
   wizardForm.depth = 1;
@@ -2107,11 +2400,26 @@ const openAddModal = () => {
   wizardDomains.value = [];
   selectedWizardDomains.value = [];
   wizardDomainSearch.value = '';
-  wizardAutoScan.value = false;
 
-  addForm.group_id = activeGroupId.value === 'all' || activeGroupId.value === 'unassigned' ? undefined : activeGroupId.value;
+  addForm.group_id = defaultGroupId;
   addForm.name = '';
   addForm.scope = '';
+
+  // 预拉取扫描策略列表供自动探测选择
+  if (policyList.value.length === 0) {
+    try {
+      const pRes = await request.get('/policy/', { params: { size: 100 } });
+      if (pRes.code === 200 && pRes.items?.length > 0) {
+        policyList.value = pRes.items;
+        if (!wizardPolicyId.value) {
+          wizardPolicyId.value = pRes.items[0]._id;
+        }
+      }
+    } catch (e) {
+      console.error('预拉取策略列表失败', e);
+    }
+  }
+
   addModalVisible.value = true;
 };
 
@@ -3045,32 +3353,171 @@ onUnmounted(() => {
   margin-right: 0;
 }
 
-/* 资产范围 Tag 与微圆点 */
-.domain-scope-tags-wrapper {
+/* 种子目标与覆盖度复合单元格 */
+.scope-stat-compact-cell {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 5px;
+  min-width: 0;
+}
+.scope-compact-header {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 }
-.domain-scope-item-tag {
-  display: inline-flex !important;
-  align-items: center !important;
-  font-size: 12px !important;
-  line-height: 20px !important;
-  padding: 1px 7px !important;
-  border-radius: 4px !important;
-  margin: 0 !important;
-  transition: all 0.2s ease;
+.scope-compact-tags {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
-.domain-scope-item-tag:hover {
-  border-color: var(--arl-theme-color) !important;
-}
-.domain-name-text {
-  max-width: 160px;
+.scope-compact-domain {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  background: var(--arl-bg-light, #f8fafc);
+  border: 1px solid var(--arl-border-color, #e2e8f0);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--arl-text-color, #334155);
+  max-width: 110px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.scope-compact-count-badge {
+  font-size: 11px;
+  color: var(--arl-theme-color, #1890ff);
+  background: rgba(24, 144, 255, 0.08);
+  border: 1px solid rgba(24, 144, 255, 0.2);
+  border-radius: 10px;
+  padding: 1px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.scope-compact-count-badge:hover {
+  background: var(--arl-theme-color, #1890ff);
+  color: #fff;
+}
+.scope-compact-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scope-mini-progress-bar {
+  flex: 1;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  cursor: pointer;
+}
+.progress-seg {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+.progress-seg.probed {
+  background: #52c41a;
+}
+.progress-seg.scanning {
+  background: #1890ff;
+  animation: progress-pulse 1.5s infinite;
+}
+.progress-seg.error {
+  background: #ff4d4f;
+}
+.progress-seg.unprobed {
+  background: #d9d9d9;
+}
+@keyframes progress-pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+.scope-compact-progress-text {
+  font-size: 11px;
+  color: var(--arl-text-color);
+  opacity: 0.65;
+  white-space: nowrap;
+  font-family: ui-monospace, monospace;
+}
+
+/* 种子目标悬浮 Popover 面板 */
+.scope-popover-panel {
+  max-width: 380px;
+  min-width: 260px;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+.scope-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--arl-border-color, #f0f0f0);
+  margin-bottom: 6px;
+}
+.scope-popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+}
+.scope-popover-copy-btn {
+  padding: 0 !important;
+  font-size: 11px !important;
+  height: auto !important;
+}
+.scope-popover-list {
+  overflow-y: auto;
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.scope-popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--arl-bg-light, #fafafa);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.scope-popover-item:hover {
+  background: rgba(24, 144, 255, 0.08);
+}
+.scope-popover-item-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.scope-popover-item-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scope-popover-item-status {
+  font-size: 11px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.scope-popover-item-status.text-probed { color: #52c41a; }
+.scope-popover-item-status.text-scanning { color: #1890ff; }
+.scope-popover-item-status.text-unprobed { color: #faad14; }
+.scope-popover-item-status.text-error { color: #ff4d4f; }
+
 .domain-status-dot {
   width: 6px;
   height: 6px;
@@ -3100,71 +3547,6 @@ onUnmounted(() => {
   0% { transform: scale(0.9); opacity: 0.7; }
   50% { transform: scale(1.2); opacity: 1; }
   100% { transform: scale(0.9); opacity: 0.7; }
-}
-.domain-scope-more-tag {
-  background: var(--arl-bg-white) !important;
-  border: 1px dashed var(--arl-border-color) !important;
-  color: var(--arl-text-color) !important;
-  opacity: 0.75;
-  cursor: pointer;
-  margin: 0 !important;
-  border-radius: 4px !important;
-  font-size: 11px !important;
-}
-.domain-scope-more-tag:hover {
-  border-color: var(--arl-theme-color) !important;
-  color: var(--arl-theme-color) !important;
-  opacity: 1;
-}
-.domain-scope-add-tag {
-  background: var(--arl-bg-white) !important;
-  border: 1px dashed var(--arl-theme-color) !important;
-  color: var(--arl-theme-color) !important;
-  cursor: pointer;
-  margin: 0 !important;
-  border-radius: 4px !important;
-  font-size: 11px !important;
-}
-.domain-scope-add-tag:hover {
-  background: var(--arl-bg-light) !important;
-}
-
-/* 覆盖度胶囊徽章 */
-.stat-badge-group {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  flex-wrap: wrap;
-  cursor: pointer;
-}
-.stat-pill-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 18px;
-}
-.stat-pill-badge.badge-scanning {
-  background: #e6f7ff;
-  color: #096dd9;
-  border: 1px solid #91d5ff;
-}
-.stat-pill-badge.badge-probed {
-  background: #f6ffed;
-  color: #389e0d;
-  border: 1px solid #b7eb8f;
-}
-.stat-pill-badge.badge-unprobed {
-  background: #fffbe6;
-  color: #d48806;
-  border: 1px solid #ffe58f;
-}
-.stat-pill-badge.badge-error {
-  background: #fff2f0;
-  color: #cf1322;
-  border: 1px solid #ffccc7;
 }
 
 /* ID 样式 */
