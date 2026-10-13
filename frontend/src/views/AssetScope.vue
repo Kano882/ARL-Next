@@ -214,7 +214,7 @@
               <a-popover v-if="runningReconTasks.length > 0" placement="bottomRight">
                 <template #title>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 600;">企业测绘自动建组队列 ({{ runningReconTasks.length }})</span>
+                    <span style="font-weight: 600;">企业全景测绘建组队列 ({{ runningReconTasks.length }})</span>
                   </div>
                 </template>
                 <template #content>
@@ -229,7 +229,7 @@
                           {{ t.name || t.target }}
                         </div>
                         <div style="font-size: 11px; color: var(--arl-text-color); opacity: 0.65; margin-top: 2px;">
-                          {{ t.engine === 'icp' ? '工信部 ICP 检索' : '天眼查穿透测绘' }} · 自动建组托管中
+                          天眼查与工商双轨穿透 · 自动建组托管中
                         </div>
                       </div>
                       <a-tag color="processing" style="margin: 0; font-size: 11px;">
@@ -239,7 +239,7 @@
                   </div>
                 </template>
                 <a-tag color="processing" style="cursor: pointer; padding: 4px 10px; border-radius: 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;">
-                  <sync-outlined spin /> <b>{{ runningReconTasks.length }}</b> 个企业自动测绘中
+                  <sync-outlined spin /> <b>{{ runningReconTasks.length }}</b> 个企业全景测绘中
                 </a-tag>
               </a-popover>
 
@@ -558,7 +558,7 @@
     >
       <div style="margin-bottom: 20px; text-align: center;">
         <a-radio-group v-model:value="creationMode" button-style="solid" size="middle">
-          <a-radio-button value="wizard">🏢 企业智能测绘建组</a-radio-button>
+          <a-radio-button value="wizard">🏢 企业全景测绘建组</a-radio-button>
           <a-radio-button value="manual">✍️ 手工录入资产</a-radio-button>
         </a-radio-group>
       </div>
@@ -599,9 +599,9 @@
         </a-form-item>
       </a-form>
 
-      <!-- 企业智能测绘建组模式 -->
+      <!-- 企业全景测绘建组模式 -->
       <div v-else-if="creationMode === 'wizard'">
-        <!-- Stage 1: 智能测绘建组表单 -->
+        <!-- Stage 1: 全景测绘建组表单 -->
         <div v-if="wizardStep === 1">
           <a-spin :spinning="wizardLoading" :tip="wizardLoadingTip">
             <a-form
@@ -611,72 +611,39 @@
               :wrapper-col="{ style: { width: 'calc(100% - 120px)' } }"
               style="margin-top: 8px;"
             >
-              <!-- 测绘引擎选择 -->
-              <a-form-item label="测绘引擎">
-                <a-radio-group v-model:value="wizardEngine" button-style="solid" size="small">
-                  <a-radio-button value="tyc">🏢 天眼查工商联合测绘 (推荐)</a-radio-button>
-                  <a-radio-button value="icp">🏛️ 工信部官方 ICP 备案</a-radio-button>
-                </a-radio-group>
-              </a-form-item>
-
-              <!-- 引擎动态引导提示 -->
+              <!-- 引擎引导提示 -->
               <a-alert
                 type="info"
                 show-icon
                 style="margin-bottom: 16px; border-radius: 6px; font-size: 12px;"
               >
                 <template #message>
-                  <span v-if="wizardEngine === 'tyc'" style="color: var(--arl-text-color); line-height: 1.5;">
+                  <span style="color: var(--arl-text-color); line-height: 1.5;">
                     输入天眼查企业链接或纯数字 GID，系统将全自动深度穿透投资控股树，并联动工信部 ICP 双轨查重，免等待自动纳管建组。
-                  </span>
-                  <span v-else style="color: var(--arl-text-color); line-height: 1.5;">
-                    直接输入企业工商注册全称，系统向工信部官方权威备案库检索，自动归集有效网站域名建组。
                   </span>
                 </template>
               </a-alert>
 
-              <!-- 输入目标: 天眼查模式 (支持链接与纯数字ID) -->
-              <template v-if="wizardEngine === 'tyc'">
-                <a-form-item
-                  label="天眼查企业"
-                  required
-                  :validateStatus="wizardTargetError ? 'error' : ''"
-                  :help="wizardTargetError"
+              <!-- 输入目标: 企业目标 (支持链接与纯数字ID) -->
+              <a-form-item
+                label="企业目标"
+                required
+                :validateStatus="wizardTargetError ? 'error' : ''"
+                :help="wizardTargetError"
+              >
+                <a-input
+                  v-model:value="wizardForm.target"
+                  placeholder="可直接粘贴天眼查链接（如 https://www.tianyancha.com/company/25174642）或纯数字 ID"
+                  allowClear
+                  @change="onTycTargetChange"
+                  @pressEnter="startWizardRecon"
                 >
-                  <a-input
-                    v-model:value="wizardForm.target"
-                    placeholder="可直接粘贴天眼查链接（如 https://www.tianyancha.com/company/25174642）或纯数字 ID"
-                    allowClear
-                    @change="onTycTargetChange"
-                    @pressEnter="startWizardRecon"
-                  >
-                    <template #prefix><link-outlined style="color: #bfbfbf;" /></template>
-                  </a-input>
-                  <div v-if="parsedTycGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
-                    <check-circle-outlined /> <span>已自动识别天眼查 GID: <b>{{ parsedTycGid }}</b></span>
-                  </div>
-                </a-form-item>
-              </template>
-
-              <!-- 输入目标: 工信部 ICP 模式 (按企业全称) -->
-              <template v-else>
-                <a-form-item
-                  label="企业工商全称"
-                  required
-                  :validateStatus="wizardTargetError ? 'error' : ''"
-                  :help="wizardTargetError"
-                >
-                  <a-input
-                    v-model:value="wizardForm.target"
-                    placeholder="请输入企业工商注册全称（例如：深圳市腾讯计算机系统有限公司）"
-                    allowClear
-                    @change="onTycTargetChange"
-                    @pressEnter="startWizardRecon"
-                  >
-                    <template #prefix><bank-outlined style="color: #bfbfbf;" /></template>
-                  </a-input>
-                </a-form-item>
-              </template>
+                  <template #prefix><link-outlined style="color: #bfbfbf;" /></template>
+                </a-input>
+                <div v-if="parsedTycGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
+                  <check-circle-outlined /> <span>已自动识别天眼查 GID: <b>{{ parsedTycGid }}</b></span>
+                </div>
+              </a-form-item>
 
               <!-- 资产组名称 (选填，留空自动生成) -->
               <a-form-item
@@ -685,7 +652,7 @@
               >
                 <a-input
                   v-model:value="wizardForm.name"
-                  :placeholder="wizardEngine === 'tyc' ? '选填，留空将自动根据企业工商全称命名' : '选填，留空默认与企业全称一致'"
+                  placeholder="选填，留空将自动根据企业工商全称命名"
                   allowClear
                   @pressEnter="startWizardRecon"
                 />
@@ -766,64 +733,57 @@
                 </div>
 
                 <div v-show="showWizardAdvanced" style="margin-top: 10px; padding: 12px 14px; background: var(--arl-bg-light); border-radius: 6px; border: 1px solid var(--arl-border-color);">
-                  <template v-if="wizardEngine === 'tyc'">
-                    <a-row :gutter="16">
-                      <a-col :span="12">
-                        <a-form-item
-                          label="投资层级"
-                          :label-col="{ style: { width: '90px' } }"
-                          :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
-                          style="margin-bottom: 8px;"
-                          tooltip="穿透控股子公司与参股公司的递归深度 (1~5)"
-                        >
-                          <a-input-number
-                            v-model:value="wizardForm.depth"
-                            :min="1"
-                            :max="5"
-                            size="small"
-                            style="width: 110px;"
-                            addon-after="层"
-                          />
-                        </a-form-item>
-                      </a-col>
-                      <a-col :span="12">
-                        <a-form-item
-                          label="控股比例"
-                          :label-col="{ style: { width: '90px' } }"
-                          :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
-                          style="margin-bottom: 8px;"
-                          tooltip="对外投资的最小持股比例 (1~100%)"
-                        >
-                          <a-input-number
-                            v-model:value="wizardForm.invest_ratio"
-                            :min="1"
-                            :max="100"
-                            size="small"
-                            style="width: 110px;"
-                            addon-after="%"
-                          />
-                        </a-form-item>
-                      </a-col>
-                    </a-row>
+                  <a-row :gutter="16">
+                    <a-col :span="12">
+                      <a-form-item
+                        label="投资层级"
+                        :label-col="{ style: { width: '90px' } }"
+                        :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                        style="margin-bottom: 8px;"
+                        tooltip="穿透控股子公司与参股公司的递归深度 (1~5)"
+                      >
+                        <a-input-number
+                          v-model:value="wizardForm.depth"
+                          :min="1"
+                          :max="5"
+                          size="small"
+                          style="width: 110px;"
+                          addon-after="层"
+                        />
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                      <a-form-item
+                        label="控股比例"
+                        :label-col="{ style: { width: '90px' } }"
+                        :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                        style="margin-bottom: 8px;"
+                        tooltip="对外投资的最小持股比例 (1~100%)"
+                      >
+                        <a-input-number
+                          v-model:value="wizardForm.invest_ratio"
+                          :min="1"
+                          :max="100"
+                          size="small"
+                          style="width: 110px;"
+                          addon-after="%"
+                        />
+                      </a-form-item>
+                    </a-col>
+                  </a-row>
 
-                    <a-form-item
-                      label="ICP 双轨查重"
-                      :label-col="{ style: { width: '90px' } }"
-                      :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
-                      style="margin-bottom: 0;"
-                      tooltip="自动调用工信部官方权威备案接口进行双轨校对与兜底补全"
-                    >
-                      <a-switch v-model:checked="wizardForm.enable_icp" size="small" />
-                      <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
-                        {{ wizardForm.enable_icp ? '已启用（推荐）' : '已关闭' }}
-                      </span>
-                    </a-form-item>
-                  </template>
-                  <template v-else>
-                    <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7;">
-                      工信部官方 ICP 模式直连备案库，默认检索单位主体备案网站资产。
-                    </div>
-                  </template>
+                  <a-form-item
+                    label="ICP 双轨查重"
+                    :label-col="{ style: { width: '90px' } }"
+                    :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                    style="margin-bottom: 0;"
+                    tooltip="自动调用工信部官方权威备案接口进行双轨校对与兜底补全"
+                  >
+                    <a-switch v-model:checked="wizardForm.enable_icp" size="small" />
+                    <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
+                      {{ wizardForm.enable_icp ? '已启用（推荐）' : '已关闭' }}
+                    </span>
+                  </a-form-item>
                 </div>
               </div>
 
@@ -831,7 +791,7 @@
                 <a-button @click="addModalVisible = false">取 消</a-button>
                 <a-button type="primary" :loading="wizardLoading" @click="startWizardRecon">
                   <template #icon><rocket-outlined /></template>
-                  {{ wizardAutoSync ? '🚀 开始测绘并自动建组' : '开始检索并解析 →' }}
+                  {{ wizardAutoSync ? '🚀 开始全景测绘并自动建组' : '开始全景测绘并解析 →' }}
                 </a-button>
               </div>
             </a-form>
@@ -1922,7 +1882,7 @@ const parseTycInput = (input) => {
 };
 
 const parsedTycGid = computed(() => {
-  if (wizardEngine.value !== 'tyc' || !wizardForm.target) return '';
+  if (!wizardForm.target) return '';
   const parsed = parseTycInput(wizardForm.target);
   return parsed.gid;
 });
@@ -2051,12 +2011,12 @@ const pollRunningReconTasks = async () => {
               dismissPendingReconTask(task.taskId);
               notification.warning({
                 key: `recon_done_${task.taskId}`,
-                message: `企业测绘未发现网站域名：${task.name || task.target}`,
+                message: `企业全景测绘未发现网站域名：${task.name || task.target}`,
                 description: '已完成企业关系与备案检索，但在工信部与天眼查未发现可纳管的网站域名。',
                 duration: 6
               });
             } else {
-              const targetName = task.groupName || taskObj.company_name || (task.name ? task.name.replace(/企业测绘$/, '') : ('TYC_' + task.target));
+              const targetName = task.groupName || taskObj.company_name || (task.name ? task.name.replace(/(?:企业测绘|全景测绘)$/, '') : ('TYC_' + task.target));
               const syncPayload = {
                 mode: 'new',
                 target_name: targetName,
@@ -2088,7 +2048,7 @@ const pollRunningReconTasks = async () => {
             // 用户显式取消了自动成组，保留手动确认
             notification.success({
               key: `recon_done_${task.taskId}`,
-              message: `企业测绘已完成：${task.name || task.target}`,
+              message: `企业全景测绘已完成：${task.name || task.target}`,
               description: `共发现 ${domainList.length} 个网站域名资产，可立即挑选入库并激活资产组。`,
               btn: () => h(
                 Button,
@@ -2111,7 +2071,7 @@ const pollRunningReconTasks = async () => {
           dismissPendingReconTask(task.taskId);
           notification.error({
             key: `recon_err_${task.taskId}`,
-            message: `企业测绘执行异常：${task.name || task.target}`,
+            message: `企业全景测绘执行异常：${task.name || task.target}`,
             description: taskObj.error_msg || '测绘任务执行发生错误，您可前往任务中心查看详细执行日志。'
           });
         }
@@ -2128,7 +2088,7 @@ const resumeWizardFromCompletedTask = async (task) => {
   wizardTaskId.value = task.taskId;
   wizardForm.group_id = task.group_id;
   wizardForm.target = task.target;
-  wizardForm.name = task.name.startsWith('TYC_') ? '' : task.name.replace(/企业测绘$/, '');
+  wizardForm.name = task.name.startsWith('TYC_') ? '' : task.name.replace(/(?:企业测绘|全景测绘)$/, '');
   wizardDomains.value = task.domains || [];
   selectedWizardDomains.value = (task.domains || []).slice();
   wizardDomainSearch.value = '';
@@ -2156,27 +2116,17 @@ const startWizardRecon = async () => {
   const customName = (wizardForm.name || '').trim();
 
   if (!rawTarget) {
-    wizardTargetError.value = wizardEngine.value === 'tyc' ? '请输入天眼查企业链接或数字 ID' : '请输入企业工商注册全称';
+    wizardTargetError.value = '请输入天眼查企业链接或数字 ID';
     return;
   }
 
-  let finalGid = '';
-  let finalTarget = rawTarget;
-
-  if (wizardEngine.value === 'tyc') {
-    const parsed = parseTycInput(rawTarget);
-    if (!parsed.gid) {
-      wizardTargetError.value = '未能识别有效的天眼查 ID，请输入企业主页链接或纯数字/字母 ID';
-      return;
-    }
-    finalGid = parsed.gid;
-    finalTarget = finalGid;
-  } else {
-    if (rawTarget.length < 2) {
-      wizardTargetError.value = '请输入有效的企业工商全称（至少2个字符）';
-      return;
-    }
+  const parsed = parseTycInput(rawTarget);
+  if (!parsed.gid) {
+    wizardTargetError.value = '未能识别有效的天眼查 ID，请输入企业主页链接或纯数字/字母 ID';
+    return;
   }
+  const finalGid = parsed.gid;
+  const finalTarget = finalGid;
 
   // 校验自动扫描策略
   if (wizardAutoScan.value && !wizardPolicyId.value) {
@@ -2186,44 +2136,25 @@ const startWizardRecon = async () => {
 
   wizardLoading.value = true;
   try {
-    let taskId = '';
-    let taskName = '';
-
-    if (wizardEngine.value === 'tyc') {
-      taskName = customName ? (customName + '企业测绘') : ('TYC_' + finalGid);
-      const payload = {
-        name: taskName,
-        gid: finalGid,
-        depth: wizardForm.depth || 1,
-        invest_ratio: wizardForm.invest_ratio || 50,
-        enable_icp: wizardForm.enable_icp !== false,
-        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
-      };
-      if (customName) {
-        payload.company_name = customName;
-      }
-      const taskRes = await request.post('/icp/tyc_task', payload);
-      if (!taskRes || taskRes.code !== 200) {
-        message.error(taskRes?.message || '发起天眼查测绘失败');
-        wizardLoading.value = false;
-        return;
-      }
-      taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
-    } else {
-      taskName = customName || rawTarget;
-      const payload = {
-        name: taskName,
-        target: rawTarget,
-        query_type: ['web']
-      };
-      const taskRes = await request.post('/icp/task', payload);
-      if (!taskRes || taskRes.code !== 200) {
-        message.error(taskRes?.message || '发起工信部备案查询失败');
-        wizardLoading.value = false;
-        return;
-      }
-      taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
+    const taskName = customName ? (customName + '全景测绘') : ('TYC_' + finalGid);
+    const payload = {
+      name: taskName,
+      gid: finalGid,
+      depth: wizardForm.depth || 1,
+      invest_ratio: wizardForm.invest_ratio || 50,
+      enable_icp: wizardForm.enable_icp !== false,
+      query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+    };
+    if (customName) {
+      payload.company_name = customName;
     }
+    const taskRes = await request.post('/icp/tyc_task', payload);
+    if (!taskRes || taskRes.code !== 200) {
+      message.error(taskRes?.message || '发起企业全景测绘失败');
+      wizardLoading.value = false;
+      return;
+    }
+    const taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
 
     wizardTaskId.value = taskId;
 
@@ -2234,7 +2165,7 @@ const startWizardRecon = async () => {
     // 注册到后台追踪队列
     addPendingReconTask({
       taskId: taskId,
-      engine: wizardEngine.value,
+      engine: 'tyc',
       name: taskName,
       target: finalTarget,
       groupName: customName,
@@ -2253,10 +2184,10 @@ const startWizardRecon = async () => {
     // 弹出通知
     notification.info({
       key: `recon_start_${taskId}`,
-      message: '企业测绘建组任务已提交后台',
+      message: '企业全景测绘建组任务已提交后台',
       description: wizardAutoSync.value
-        ? `目标【${taskName}】测绘已下发。后台正自动穿透股权与工信部数据，完成后将全自动创建资产组并导入资产。`
-        : `目标【${taskName}】测绘已下发，完成后将通知您挑选域名建组。`,
+        ? `目标【${taskName}】全景测绘已下发。后台正自动穿透股权与工信部数据，完成后将全自动创建资产组并导入资产。`
+        : `目标【${taskName}】全景测绘已下发，完成后将通知您挑选域名建组。`,
       duration: 4.5
     });
 
