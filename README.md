@@ -185,7 +185,7 @@ graph TD
 
 ### 核心架构要点：
 
-1. 🖥️ **展示与网关 (Frontend / Nginx)**：基于 **Vue 3.5 + Nginx**，支持核心数据表格与操作栏 **Sticky 悬浮吸附**及 **Basic Auth 前置网关防护**。
+1. 🖥️ **展示与网关 (Frontend / Nginx)**：基于 **Vue 3.5 + Nginx**，支持核心数据表格与操作栏 **Sticky 悬浮吸附**；提供 **Basic Auth 前置网关防护**（默认关闭，可在顶部导航栏开启）。
 2. ⚙️ **业务与协议接入 (Backend / MCP)**：基于 **Python 3.13 + Gunicorn**；提供 **原生 Python MCP** 协议适配，支持标准协议接口与多维资产画像查询能力。
 3. 🧩 **OSINT 独立微服务**：专职企业资产与 ICP 异步情报采集，由 Backend 直调协程池，**独立于 Celery 扫描队列以规避长耗时任务阻塞**。
 4. ⚡ **多队列 Worker 集群**：划分**轻量/重载/威胁情报**独立队列；通过 Worker 子进程生命周期轮转机制控制内存增长；**测绘执行引擎统一至 Nmap 7.95 稳定版**。
@@ -204,28 +204,22 @@ graph TD
 **核心机制与优势**：
 * ⚡ **国内镜像加速**：直连阿里云国内镜像私库，规避跨国网络超时与拉取阻断。
 * 📦 **开箱即用**：预构建交付，无需在宿主机配置复杂编译链与工具库。
-* 🛡️ **双层安全防护**：内置 SSL 证书，可选开启 **Basic Auth 前置网关防护**（默认关闭），核心组件默认私有网络隔离。
-* 🔄 **后台平滑热更**：支持直接在管理后台一键触发升级流程，自动同步编排脚本与最新镜像。
+* 🛡️ **双层安全防护**：内置 SSL 证书，**Basic Auth 前置网关防护默认关闭**（可在顶部导航栏开启），核心组件默认私有网络隔离。
+* 🔄 **后台平滑热更**：可在管理后台触发在线升级流程，自动同步编排脚本与最新镜像。
 * 🩺 **服务健康探活**：内置 API 就绪轮询机制与内存防护配置，服务就绪再放行，保障启动稳定性。
 
 ---
 
 #### 🚀 部署方式选择
 
-##### 方法一：国内镜像快速部署（推荐 · 规避 GitHub 网络波动）
+**绝大多数场景直接执行下方「方式一」即可**，无需预先判断系统类型或网络环境——脚本会自动探测系统、安装缺失依赖并调优内核。
 
-在服务器终端 (需 root 权限) 粘贴并执行对应系统的连缀指令。脚本将从阿里云国内镜像提取部署编排，并自动配置 Swap、安装/补齐 Docker 与 Compose 插件后一键拉起：
+##### 方式一：国内镜像快速部署（推荐）
 
-> [!TIP]
-> `start-prod.sh` 内置自动化环境探针，支持自动安装 Docker、补齐 Docker Compose 插件并调优内核，裸机亦可顺畅运行。
+在服务器终端（需 root 权限）粘贴执行下方命令。命令从阿里云国内镜像提取部署编排，`start-prod.sh` 会自动配置 Swap、安装/补齐 Docker 与 Compose 插件并拉起服务：
 
-**Ubuntu / Debian / 统信 系统**：
 ```bash
-# 1. 安装基础工具并创建目录
-apt-get update && apt-get install -y docker.io openssl curl && \
-(systemctl enable --now docker 2>/dev/null || service docker start 2>/dev/null || true) && \
 mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
-# 2. 从阿里云国内镜像提取部署编排并启动
 docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
 docker rm -f arl-temp 2>/dev/null || true && \
 docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
@@ -239,14 +233,33 @@ docker rm -f arl-temp && \
 chmod +x start-prod.sh && bash start-prod.sh
 ```
 
-**CentOS / RHEL / Alibaba Cloud Linux / TencentOS 系统**：
+> [!TIP]
+> 若宿主机尚未安装 Docker，请先执行下方「方式二」的第一步补齐基础工具，再回来执行本命令。
+
+<details>
+<summary><b>方式二：完整命令部署（按系统类型手动执行）</b></summary>
+<br/>
+
+下面两条命令的差异**仅在第一段的基础工具安装方式**（`apt-get` 与 `yum` 二选一），第二段完全一致。
+
+**第一步：安装基础工具并创建目录**
+
+- Ubuntu / Debian / 统信：
+  ```bash
+  apt-get update && apt-get install -y docker.io openssl curl && \
+  (systemctl enable --now docker 2>/dev/null || service docker start 2>/dev/null || true)
+  ```
+- CentOS / RHEL / Alibaba Cloud Linux / TencentOS：
+  ```bash
+  yum install -y openssl curl && \
+  (command -v docker &>/dev/null || curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun) && \
+  systemctl enable --now docker 2>/dev/null || true
+  ```
+
+**第二步：拉取部署编排并启动（所有系统一致）**
+
 ```bash
-# 1. 安装基础工具、自动补齐 Docker 并创建目录
-yum install -y openssl curl && \
-(command -v docker &>/dev/null || curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun) && \
-systemctl enable --now docker 2>/dev/null || true && \
 mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
-# 2. 从阿里云国内镜像提取部署编排并启动
 docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
 docker rm -f arl-temp 2>/dev/null || true && \
 docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
@@ -260,16 +273,22 @@ docker rm -f arl-temp && \
 chmod +x start-prod.sh && bash start-prod.sh
 ```
 
-##### 方法二：GitHub 源码克隆部署（适用于海外服务器 / 源码部署）
+</details>
 
-> [!TIP]
-> `start-prod.sh` 内置自动化环境探针，裸机运行亦会自动安装 Docker 并优化内核配置。
+<details>
+<summary><b>方式三：GitHub 源码克隆部署（海外服务器 / 需要改源码）</b></summary>
+<br/>
 
 ```bash
 git clone --depth 1 https://github.com/owl234/ARL-Next.git && cd ARL-Next
 chmod +x start-prod.sh
 bash start-prod.sh
 ```
+
+> [!TIP]
+> `start-prod.sh` 内置环境探针，裸机运行亦会自动安装 Docker 并优化内核配置。
+
+</details>
 
 ---
 
@@ -279,41 +298,57 @@ bash start-prod.sh
 
 | 验证层级 | 默认账号 | 默认密码 | 说明 |
 | :--- | :--- | :--- | :--- |
-| **第一层：Nginx Basic Auth 网关** | `admin` | `arl_next` | 前置防扫描器爆破（默认关闭，可在顶部导航栏通过安全开关一键热开启或关闭，修改密码可在关闭后重新开启配置） |
+| **第一层：Nginx Basic Auth 网关** | `admin` | `arl_next` | 前置防扫描器爆破（**默认关闭**，可在顶部导航栏安全开关处开启/关闭；修改密码需先关闭再重新开启） |
 | **第二层：ARL-Next 系统登录** | `admin` | `arlpass` | 平台主账号，首次登录后建议立即修改 |
 
+> [!IMPORTANT]
+> **必须完成**：请确保云服务器控制台安全组及系统本地防火墙已放行 **5173** TCP 端口，否则将无法访问。
+> ```bash
+> # Ubuntu / Debian
+> ufw allow 5173/tcp
+> # CentOS / RHEL
+> firewall-cmd --permanent --add-port=5173/tcp && firewall-cmd --reload
+> ```
+
 > [!TIP]
-> - **网络与防火墙开放**：请确保云服务器控制台安全组及系统本地防火墙（如 `ufw allow 5173/tcp` 或 `firewall-cmd --permanent --add-port=5173/tcp && firewall-cmd --reload`）已放行 **5173** TCP 端口。
-> - **商业证书替换 (可选)**：将您申请的真实 SSL 证书重命名为 `arl.crt` 和 `arl.key` 放至 `ssl-certs/` 目录，然后再次执行 `bash start-prod.sh` 即可。
+> **可选优化**（不影响基本可用性）：
+> - **替换商业证书**：将真实 SSL 证书重命名为 `arl.crt` 和 `arl.key` 放至 `ssl-certs/` 目录，再次执行 `bash start-prod.sh`。
+> - **开启 Basic Auth 防护**：登录后于顶部导航栏安全开关开启（默认关闭）。
 
 ---
 
 ### 🔄 生产环境版本升级
 
-ARL-Next 支持 **Web 管理后台一键热更新**（在「系统设置」中在线升级）与 **终端标准手动升级**：
+ARL-Next 提供两种升级路径：**Web 管理后台在线更新**（推荐，无需登录终端）与 **终端标准手动升级**。
 
-#### 方案一：Web 管理后台一键热更新（推荐）
+#### 方案一：Web 管理后台在线更新（推荐）
 
 登录 ARL-Next 平台 ➔ 进入 **「系统设置」** 页面 ➔ 点击 **「一键系统更新」**。<br/>
 宿主机更新守护进程将自动拉取最新构建、同步最新编排脚本与版本文件，并在后台完成容器热重启与服务就绪检查，通常无需登录终端。
 
-#### 方案二：终端标准手动升级
+> [!WARNING]
+> 更新过程会重启后台 Worker 容器，**正在运行的扫描任务将被中断**（重启后标记为中断状态）。请在任务空闲时段执行。
 
-在服务器终端进入 ARL-Next 部署目录，根据您的初次安装方式执行对应升级命令：
+<details>
+<summary><b>方案二：终端标准手动升级</b></summary>
+<br/>
 
-* **Git 源码克隆用户 (方法二部署)**：
-  ```bash
-  cd ~/ARL-Next && git pull && sudo bash start-prod.sh
-  ```
+在服务器终端进入 ARL-Next 部署目录，根据初次安装方式执行对应命令。
 
-* **免 Git 一键部署用户 (方法一部署)**：
-  在终端执行以下连缀指令，重新同步最新的编排脚本并平滑拉起：
+- **方式一 / 方式二部署的用户**（免 Git，从镜像同步编排）：
   ```bash
   cd ~/ARL-Next && \
   docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
   docker run --rm -v $(pwd):/host crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest bash -c "cp /code/start-prod.sh /host/start-prod.sh && cp /code/docker-compose.prod.yml /host/docker-compose.prod.yml && mkdir -p /host/updater && cp -r /code/updater/. /host/updater/ 2>/dev/null || true; mkdir -p /host/frontend && cp /code/frontend/default.conf.prod /host/frontend/default.conf.prod 2>/dev/null || true; cp /code/version.txt /host/version.txt 2>/dev/null || true; cp /code/CHANGELOG.md /host/CHANGELOG.md 2>/dev/null || true" && \
   sudo bash start-prod.sh
   ```
+
+- **方式三部署的用户**（Git 源码克隆）：
+  ```bash
+  cd ~/ARL-Next && git pull && sudo bash start-prod.sh
+  ```
+
+</details>
 
 > [!TIP]
 > **升级保障机制**：
@@ -347,26 +382,26 @@ ARL-Next 提供标准化 RESTful API，支持外部自动化运维、CI/CD 流�
 <summary><b>Q2: 忘记系统登录密码或 Basic Auth 防爆破凭证怎么办？</b></summary>
 <br/>
 
-**A:** 在服务器终端执行以下操作即可一键重置：
+**A:** 在服务器终端执行以下操作即可重置：
 - **重置平台管理员账号 (admin / arlpass)**：
   ```bash
   docker exec -it arl-web-prod /code/backend/.venv-docker/bin/python3 /code/backend/inject_user.py --reset
   ```
   > [!NOTE]
   > 平台启动时默认保护现有密码，追加 `--reset` 参数将强制将 `admin` 密码重置为初始密码 `arlpass`。请在宿主机受信环境下执行。
-- **重置/查看 Basic Auth 凭据**：编辑工作目录下的 `frontend/.htpasswd`，或登录系统后在顶部导航栏通过安全开关一键热开启/关闭（修改密码可在关闭后重新开启配置）。
+- **重置/查看 Basic Auth 凭据**：编辑工作目录下的 `frontend/.htpasswd`，或登录系统后在顶部导航栏安全开关处开启/关闭（修改密码需先关闭再重新开启）。
 </details>
 
 <details>
 <summary><b>Q3: 点击 Web 端的“一键系统更新”时，提示 <code>[ERROR]触发更新失败</code>？</b></summary>
 <br/>
 
-**A:** 这种情况通常是因为宿主机更新守护进程未响应。您可以通过以下两种方式解决：
-- **方式 1 (推荐)：直接在终端执行生产环境标准手动升级**
+**A:** 这种情况通常是因为宿主机更新守护进程未响应。可通过以下任一方式解决：
+- **方案 A (推荐)：直接在终端执行标准手动升级**
   ```bash
   cd ~/ARL-Next && sudo bash start-prod.sh
   ```
-- **方式 2：重启宿主机更新服务后重试 Web 更新**
+- **方案 B：重启宿主机更新服务后重试 Web 更新**
   ```bash
   sudo systemctl restart arl-updater.service
   ```

@@ -185,7 +185,7 @@ graph TD
 
 ### Key Architectural Highlights:
 
-1. 🖥️ **Presentation & Gateway (Frontend / Nginx)**: Built with **Vue 3.5 + Nginx**, featuring core table sticky headers, floating action toolbars, and optional **Basic Auth gateway protection**.
+1. 🖥️ **Presentation & Gateway (Frontend / Nginx)**: Built with **Vue 3.5 + Nginx**, featuring core table sticky headers and floating action toolbars; provides **frontline Basic Auth gateway protection** (disabled by default, toggleable from the top navigation bar).
 2. ⚙️ **Core API & Protocol Integration (Backend / MCP)**: Powered by **Python 3.13 + Gunicorn**; provides **native Python MCP** protocol adaptation supporting standard interfaces and multi-dimensional asset profile queries.
 3. 🧩 **Dedicated OSINT Microservice**: Dedicated asynchronous engine for corporate asset discovery and ICP lookup; directly invoked by the backend via coroutines to **prevent long-running OSINT tasks from stalling scan queues**.
 4. ⚡ **Multi-Queue Worker Cluster**: Segregated into **lightweight**, **heavyweight**, and **threat intelligence** task queues; controls worker memory growth through subprocess lifecycle recycling; standardizes on **Nmap 7.95 Stable**.
@@ -204,28 +204,62 @@ graph TD
 **Key Operational Advantages**:
 * ⚡ **Mainland China Mirror Acceleration**: Pulls directly from the Alibaba Cloud ACR private mirror repository, avoiding cross-border network timeouts and pull interruptions.
 * 📦 **Out-of-the-Box Delivery**: Pre-built container images eliminate local toolchain compilation and dependency configuration.
-* 🛡️ **Dual-Layer Security**: Bundled local SSL encryption with optional **frontline Basic Auth gateway protection** (disabled by default); core internal services isolated within a private Docker bridge network.
-* 🔄 **One-Click Hot Updates**: Web console-driven upgrade triggers the background daemon to pull updated images and orchestrations automatically.
+* 🛡️ **Dual-Layer Security**: Bundled local SSL encryption; **frontline Basic Auth gateway protection is disabled by default** (toggleable from the top navigation bar); core internal services isolated within a private Docker bridge network.
+* 🔄 **Background Hot Updates**: Trigger an online upgrade from the web console; the background daemon pulls updated images and orchestrations automatically.
 * 🩺 **Health Readiness Probing**: Integrated startup probe loops verify API readiness before allowing incoming traffic, preventing intermittent startup errors.
 
 ---
 
 #### 🚀 Deployment Methods
 
-##### Method 1: Accelerated Mirror Deployment (Recommended · Avoids GitHub Network Fluctuations)
+**For the vast majority of setups, just run "Method 1" below** — no need to determine your OS or network environment first; the script auto-detects the system, installs missing dependencies, and tunes kernel parameters.
 
-On your server terminal (root required), paste and run the chained command for your OS. The script extracts the deployment orchestration from the Alibaba Cloud ACR mirror, then automatically configures Swap, installs/pads Docker and the Compose plugin, and brings the stack up:
+##### Method 1: Accelerated Mirror Deployment (Recommended)
+
+On your server terminal (root required), paste and run the command below. It extracts the deployment orchestration from the Alibaba Cloud ACR mirror, and `start-prod.sh` then configures Swap, installs/pads Docker and the Compose plugin, and brings the stack up:
+
+```bash
+mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
+docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
+docker rm -f arl-temp 2>/dev/null || true && \
+docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
+docker cp arl-temp:/code/start-prod.sh ./ && \
+docker cp arl-temp:/code/docker-compose.prod.yml ./ && \
+docker cp arl-temp:/code/updater ./ && \
+docker cp arl-temp:/code/version.txt ./ && \
+docker cp arl-temp:/code/CHANGELOG.md ./ && \
+mkdir -p ./frontend && docker cp arl-temp:/code/frontend/default.conf.prod ./frontend/ && \
+docker rm -f arl-temp && \
+chmod +x start-prod.sh && bash start-prod.sh
+```
 
 > [!TIP]
-> `start-prod.sh` includes built-in environment probes that configure Swap, install Docker / Docker Compose plugins, and tune kernel parameters, so it runs on bare-metal systems as well.
+> If Docker is not yet installed on the host, run step 1 of "Method 2" below first, then return to this command.
 
-**Ubuntu / Debian / UOS Systems**:
+<details>
+<summary><b>Method 2: Full Manual Commands (by OS type)</b></summary>
+<br/>
+
+The two commands below differ **only in how base tools are installed** (choose `apt-get` or `yum`); the second step is identical for all systems.
+
+**Step 1: Install base tools and create the directory**
+
+- Ubuntu / Debian / UOS:
+  ```bash
+  apt-get update && apt-get install -y docker.io openssl curl && \
+  (systemctl enable --now docker 2>/dev/null || service docker start 2>/dev/null || true)
+  ```
+- CentOS / RHEL / Alibaba Cloud Linux / TencentOS:
+  ```bash
+  yum install -y openssl curl && \
+  (command -v docker &>/dev/null || curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun) && \
+  systemctl enable --now docker 2>/dev/null || true
+  ```
+
+**Step 2: Pull orchestration files and start (identical for all systems)**
+
 ```bash
-# 1. Install base tools and create directory
-apt-get update && apt-get install -y docker.io openssl curl && \
-(systemctl enable --now docker 2>/dev/null || service docker start 2>/dev/null || true) && \
 mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
-# 2. Pull orchestration files from Alibaba Cloud ACR mirror and start
 docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
 docker rm -f arl-temp 2>/dev/null || true && \
 docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
@@ -239,34 +273,22 @@ docker rm -f arl-temp && \
 chmod +x start-prod.sh && bash start-prod.sh
 ```
 
-**CentOS / RHEL / Alibaba Cloud Linux / TencentOS Systems**:
-```bash
-# 1. Install base tools, setup Docker, and create directory
-yum install -y openssl curl && \
-(command -v docker &>/dev/null || curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun) && \
-systemctl enable --now docker 2>/dev/null || true && \
-mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
-# 2. Pull orchestration files from Alibaba Cloud ACR mirror and start
-docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
-docker rm -f arl-temp 2>/dev/null || true && \
-docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
-docker cp arl-temp:/code/start-prod.sh ./ && \
-docker cp arl-temp:/code/docker-compose.prod.yml ./ && \
-docker cp arl-temp:/code/updater ./ && \
-docker cp arl-temp:/code/version.txt ./ && \
-docker cp arl-temp:/code/CHANGELOG.md ./ && \
-mkdir -p ./frontend && docker cp arl-temp:/code/frontend/default.conf.prod ./frontend/ && \
-docker rm -f arl-temp && \
-chmod +x start-prod.sh && bash start-prod.sh
-```
+</details>
 
-##### Method 2: Git Clone Source Deployment (For Overseas Servers / Source-Based Deployments)
+<details>
+<summary><b>Method 3: Git Clone Source Deployment (Overseas servers / modifying source)</b></summary>
+<br/>
 
 ```bash
 git clone --depth 1 https://github.com/owl234/ARL-Next.git && cd ARL-Next
 chmod +x start-prod.sh
 bash start-prod.sh
 ```
+
+> [!TIP]
+> `start-prod.sh` includes environment probes that also install Docker and tune kernel parameters on bare-metal systems.
+
+</details>
 
 ---
 
@@ -279,37 +301,54 @@ After deployment completes, open your browser and navigate to: `https://<YOUR_SE
 | **Layer 1: Nginx Basic Auth Gateway** | `admin` | `arl_next` | Prevents automated internet scanner brute-forcing. Disabled by default; can be toggled via the security switch in the top navigation bar. |
 | **Layer 2: ARL-Next System Login** | `admin` | `arlpass` | Main platform admin account. Changing the default password upon initial login is strongly recommended. |
 
+> [!IMPORTANT]
+> **Required**: Ensure port **5173** (TCP) is allowed in your cloud provider security groups and local firewall, otherwise the console will be unreachable.
+> ```bash
+> # Ubuntu / Debian
+> ufw allow 5173/tcp
+> # CentOS / RHEL
+> firewall-cmd --permanent --add-port=5173/tcp && firewall-cmd --reload
+> ```
+
 > [!TIP]
-> - **Firewall & Security Groups**: Ensure port **5173** (TCP) is allowed in your cloud provider security groups and local firewall (e.g., `ufw allow 5173/tcp` or `firewall-cmd --permanent --add-port=5173/tcp && firewall-cmd --reload`).
-> - **Custom SSL Certificates (Optional)**: Place your official certificates renamed as `arl.crt` and `arl.key` into the `ssl-certs/` directory, then re-run `bash start-prod.sh`.
+> **Optional optimizations** (not required for basic operation):
+> - **Custom SSL Certificates**: Place your official certificates renamed as `arl.crt` and `arl.key` into the `ssl-certs/` directory, then re-run `bash start-prod.sh`.
+> - **Enable Basic Auth**: Toggle the security switch in the top navigation bar after logging in (disabled by default).
 
 ---
 
 ### 🔄 Upgrading in Production
 
-ARL-Next supports **One-Click Hot Updates via Web Console** as well as **Standard Terminal Upgrades**:
+ARL-Next offers two upgrade paths: **Web Console Online Update** (recommended, no terminal required) and **Standard Terminal Upgrade**.
 
-#### Option 1: Web Console One-Click Update (Recommended)
+#### Option 1: Web Console Online Update (Recommended)
 
 Log in to ARL-Next ➔ Navigate to **"System Settings"** ➔ Click **"One-Click System Update"**.<br/>
 The host update daemon pulls the latest images, synchronizes orchestration scripts, and performs service health checks in the background without requiring SSH access.
 
-#### Option 2: Standard Terminal Upgrade
+> [!WARNING]
+> The update restarts the background Worker container, which **interrupts any running scan tasks** (they will be marked as interrupted). Run it during idle periods.
 
-Navigate to your ARL-Next installation directory on the server and run the upgrade commands matching your installation method:
+<details>
+<summary><b>Option 2: Standard Terminal Upgrade</b></summary>
+<br/>
 
-* **Git Clone Users (Method 2)**:
-  ```bash
-  cd ~/ARL-Next && git pull && sudo bash start-prod.sh
-  ```
+Navigate to your ARL-Next installation directory and run the commands matching your installation method.
 
-* **One-Liner / Container Sync Users (Method 1)**:
+- **Method 1 / Method 2 users** (no Git, syncing orchestration from the image):
   ```bash
   cd ~/ARL-Next && \
   docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
   docker run --rm -v $(pwd):/host crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest bash -c "cp /code/start-prod.sh /host/start-prod.sh && cp /code/docker-compose.prod.yml /host/docker-compose.prod.yml && mkdir -p /host/updater && cp -r /code/updater/. /host/updater/ 2>/dev/null || true; mkdir -p /host/frontend && cp /code/frontend/default.conf.prod /host/frontend/default.conf.prod 2>/dev/null || true; cp /code/version.txt /host/version.txt 2>/dev/null || true; cp /code/CHANGELOG.md /host/CHANGELOG.md 2>/dev/null || true" && \
   sudo bash start-prod.sh
   ```
+
+- **Method 3 users** (Git clone):
+  ```bash
+  cd ~/ARL-Next && git pull && sudo bash start-prod.sh
+  ```
+
+</details>
 
 > [!TIP]
 > **Upgrade Safeguards**:
@@ -350,19 +389,19 @@ ARL-Next provides standardized RESTful APIs for automation scripts, CI/CD pipeli
   ```
   > [!NOTE]
   > The platform protects existing passwords on startup by default. Adding `--reset` forces the `admin` password back to `arlpass`. Run this within a trusted host shell.
-- **Reset or View Basic Auth Credentials**: Edit `frontend/.htpasswd` in your deployment directory, or toggle the Basic Auth switch in the web top navigation bar after logging in.
+- **Reset or View Basic Auth Credentials**: Edit `frontend/.htpasswd` in your deployment directory, or toggle the Basic Auth switch in the web top navigation bar after logging in (to change the password, disable and re-enable it).
 </details>
 
 <details>
 <summary><b>Q3: Web console displays <code>[ERROR] Trigger update failed</code> when clicking "One-Click System Update"?</b></summary>
 <br/>
 
-**A:** This typically occurs when the host updater daemon is inactive. Resolve via either of the following methods:
-- **Method 1 (Recommended)**: Perform a manual terminal upgrade:
+**A:** This typically occurs when the host updater daemon is inactive. Resolve via either of the following:
+- **Option A (Recommended)**: Perform a standard manual terminal upgrade:
   ```bash
   cd ~/ARL-Next && sudo bash start-prod.sh
   ```
-- **Method 2**: Restart the updater service and retry from the Web console:
+- **Option B**: Restart the updater service and retry from the Web console:
   ```bash
   sudo systemctl restart arl-updater.service
   ```
