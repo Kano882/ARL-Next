@@ -70,7 +70,7 @@
           <template v-if="activeMainTab === 'enterprise'">
             <a-button type="primary" size="small" class="primary-action-btn" @click="showTycModal">
               <template #icon><plus-outlined /></template>
-              新建企业资产查询
+              新建企业全景测绘
             </a-button>
           </template>
 
@@ -511,12 +511,21 @@
               <span class="task-target-text" :title="record.target">{{ record.target }}</span>
             </template>
 
+            <template v-else-if="column.key === 'task_type'">
+              <a-tag v-if="record.task_type === 'tyc'" color="blue" style="margin: 0; font-size: 12px; border-radius: 4px; padding: 1px 6px;">
+                🏢 全景双轨
+              </a-tag>
+              <a-tag v-else color="purple" style="margin: 0; font-size: 12px; border-radius: 4px; padding: 1px 6px;">
+                🏛️ 官方备案
+              </a-tag>
+            </template>
+
             <template v-else-if="column.key === 'policy_options'">
               <a-tooltip v-if="hasEnterpriseOptions(record)" placement="bottom">
                 <template #title>
                   <div class="options-tooltip-content">
                     <div class="tooltip-header">
-                      {{ record.task_type === 'tyc' ? '天眼查测绘策略' : '工信部ICP查询策略' }}
+                      {{ record.task_type === 'tyc' ? '企业全景测绘策略 (全景双轨)' : '企业全景测绘策略 (官方备案)' }}
                     </div>
                     <template v-if="record.task_type === 'tyc'">
                       <div class="tooltip-section-title">穿透策略</div>
@@ -1377,7 +1386,7 @@ const formatEnterpriseOptionsSummary = (record) => {
 const enterpriseColumns = [
   { title: '任务名称', dataIndex: 'name', key: 'name', width: 220, ellipsis: true },
   { title: '查询目标', dataIndex: 'target', key: 'target', width: 200, ellipsis: true },
-  { title: '类型', dataIndex: 'task_type', key: 'task_type', width: 100, customRender: ({ text }) => text === 'tyc' ? '天眼查' : '工信部ICP' },
+  { title: '测绘模式', dataIndex: 'task_type', key: 'task_type', width: 110 },
   { title: '策略配置', key: 'policy_options', width: 140 },
   { title: '状态', dataIndex: 'status', key: 'status', width: 120 },
   { title: '核心/投资', key: 'statistic', width: 140 },

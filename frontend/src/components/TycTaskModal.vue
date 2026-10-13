@@ -2,69 +2,185 @@
   <a-modal
     :open="open"
     @update:open="val => $emit('update:open', val)"
-    title="新建企业资产查询 (天眼查)"
-    @ok="handleTycOk"
-    :confirmLoading="tycSubmitLoading"
-    width="560px"
+    title="🏢 新建企业全景测绘任务"
+    @ok="handleSubmit"
+    :confirmLoading="submitLoading"
+    width="580px"
     wrapClassName="arl-theme-modal"
-    okText="确 定"
+    okText="🚀 开始全景测绘"
     cancelText="取 消"
     destroyOnClose
   >
-    <a-spin :spinning="tycConfigCheck.loading" tip="正在校验天眼查配置...">
+    <a-spin :spinning="configChecking" tip="正在检测测绘环境配置...">
+      <!-- 引擎能力状态动态提示 -->
       <a-alert
-        v-if="!tycConfigCheck.valid && !tycConfigCheck.loading"
-        type="error"
+        v-if="!configChecking"
+        :type="tycConfigValid ? 'info' : 'warning'"
         show-icon
-        style="margin-bottom: 16px;"
-        :message="tycConfigCheck.message || '系统未检测到天眼查配置，请先在系统设置中配置后再发起任务。'"
-      />
-      <a-form
-        ref="tycFormRef"
-        :model="tycFormState"
-        :label-col="{ style: { width: '90px' } }"
-        :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+        style="margin-bottom: 16px; border-radius: 6px; font-size: 12px;"
       >
-        <a-form-item label="任务名称" name="name" :rules="[{ required: true, message: '请输入任务名称' }]">
-          <a-input v-model:value="tycFormState.name" placeholder="请输入任务名称" />
-        </a-form-item>
+        <template #message>
+          <span v-if="tycConfigValid" style="color: var(--arl-text-color); line-height: 1.5;">
+            已就绪：支持<b>天眼查股权穿透</b>与<b>工信部官方 ICP</b> 双轨测绘。输入天眼查链接、ID 或企业全称即可发起。
+          </span>
+          <span v-else style="color: var(--arl-text-color); line-height: 1.5;">
+            未配置天眼查 API：系统将自动通过<b>工信部官方权威备案</b>归集资产；若需投资穿透可至 <a @click="goToApiConfig">系统设置</a> 完善凭据。
+          </span>
+        </template>
+      </a-alert>
+
+      <a-form
+        ref="formRef"
+        :model="formState"
+        :rules="rules"
+        :label-col="{ style: { width: '100px' } }"
+        :wrapper-col="{ style: { width: 'calc(100% - 100px)' } }"
+      >
+        <!-- 核心企业目标输入框 -->
         <a-form-item
-          label="公司 ID"
-          name="gid"
-          :rules="[
-            { required: true, message: '请输入天眼查公司 ID' },
-            { pattern: /^[a-zA-Z0-9]+$/, message: '公司 ID 格式不正确，请输入纯数字/字母 ID' }
-          ]"
-          tooltip="可在天眼查详情页URL中获取，例如 https://www.tianyancha.com/company/25174642 中的 25174642"
+          label="企业目标"
+          name="rawTarget"
+          tooltip="支持天眼查企业主页链接（如 https://www.tianyancha.com/company/25174642）、纯数字 GID 或企业工商注册全称"
         >
-          <a-input v-model:value="tycFormState.gid" placeholder="请输入天眼查公司 ID（纯数字/字母，例如：25174642）" />
+          <a-input
+            v-model:value="formState.rawTarget"
+            placeholder="粘贴天眼查链接 / GID 或输入企业工商全称"
+            allowClear
+            @change="handleTargetChange"
+            @pressEnter="handleSubmit"
+          >
+            <template #prefix>
+              <component :is="parsedGid ? 'LinkOutlined' : 'BankOutlined'" style="color: #bfbfbf;" />
+            </template>
+          </a-input>
+
+          <!-- 智能识别反馈状态 -->
+          <div v-if="parsedGid" style="margin-top: 5px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
+            <check-circle-outlined />
+            <span>已自动识别天眼查 GID: <b>{{ parsedGid }}</b> (全景双轨穿透)</span>
+          </div>
+          <div v-else-if="isCompanyName" style="margin-top: 5px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
+            <safety-certificate-outlined />
+            <span>已识别企业主体: <b>{{ formState.rawTarget.trim() }}</b> (工信部权威备案)</span>
+          </div>
         </a-form-item>
-        <a-form-item label="投资层级" name="depth">
-          <a-input-number v-model:value="tycFormState.depth" :min="1" :max="25" style="width: 120px;" addon-after="层" />
+
+        <!-- 任务名称 (选填，自动补齐) -->
+        <a-form-item
+          label="任务名称"
+          name="name"
+          tooltip="选填，留空将根据企业官方名称或目标 ID 自动命名"
+        >
+          <a-input
+            v-model:value="formState.name"
+            placeholder="选填，留空将自动生成标准全景测绘任务名"
+            allowClear
+            @pressEnter="handleSubmit"
+          />
         </a-form-item>
-        <a-form-item label="投资比例" name="invest_ratio">
-          <a-input-number v-model:value="tycFormState.invest_ratio" :min="1" :max="100" style="width: 120px;" addon-after="%" />
-        </a-form-item>
-        <a-form-item label="查询类型" name="query_type">
-          <a-checkbox-group v-model:value="tycFormState.query_type">
-            <a-checkbox value="invest">对外投资</a-checkbox>
-            <a-checkbox value="web">网站备案</a-checkbox>
-            <a-checkbox value="app">移动APP</a-checkbox>
-            <a-checkbox value="mapp">微信小程序</a-checkbox>
-            <a-checkbox value="wechat">微信公众号</a-checkbox>
-            <a-checkbox value="weibo">企业微博</a-checkbox>
-            <a-checkbox value="trademark">企业商标</a-checkbox>
-          </a-checkbox-group>
-        </a-form-item>
+
+        <!-- 高级测绘参数（渐进折叠面板） -->
+        <div style="margin-top: 10px; margin-bottom: 12px;">
+          <div
+            @click="showAdvanced = !showAdvanced"
+            style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--arl-text-color); opacity: 0.8; user-select: none; padding: 4px 0;"
+          >
+            <span>
+              <setting-outlined style="margin-right: 4px;" />
+              高级测绘参数
+              <span style="opacity: 0.6; margin-left: 4px;">{{ showAdvanced ? '(点击收起)' : '(穿透层级、控股比例、双轨查重，已预设最佳值)' }}</span>
+            </span>
+            <component :is="showAdvanced ? 'UpOutlined' : 'DownOutlined'" style="font-size: 11px;" />
+          </div>
+
+          <div v-show="showAdvanced" style="margin-top: 10px; padding: 12px 14px; background: var(--arl-bg-light); border-radius: 6px; border: 1px solid var(--arl-border-color);">
+            <a-row :gutter="16">
+              <a-col :span="12">
+                <a-form-item
+                  label="投资层级"
+                  :label-col="{ style: { width: '80px' } }"
+                  :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }"
+                  style="margin-bottom: 8px;"
+                  tooltip="穿透控股子公司与参股公司的递归深度 (1~5)"
+                >
+                  <a-input-number
+                    v-model:value="formState.depth"
+                    :min="1"
+                    :max="5"
+                    size="small"
+                    style="width: 100px;"
+                    addon-after="层"
+                  />
+                </a-form-item>
+              </a-col>
+              <a-col :span="12">
+                <a-form-item
+                  label="控股比例"
+                  :label-col="{ style: { width: '80px' } }"
+                  :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }"
+                  style="margin-bottom: 8px;"
+                  tooltip="对外投资的最小持股比例 (1~100%)"
+                >
+                  <a-input-number
+                    v-model:value="formState.invest_ratio"
+                    :min="1"
+                    :max="100"
+                    size="small"
+                    style="width: 100px;"
+                    addon-after="%"
+                  />
+                </a-form-item>
+              </a-col>
+            </a-row>
+
+            <a-form-item
+              label="ICP 双轨查重"
+              :label-col="{ style: { width: '85px' } }"
+              :wrapper-col="{ style: { width: 'calc(100% - 85px)' } }"
+              style="margin-bottom: 8px;"
+              tooltip="自动调用工信部官方权威备案接口进行双轨校对与兜底补全"
+            >
+              <a-switch v-model:checked="formState.enable_icp" size="small" />
+              <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
+                {{ formState.enable_icp ? '已启用（推荐）' : '已关闭' }}
+              </span>
+            </a-form-item>
+
+            <a-form-item
+              label="资产维度"
+              :label-col="{ style: { width: '80px' } }"
+              :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }"
+              style="margin-bottom: 0;"
+            >
+              <a-checkbox-group v-model:value="formState.query_type" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <a-checkbox value="invest">对外投资</a-checkbox>
+                <a-checkbox value="web">网站备案</a-checkbox>
+                <a-checkbox value="app">移动APP</a-checkbox>
+                <a-checkbox value="mapp">微信小程序</a-checkbox>
+                <a-checkbox value="wechat">微信公众号</a-checkbox>
+                <a-checkbox value="weibo">企业微博</a-checkbox>
+              </a-checkbox-group>
+            </a-form-item>
+          </div>
+        </div>
       </a-form>
     </a-spin>
   </a-modal>
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { message, Modal } from 'ant-design-vue';
+import {
+  LinkOutlined,
+  BankOutlined,
+  CheckCircleOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  UpOutlined,
+  DownOutlined
+} from '@ant-design/icons-vue';
 import request from '../utils/request';
 
 const props = defineProps({
@@ -77,82 +193,163 @@ const props = defineProps({
 const emit = defineEmits(['update:open', 'success']);
 const router = useRouter();
 
-const tycFormRef = ref();
-const tycSubmitLoading = ref(false);
-const tycFormState = reactive({
+const formRef = ref();
+const submitLoading = ref(false);
+const configChecking = ref(false);
+const tycConfigValid = ref(false);
+const showAdvanced = ref(false);
+
+const formState = reactive({
   name: '',
-  gid: '',
+  rawTarget: '',
   depth: 1,
   invest_ratio: 50,
   query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo'],
   enable_icp: true
 });
 
-const tycConfigCheck = reactive({
-  loading: false,
-  valid: true,
-  message: ''
+const rules = {
+  rawTarget: [{ required: true, message: '请输入天眼查链接、GID 或企业工商全称', trigger: 'blur' }]
+};
+
+// 正则解析企业输入
+const parseTargetInput = (input) => {
+  if (!input) return { gid: '', isUrl: false, isName: false };
+  const str = input.trim();
+  const urlMatch = str.match(/(?:tianyancha\.com\/company\/|^company\/)([a-zA-Z0-9]+)/i);
+  if (urlMatch && urlMatch[1]) {
+    return { gid: urlMatch[1], isUrl: true, isName: false };
+  }
+  if (/^[a-zA-Z0-9]+$/.test(str)) {
+    return { gid: str, isUrl: false, isName: false };
+  }
+  if (str.length >= 2) {
+    return { gid: '', isUrl: false, isName: true };
+  }
+  return { gid: '', isUrl: false, isName: false };
+};
+
+const parsedGid = computed(() => {
+  const parsed = parseTargetInput(formState.rawTarget);
+  return parsed.gid;
 });
 
+const isCompanyName = computed(() => {
+  const parsed = parseTargetInput(formState.rawTarget);
+  return parsed.isName;
+});
+
+const handleTargetChange = () => {
+  // 清除即时校验错误
+};
+
 const checkTycConfig = async () => {
-  tycConfigCheck.loading = true;
-  tycConfigCheck.valid = true;
-  tycConfigCheck.message = '';
+  configChecking.value = true;
   try {
     const res = await request.get('/icp/tyc_check');
-    if (res.code === 200) {
-      tycConfigCheck.valid = res.data.valid;
-      tycConfigCheck.message = res.data.message;
+    if (res.code === 200 && res.data) {
+      tycConfigValid.value = !!res.data.valid;
+    } else {
+      tycConfigValid.value = false;
     }
   } catch (error) {
-    console.error('校验天眼查配置异常:', error);
+    console.error('检测天眼查配置异常:', error);
+    tycConfigValid.value = false;
   } finally {
-    tycConfigCheck.loading = false;
+    configChecking.value = false;
   }
+};
+
+const goToApiConfig = () => {
+  emit('update:open', false);
+  router.push({ path: '/systemSettings', query: { tab: 'api_config' } });
 };
 
 watch(() => props.open, (val) => {
   if (val) {
-    tycFormState.name = '';
-    tycFormState.gid = '';
-    tycFormState.depth = 1;
-    tycFormState.invest_ratio = 50;
-    tycFormState.query_type = ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo'];
-    tycFormState.enable_icp = true;
+    formState.name = '';
+    formState.rawTarget = '';
+    formState.depth = 1;
+    formState.invest_ratio = 50;
+    formState.query_type = ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo'];
+    formState.enable_icp = true;
+    showAdvanced.value = false;
     checkTycConfig();
   }
 });
 
-const handleTycOk = async () => {
+const handleSubmit = async () => {
   try {
-    await tycFormRef.value.validate();
-    if (!tycConfigCheck.valid) {
-      Modal.confirm({
-        title: '天眼查配置无效',
-        content: tycConfigCheck.message || '未配置天眼查 ID 或 Token，请先完成配置后再创建任务。',
-        okText: '去配置',
-        cancelText: '取消',
-        onOk() {
-          emit('update:open', false);
-          router.push({ path: '/systemSettings', query: { tab: 'api_config' } });
-        }
-      });
+    await formRef.value.validate();
+    const targetStr = (formState.rawTarget || '').trim();
+    const customName = (formState.name || '').trim();
+    const parsed = parseTargetInput(targetStr);
+
+    if (!parsed.gid && !parsed.isName) {
+      message.error('未能识别有效目标，请输入天眼查链接、ID 或企业工商注册全称');
       return;
     }
 
-    tycSubmitLoading.value = true;
-    const res = await request.post('/icp/tyc_task', tycFormState);
+    // 分流场景 1: 输入了天眼查 GID / 链接
+    if (parsed.gid) {
+      if (!tycConfigValid.value) {
+        Modal.confirm({
+          title: '未配置天眼查商业凭据',
+          content: '检测到您输入了天眼查 GID，但系统尚未配置天眼查 API。如需股权穿透请前往系统设置配置凭据；或者您可直接输入企业工商全称使用工信部官方备案进行检索。',
+          okText: '前往配置',
+          cancelText: '取消',
+          onOk() {
+            goToApiConfig();
+          }
+        });
+        return;
+      }
+
+      submitLoading.value = true;
+      const taskName = customName || ('TYC_' + parsed.gid);
+      const payload = {
+        name: taskName,
+        gid: parsed.gid,
+        depth: formState.depth || 1,
+        invest_ratio: formState.invest_ratio || 50,
+        enable_icp: formState.enable_icp !== false,
+        query_type: formState.query_type
+      };
+      if (customName) {
+        payload.company_name = customName;
+      }
+      const res = await request.post('/icp/tyc_task', payload);
+      if (res.code === 200) {
+        message.success(`企业全景测绘任务【${taskName}】创建成功`);
+        emit('update:open', false);
+        emit('success', res);
+      } else {
+        message.error(res.message || '创建任务失败');
+      }
+      return;
+    }
+
+    // 分流场景 2: 输入了企业工商全称
+    submitLoading.value = true;
+    const taskName = customName || targetStr;
+    const payload = {
+      name: taskName,
+      target: targetStr,
+      query_type: ['web']
+    };
+    const res = await request.post('/icp/task', payload);
     if (res.code === 200) {
-      message.success('企业资产查询任务创建成功');
+      message.success(`企业全景测绘任务【${taskName}】创建成功`);
       emit('update:open', false);
       emit('success', res);
     } else {
-      message.error(res.message || '创建失败');
+      message.error(res.message || '创建任务失败');
     }
+
   } catch (error) {
-    console.error(error);
+    console.error('提交企业全景测绘任务失败', error);
   } finally {
-    tycSubmitLoading.value = false;
+    submitLoading.value = false;
   }
 };
 </script>

@@ -703,7 +703,12 @@ admin123
               <a-row :gutter="16">
                 <!-- 2. 企业与代码监控 (左半边) -->
                 <a-col :span="12">
-                  <a-card title="🏢 企业资产查询 (天眼查)" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 190px;">
+                  <a-card title="🏢 企业全景测绘凭据 (天眼查 API)" size="small" style="margin-bottom: 16px; border-radius: 6px; min-height: 190px;">
+                    <template #extra>
+                      <a-tooltip title="选配项。配置后支持投资控股树深度穿透与工信部双轨校对；未配置时系统仍可平滑通过工信部官方权威备案进行资产归集。">
+                        <info-circle-outlined style="color: #bfbfbf;" />
+                      </a-tooltip>
+                    </template>
                     <a-form-item label="天眼查 ID (X-Tycid)" style="margin-bottom: 12px;">
                       <a-input v-model:value="generalForm.tyc_id" placeholder="请输入天眼查 ID" />
                     </a-form-item>

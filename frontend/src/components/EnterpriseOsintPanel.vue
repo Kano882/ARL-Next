@@ -722,9 +722,9 @@ const displayName = computed(() => {
 });
 
 const taskTypeLabel = computed(() => {
-  if (taskType.value === 'tyc') return '天眼查';
-  if (taskType.value === 'icp') return 'ICP备案';
-  return '';
+  if (taskType.value === 'tyc') return '全景双轨';
+  if (taskType.value === 'icp') return '官方备案';
+  return '企业测绘';
 });
 
 const taskStatusLabel = computed(() => {

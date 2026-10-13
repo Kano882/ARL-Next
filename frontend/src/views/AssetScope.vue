@@ -633,15 +633,20 @@
               >
                 <a-input
                   v-model:value="wizardForm.target"
-                  placeholder="可直接粘贴天眼查链接（如 https://www.tianyancha.com/company/25174642）或纯数字 ID"
+                  placeholder="可粘贴天眼查链接（如 company/25174642）、GID 或企业工商全称"
                   allowClear
                   @change="onTycTargetChange"
                   @pressEnter="startWizardRecon"
                 >
-                  <template #prefix><link-outlined style="color: #bfbfbf;" /></template>
+                  <template #prefix>
+                    <component :is="parsedTycGid ? 'LinkOutlined' : 'BankOutlined'" style="color: #bfbfbf;" />
+                  </template>
                 </a-input>
                 <div v-if="parsedTycGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
-                  <check-circle-outlined /> <span>已自动识别天眼查 GID: <b>{{ parsedTycGid }}</b></span>
+                  <check-circle-outlined /> <span>已自动识别天眼查 GID: <b>{{ parsedTycGid }}</b> (全景双轨穿透)</span>
+                </div>
+                <div v-else-if="isWizardCompanyName" style="margin-top: 4px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
+                  <safety-certificate-outlined /> <span>已识别企业工商主体: <b>{{ wizardForm.target.trim() }}</b> (工信部权威备案)</span>
                 </div>
               </a-form-item>
 
@@ -1869,22 +1874,31 @@ const wizardForm = reactive({
 });
 
 const parseTycInput = (input) => {
-  if (!input) return { gid: '', isUrl: false, raw: '' };
+  if (!input) return { gid: '', isUrl: false, isName: false, raw: '' };
   const str = input.trim();
   const urlMatch = str.match(/(?:tianyancha\.com\/company\/|^company\/)([a-zA-Z0-9]+)/i);
   if (urlMatch && urlMatch[1]) {
-    return { gid: urlMatch[1], isUrl: true, raw: str };
+    return { gid: urlMatch[1], isUrl: true, isName: false, raw: str };
   }
   if (/^[a-zA-Z0-9]+$/.test(str)) {
-    return { gid: str, isUrl: false, raw: str };
+    return { gid: str, isUrl: false, isName: false, raw: str };
   }
-  return { gid: '', isUrl: false, raw: str };
+  if (str.length >= 2) {
+    return { gid: '', isUrl: false, isName: true, raw: str };
+  }
+  return { gid: '', isUrl: false, isName: false, raw: str };
 };
 
 const parsedTycGid = computed(() => {
   if (!wizardForm.target) return '';
   const parsed = parseTycInput(wizardForm.target);
   return parsed.gid;
+});
+
+const isWizardCompanyName = computed(() => {
+  if (!wizardForm.target) return false;
+  const parsed = parseTycInput(wizardForm.target);
+  return parsed.isName;
 });
 
 const onTycTargetChange = () => {
@@ -2116,17 +2130,15 @@ const startWizardRecon = async () => {
   const customName = (wizardForm.name || '').trim();
 
   if (!rawTarget) {
-    wizardTargetError.value = '请输入天眼查企业链接或数字 ID';
+    wizardTargetError.value = '请输入天眼查企业链接、GID 或企业工商全称';
     return;
   }
 
   const parsed = parseTycInput(rawTarget);
-  if (!parsed.gid) {
-    wizardTargetError.value = '未能识别有效的天眼查 ID，请输入企业主页链接或纯数字/字母 ID';
+  if (!parsed.gid && !parsed.isName) {
+    wizardTargetError.value = '未能识别有效目标，请输入企业主页链接、ID 或企业工商注册全称';
     return;
   }
-  const finalGid = parsed.gid;
-  const finalTarget = finalGid;
 
   // 校验自动扫描策略
   if (wizardAutoScan.value && !wizardPolicyId.value) {
@@ -2136,25 +2148,44 @@ const startWizardRecon = async () => {
 
   wizardLoading.value = true;
   try {
-    const taskName = customName ? (customName + '全景测绘') : ('TYC_' + finalGid);
-    const payload = {
-      name: taskName,
-      gid: finalGid,
-      depth: wizardForm.depth || 1,
-      invest_ratio: wizardForm.invest_ratio || 50,
-      enable_icp: wizardForm.enable_icp !== false,
-      query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
-    };
-    if (customName) {
-      payload.company_name = customName;
+    let taskId = '';
+    let taskName = '';
+
+    if (parsed.gid) {
+      taskName = customName ? (customName + '全景测绘') : ('TYC_' + parsed.gid);
+      const payload = {
+        name: taskName,
+        gid: parsed.gid,
+        depth: wizardForm.depth || 1,
+        invest_ratio: wizardForm.invest_ratio || 50,
+        enable_icp: wizardForm.enable_icp !== false,
+        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+      };
+      if (customName) {
+        payload.company_name = customName;
+      }
+      const taskRes = await request.post('/icp/tyc_task', payload);
+      if (!taskRes || taskRes.code !== 200) {
+        message.error(taskRes?.message || '发起企业全景测绘失败');
+        wizardLoading.value = false;
+        return;
+      }
+      taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
+    } else {
+      taskName = customName || rawTarget;
+      const payload = {
+        name: taskName,
+        target: rawTarget,
+        query_type: ['web']
+      };
+      const taskRes = await request.post('/icp/task', payload);
+      if (!taskRes || taskRes.code !== 200) {
+        message.error(taskRes?.message || '发起工信部官方备案查询失败');
+        wizardLoading.value = false;
+        return;
+      }
+      taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
     }
-    const taskRes = await request.post('/icp/tyc_task', payload);
-    if (!taskRes || taskRes.code !== 200) {
-      message.error(taskRes?.message || '发起企业全景测绘失败');
-      wizardLoading.value = false;
-      return;
-    }
-    const taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;
 
     wizardTaskId.value = taskId;
 
@@ -2165,9 +2196,9 @@ const startWizardRecon = async () => {
     // 注册到后台追踪队列
     addPendingReconTask({
       taskId: taskId,
-      engine: 'tyc',
+      engine: parsed.gid ? 'tyc' : 'icp',
       name: taskName,
-      target: finalTarget,
+      target: parsed.gid || rawTarget,
       groupName: customName,
       group_id: wizardForm.group_id || '',
       autoSync: wizardAutoSync.value,
@@ -2186,7 +2217,7 @@ const startWizardRecon = async () => {
       key: `recon_start_${taskId}`,
       message: '企业全景测绘建组任务已提交后台',
       description: wizardAutoSync.value
-        ? `目标【${taskName}】全景测绘已下发。后台正自动穿透股权与工信部数据，完成后将全自动创建资产组并导入资产。`
+        ? `目标【${taskName}】全景测绘已下发。后台正自动检索并纳管资产，完成后将全自动创建资产组并导入资产。`
         : `目标【${taskName}】全景测绘已下发，完成后将通知您挑选域名建组。`,
       duration: 4.5
     });

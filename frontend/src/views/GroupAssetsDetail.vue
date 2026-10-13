@@ -815,36 +815,35 @@
               :options="completedIcpTasks.map(t => ({
                 value: t._id,
                 label: t.task_type === 'tyc'
-                  ? `${t.name || t.target} [TYC: ${t.gid || (t.target ? t.target.replace(/^TYC_/, '') : '')}]`
-                  : `${t.target || t.name} (ICP)`
+                  ? `${t.name || t.target} [全景双轨: ${t.gid || (t.target ? t.target.replace(/^TYC_/, '') : '')}]`
+                  : `${t.target || t.name} [官方备案]`
               }))"
             />
           </a-form-item>
         </template>
 
         <template v-else>
-          <a-form-item label="测绘类型">
-            <a-radio-group v-model:value="newEnterpriseEngine">
-              <a-radio value="tyc">天眼查工商测绘</a-radio>
-              <a-radio value="icp">工信部ICP备案</a-radio>
-            </a-radio-group>
-          </a-form-item>
-
           <a-form-item
-            v-if="newEnterpriseEngine === 'tyc'"
-            label="公司ID (TYC_id)"
-            required
-            tooltip="可在天眼查详情页URL中获取，例如 https://www.tianyancha.com/company/25174642 中的 25174642"
-          >
-            <a-input v-model:value="newEnterpriseTarget" placeholder="请输入天眼查公司 ID（纯数字/字母，例如：25174642）" />
-          </a-form-item>
-
-          <a-form-item
-            v-else
             label="企业目标"
             required
+            tooltip="支持粘贴天眼查企业链接（如 https://www.tianyancha.com/company/25174642）、纯数字 GID 或企业工商注册全称"
           >
-            <a-input v-model:value="newEnterpriseTarget" placeholder="输入企业全称或主域名（如：腾讯科技 或 qq.com）" />
+            <a-input
+              v-model:value="newEnterpriseTarget"
+              placeholder="可直接粘贴天眼查链接、GID 或企业工商全称"
+              allowClear
+              @pressEnter="handleBindSubmit"
+            >
+              <template #prefix>
+                <component :is="parsedBindGid ? 'LinkOutlined' : 'BankOutlined'" style="color: #bfbfbf;" />
+              </template>
+            </a-input>
+            <div v-if="parsedBindGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
+              <check-circle-outlined /> <span>已自动识别天眼查 GID: <b>{{ parsedBindGid }}</b> (全景双轨穿透)</span>
+            </div>
+            <div v-else-if="newEnterpriseTarget.trim().length >= 2" style="margin-top: 4px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
+              <safety-certificate-outlined /> <span>已识别企业工商主体 (工信部权威备案)</span>
+            </div>
           </a-form-item>
         </template>
       </a-form>
@@ -1149,7 +1148,7 @@ const fetchBoundTaskDetail = async (taskId) => {
       const task = res.items[0];
       boundTaskRecord.value = task;
       taskTarget.value = task.target || '';
-      taskTypeLabel.value = task.task_type === 'tyc' ? '天眼查' : 'ICP备案';
+      taskTypeLabel.value = task.task_type === 'tyc' ? '全景双轨' : '官方备案';
       const mapStatus = { waiting: '等待中', running: '运行中', done: '已完成', stop: '已停止', error: '执行失败' };
       taskStatusLabel.value = mapStatus[task.status] || task.status;
       const mapColor = { waiting: 'warning', running: 'processing', done: 'success', stop: 'default', error: 'error' };
@@ -1195,6 +1194,27 @@ const selectedBindTaskId = ref(undefined);
 const completedIcpTasks = ref([]);
 const newEnterpriseTarget = ref('');
 const newEnterpriseEngine = ref('tyc');
+
+const parseBindTargetInput = (input) => {
+  if (!input) return { gid: '', isUrl: false, isName: false };
+  const str = input.trim();
+  const urlMatch = str.match(/(?:tianyancha\.com\/company\/|^company\/)([a-zA-Z0-9]+)/i);
+  if (urlMatch && urlMatch[1]) {
+    return { gid: urlMatch[1], isUrl: true, isName: false };
+  }
+  if (/^[a-zA-Z0-9]+$/.test(str)) {
+    return { gid: str, isUrl: false, isName: false };
+  }
+  if (str.length >= 2) {
+    return { gid: '', isUrl: false, isName: true };
+  }
+  return { gid: '', isUrl: false, isName: false };
+};
+
+const parsedBindGid = computed(() => {
+  const parsed = parseBindTargetInput(newEnterpriseTarget.value);
+  return parsed.gid;
+});
 
 const fetchScopeMeta = async () => {
   if (!scope_id.value) return;
@@ -1259,20 +1279,22 @@ const executeBindExisting = async () => {
 const executeBindNew = async () => {
   const targetVal = newEnterpriseTarget.value.trim();
   if (!targetVal) {
-    message.warning(newEnterpriseEngine.value === 'tyc' ? '请输入天眼查公司 ID (TYC_id)' : '请输入企业全称或主域名');
+    message.warning('请输入天眼查企业链接、GID 或企业工商全称');
     return;
   }
-  if (newEnterpriseEngine.value === 'tyc' && !/^[a-zA-Z0-9]+$/.test(targetVal)) {
-    message.warning('天眼查公司 ID 格式不正确，请输入纯数字/字母 ID（例如：25174642）');
+  const parsed = parseBindTargetInput(targetVal);
+  if (!parsed.gid && !parsed.isName) {
+    message.warning('未能识别有效目标，请输入天眼查链接、ID 或企业工商注册全称');
     return;
   }
   bindLoading.value = true;
   try {
     let createRes;
-    if (newEnterpriseEngine.value === 'tyc') {
+    if (parsed.gid) {
       createRes = await request.post('/icp/tyc_task', {
-        name: `${targetName.value}企业测绘`,
-        gid: targetVal,
+        name: `${targetName.value}全景测绘`,
+        gid: parsed.gid,
+        company_name: targetName.value,
         depth: 1,
         invest_ratio: 50,
         enable_icp: true,
@@ -1280,9 +1302,9 @@ const executeBindNew = async () => {
       });
     } else {
       createRes = await request.post('/icp/task', {
-        name: `${targetName.value}ICP查询`,
+        name: `${targetName.value}全景测绘`,
         target: targetVal,
-        query_type: ['web', 'app', 'mapp']
+        query_type: ['web']
       });
     }
 
@@ -1294,7 +1316,7 @@ const executeBindNew = async () => {
           task_id: newTaskId
         });
       }
-      message.success('已成功发起企业测绘并绑定');
+      message.success('已成功发起企业全景测绘并绑定');
       bindModalVisible.value = false;
       fetchScopeMeta();
       currentView.value = 'osint';
