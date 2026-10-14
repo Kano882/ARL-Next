@@ -734,76 +734,65 @@
                 </div>
               </div>
 
-              <!-- 高级测绘参数（渐进折叠面板） -->
-              <div style="margin-bottom: 20px;">
-                <div 
-                  @click="showWizardAdvanced = !showWizardAdvanced" 
-                  style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--arl-text-color); opacity: 0.8; user-select: none; padding: 4px 0;"
+              <!-- 高级测绘参数（常驻平铺展示） -->
+              <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 12px 14px; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                  <span style="font-weight: 500; font-size: 13px;">⚙️ 高级测绘参数</span>
+                </div>
+                <a-row :gutter="16">
+                  <a-col :span="12">
+                    <a-form-item
+                      label="投资层级"
+                      :label-col="{ style: { width: '90px' } }"
+                      :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                      style="margin-bottom: 8px;"
+                      tooltip="穿透控股子公司与参股公司的递归深度 (1~20)。层级越高，天眼查 API 调用量与执行耗时增长越明显，且会消耗付费查询额度，请按需设置"
+                    >
+                      <a-input-number
+                        v-model:value="wizardForm.depth"
+                        :min="1"
+                        :max="20"
+                        size="small"
+                        style="width: 110px;"
+                        addon-after="层"
+                      />
+                      <div v-if="wizardForm.depth > 1" class="depth-cost-hint">
+                        已设置为 {{ wizardForm.depth }} 层，将递归查询下属企业，API 调用量与付费额度消耗相应增加
+                      </div>
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item
+                      label="控股比例"
+                      :label-col="{ style: { width: '90px' } }"
+                      :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                      style="margin-bottom: 8px;"
+                      tooltip="对外投资的最小持股比例 (1~100%)"
+                    >
+                      <a-input-number
+                        v-model:value="wizardForm.invest_ratio"
+                        :min="1"
+                        :max="100"
+                        size="small"
+                        style="width: 110px;"
+                        addon-after="%"
+                      />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+
+                <a-form-item
+                  label="ICP 双轨查重"
+                  :label-col="{ style: { width: '90px' } }"
+                  :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                  style="margin-bottom: 0;"
+                  tooltip="调用工信部 ICP 备案数据接口进行双轨校对与兜底补全"
                 >
-                  <span>
-                    <setting-outlined style="margin-right: 4px;" />
-                    高级测绘参数
-                    <span style="opacity: 0.6; margin-left: 4px;">{{ showWizardAdvanced ? '(点击收起)' : '(穿透层级、控股比例、双轨查重，默认已调优)' }}</span>
+                  <a-switch v-model:checked="wizardForm.enable_icp" size="small" />
+                  <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
+                    {{ wizardForm.enable_icp ? '已启用（推荐）' : '已关闭' }}
                   </span>
-                  <component :is="showWizardAdvanced ? 'UpOutlined' : 'DownOutlined'" style="font-size: 11px;" />
-                </div>
-
-                <div v-show="showWizardAdvanced" style="margin-top: 10px; padding: 12px 14px; background: var(--arl-bg-light); border-radius: 6px; border: 1px solid var(--arl-border-color);">
-                  <a-row :gutter="16">
-                    <a-col :span="12">
-                      <a-form-item
-                        label="投资层级"
-                        :label-col="{ style: { width: '90px' } }"
-                        :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
-                        style="margin-bottom: 8px;"
-                        tooltip="穿透控股子公司与参股公司的递归深度 (1~20)。层级越高，天眼查 API 调用量与执行耗时增长越明显，且会消耗付费查询额度，请按需设置"
-                      >
-                        <a-input-number
-                          v-model:value="wizardForm.depth"
-                          :min="1"
-                          :max="20"
-                          size="small"
-                          style="width: 110px;"
-                          addon-after="层"
-                        />
-                        <div v-if="wizardForm.depth > 1" class="depth-cost-hint">
-                          已设置为 {{ wizardForm.depth }} 层，将递归查询下属企业，API 调用量与付费额度消耗相应增加
-                        </div>
-                      </a-form-item>
-                    </a-col>
-                    <a-col :span="12">
-                      <a-form-item
-                        label="控股比例"
-                        :label-col="{ style: { width: '90px' } }"
-                        :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
-                        style="margin-bottom: 8px;"
-                        tooltip="对外投资的最小持股比例 (1~100%)"
-                      >
-                        <a-input-number
-                          v-model:value="wizardForm.invest_ratio"
-                          :min="1"
-                          :max="100"
-                          size="small"
-                          style="width: 110px;"
-                          addon-after="%"
-                        />
-                      </a-form-item>
-                    </a-col>
-                  </a-row>
-
-                  <a-form-item
-                    label="ICP 双轨查重"
-                    :label-col="{ style: { width: '90px' } }"
-                    :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
-                    style="margin-bottom: 0;"
-                    tooltip="调用工信部 ICP 备案数据接口进行双轨校对与兜底补全"
-                  >
-                    <a-switch v-model:checked="wizardForm.enable_icp" size="small" />
-                    <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
-                      {{ wizardForm.enable_icp ? '已启用（推荐）' : '已关闭' }}
-                    </span>
-                  </a-form-item>
-                </div>
+                </a-form-item>
               </div>
 
               <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
@@ -1323,7 +1312,6 @@ import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 import { 
   SearchOutlined, 
   DownOutlined, 
-  UpOutlined,
   ExclamationCircleOutlined, 
   QuestionCircleOutlined, 
   PlusOutlined, 
@@ -1865,7 +1853,6 @@ const wizardPolicyId = ref('');
 const wizardSubmitting = ref(false);
 const policyList = ref([]);
 const wizardEngine = ref('tyc'); // 'tyc' | 'icp'
-const showWizardAdvanced = ref(false);
 const wizardTargetError = ref('');
 
 const wizardForm = reactive({
@@ -2416,7 +2403,6 @@ const openAddModal = async () => {
   wizardAutoSync.value = true;
   wizardAutoScan.value = false;
   wizardTaskType.value = 'oneshot';
-  showWizardAdvanced.value = false;
   wizardTargetError.value = '';
 
   const defaultGroupId = (activeGroupId.value === 'all' || activeGroupId.value === 'unassigned') ? undefined : activeGroupId.value;
