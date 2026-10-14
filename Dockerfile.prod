@@ -109,9 +109,10 @@ COPY --from=builder-c /root/.config/nuclei /root/.config/nuclei
 
 # 3. 拷贝源码
 WORKDIR /code
-# osint_service 由独立镜像 (backend/osint_service/Dockerfile) 构建并运行于
-# arl-osint-service-prod，web/worker 不加载该目录，故从镜像中排除以避免副本漂移。
 COPY ./backend /code/backend
+# osint_service 已由根 .dockerignore 从构建上下文剔除（它由独立镜像构建并运行于
+# arl-osint-service-prod）。此处再兜底删除一次，防止 .dockerignore 被误改后
+# 副本重新混入镜像，形成与权威目录不一致的死代码。
 RUN rm -rf /code/backend/osint_service
 
 # =====================================================================
