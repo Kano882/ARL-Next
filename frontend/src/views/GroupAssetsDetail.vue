@@ -6,7 +6,8 @@
         <!-- 左侧：返回 + 标题 + 分组标签 + 类型 + 测绘状态 (去重) -->
         <div class="hero-left-section">
           <a-button type="text" class="hero-back-btn" @click="handleBack" title="返回资产组列表">
-            <template #icon><arrow-left-outlined style="font-size: 15px;" /></template>
+            <template #icon><arrow-left-outlined /></template>
+            <span>返回资产组</span>
           </a-button>
 
           <div class="hero-title-wrapper">
@@ -92,6 +93,10 @@
 
       <!-- 2. 网络暴露面 (ASM) 专属控制与筛选区 (吸附于 Hero 头部正下方) -->
       <div v-show="currentView === 'asm'" ref="asmControlRef" class="asm-control-box" :style="{ top: heroHeight + 'px' }">
+        <div class="scope-hint-line">
+          <span class="scope-hint-tag">本资产组范围</span>
+          <span>仅展示该资产组纳管范围内的资产；查看全库资产请前往「资产搜索」</span>
+        </div>
         <!-- 维度 Tabs 导航 (带数量徽标与平滑滚动) -->
         <a-tabs v-model:activeKey="activeTab" type="card" size="small" class="arl-detail-tabs asm-tabs-nav">
           <a-tab-pane v-for="t in asmTabList" :key="t.key">
@@ -959,11 +964,30 @@ import ChainDrawer from '../components/ChainDrawer.vue';
 import RawDataDrawer from '../components/RawDataDrawer.vue';
 import { copyText } from '../utils/clipboard';
 import {
+  ArrowLeftOutlined,
   ExclamationCircleOutlined,
   LinkOutlined,
-  BankOutlined
+  BankOutlined,
+  ClusterOutlined,
+  SyncOutlined,
+  GlobalOutlined,
+  PlusOutlined,
+  DownloadOutlined,
+  BugOutlined,
+  FilterOutlined,
+  DownOutlined,
+  UpOutlined,
+  SearchOutlined,
+  RedoOutlined,
+  CopyOutlined,
+  CompassOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  CheckCircleOutlined,
+  SafetyCertificateOutlined
 } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
+import { formatTaskStatus, formatTaskStatusColor } from '../constants/taskStatus';
 import { createTabStateCache } from '../utils/useTabStateCache';
 
 const route = useRoute();
@@ -1126,10 +1150,8 @@ const fetchBoundTaskDetail = async (taskId) => {
       boundTaskRecord.value = task;
       taskTarget.value = task.target || '';
       taskTypeLabel.value = task.task_type === 'tyc' ? '全景双轨' : '官方备案';
-      const mapStatus = { waiting: '排队中', running: '进行中', done: '已完成', stop: '已停止', error: '异常失败' };
-      taskStatusLabel.value = mapStatus[task.status] || task.status;
-      const mapColor = { waiting: 'warning', running: 'processing', done: 'success', stop: 'default', error: 'error' };
-      taskStatusColor.value = mapColor[task.status] || 'default';
+      taskStatusLabel.value = formatTaskStatus(task.status);
+      taskStatusColor.value = formatTaskStatusColor(task.status);
       const stats = task.statistic || {};
       osintTotalCount.value = (
         (stats.web_cnt || 0) +
@@ -1590,7 +1612,7 @@ const tabConfig = reactive({
   domain: {
     url: '/asset_domain/',
     exportUrl: '/asset_domain/export/',
-    tabName: '域名',
+    tabName: '子域名',
     // 🚨 修复：严格对齐截图中的 6 个搜索框顺序和文案
     searchFields: [
       { label: '域名', key: 'domain', operator: '=' },
@@ -1762,7 +1784,7 @@ const tabConfig = reactive({
   },
   npoc_service: {
     url: '/asset_npoc_service/',
-    tabName: '服务(python)',
+    tabName: 'Python 插件服务',
     searchFields: [
       { label: '协议', key: 'scheme', operator: '=' },
       { label: '主机', key: 'host', operator: '=' },
@@ -2456,6 +2478,28 @@ onDeactivated(() => {
 </script>
 
 <style scoped>
+
+/* 全库 / 资产组范围的显式标注：两页 tab 结构一致，需明确各自数据范围避免误读 */
+.scope-hint-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--arl-text-secondary);
+}
+
+.scope-hint-tag {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--arl-primary-color, #1890ff);
+  background: var(--arl-primary-bg, rgba(24, 144, 255, 0.1));
+  border: 1px solid var(--arl-primary-border, rgba(24, 144, 255, 0.3));
+}
 /* 🚨 将原本的 gap: 16px 24px 改为更紧凑的 16px 12px */
 .scroll-x { width: 100%; max-width: 400px; overflow-x: auto; }
 .scroll-x pre { margin: 0; font-family: Consolas, monospace; font-size: 12px; color: var(--arl-text-color); opacity: 0.65; }
@@ -2580,15 +2624,17 @@ onDeactivated(() => {
 }
 
 .hero-back-btn {
-  padding: 2px 6px;
+  padding: 4px 8px;
   height: 28px;
-  width: 28px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 4px;
   border-radius: 4px;
   color: var(--arl-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
   flex-shrink: 0;
+  cursor: pointer;
   transition: all 0.2s;
 }
 .hero-back-btn:hover {

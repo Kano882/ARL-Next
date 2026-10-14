@@ -697,7 +697,7 @@
                   <a-checkbox v-model:checked="wizardAutoSync">
                     <b>测绘完成后自动纳管建组</b>
                     <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7; margin-left: 6px;">
-                      (由当前浏览器页面轮询追踪任务状态并自动成组入库；关闭或离开本页面将暂停追踪，24 小时后需手动挑选建组)
+                      (测绘完成后由后端自动检索并建组入库，无需保持本页面打开)
                     </span>
                   </a-checkbox>
                 </div>
@@ -756,7 +756,7 @@
                         :label-col="{ style: { width: '90px' } }"
                         :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
                         style="margin-bottom: 8px;"
-                        tooltip="穿透控股子公司与参股公司的递归深度 (1~20)"
+                        tooltip="穿透控股子公司与参股公司的递归深度 (1~20)。层级越高，天眼查 API 调用量与执行耗时增长越明显，且会消耗付费查询额度，请按需设置"
                       >
                         <a-input-number
                           v-model:value="wizardForm.depth"
@@ -766,6 +766,9 @@
                           style="width: 110px;"
                           addon-after="层"
                         />
+                        <div v-if="wizardForm.depth > 1" class="depth-cost-hint">
+                          已设置为 {{ wizardForm.depth }} 层，将递归查询下属企业，API 调用量与付费额度消耗相应增加
+                        </div>
                       </a-form-item>
                     </a-col>
                     <a-col :span="12">
@@ -1855,7 +1858,7 @@ const wizardTaskId = ref('');
 const wizardDomains = ref([]);
 const selectedWizardDomains = ref([]);
 const wizardDomainSearch = ref('');
-const wizardAutoSync = ref(true); // 测绘完成后是否由当前页面轮询追踪并自动成组入库
+const wizardAutoSync = ref(true); // 测绘完成后是否由后端自动纳管建组
 const wizardAutoScan = ref(false);
 const wizardTaskType = ref('oneshot');
 const wizardPolicyId = ref('');
@@ -1950,7 +1953,7 @@ const loadPendingReconTasks = () => {
           notification.warning({
             key: 'recon_expired_notice',
             message: `有 ${expired.length} 个企业全景测绘任务已超出自动追踪时限`,
-            description: '自动纳管建组仅在浏览器页面保持打开时持续生效，超过 24 小时的追踪记录已停止。请前往任务中心确认任务结果后手动挑选建组。',
+            description: '自动纳管建组已改由后端执行，不依赖本页面。此处仅停止本页面的进度展示，请前往任务管理查看最终结果。',
             duration: 10
           });
         }
@@ -2170,6 +2173,17 @@ const resumeWizardFromCompletedTask = async (task) => {
   addModalVisible.value = true;
 };
 
+// 自动纳管建组意图随任务一并下发，由后端调度器消费。
+// 这样建组不再依赖当前浏览器页面存活，关闭页面也会正常完成。
+const buildAutoGroupIntent = () => ({
+  auto_group: wizardAutoSync.value,
+  auto_group_scan: wizardAutoScan.value,
+  auto_group_task_type: wizardTaskType.value || 'oneshot',
+  auto_group_policy_id: wizardPolicyId.value || '',
+  auto_group_interval_hours: 24,
+  group_id: wizardForm.group_id || ''
+});
+
 const startWizardRecon = async () => {
   wizardTargetError.value = '';
   const rawTarget = (wizardForm.target || '').trim();
@@ -2206,7 +2220,8 @@ const startWizardRecon = async () => {
         depth: wizardForm.depth || 1,
         invest_ratio: wizardForm.invest_ratio || 50,
         enable_icp: wizardForm.enable_icp !== false,
-        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo'],
+        ...buildAutoGroupIntent()
       };
       if (customName) {
         payload.company_name = customName;
@@ -2226,7 +2241,8 @@ const startWizardRecon = async () => {
         depth: wizardForm.depth || 1,
         invest_ratio: wizardForm.invest_ratio || 50,
         enable_icp: wizardForm.enable_icp !== false,
-        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+        query_type: ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo'],
+        ...buildAutoGroupIntent()
       };
       const taskRes = await request.post('/icp/task', payload);
       if (!taskRes || taskRes.code !== 200) {
@@ -2268,7 +2284,7 @@ const startWizardRecon = async () => {
       key: `recon_start_${taskId}`,
       message: '企业全景测绘建组任务已提交后台',
       description: wizardAutoSync.value
-        ? `目标【${taskName}】全景测绘已下发。系统将检索并纳管资产，完成后自动创建资产组并导入资产。`
+        ? `目标【${taskName}】全景测绘已下发。系统将检索并纳管资产，完成后由后端自动创建资产组并导入资产。`
         : `目标【${taskName}】全景测绘已下发，完成后将通知您挑选域名建组。`,
       duration: 4.5
     });
@@ -3137,6 +3153,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 投资层级成本提示：层级越高，天眼查付费额度消耗越大 */
+.depth-cost-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--arl-warning-color, #faad14);
+}
+
 .arl-scope-visual-panel {
   border: 1px solid var(--arl-border-color, #e2e8f0);
   border-radius: 8px;

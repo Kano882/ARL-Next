@@ -103,6 +103,30 @@ ARL-Next separates reconnaissance outputs into **Task-Specific Outputs** and **A
 > - Group-level queries require a valid `scope_id`;
 > - These namespaces map to separate underlying MongoDB collections and indexing schemes. Consult `/api/doc` for exact query fields and filtering options.
 
+### Global Dimension Counts
+
+`GET /api/asset_overview/count` returns the **global totals** for every asset dimension listed above in a single response. It is intended for rendering per-tab count badges without issuing one count request per dimension.
+
+Example response:
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "counts": {
+    "site": 12800, "domain": 45600, "ip": 9800, "cert": 3200,
+    "service": 15400, "fileleak": 210, "url": 76200, "vuln": 540,
+    "npoc_service": 1300, "cip": 860, "stat_finger": 320,
+    "nuclei_result": 97, "wih": 44
+  }
+}
+```
+
+> [!IMPORTANT]
+> - The counts are **global aggregates** and are **not** the same scope as the `task_id` / `scope_id` filtered list endpoints. Do not use them to infer the asset volume of a single task or asset group;
+> - Each dimension's counting rule matches its corresponding list endpoint — for example `cip` counts distinct C-blocks and `stat_finger` counts distinct fingerprint names, rather than raw document counts;
+> - A dimension whose count fails is returned as `null`. Clients should treat it as "unknown" and avoid rendering it as `0`.
+
 ---
 
 ## 5. Error Code Conventions & Client Branching

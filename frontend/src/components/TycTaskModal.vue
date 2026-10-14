@@ -100,7 +100,7 @@
                   :label-col="{ style: { width: '80px' } }"
                   :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }"
                   style="margin-bottom: 8px;"
-                  tooltip="穿透控股子公司与参股公司的递归深度 (1~20)"
+                  tooltip="穿透控股子公司与参股公司的递归深度 (1~20)。层级越高，天眼查 API 调用量与执行耗时增长越明显，且会消耗付费查询额度，请按需设置"
                 >
                   <a-input-number
                     v-model:value="formState.depth"
@@ -110,6 +110,9 @@
                     style="width: 100px;"
                     addon-after="层"
                   />
+                  <div v-if="formState.depth > 1" class="depth-cost-hint">
+                    已设置为 {{ formState.depth }} 层，将递归查询下属企业，API 调用量与付费额度消耗相应增加
+                  </div>
                 </a-form-item>
               </a-col>
               <a-col :span="12">
@@ -170,7 +173,7 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { message } from 'ant-design-vue';
+import { Modal, message } from 'ant-design-vue';
 import {
   LinkOutlined,
   BankOutlined,
@@ -254,15 +257,21 @@ const checkTycConfig = async () => {
   }
 };
 
+// 跳转系统设置前暂存输入，返回时恢复，避免用户已填写的目标被清空后需重新输入
+let pendingDraft = null;
+
 const goToApiConfig = () => {
+  pendingDraft = { rawTarget: formState.rawTarget, name: formState.name };
   emit('update:open', false);
   router.push({ path: '/systemSettings', query: { tab: 'api_config' } });
 };
 
 watch(() => props.open, (val) => {
   if (val) {
-    formState.name = '';
-    formState.rawTarget = '';
+    const draft = pendingDraft;
+    pendingDraft = null;
+    formState.name = draft ? draft.name : '';
+    formState.rawTarget = draft ? draft.rawTarget : '';
     formState.depth = 1;
     formState.invest_ratio = 50;
     formState.query_type = ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo'];
@@ -289,9 +298,9 @@ const handleSubmit = async () => {
       if (!tycConfigValid.value) {
         Modal.confirm({
           title: '未配置天眼查商业凭据',
-          content: '检测到您输入了天眼查 GID，但系统尚未配置天眼查 API。如需股权穿透请前往系统设置配置凭据；或者您可直接输入企业工商全称使用工信部官方备案进行检索。',
-          okText: '前往配置',
-          cancelText: '取消',
+          content: '当前输入的天眼查 GID 需要商业凭据才能执行股权穿透。您可以先去系统设置配置凭据，或改用企业工商全称通过工信部官方备案检索。',
+          okText: '前往配置凭据',
+          cancelText: '留在本页',
           onOk() {
             goToApiConfig();
           }
@@ -351,3 +360,13 @@ const handleSubmit = async () => {
   }
 };
 </script>
+
+<style scoped>
+/* 投资层级成本提示：层级越高，天眼查付费额度消耗越大 */
+.depth-cost-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--arl-warning-color, #faad14);
+}
+</style>

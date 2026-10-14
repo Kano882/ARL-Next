@@ -278,6 +278,7 @@ import {
   DesktopOutlined,
   AppstoreOutlined,
   SettingOutlined,
+  ControlOutlined,
   TagsOutlined,
   BugOutlined,
   ClockCircleOutlined,
@@ -319,7 +320,7 @@ const defaultMenuItems = [
   { key: '/GitHubTasks/GitHubTasksList', title: 'GitHub监控', icon: GithubOutlined },
   { key: '/pocList', title: 'POC管理', icon: BugOutlined },
   { key: '/fingerprint', title: '指纹管理', icon: TagsOutlined },
-  { key: '/policy', title: '策略配置', icon: SettingOutlined },
+  { key: '/policy', title: '策略配置', icon: ControlOutlined },
   { key: '/systemSettings', title: '系统设置', icon: SettingOutlined },
 ];
 
@@ -576,7 +577,8 @@ const getMenuKeyForPath = (path) => {
 // 记录各业务模块最后访问的完整路由（含 query 参数与详情页路径）
 const moduleLastPathMap = reactive({
   '/group': '/group',
-  '/taskList': '/taskList',
+  // 显式落地「企业测绘任务」页签，与页面内胶囊切换器的首项保持一致
+  '/taskList': '/taskList?tab=enterprise',
   '/policy': '/policy',
   '/GitHubTasks/GitHubTasksList': '/GitHubTasks/GitHubTasksList'
 });

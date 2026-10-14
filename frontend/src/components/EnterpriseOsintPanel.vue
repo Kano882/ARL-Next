@@ -469,8 +469,8 @@
         <div class="log-terminal-header">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-weight: 600; font-size: 13px;">任务执行过程日志</span>
-            <a-tag :color="taskRecord.status === 'running' ? 'processing' : taskRecord.status === 'done' ? 'success' : taskRecord.status === 'error' ? 'error' : 'default'">
-              {{ taskRecord.status === 'running' ? '实时采集监控中...' : taskRecord.status === 'done' ? '测绘已完成' : taskRecord.status === 'error' ? '任务异常终止' : (taskRecord.status || '就绪') }}
+            <a-tag :color="formatTaskStatusColor(taskRecord.status)">
+              {{ formatTaskStatus(taskRecord.status) }}
             </a-tag>
             <span style="color: var(--arl-text-secondary); font-size: 12px;" v-if="taskRecord.status === 'running'">(每 3 秒自动轮询增量)</span>
           </div>
@@ -530,6 +530,7 @@ import {
 } from '@ant-design/icons-vue';
 import request from '../utils/request';
 import { copyText } from '../utils/clipboard';
+import { formatTaskStatus, formatTaskStatusColor } from '../constants/taskStatus';
 import SyncToScopeModal from './SyncToScopeModal.vue';
 import RawDataDrawer from './RawDataDrawer.vue';
 
@@ -728,25 +729,11 @@ const taskTypeLabel = computed(() => {
 });
 
 const taskStatusLabel = computed(() => {
-  const map = {
-    waiting: '排队中',
-    running: '进行中',
-    done: '已完成',
-    stop: '已停止',
-    error: '异常失败'
-  };
-  return map[taskStatus.value] || taskStatus.value;
+  return formatTaskStatus(taskStatus.value);
 });
 
 const taskStatusColor = computed(() => {
-  const map = {
-    waiting: 'warning',
-    running: 'processing',
-    done: 'success',
-    stop: 'default',
-    error: 'error'
-  };
-  return map[taskStatus.value] || 'default';
+  return formatTaskStatusColor(taskStatus.value);
 });
 
 const syncModalVisible = ref(false);

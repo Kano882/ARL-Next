@@ -798,6 +798,7 @@ from .assetNpocService import ns as asset_npoc_service_ns
 from .assetCip import ns as asset_cip_ns
 from .assetNucleiResult import ns as asset_nuclei_result_ns
 from .assetStatFinger import ns as asset_stat_finger_ns
+from .assetOverview import ns as asset_overview_ns
 from .mcp import ns as mcp_ns
 from .nuclei import ns as nuclei_ns
 

@@ -142,12 +142,21 @@
               </a-radio-group>
             </a-form-item>
 
-            <a-form-item label="扫描策略" :rules="[{ required: true, message: '请选择扫描策略' }]">
+            <a-form-item
+              label="扫描策略"
+              :required="syncFormState.auto_scan"
+              :rules="syncFormState.auto_scan ? [{ required: true, message: '请选择扫描策略' }] : []"
+            >
               <a-select
                 v-model:value="syncFormState.policy_id"
                 placeholder="请选择扫描策略"
-                :options="policyList.map(p => ({ value: p._id, label: p.name }))"
+                show-search
+                option-filter-prop="label"
+                :options="policyList.map(p => ({ value: p._id, label: `${p.name} (PoC : ${p.policy?.poc_config?.length || 0})` }))"
               />
+              <div v-if="syncFormState.auto_scan && !syncFormState.policy_id" class="policy-required-hint">
+                已开启「立即发起探测」，需显式选择扫描策略后方可提交
+              </div>
             </a-form-item>
 
             <a-form-item v-if="syncFormState.task_type === 'periodic'" label="运行间隔">
@@ -412,10 +421,8 @@ watch(() => props.open, async (newVal) => {
         assetScopes.value = scopeRes.items || scopeRes.data?.items || [];
       }
       if (policyRes.code === 200 && policyRes.items) {
+        // 不做静默兜底：扫描策略必须由用户显式选择，避免无意识地下发探测/周期任务
         policyList.value = policyRes.items || [];
-        if (!syncFormState.policy_id && policyList.value.length > 0) {
-          syncFormState.policy_id = policyList.value[0]._id;
-        }
       }
 
       // 处理任务域名
@@ -528,4 +535,11 @@ const handleGoToScope = () => {
 </script>
 
 <style scoped>
+/* 扫描策略为条件必填项，缺少时给出显式提示而非静默兜底 */
+.policy-required-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--arl-warning-color, #faad14);
+}
 </style>

@@ -88,7 +88,7 @@ const routes = [
                 path: '/pocList', // 请确保这和你菜单配置的路径一致
                 name: 'PocList',
                 component: () => import('../views/PocList.vue'),
-                meta: { title: 'PoC信息' }
+                meta: { title: 'POC管理' }
             },
 
             {

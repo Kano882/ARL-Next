@@ -199,7 +199,7 @@
                     <span class="beacon-dot"></span>
                     <span class="status-text">监控任务: {{ stats.github_monitors || 0 }} 个</span>
                   </div>
-                  <span class="footer-link-hint">情报大厅 &gt;</span>
+                  <span class="footer-link-hint" @click="router.push('/GitHubTasks/GitHubTasksList')">情报大厅 &gt;</span>
                 </div>
               </div>
             </a-skeleton>
@@ -664,6 +664,7 @@ echarts.use([
   CanvasRenderer
 ]);
 import request from '@/utils/request';
+import { formatTaskStatus } from '@/constants/taskStatus';
 
 const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE;
 const router = useRouter();
@@ -812,16 +813,9 @@ const getLogColor = (level) => {
   return map[level] || 'gray';
 };
 
-// 任务状态文案映射
+// 任务状态文案映射（唯一事实源见 @/constants/taskStatus）
 const getTaskStatusLabel = (status) => {
-  const map = {
-    'running': '进行中',
-    'waiting': '排队中',
-    'done': '已完成',
-    'error': '异常失败',
-    'stop': '已停止'
-  };
-  return map[status] || status || '未知';
+  return status ? formatTaskStatus(status) : '未知';
 };
 
 // 指纹分类识别器
