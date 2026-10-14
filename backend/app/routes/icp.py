@@ -60,7 +60,7 @@ add_tyc_task_fields = ns.model('AddTycTask', {
     'gid': fields.String(required=True, description="公司/节点GID"),
     'depth': fields.Integer(required=False, default=1, description="递归查询层数"),
     'invest_ratio': fields.Float(required=False, default=50, description="对外投资最小比例(%)"),
-    'query_type': fields.List(fields.String, required=True, description="查询类型(web/app/mapp/wechat/weibo/invest/trademark)"),
+    'query_type': fields.List(fields.String, required=True, description="查询类型(web/app/mapp/wechat/weibo/invest)"),
     'enable_icp': fields.Boolean(required=False, default=True, description="是否联动工信部ICP双轨查重与补全"),
     'auto_group': fields.Boolean(required=False, default=False, description="测绘完成后是否由后端自动纳管建组"),
     'auto_group_scan': fields.Boolean(required=False, default=False, description="自动建组后是否立即下发主动探测"),
@@ -483,12 +483,9 @@ base_search_icp_asset_fields = {
     'legalPersonName': fields.String(description="TYC法定代表人"),
     'title': fields.String(description="TYC公众号名称"),
     'publicNum': fields.String(description="TYC公众号"),
-    'tmName': fields.String(description="TYC商标名称"),
-    'regNo': fields.String(description="TYC商标注册号"),
     'companyType': fields.String(description="TYC单位性质"),
     'brief': fields.String(description="TYC简介"),
-    'intCls': fields.String(description="TYC商标分类"),
-    'status': fields.String(description="TYC商标状态"),
+    'status': fields.String(description="TYC企业状态"),
     'recommend': fields.String(description="TYC公众号简介"),
     'href': fields.String(description="TYC微博链接"),
     'amount_num': fields.Float(description="TYC注册资本数字(等于)"),
@@ -521,8 +518,8 @@ def normalize_icp_asset_item(item):
     if 'ym' not in item or not item['ym']:
         item['ym'] = domain
 
-    # 2. 名称归一化 (网站名称/应用名称/公众号标题/商标名)
-    service_name = item.get('serviceName') or item.get('webName') or item.get('name') or item.get('title') or item.get('tmName') or ''
+    # 2. 名称归一化 (网站名称/应用名称/公众号标题)
+    service_name = item.get('serviceName') or item.get('webName') or item.get('name') or item.get('title') or ''
     item['serviceName'] = service_name
     if not item.get('name'):
         item['name'] = service_name
@@ -530,8 +527,6 @@ def normalize_icp_asset_item(item):
         item['webName'] = service_name
     if not item.get('title'):
         item['title'] = service_name
-    if not item.get('tmName'):
-        item['tmName'] = service_name
 
     # 3. 主办单位归一化
     unit_name = item.get('unitName') or item.get('companyName') or ''
@@ -566,7 +561,7 @@ def normalize_icp_asset_item(item):
     item['homeUrl'] = home_url or ''
 
     # 7. 图标/图片/二维码归一化
-    icon = item.get('icon') or item.get('titleImgURL') or item.get('codeImg') or item.get('ico') or item.get('productLogo') or item.get('tmPic') or ''
+    icon = item.get('icon') or item.get('titleImgURL') or item.get('codeImg') or item.get('ico') or item.get('productLogo') or ''
     item['icon'] = icon
 
     # 8. 简介/描述/认证信息归一化
@@ -574,7 +569,7 @@ def normalize_icp_asset_item(item):
     item['brief'] = brief
 
     # 9. 分类/类型归一化
-    category = item.get('category') or item.get('classes') or item.get('intCls') or item.get('type') or ''
+    category = item.get('category') or item.get('classes') or item.get('type') or ''
     item['category'] = category
 
     # 10. 微信公众号 ID 归一化
@@ -626,21 +621,20 @@ class IcpAsset(ARLResource):
             val = query.pop('companyName')
             or_groups.append([{'unitName': val}, {'companyName': val}])
 
-        # 3. 业务/资产名称 (serviceName, webName, name, title, tmName)
+        # 3. 业务/资产名称 (serviceName, webName, name, title)
         matched_name_val = None
-        for k in ['serviceName', 'name', 'webName', 'title', 'tmName']:
+        for k in ['serviceName', 'name', 'webName', 'title']:
             if k in query:
                 matched_name_val = query.pop(k)
                 break
         if matched_name_val:
-            for k in ['serviceName', 'name', 'webName', 'title', 'tmName']:
+            for k in ['serviceName', 'name', 'webName', 'title']:
                 query.pop(k, None)
             or_groups.append([
                 {'serviceName': matched_name_val},
                 {'name': matched_name_val},
                 {'webName': matched_name_val},
-                {'title': matched_name_val},
-                {'tmName': matched_name_val}
+                {'title': matched_name_val}
             ])
 
         # 4. 备案号 (serviceLicence, liscense, serviceFilingNumber, mainLicence)
@@ -677,19 +671,18 @@ class IcpAsset(ARLResource):
             val = query.pop('regStatus')
             or_groups.append([{'status': val}, {'regStatus': val}])
 
-        # 7. 分类/性质 (category vs classes vs intCls vs type vs companyType vs natureName)
+        # 7. 分类/性质 (category vs classes vs type vs companyType vs natureName)
         matched_cat_val = None
-        for k in ['category', 'classes', 'intCls', 'type', 'companyType', 'natureName']:
+        for k in ['category', 'classes', 'type', 'companyType', 'natureName']:
             if k in query:
                 matched_cat_val = query.pop(k)
                 break
         if matched_cat_val:
-            for k in ['category', 'classes', 'intCls', 'type', 'companyType', 'natureName']:
+            for k in ['category', 'classes', 'type', 'companyType', 'natureName']:
                 query.pop(k, None)
             or_groups.append([
                 {'category': matched_cat_val},
                 {'classes': matched_cat_val},
-                {'intCls': matched_cat_val},
                 {'type': matched_cat_val},
                 {'companyType': matched_cat_val},
                 {'natureName': matched_cat_val}
@@ -1090,8 +1083,6 @@ def _build_excel_response(assets, filename="export.xlsx", target_query_type=None
                 ['name|serviceName', 'unitName|companyName', 'natureName|classes|category', 'mainLicence|type', 'serviceLicence', 'contentTypeName', 'updateRecordTime|examineDate', 'brief|info']),
         'invest': (['投资公司名称', '法定代表人', '注册资本', '投资比例(%)', '企业状态', '地区'],
                 ['name', 'legalPersonName|legalPerson', 'amount', 'percent', 'regStatus|status', 'region|province']),
-        'trademark': (['商标名称', '注册号', '分类', '状态', '申请日期'],
-                ['tmName|name', 'regNo', 'intCls|category', 'status', 'appDate']),
         'wechat': (['公众号名称', '微信号', '简介', '认证主体'],
                 ['title|name', 'publicNum|wechatId', 'recommend|brief', 'unitName|companyName']),
         'weibo': (['微博名称', '微博链接', '认证信息/简介', '粉丝数'],

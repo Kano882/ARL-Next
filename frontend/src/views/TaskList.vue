@@ -1346,8 +1346,7 @@ const TYC_QUERY_TYPE_LABELS = {
   app: '移动APP',
   mapp: '微信小程序',
   wechat: '微信公众号',
-  weibo: '企业微博',
-  trademark: '企业商标'
+  weibo: '企业微博'
 };
 
 const ICP_QUERY_TYPE_LABELS = {
@@ -1466,7 +1465,6 @@ const viewEnterpriseTask = (record) => {
       mapp_cnt: stats.mapp_cnt || 0,
       kapp_cnt: stats.kapp_cnt || 0,
       invest_cnt: stats.invest_cnt || 0,
-      trademark_cnt: stats.trademark_cnt || 0,
       wechat_cnt: stats.wechat_cnt || 0,
       weibo_cnt: stats.weibo_cnt || 0,
     }

@@ -82,12 +82,6 @@ class TycClient:
                 "pageSize": self.page_size,
                 "pageNum": page_num
             }
-            # 商标接口的页码和分页键名不一样 (ps, pn)
-            if "trademarkList" in path:
-                payload = {
-                    "ps": self.page_size,
-                    "pn": page_num
-                }
 
             payload[gid_field] = gid_val
 
@@ -144,17 +138,6 @@ class TycClient:
         }
         return self.fetch_all_pages("POST", "/cloud-company-background/company/investListV2",
                                   total_key="total", list_key="result", gid_field="gid", gid_val=gid, extra_payload=extra)
-
-    def get_trademark_list(self, gid):
-        """商标"""
-        extra = {
-            "category": "-100",
-            "fullSearchText": "",
-            "sortField": "",
-            "sortType": ""
-        }
-        return self.fetch_all_pages("POST", "/cloud-intellectual-property/intellectualProperty/trademarkList",
-                                  total_key="viewtotal", list_key="items", gid_field="id", gid_val=gid, extra_payload=extra)
 
     def get_icp_record_list(self, gid):
         """备案网站"""

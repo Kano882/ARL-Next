@@ -55,7 +55,6 @@
         <a-tab-pane key="wechat" :tab="`公众号 - ${queryCounts.wechat}`"></a-tab-pane>
         <a-tab-pane key="weibo" :tab="`微博 - ${queryCounts.weibo}`"></a-tab-pane>
         <a-tab-pane key="kapp" :tab="`快应用 - ${queryCounts.kapp}`"></a-tab-pane>
-        <a-tab-pane key="trademark" :tab="`商标信息 - ${queryCounts.trademark}`"></a-tab-pane>
         <a-tab-pane key="invest" :tab="`对外投资 - ${queryCounts.invest}`"></a-tab-pane>
         <a-tab-pane key="log" tab="运行日志"></a-tab-pane>
       </a-tabs>
@@ -264,7 +263,7 @@ const taskStatusColor = computed(() => {
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
 
-const validTabs = ['web', 'app', 'mapp', 'kapp', 'invest', 'trademark', 'wechat', 'weibo', 'log'];
+const validTabs = ['web', 'app', 'mapp', 'kapp', 'invest', 'wechat', 'weibo', 'log'];
 const activeTab = ref(route.query?.tab && validTabs.includes(route.query.tab) ? route.query.tab : 'web');
 const queryCounts = reactive({
   web: 0,
@@ -272,7 +271,6 @@ const queryCounts = reactive({
   mapp: 0,
   kapp: 0,
   invest: 0,
-  trademark: 0,
   wechat: 0,
   weibo: 0,
 });
@@ -283,7 +281,6 @@ const syncEnterpriseQueryCounts = (q = route.query) => {
   queryCounts.mapp = Number(q?.mapp_cnt) || 0;
   queryCounts.kapp = Number(q?.kapp_cnt) || 0;
   queryCounts.invest = Number(q?.invest_cnt) || 0;
-  queryCounts.trademark = Number(q?.trademark_cnt) || 0;
   queryCounts.wechat = Number(q?.wechat_cnt) || 0;
   queryCounts.weibo = Number(q?.weibo_cnt) || 0;
 };
@@ -359,14 +356,6 @@ const investColumns = [
   { title: '详情', key: 'raw', width: 80 }
 ];
 
-const trademarkColumns = [
-  { title: '商标名称', dataIndex: 'tmName', key: 'tmName', width: 180 },
-  { title: '注册号', dataIndex: 'regNo', key: 'regNo', width: 150 },
-  { title: '分类', dataIndex: 'intCls', key: 'intCls', width: 80 },
-  { title: '状态', dataIndex: 'status', key: 'status', width: 120 },
-  { title: '详情', key: 'raw', width: 80 }
-];
-
 const wechatColumns = [
   { title: '头像', dataIndex: 'titleImgURL', key: 'icon', width: 60 },
   { title: '公众号名称', dataIndex: 'title', key: 'title', width: 200 },
@@ -410,7 +399,6 @@ const dynamicColumns = computed(() => {
   const isTyc = taskType.value === 'tyc';
   let cols = [];
   if (activeTab.value === 'invest') cols = investColumns;
-  else if (activeTab.value === 'trademark') cols = trademarkColumns;
   else if (activeTab.value === 'wechat') cols = wechatColumns;
   else if (activeTab.value === 'weibo') cols = weiboColumns;
   else if (isTyc) {
@@ -648,7 +636,6 @@ const fetchTaskStatistic = async () => {
       queryCounts.mapp = stat.mapp_cnt !== undefined ? stat.mapp_cnt : queryCounts.mapp;
       queryCounts.kapp = stat.kapp_cnt !== undefined ? stat.kapp_cnt : queryCounts.kapp;
       queryCounts.invest = stat.invest_cnt !== undefined ? stat.invest_cnt : queryCounts.invest;
-      queryCounts.trademark = stat.trademark_cnt !== undefined ? stat.trademark_cnt : queryCounts.trademark;
       queryCounts.wechat = stat.wechat_cnt !== undefined ? stat.wechat_cnt : queryCounts.wechat;
       queryCounts.weibo = stat.weibo_cnt !== undefined ? stat.weibo_cnt : queryCounts.weibo;
       

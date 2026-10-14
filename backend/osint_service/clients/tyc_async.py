@@ -99,8 +99,6 @@ class AsyncTycClient:
             params = None
             json_data = None
             payload = {"pageSize": self.page_size, "pageNum": page_num}
-            if "trademarkList" in path:
-                payload = {"ps": self.page_size, "pn": page_num}
             payload[gid_field] = gid_val
             if extra_payload:
                 payload.update(extra_payload)
@@ -129,10 +127,6 @@ class AsyncTycClient:
     async def get_invest_list(self, gid):
         extra = {"benefitSharesType": 1, "percentLevel": "-100", "registation": "-100", "province": "-100", "category": "-100", "fullSearchText": ""}
         return await self.fetch_all_pages("POST", "/cloud-company-background/company/investListV2", "total", "result", "gid", gid, extra)
-
-    async def get_trademark_list(self, gid):
-        extra = {"category": "-100", "fullSearchText": "", "sortField": "", "sortType": ""}
-        return await self.fetch_all_pages("POST", "/cloud-intellectual-property/intellectualProperty/trademarkList", "viewtotal", "items", "id", gid, extra)
 
     async def get_icp_record_list(self, gid):
         return await self.fetch_all_pages("GET", "/cloud-intellectual-property/intellectualProperty/icpRecordList", "itemTotal", "item", "id", gid)

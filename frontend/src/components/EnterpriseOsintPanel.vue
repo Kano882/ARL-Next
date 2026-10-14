@@ -369,7 +369,7 @@
 
           <!-- 名称字段多字段兼顾 -->
           <template v-else-if="column.key === 'serviceName' || column.key === 'name'">
-            {{ record.serviceName || record.name || record.webName || record.title || record.tmName || '-' }}
+            {{ record.serviceName || record.name || record.webName || record.title || '-' }}
           </template>
 
           <!-- 法定代表人 -->
@@ -379,7 +379,7 @@
 
           <!-- 分类字段 -->
           <template v-else-if="column.key === 'category'">
-            {{ record.category || record.classes || record.intCls || record.type || '-' }}
+            {{ record.category || record.classes || record.type || '-' }}
           </template>
 
           <!-- 微信号 -->
@@ -714,7 +714,6 @@ const queryCounts = reactive({
   wechat: 0,
   weibo: 0,
   kapp: 0,
-  trademark: 0,
   invest: 0,
 });
 
@@ -924,7 +923,6 @@ const osintTabList = [
   { key: 'wechat', label: '微信公众号' },
   { key: 'weibo', label: '企业微博' },
   { key: 'kapp', label: '快应用' },
-  { key: 'trademark', label: '商标信息' },
   { key: 'invest', label: '对外投资' }
 ];
 
@@ -978,15 +976,6 @@ const osintTabConfig = reactive({
       { label: '快应用名', key: 'name' },
       { label: '主办单位', key: 'unitName' },
       { label: '备案号', key: 'serviceLicence' }
-    ]
-  },
-  trademark: {
-    label: '商标信息',
-    searchFields: [
-      { label: '商标名称', key: 'name' },
-      { label: '注册号', key: 'regNo' },
-      { label: '国际分类', key: 'category' },
-      { label: '状态', key: 'status' }
     ]
   },
   invest: {
@@ -1088,16 +1077,6 @@ const columnConfigs = {
     { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
     { title: '原始', key: 'raw', width: 55, align: 'center' }
   ],
-  trademark: [
-    { title: '序号', key: 'index', width: 55, align: 'center' },
-    { title: '商标图', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
-    { title: '商标名称', dataIndex: 'name', key: 'name', width: 160 },
-    { title: '注册号', dataIndex: 'regNo', key: 'regNo', width: 140 },
-    { title: '国际分类', dataIndex: 'category', key: 'category', width: 110 },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 100, align: 'center' },
-    { title: '申请日期', dataIndex: 'appDate', key: 'appDate', width: 120, align: 'center' },
-    { title: '原始', key: 'raw', width: 55, align: 'center' }
-  ],
   invest: [
     { title: '序号', key: 'index', width: 55, align: 'center' },
     { title: '被投资企业', dataIndex: 'name', key: 'name', ellipsis: true },
@@ -1122,7 +1101,7 @@ const logLoading = ref(false);
 let logTimer = null;
 
 const getAssetIcon = (record) => {
-  return record.icon || record.titleImgURL || record.codeImg || record.ico || record.productLogo || record.tmPic || '';
+  return record.icon || record.titleImgURL || record.codeImg || record.ico || record.productLogo || '';
 };
 
 const getAssetHomeUrl = (record) => {
@@ -1164,7 +1143,6 @@ const fetchTaskDetail = async () => {
       queryCounts.wechat = stats.wechat_cnt || 0;
       queryCounts.weibo = stats.weibo_cnt || 0;
       queryCounts.kapp = stats.kapp_cnt || 0;
-      queryCounts.trademark = stats.trademark_cnt || 0;
       queryCounts.invest = stats.invest_cnt || 0;
 
       if (task.status === 'done' || task.status === 'error') {

@@ -305,12 +305,6 @@ def _normalize_tyc_asset(item, query_type, company_name=None):
         item['status'] = item.get('regStatus') or item.get('status') or ''
         if company_name and not item.get('unitName'):
             item['unitName'] = company_name
-    elif query_type == 'trademark':
-        item['name'] = item.get('tmName') or item.get('name') or ''
-        item['category'] = item.get('intCls') or item.get('category') or ''
-        item['icon'] = item.get('tmPic') or item.get('icon') or ''
-        if company_name and not item.get('unitName'):
-            item['unitName'] = company_name
 
     if company_name and not item.get('companyName'):
         item['companyName'] = company_name
@@ -644,8 +638,7 @@ async def run_tyc_job(options):
             "mapp_cnt": counts.get("mapp", 0),
             "wechat_cnt": counts.get("wechat", 0),
             "weibo_cnt": counts.get("weibo", 0),
-            "kapp_cnt": counts.get("kapp", 0),
-            "trademark_cnt": 0
+            "kapp_cnt": counts.get("kapp", 0)
         }}})
 
     task_assets_index = {
@@ -699,7 +692,6 @@ async def run_tyc_job(options):
 
     type_map = {
         "invest": "对外投资",
-        "trademark": "商标信息",
         "web": "备案网站",
         "app": "APP",
         "mapp": "小程序",

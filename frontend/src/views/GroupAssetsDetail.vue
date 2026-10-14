@@ -1160,7 +1160,6 @@ const fetchBoundTaskDetail = async (taskId) => {
         (stats.wechat_cnt || 0) +
         (stats.weibo_cnt || 0) +
         (stats.kapp_cnt || 0) +
-        (stats.trademark_cnt || 0) +
         (stats.invest_cnt || 0)
       );
     }
