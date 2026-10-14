@@ -141,7 +141,7 @@ ARL-Next 采用前后端解耦、异步分布式任务队列与轻量微服务�
 ```mermaid
 graph TD
     %% 1. 接入层
-    User["👨‍💻 安全分析师 (浏览器)"] -->|"HTTPS / Basic Auth (5173)"| Nginx["🖥️ Frontend (Nginx + Vue 3.5)"]
+    User["👨‍💻 安全分析师 (浏览器)"] -->|"HTTPS (5173，Basic Auth 可选)"| Nginx["🖥️ Frontend (Nginx + Vue 3.5)"]
     Agent["🤖 AI Agent (Claude / Cursor)"] -.->|"MCP 协议 (Stdio)"| MCP["🤖 MCP Server (Python 原生)"]
 
     %% 2. API 网关层

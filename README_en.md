@@ -141,7 +141,7 @@ ARL-Next adopts a decoupled frontend-backend architecture with asynchronous dist
 ```mermaid
 graph TD
     %% 1. Access Layer
-    User["👨‍💻 Security Analyst (Browser)"] -->|"HTTPS / Basic Auth (5173)"| Nginx["🖥️ Frontend (Nginx + Vue 3.5)"]
+    User["👨‍💻 Security Analyst (Browser)"] -->|"HTTPS (5173, Basic Auth optional)"| Nginx["🖥️ Frontend (Nginx + Vue 3.5)"]
     Agent["🤖 AI Agent (Claude / Cursor)"] -.->|"MCP Protocol (Stdio)"| MCP["🤖 MCP Server (Native Python)"]
 
     %% 2. API Gateway Layer
