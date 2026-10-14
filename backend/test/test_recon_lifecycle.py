@@ -45,7 +45,9 @@ class Collection:
     def find(self, query, *args): return [d for d in self.docs if self.matches(d, query)]
     def update_one(self, query, update):
         doc = self.find_one(query)
-        if doc: doc.update(update.get('$set', {}))
+        if doc is not None:
+            doc.update(update.get('$set', {}))
+            for key in update.get('$unset', {}): doc.pop(key, None)
         return types.SimpleNamespace(matched_count=int(doc is not None))
     def insert_one(self, doc):
         doc = dict(doc, _id=doc.get('_id', TID))
@@ -78,7 +80,8 @@ def runner(db):
            'curr_date': lambda: '2026-10-12 12:00:00', 'logger': LOG,
            '__file__': str(ROOT / 'osint_service/clients/job_runner.py'), 'asyncio': asyncio, 're': re}
     return extract('osint_service/clients/job_runner.py',
-                   ['_claim_recon_task', '_task_is_running', 'run_icp_job', 'run_tyc_job', '_upsert_task_asset'], env)
+                   ['_claim_recon_task', '_task_is_running', '_sync_scope_after_task_completion',
+                    '_finish_recon_task', 'run_icp_job', 'run_tyc_job', '_upsert_task_asset'], env)
 
 
 def route(db, cls, method):
@@ -137,8 +140,43 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(inserted)
             self.assertEqual(db['icp_asset'].docs, [])
 
+    async def test_finish_updates_scope_only_for_accepted_completion(self):
+        for status in ('running', 'stop', 'error', 'done', None):
+            for result_status in ('done', 'error'):
+                with self.subTest(status=status, result_status=result_status):
+                    db = database(status)
+                    if status is None: db['icp_task'].docs.clear()
+                    db['asset_scope'].docs = [{'_id': 'scope', 'synced_icp_task_id': 'old',
+                                               'updating_icp_task_id': TID}]
+                    await runner(db)['_finish_recon_task'](TID, result_status, {'$set': {'status': result_status}})
+                    scope = db['asset_scope'].docs[0]
+                    self.assertEqual(scope['synced_icp_task_id'],
+                                     TID if status == 'running' and result_status == 'done' else 'old')
+                    self.assertEqual('updating_icp_task_id' in scope, status != 'running')
+
+    async def test_scope_completion_does_not_replace_a_newer_refresh(self):
+        db = database('running')
+        db['asset_scope'].docs = [{'_id': 'scope', 'synced_icp_task_id': 'old', 'updating_icp_task_id': TID}]
+        env = runner(db)
+        collection = env['db']['asset_scope']
+        original = collection.find_one
+        async def replace_during_lookup(query):
+            found = copy.deepcopy(await original(query))
+            db['asset_scope'].docs[0]['updating_icp_task_id'] = 'newer'
+            return found
+        collection.find_one = replace_during_lookup
+        await env['_finish_recon_task'](TID, 'done', {'$set': {'status': 'done'}})
+        self.assertEqual(db['asset_scope'].docs[0]['synced_icp_task_id'], 'old')
+        self.assertEqual(db['asset_scope'].docs[0]['updating_icp_task_id'], 'newer')
+
 
 class APIContractTests(unittest.TestCase):
+    def setUp(self):
+        provider = types.SimpleNamespace(TycClient=lambda: types.SimpleNamespace(gid='', token=''))
+        patcher = patch.dict(sys.modules, {'app.services.tycClient': provider})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_dispatch_rejection_marks_waiting_error_and_returns_error(self):
         db = database()
         db['icp_task'].docs.clear()
@@ -204,6 +242,47 @@ class APIContractTests(unittest.TestCase):
         env['_request_recon'] = lambda *args: (_ for _ in ()).throw(RuntimeError('fixture'))
         self.assertEqual(env['get'](None, TID)['code'], 500)
         self.assertEqual(db['icp_task'].docs[0]['status'], 'stop')
+
+    def test_auto_matched_tyc_dispatch_uses_acknowledgement_and_status_guard(self):
+        for accepted_before_timeout in (False, True):
+            with self.subTest(accepted_before_timeout=accepted_before_timeout):
+                db = database()
+                db['icp_task'].docs.clear()
+                env = route(db, 'IcpTask', 'post')
+                provider = types.SimpleNamespace(TycClient=lambda: types.SimpleNamespace(
+                    gid='fixture', token='fixture', search_suggest=lambda _: {'gid': '123456', 'company_name': '企业'}))
+                instance = types.SimpleNamespace(parse_args=lambda _: {'target': '企业', 'depth': 3, 'invest_ratio': 60})
+                def send(*args, **kwargs):
+                    self.assertEqual(kwargs['json']['type'], 'tyc')
+                    self.assertEqual(kwargs['json']['depth'], 3)
+                    self.assertEqual(kwargs['json']['invest_ratio'], 60)
+                    if accepted_before_timeout:
+                        db['icp_task'].docs[0]['status'] = 'running'
+                        raise TimeoutError('fixture response lost')
+                    return types.SimpleNamespace(raise_for_status=lambda: None,
+                                                 json=lambda: {'code': 500, 'msg': 'rejected'})
+                with patch.dict(sys.modules, {'app.services.tycClient': provider}), patch('requests.post', side_effect=send):
+                    self.assertEqual(env['post'](instance)['code'], 500)
+                self.assertEqual(db['icp_task'].docs[0]['status'], 'running' if accepted_before_timeout else 'error')
+
+    def test_restart_dispatch_failure_clears_only_failed_refresh(self):
+        old_id = 'c' * 24
+        for outcome in ('rejected', 'running', 'newer'):
+            with self.subTest(outcome=outcome):
+                db = database('done')
+                db['icp_task'].docs[0].update({'_id': old_id, 'target': 'fixture', 'synced_scope_id': 'scope'})
+                db['asset_scope'].docs = [{'_id': 'scope', 'synced_icp_task_id': old_id}]
+                env = route(db, 'IcpTask', 'post')
+                extract('app/routes/icp.py', ['_restart_single_icp_task'], env)
+                def fail(*args):
+                    if outcome == 'running': db['icp_task'].docs[-1]['status'] = 'running'
+                    if outcome == 'newer': db['asset_scope'].docs[0]['updating_icp_task_id'] = 'newer'
+                    raise RuntimeError('fixture')
+                env['_request_recon'] = fail
+                self.assertFalse(env['_restart_single_icp_task'](old_id)[0])
+                self.assertEqual(db['asset_scope'].docs[0]['synced_icp_task_id'], old_id)
+                expected = {'rejected': None, 'running': TID, 'newer': 'newer'}[outcome]
+                self.assertEqual(db['asset_scope'].docs[0].get('updating_icp_task_id'), expected)
 
 
 class HTTPTests(unittest.IsolatedAsyncioTestCase):

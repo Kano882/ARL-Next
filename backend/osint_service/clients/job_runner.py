@@ -39,6 +39,38 @@ async def run_recon_job(options):
         await run_icp_job(options)
 
 
+async def _sync_scope_after_task_completion(task_id, task_status):
+    try:
+        scope_doc = await db['asset_scope'].find_one({"updating_icp_task_id": str(task_id)})
+        if scope_doc:
+            if task_status == "done":
+                await db['asset_scope'].update_one(
+                    {"_id": scope_doc["_id"], "updating_icp_task_id": str(task_id)},
+                    {
+                        "$set": {"synced_icp_task_id": str(task_id)},
+                        "$unset": {"updating_icp_task_id": ""}
+                    }
+                )
+                logger.info(f"Promoted updating_icp_task_id {task_id} to synced_icp_task_id for scope {scope_doc['_id']}")
+            elif task_status in ["error", "stop"]:
+                await db['asset_scope'].update_one(
+                    {"_id": scope_doc["_id"], "updating_icp_task_id": str(task_id)},
+                    {"$unset": {"updating_icp_task_id": ""}}
+                )
+                logger.warning(f"Cleared updating_icp_task_id {task_id} for scope {scope_doc['_id']}")
+    except Exception as e:
+        logger.error(f"_sync_scope_after_task_completion error: {e}")
+
+
+async def _finish_recon_task(task_id, task_status, update_data):
+    result = await db['icp_task'].update_one(
+        {"_id": ObjectId(task_id), "status": "running"}, update_data
+    )
+    # 停止或删除后到达的旧结果不能切换资产组当前数据。
+    if result.matched_count:
+        await _sync_scope_after_task_completion(task_id, task_status)
+
+
 async def run_icp_job(options):
     task_id = options.get("task_id")
     target = options.get("target")
@@ -160,7 +192,7 @@ async def run_icp_job(options):
     }
     if error_msg:
         update_data["$set"]["error_msg"] = "; ".join(error_msg)
-    await db['icp_task'].update_one({"_id": ObjectId(task_id), "status": "running"}, update_data)
+    await _finish_recon_task(task_id, task_status, update_data)
     await insert_syslog("info", "任务完成", f"ICP查询任务执行结束，共获取 {total_assets} 条资产")
     logger.info(f"ICP query task {task_id} completed.")
 
@@ -879,9 +911,10 @@ async def run_tyc_job(options):
             except Exception:
                 pass
 
+    tyc_task_status = "done" if not error_msg else "error"
     update_data = {
         "$set": {
-            "status": "done" if not error_msg else "error",
+            "status": tyc_task_status,
             "end_time": curr_date(),
             "statistic": {
                 "asset_cnt": total_assets_holder[0],
@@ -897,6 +930,6 @@ async def run_tyc_job(options):
     }
     if error_msg:
         update_data["$set"]["error_msg"] = "; ".join(error_msg)
-    await db['icp_task'].update_one({"_id": ObjectId(task_id), "status": "running"}, update_data)
+    await _finish_recon_task(task_id, tyc_task_status, update_data)
     await insert_syslog("info", "任务完成", f"TYC+工信部联合测绘任务执行结束，共获取 {total_assets_holder[0]} 条资产")
     logger.info(f"TYC query task {task_id} completed.")

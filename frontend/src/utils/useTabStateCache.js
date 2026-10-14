@@ -262,26 +262,40 @@ export function createTabStateCache({
   /**
    * 更新内存数据缓存
    */
-  const updateMemoryCache = (tabKey, dataSourceList, total) => {
+  const updateMemoryCache = (tabKey, dataSourceList, total, pageSize) => {
     if (!tabKey) return;
     memoryDataCache[tabKey] = {
       dataSource: Array.isArray(dataSourceList) ? [...dataSourceList] : [],
       total: total || 0,
+      pageSize: typeof pageSize === 'number' && pageSize > 0 ? pageSize : undefined,
       isLoaded: true
     };
   };
 
   /**
    * 读取指定 Tab 的内存数据缓存
+   * @param {string} tabKey
+   * @param {number} [expectedPageSize] 期望的单页容量大小，用于多 Tab 切换及分页修改校验
    */
-  const getMemoryCache = (tabKey) => {
+  const getMemoryCache = (tabKey, expectedPageSize) => {
     if (typeof canUseMemoryCache === 'function' && !canUseMemoryCache()) {
       return null;
     }
     if (!tabKey || !memoryDataCache[tabKey] || !memoryDataCache[tabKey].isLoaded) {
       return null;
     }
-    return memoryDataCache[tabKey];
+    const cached = memoryDataCache[tabKey];
+    if (typeof expectedPageSize === 'number' && expectedPageSize > 0) {
+      // 1. 若显式记录了 pageSize 且与当前期望不符，说明是不同分页粒度的历史切片，必须穿透重拉
+      if (cached.pageSize && cached.pageSize !== expectedPageSize) {
+        return null;
+      }
+      // 2. 若缓存条数小于当前期望条数，且总条数大于已缓存行数（说明存在未加载的完整页数据），必须穿透重拉
+      if (cached.dataSource.length < expectedPageSize && cached.total > cached.dataSource.length) {
+        return null;
+      }
+    }
+    return cached;
   };
 
   /**
@@ -290,17 +304,19 @@ export function createTabStateCache({
   const invalidateMemoryCache = (tabKey) => {
     if (tabKey && memoryDataCache[tabKey]) {
       memoryDataCache[tabKey].isLoaded = false;
+      delete memoryDataCache[tabKey];
     }
   };
 
   /**
-   * 使所有 Tab 的内存缓存失效（例如任务完成或批量操作后全局刷新）
+   * 使所有 Tab 的内存缓存失效（例如任务完成或每页容量改变后全局刷新）
    */
   const invalidateAllMemoryCaches = () => {
     Object.keys(memoryDataCache).forEach(k => {
       if (memoryDataCache[k]) {
         memoryDataCache[k].isLoaded = false;
       }
+      delete memoryDataCache[k];
     });
   };
 

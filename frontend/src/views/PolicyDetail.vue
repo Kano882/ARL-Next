@@ -267,14 +267,40 @@
 
         <!-- 4. 漏洞与风险巡航 -->
         <a-collapse-panel key="4" header="🛡️ 漏洞与风险巡航">
-          <!-- Nuclei 独立开关 -->
+          <!-- Nuclei 独立开关与细粒度策略配置 -->
           <div class="feature-item-block" style="padding-bottom: 16px; border-bottom: 1px solid var(--arl-border-color); margin-bottom: 16px;">
             <div class="feature-switch-row">
               <a-checkbox v-model:checked="policyForm.site_config.nuclei_scan">
                 <span style="font-weight: 500;">Nuclei 自动化扫描</span>
-                <a-tag color="purple" style="margin-left: 8px;">社区模板库</a-tag>
+                <a-tag color="purple" style="margin-left: 8px;">社区模板 + 自建模板</a-tag>
               </a-checkbox>
-              <span class="feature-hint">调用 Nuclei 引擎针对已发现 Web 站点执行快速模板化漏洞探测</span>
+              <span class="feature-hint">调用 Nuclei 引擎针对已发现 Web 站点执行模板化漏洞探测</span>
+            </div>
+
+            <!-- Nuclei 细粒度过滤与自建模板配置 (纯开关矩阵，极简交互) -->
+            <div v-if="policyForm.site_config.nuclei_scan" class="sub-config-box" style="margin-top: 12px;">
+              <a-row :gutter="16">
+                <a-col :span="13">
+                  <a-form-item label="探测危害级别 (Severity)" class="inline-form-item">
+                    <a-checkbox-group v-model:value="policyForm.site_config.nuclei_config.severity" :options="nucleiSeverityOptions" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="11">
+                  <a-form-item label="防御与自建模板联动" class="inline-form-item">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <a-checkbox v-model:checked="policyForm.site_config.nuclei_config.exclude_blacklist">
+                        自动排除全局误报黑名单 (推荐)
+                      </a-checkbox>
+                      <a-checkbox
+                        :checked="policyForm.site_config.nuclei_config.custom_template_mode === 'all_enabled'"
+                        @change="(e) => policyForm.site_config.nuclei_config.custom_template_mode = e.target.checked ? 'all_enabled' : 'none'"
+                      >
+                        自动加载所有已启用的自建模板 (推荐)
+                      </a-checkbox>
+                    </div>
+                  </a-form-item>
+                </a-col>
+              </a-row>
             </div>
           </div>
 
@@ -394,11 +420,24 @@ const initPolicyForm = () => ({
     site_spider: false,
     findvhost: false,
     nuclei_scan: false,
+    nuclei_config: {
+      severity: ['critical', 'high', 'medium', 'low'],
+      custom_template_mode: 'all_enabled',
+      exclude_blacklist: true
+    },
     web_info_hunter: false
   },
   file_leak: false,
   file_leak_dict: undefined
 });
+
+const nucleiSeverityOptions = [
+  { label: '严重 (Critical)', value: 'critical' },
+  { label: '高危 (High)', value: 'high' },
+  { label: '中危 (Medium)', value: 'medium' },
+  { label: '低危 (Low)', value: 'low' },
+  { label: '信息 (Info)', value: 'info' }
+];
 
 const policyForm = reactive(initPolicyForm());
 
@@ -568,6 +607,20 @@ onMounted(async () => {
         Object.assign(policyForm.domain_config, data.policy?.domain_config || {});
         Object.assign(policyForm.ip_config, data.policy?.ip_config || {});
         Object.assign(policyForm.site_config, data.policy?.site_config || {});
+        if (!policyForm.site_config.nuclei_config) {
+          policyForm.site_config.nuclei_config = {
+            severity: ['critical', 'high', 'medium', 'low'],
+            custom_template_mode: 'all_enabled',
+            exclude_blacklist: true
+          };
+        } else {
+          if (policyForm.site_config.nuclei_config.exclude_blacklist === undefined) {
+            policyForm.site_config.nuclei_config.exclude_blacklist = true;
+          }
+          if (!policyForm.site_config.nuclei_config.custom_template_mode) {
+            policyForm.site_config.nuclei_config.custom_template_mode = 'all_enabled';
+          }
+        }
 
         // 字典历史别名归一化回填
         if (policyForm.domain_config.domain_brute_type) {

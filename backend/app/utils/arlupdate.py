@@ -46,15 +46,23 @@ def create_index():
         "asset_stat_finger": "scope_id",
         "asset_wih": ["scope_id", "record_type", "fnv_hash"],
         "dict_upload_task": "task_id",
-        "asset_scope": "group_id",
+        "asset_scope": ["group_id", "updating_icp_task_id"],
         "asset_group": "sort_order",
+        "nuclei_template": ["name", "severity", "tags", "enable", "updated_at"],
+        "nuclei_blacklist": ["severity", "created_at"],
     }
     for table in index_map:
         if isinstance(index_map[table], list):
             for index in index_map[table]:
-                conn_db(table).create_index(index, background=True)
+                try:
+                    conn_db(table).create_index(index, background=True)
+                except Exception as ie:
+                    logging.getLogger().warning(f"Failed to create normal index {index} on {table}: {ie}")
         else:
-            conn_db(table).create_index(index_map[table], background=True)
+            try:
+                conn_db(table).create_index(index_map[table], background=True)
+            except Exception as ie:
+                logging.getLogger().warning(f"Failed to create normal index {index_map[table]} on {table}: {ie}")
 
     # Scheduler 核心轮询复合索引
     conn_db('scheduler').create_index([("status", 1), ("next_run_time", 1)], background=True)
@@ -88,6 +96,8 @@ def create_index():
         "poc": [("plugin_name", 1)],
         "fingerprint_deleted": [("name", 1)],
         "asset_group": [("name", 1)],
+        "nuclei_template": [("template_id", 1)],
+        "nuclei_blacklist": [("template_id", 1)],
     }
 
     def _deduplicate_and_create_unique(col, keys, drop_idx=None):
@@ -1060,15 +1070,61 @@ def update_policy_schema():
             {"$set": {"policy.npoc_service_detection": True}}
         )
 
-        if res_unset.modified_count or res_svc1.modified_count or res_svc2.modified_count:
+        # 🛡️【平滑兼容】为存量策略补充 nuclei_config 默认值，规避取值报错与配置丢失
+        res_nuclei = col.update_many(
+            {"policy.site_config.nuclei_config": {"$exists": False}},
+            {"$set": {
+                "policy.site_config.nuclei_config": {
+                    "severity": ["critical", "high", "medium"],
+                    "custom_template_mode": "all_enabled",
+                    "selected_custom_templates": [],
+                    "selected_tags": []
+                }
+            }}
+        )
+
+        if res_unset.modified_count or res_svc1.modified_count or res_svc2.modified_count or res_nuclei.modified_count:
             import logging
             logging.getLogger().info(
                 f"update_policy_schema synced: dead_fields={res_unset.modified_count}, "
-                f"npoc_to_svc={res_svc1.modified_count}, svc_to_npoc={res_svc2.modified_count}"
+                f"npoc_to_svc={res_svc1.modified_count}, svc_to_npoc={res_svc2.modified_count}, "
+                f"nuclei_config={res_nuclei.modified_count}"
             )
     except Exception as e:
         import logging
         logging.getLogger().error(f"update_policy_schema failed: {e}")
+
+
+def heal_stale_updating_icp_tasks():
+    """
+    🛡️【平滑演进与死锁自愈】
+    检查并自愈 asset_scope 中的 updating_icp_task_id：
+    1. 若对应的 icp_task 状态已为 done，自动平滑晋升为 synced_icp_task_id；
+    2. 若对应的 icp_task 状态为 error/stop 或任务不存在，自动清理 updating_icp_task_id 避免状态残留。
+    """
+    try:
+        import bson
+        scope_col = conn_db('asset_scope')
+        task_col = conn_db('icp_task')
+        scopes = list(scope_col.find({"updating_icp_task_id": {"$exists": True, "$ne": ""}}))
+        for s in scopes:
+            up_id = s.get("updating_icp_task_id")
+            if not up_id:
+                continue
+            try:
+                t = task_col.find_one({"_id": bson.ObjectId(up_id)})
+            except Exception:
+                t = None
+            if not t or t.get("status") in ["error", "stop"]:
+                scope_col.update_one({"_id": s["_id"]}, {"$unset": {"updating_icp_task_id": ""}})
+            elif t.get("status") == "done":
+                scope_col.update_one(
+                    {"_id": s["_id"]},
+                    {"$set": {"synced_icp_task_id": str(t["_id"])}, "$unset": {"updating_icp_task_id": ""}}
+                )
+    except Exception as e:
+        import logging
+        logging.getLogger().error(f"heal_stale_updating_icp_tasks failed: {e}")
 
 
 def arl_update():
@@ -1141,6 +1197,7 @@ def arl_update():
         _run_step("migrate_asset_group_sort_order", migrate_asset_group_sort_order)
         _run_step("normalize_threat_radar_configs", normalize_threat_radar_configs)
         _run_step("update_policy_schema", update_policy_schema)
+        _run_step("heal_stale_updating_icp_tasks", heal_stale_updating_icp_tasks)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:
         import logging

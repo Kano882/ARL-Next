@@ -220,6 +220,49 @@ def dict_import_celery_task(task_id, temp_file_path, target_dict_path):
     background_process_dict(task_id, temp_file_path, target_dict_path)
 
 
+@celery.task(name='app.celerytask.nuclei_template_sync_task', queue=CeleryRoutingKey.ASSET_TASK_LIGHT)
+def nuclei_template_sync_task(zip_file_path=None, target_version=None):
+    """
+    Worker 节点协同更新官方社区模板（保持多容器环境模板版本与 Web 面板一致）
+    """
+    logger.info("Executing Worker nuclei_template_sync_task...")
+    try:
+        from app.routes.nuclei import get_community_templates_dir, extract_templates_zip_to_dir, update_templates_config_version, load_community_index
+        import os
+        import requests
+        from app.config import Config
+
+        target_dir = get_community_templates_dir() or "/root/nuclei-templates"
+        if zip_file_path and os.path.isfile(zip_file_path):
+            extract_templates_zip_to_dir(zip_file_path, target_dir)
+            if target_version:
+                update_templates_config_version(target_version)
+        else:
+            mirrors = ["https://ghfast.top/", "https://ghproxy.net/"]
+            raw_url = "https://github.com/projectdiscovery/nuclei-templates/releases/latest/download/nuclei-templates.zip"
+            tmp_zip = os.path.join(Config.TMP_PATH, "worker_nuclei_sync.zip")
+            for m in mirrors:
+                try:
+                    resp = requests.get(f"{m}{raw_url}", stream=True, timeout=30, verify=False)
+                    if resp.status_code == 200:
+                        with open(tmp_zip, "wb") as f:
+                            for chunk in resp.iter_content(chunk_size=128 * 1024):
+                                if chunk:
+                                    f.write(chunk)
+                        extract_templates_zip_to_dir(tmp_zip, target_dir)
+                        if target_version:
+                            update_templates_config_version(target_version)
+                        if os.path.exists(tmp_zip):
+                            os.unlink(tmp_zip)
+                        break
+                except Exception as ex:
+                    logger.warning(f"Worker mirror sync attempt {m} failed: {ex}")
+        load_community_index(force_refresh=True)
+        logger.info("Worker nuclei_template_sync_task completed successfully.")
+    except Exception as e:
+        logger.error(f"Worker nuclei_template_sync_task failed: {e}")
+
+
 def sigterm_handler(signum, frame):
     if not current_task:
         return

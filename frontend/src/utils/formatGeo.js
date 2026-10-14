@@ -13,21 +13,17 @@ export const formatGeo = (geo) => {
   const rawParts = [geo.country_name, geo.region_name, geo.city];
   const cleanParts = [];
 
+  const INVALID_PLACEHOLDERS = ['null', 'none', 'undefined', '-', '0'];
+
   for (const part of rawParts) {
-    if (
-      part &&
-      typeof part === 'string' &&
-      part.trim() !== '' &&
-      part !== 'null' &&
-      part !== 'None' &&
-      part !== '0'
-    ) {
-      const trimmed = part.trim();
-      // 避免与已有元素重复（如国家与城市同名）
-      if (!cleanParts.includes(trimmed)) {
-        cleanParts.push(trimmed);
-      }
-    }
+    // 仅接受字符串；数值型占位（如 0）与 null 一律跳过
+    if (typeof part !== 'string') continue;
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    if (INVALID_PLACEHOLDERS.includes(trimmed.toLowerCase())) continue;
+    // 仅剔除相邻层级的重复（如国家与城市同名），避免误删省份/城市等同名的不同层级
+    if (cleanParts[cleanParts.length - 1] === trimmed) continue;
+    cleanParts.push(trimmed);
   }
 
   return cleanParts.length > 0 ? cleanParts.join(' / ') : '-';

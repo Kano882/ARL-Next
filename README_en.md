@@ -32,6 +32,7 @@
     <a href="#quick-deploy"><b>⚡ Quick Deployment</b></a> •
     <a href="#comparison"><b>💡 Architectural Comparison</b></a> •
     <a href="#core-features"><b>✨ Core Features</b></a> •
+    <a href="./docs/API_GUIDE_en.md"><b>🔌 API Guide</b></a> •
     <a href="./mcp-server/README_en.md"><b>🤖 MCP Guide</b></a> •
     <a href="./CHANGELOG.md"><b>📜 Changelog</b></a> •
     <a href="./LICENSE"><b>📄 License</b></a>
@@ -54,11 +55,11 @@
 | Evaluation Dimension | Legacy ARL Architecture & Implementation | ARL-Next Re-engineered Architecture |
 | :--- | :--- | :--- |
 | **Concurrency & Task Scheduling** | All scan tasks shared a single Celery queue, causing frequent queue stalling and process hangs under high concurrency | **Decoupled OSINT and screenshot capture into dedicated microservices**; implemented dual-track light/heavy task queues and bulk database persistence to resolve concurrency bottlenecks |
-| **Automation Protocol Integration** | Lacked standardized external integration interfaces; restricted to manual Web UI interactions | **Built-in native Python MCP Server**, providing standard protocol endpoints for 13-dimensional panoramic asset profiling and aggregated telemetry |
-| **Enterprise Asset Topology** | Lacked organizational equity mapping and multi-tier digital asset drill-downs | **Unified Asset Group Management**: correlates corporate equity with full-spectrum ICP registrations (websites, APPs, mini-programs, quick apps) to construct hierarchical group topologies |
+| **Automation Protocol Integration** | Lacked standardized external integration interfaces; restricted to manual Web UI interactions | **Supports native Python MCP Server**, providing standard protocol endpoints for multi-dimensional asset profiling |
+| **Enterprise Asset Topology** | Lacked organizational equity mapping and multi-tier digital asset drill-downs | **Integrated Asset Group Management**: correlates corporate equity with multi-category ICP registrations (websites, APPs, mini-programs, quick apps) to construct hierarchical group topologies |
 | **Containerization & Delivery** | Outdated dependencies lacking mirror acceleration; vulnerable to network disruption during installation | **Multi-stage Docker builds with pre-compiled artifacts on Alibaba Cloud ACR**, enhancing build reliability and rapid container deployment |
-| **Runtime Environment Baseline** | Python 3.6 / Vue 2 / MongoDB 3.x / Nmap 7.70 | **Python 3.13 / Vue 3.5 / MongoDB 7.0 / Nmap 7.95 Stable**; fully upgraded to a modern, actively supported runtime baseline |
-| **Sensitive Data Extraction** | Relied on external Go binaries with cross-platform build and runtime overhead | **Pure-Python streaming extraction engine**, eliminating external binary dependencies for sensitive credential and file leak discovery |
+| **Runtime Environment Baseline** | Python 3.6 / Vue 2 / MongoDB 3.x / Nmap 7.70 | **Python 3.13 / Vue 3.5 / MongoDB 7.0 / Nmap 7.95 Stable**; modernized runtime baseline |
+| **Sensitive Data Extraction** | Relied on external Go binaries with cross-platform build and runtime overhead | **Pure-Python streaming extraction engine**, sensitive data module requires no external binary dependencies, supporting stream extraction |
 | **Web UI / User Experience** | Long tables lacked sticky headers, pagination states were lost on refresh, and policy menus were fragmented | **Sticky table headers and floating action bars**, local pagination state persistence, and a modern 3-pane dictionary manager |
 | **Threat Intelligence Integration** | Lacked continuous intelligence feeds; unaligned timestamps led to redundant alerts | **Automated CVE synchronization & GitHub credential leak monitoring**, deduplicated via database atomic upsert locks with strict timezone normalization |
 
@@ -66,9 +67,9 @@
 
 ### <span id="core-features"></span>✨ Core Feature Matrix
 
-* 🤖 **Native MCP Protocol Integration**: Built-in standard library-based MCP server enabling AI agents to inspect 13-dimensional asset intelligence and summary dashboards via standard protocol interfaces. (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
+* 🤖 **Native MCP Protocol Integration**: Standalone standard library-based MCP client protocol enabling AI agents to inspect multi-dimensional target asset profiles via standard interfaces (task dispatch and policy scheduling capabilities are still being integrated). (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
 * ⚙️ **Asynchronous Decoupled Scheduling**: Microservice isolation with dedicated queues and bulk MongoDB operations ensures stable execution under high-throughput scanning workloads.
-* 🌐 **Hierarchical Asset Group Management**: Integrated corporate asset discovery supporting multi-tier organizational structures, full-spectrum ICP association, and unified attack surface mapping.
+* 🌐 **Hierarchical Asset Group Management**: Integrated corporate asset discovery supporting multi-tier organizational structures, multi-category ICP association (Web / APP / Mini-program / Quick App), and unified attack surface mapping.
 * 🔍 **Modern Reconnaissance Baseline**: Standardized on Nmap 7.95 Stable; native Python streaming engine for sensitive information and credential discovery.
 * 🛡️ **Vulnerability & Leak Monitoring**: Continuous tracking of authoritative CVE feeds and automated GitHub credential leak monitoring with atomic lock deduplication.
 * ⚡ **High Availability & Fault Tolerance**: Container health probes, readiness polling, automated container watchdog auto-restart, and seamless web-based updates.
@@ -145,7 +146,7 @@ graph TD
 
     %% 2. API Gateway Layer
     Nginx -->|"REST API Reverse Proxy (5000)"| Backend["⚙️ Backend API (Gunicorn / Python 3.13)"]
-    MCP -->|"API Token Auth"| Backend
+    MCP -->|"HTTPS / API Token Reverse Proxy (5173)"| Nginx
 
     %% 3. Dispatch & Task Routing (Dual-Track Decoupling)
     Backend -->|"1. Async Direct Dispatch (16181)"| OSINT["🧩 OSINT Microservice"]
@@ -184,12 +185,12 @@ graph TD
 
 ### Key Architectural Highlights:
 
-1. 🖥️ **Presentation & Gateway (Frontend / Nginx)**: Built with **Vue 3.5 + Nginx**, featuring sticky table headers, floating action toolbars, and optional **Basic Auth gateway protection**.
-2. ⚙️ **Core API & Protocol Integration (Backend / MCP)**: Powered by **Python 3.13 + Gunicorn**; features an embedded **native Python MCP Server** providing standard protocol interfaces and 13-dimensional asset profile exports.
+1. 🖥️ **Presentation & Gateway (Frontend / Nginx)**: Built with **Vue 3.5 + Nginx**, featuring core table sticky headers and floating action toolbars; provides **frontline Basic Auth gateway protection** (disabled by default, toggleable from the top navigation bar).
+2. ⚙️ **Core API & Protocol Integration (Backend / MCP)**: Powered by **Python 3.13 + Gunicorn**; provides **native Python MCP** protocol adaptation supporting standard interfaces and multi-dimensional asset profile queries.
 3. 🧩 **Dedicated OSINT Microservice**: Dedicated asynchronous engine for corporate asset discovery and ICP lookup; directly invoked by the backend via coroutines to **prevent long-running OSINT tasks from stalling scan queues**.
 4. ⚡ **Multi-Queue Worker Cluster**: Segregated into **lightweight**, **heavyweight**, and **threat intelligence** task queues; controls worker memory growth through subprocess lifecycle recycling; standardizes on **Nmap 7.95 Stable**.
 5. 🛡️ **Microservices & Autoheal Watchdog (Puppeteer / Autoheal)**: Containerized headless browser isolation with request-count recycling; **Autoheal watchdog periodically checks scan workers and automatically restarts unresponsive containers**; pure Python engine for streaming sensitive data discovery.
-6. 🗄️ **High-Throughput Persistence (MongoDB 7.0)**: Migrated asset ingestion pipelines to `bulk_write` interfaces; compound unique indexes across core collections backed by a 1GB memory buffer pool to maintain scanning throughput and database stability.
+6. 🗄️ **High-Throughput Persistence (MongoDB 7.0)**: High-throughput asset ingestion utilizes `bulk_write` and `safe_insert_asset_many` batch interfaces; compound unique indexes across core collections backed by a 1GB memory buffer pool to maintain scanning throughput and database stability.
 
 ---
 
@@ -201,19 +202,82 @@ graph TD
 **Estimated Time**: ~**1–2 minutes** with existing Docker environment; ~**3–5 minutes** on a fresh bare-metal host.
 
 **Key Operational Advantages**:
+* ⚡ **Mainland China Mirror Acceleration**: Pulls directly from the Alibaba Cloud ACR private mirror repository, avoiding cross-border network timeouts and pull interruptions.
 * 📦 **Out-of-the-Box Delivery**: Pre-built container images eliminate local toolchain compilation and dependency configuration.
-* 🛡️ **Dual-Layer Security**: Bundled local SSL encryption with **frontline Basic Auth gateway protection**; core internal services isolated within a private Docker bridge network.
-* 🔄 **One-Click Hot Updates**: Web console-driven upgrade triggers the background daemon to pull updated images and orchestrations automatically.
+* 🛡️ **Dual-Layer Security**: Bundled local SSL encryption; **frontline Basic Auth gateway protection is disabled by default** (toggleable from the top navigation bar); core internal services isolated within a private Docker bridge network.
+* 🔄 **Background Hot Updates**: Trigger an online upgrade from the web console; the background daemon pulls updated images and orchestrations automatically.
 * 🩺 **Health Readiness Probing**: Integrated startup probe loops verify API readiness before allowing incoming traffic, preventing intermittent startup errors.
 
 ---
 
 #### 🚀 Deployment Methods
 
-##### Method 1: Git Clone Source Deployment (Recommended for Global / Standard Deployments)
+**For the vast majority of setups, just run "Method 1" below** — no need to determine your OS or network environment first; the script auto-detects the system, installs missing dependencies, and tunes kernel parameters.
+
+##### Method 1: Accelerated Mirror Deployment (Recommended)
+
+On your server terminal (root required), paste and run the command below. It extracts the deployment orchestration from the Alibaba Cloud ACR mirror, and `start-prod.sh` then configures Swap, installs/pads Docker and the Compose plugin, and brings the stack up:
+
+```bash
+mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
+docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
+docker rm -f arl-temp 2>/dev/null || true && \
+docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
+docker cp arl-temp:/code/start-prod.sh ./ && \
+docker cp arl-temp:/code/docker-compose.prod.yml ./ && \
+docker cp arl-temp:/code/updater ./ && \
+docker cp arl-temp:/code/version.txt ./ && \
+docker cp arl-temp:/code/CHANGELOG.md ./ && \
+mkdir -p ./frontend && docker cp arl-temp:/code/frontend/default.conf.prod ./frontend/ && \
+docker rm -f arl-temp && \
+chmod +x start-prod.sh && bash start-prod.sh
+```
 
 > [!TIP]
-> The `start-prod.sh` script automatically detects system dependencies. If Docker or Compose is missing, it installs and configures them with optimized kernel settings.
+> If Docker is not yet installed on the host, run step 1 of "Method 2" below first, then return to this command.
+
+<details>
+<summary><b>Method 2: Full Manual Commands (by OS type)</b></summary>
+<br/>
+
+The two commands below differ **only in how base tools are installed** (choose `apt-get` or `yum`); the second step is identical for all systems.
+
+**Step 1: Install base tools and create the directory**
+
+- Ubuntu / Debian / UOS:
+  ```bash
+  apt-get update && apt-get install -y docker.io openssl curl && \
+  (systemctl enable --now docker 2>/dev/null || service docker start 2>/dev/null || true)
+  ```
+- CentOS / RHEL / Alibaba Cloud Linux / TencentOS:
+  ```bash
+  yum install -y openssl curl && \
+  (command -v docker &>/dev/null || curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun) && \
+  systemctl enable --now docker 2>/dev/null || true
+  ```
+
+**Step 2: Pull orchestration files and start (identical for all systems)**
+
+```bash
+mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
+docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
+docker rm -f arl-temp 2>/dev/null || true && \
+docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
+docker cp arl-temp:/code/start-prod.sh ./ && \
+docker cp arl-temp:/code/docker-compose.prod.yml ./ && \
+docker cp arl-temp:/code/updater ./ && \
+docker cp arl-temp:/code/version.txt ./ && \
+docker cp arl-temp:/code/CHANGELOG.md ./ && \
+mkdir -p ./frontend && docker cp arl-temp:/code/frontend/default.conf.prod ./frontend/ && \
+docker rm -f arl-temp && \
+chmod +x start-prod.sh && bash start-prod.sh
+```
+
+</details>
+
+<details>
+<summary><b>Method 3: Git Clone Source Deployment (Overseas servers / modifying source)</b></summary>
+<br/>
 
 ```bash
 git clone --depth 1 https://github.com/owl234/ARL-Next.git && cd ARL-Next
@@ -221,53 +285,10 @@ chmod +x start-prod.sh
 bash start-prod.sh
 ```
 
-##### Method 2: Accelerated One-Liner via China Mirror (Alternative for Mainland China Servers)
-
-For servers located in Mainland China, execute the chained command corresponding to your operating system to extract deployment files from the Alibaba Cloud ACR mirror and launch the service:
-
 > [!TIP]
-> `start-prod.sh` includes environment probes that configure Swap, install Docker / Docker Compose plugins, and tune kernel parameters on bare-metal systems.
+> `start-prod.sh` includes environment probes that also install Docker and tune kernel parameters on bare-metal systems.
 
-**Ubuntu / Debian / UOS Systems**:
-```bash
-# 1. Install base tools and create directory
-apt-get update && apt-get install -y docker.io openssl curl && \
-(systemctl enable --now docker 2>/dev/null || service docker start 2>/dev/null || true) && \
-mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
-# 2. Pull orchestration files from Alibaba Cloud ACR mirror and start
-docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
-docker rm -f arl-temp 2>/dev/null || true && \
-docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
-docker cp arl-temp:/code/start-prod.sh ./ && \
-docker cp arl-temp:/code/docker-compose.prod.yml ./ && \
-docker cp arl-temp:/code/updater ./ && \
-docker cp arl-temp:/code/version.txt ./ && \
-docker cp arl-temp:/code/CHANGELOG.md ./ && \
-mkdir -p ./frontend && docker cp arl-temp:/code/frontend/default.conf.prod ./frontend/ && \
-docker rm -f arl-temp && \
-chmod +x start-prod.sh && bash start-prod.sh
-```
-
-**CentOS / RHEL / Alibaba Cloud Linux / TencentOS Systems**:
-```bash
-# 1. Install base tools, setup Docker, and create directory
-yum install -y openssl curl && \
-(command -v docker &>/dev/null || curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun) && \
-systemctl enable --now docker 2>/dev/null || true && \
-mkdir -p ~/ARL-Next && cd ~/ARL-Next && \
-# 2. Pull orchestration files from Alibaba Cloud ACR mirror and start
-docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
-docker rm -f arl-temp 2>/dev/null || true && \
-docker create --name arl-temp crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
-docker cp arl-temp:/code/start-prod.sh ./ && \
-docker cp arl-temp:/code/docker-compose.prod.yml ./ && \
-docker cp arl-temp:/code/updater ./ && \
-docker cp arl-temp:/code/version.txt ./ && \
-docker cp arl-temp:/code/CHANGELOG.md ./ && \
-mkdir -p ./frontend && docker cp arl-temp:/code/frontend/default.conf.prod ./frontend/ && \
-docker rm -f arl-temp && \
-chmod +x start-prod.sh && bash start-prod.sh
-```
+</details>
 
 ---
 
@@ -280,37 +301,54 @@ After deployment completes, open your browser and navigate to: `https://<YOUR_SE
 | **Layer 1: Nginx Basic Auth Gateway** | `admin` | `arl_next` | Prevents automated internet scanner brute-forcing. Disabled by default; can be toggled via the security switch in the top navigation bar. |
 | **Layer 2: ARL-Next System Login** | `admin` | `arlpass` | Main platform admin account. Changing the default password upon initial login is strongly recommended. |
 
+> [!IMPORTANT]
+> **Required**: Ensure port **5173** (TCP) is allowed in your cloud provider security groups and local firewall, otherwise the console will be unreachable.
+> ```bash
+> # Ubuntu / Debian
+> ufw allow 5173/tcp
+> # CentOS / RHEL
+> firewall-cmd --permanent --add-port=5173/tcp && firewall-cmd --reload
+> ```
+
 > [!TIP]
-> - **Firewall & Security Groups**: Ensure port **5173** (TCP) is allowed in your cloud provider security groups and local firewall (e.g., `ufw allow 5173/tcp` or `firewall-cmd --permanent --add-port=5173/tcp && firewall-cmd --reload`).
-> - **Custom SSL Certificates (Optional)**: Place your official certificates renamed as `arl.crt` and `arl.key` into the `ssl-certs/` directory, then re-run `bash start-prod.sh`.
+> **Optional optimizations** (not required for basic operation):
+> - **Custom SSL Certificates**: Place your official certificates renamed as `arl.crt` and `arl.key` into the `ssl-certs/` directory, then re-run `bash start-prod.sh`.
+> - **Enable Basic Auth**: Toggle the security switch in the top navigation bar after logging in (disabled by default).
 
 ---
 
 ### 🔄 Upgrading in Production
 
-ARL-Next supports **One-Click Hot Updates via Web Console** as well as **Standard Terminal Upgrades**:
+ARL-Next offers two upgrade paths: **Web Console Online Update** (recommended, no terminal required) and **Standard Terminal Upgrade**.
 
-#### Option 1: Web Console One-Click Update (Recommended)
+#### Option 1: Web Console Online Update (Recommended)
 
 Log in to ARL-Next ➔ Navigate to **"System Settings"** ➔ Click **"One-Click System Update"**.<br/>
 The host update daemon pulls the latest images, synchronizes orchestration scripts, and performs service health checks in the background without requiring SSH access.
 
-#### Option 2: Standard Terminal Upgrade
+> [!WARNING]
+> The update restarts the background Worker container, which **interrupts any running scan tasks** (they will be marked as interrupted). Run it during idle periods.
 
-Navigate to your ARL-Next installation directory on the server and run the upgrade commands matching your installation method:
+<details>
+<summary><b>Option 2: Standard Terminal Upgrade</b></summary>
+<br/>
 
-* **Git Clone Users (Method 1)**:
-  ```bash
-  cd ~/ARL-Next && git pull && sudo bash start-prod.sh
-  ```
+Navigate to your ARL-Next installation directory and run the commands matching your installation method.
 
-* **One-Liner / Container Sync Users (Method 2)**:
+- **Method 1 / Method 2 users** (no Git, syncing orchestration from the image):
   ```bash
   cd ~/ARL-Next && \
   docker pull crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest && \
   docker run --rm -v $(pwd):/host crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest bash -c "cp /code/start-prod.sh /host/start-prod.sh && cp /code/docker-compose.prod.yml /host/docker-compose.prod.yml && mkdir -p /host/updater && cp -r /code/updater/. /host/updater/ 2>/dev/null || true; mkdir -p /host/frontend && cp /code/frontend/default.conf.prod /host/frontend/default.conf.prod 2>/dev/null || true; cp /code/version.txt /host/version.txt 2>/dev/null || true; cp /code/CHANGELOG.md /host/CHANGELOG.md 2>/dev/null || true" && \
   sudo bash start-prod.sh
   ```
+
+- **Method 3 users** (Git clone):
+  ```bash
+  cd ~/ARL-Next && git pull && sudo bash start-prod.sh
+  ```
+
+</details>
 
 > [!TIP]
 > **Upgrade Safeguards**:
@@ -320,28 +358,12 @@ Navigate to your ARL-Next installation directory on the server and run the upgra
 
 ---
 
-## 🔌 API Calling Conventions
+## 🔌 Developer API & Integration
 
-- Backend endpoints are prefixed with `/api`; interactive Swagger documentation is available at `/api/doc`. Paths are relative to your deployment address, e.g., `https://<your-arl-host>:5173`.
-- When platform authentication is enabled, provide the request header `Token: <your-token>`. The backend also accepts `?token=` as a query parameter, but headers are strongly recommended to keep credentials out of access logs and browser history. **Never commit tokens into public issues, logs, or command histories.**
-- If platform authentication is disabled, endpoints do not validate tokens; review your gateway and access control policies when exposing to external networks.
-- API responses utilize business fields `code` and `message`; an HTTP 200 response alone does not indicate operational success.
+ARL-Next provides standardized RESTful APIs for automation scripts, CI/CD pipelines, and security orchestration (SOAR) integrations.
 
-### Task Operations (Note HTTP Methods)
-
-| Operation | Method & Path | Parameters |
-| :--- | :--- | :--- |
-| Query Tasks | `GET /api/task/` | Optional query params: `target`, `status`, `page`, `size` |
-| Stop Single Task | `GET /api/task/stop/<task_id>` | Task ID in path; **note that this GET request modifies task state** |
-| Batch Stop Tasks | `POST /api/task/batch_stop/` | Request body per Swagger documentation |
-| Delete Task | `POST /api/task/delete/` | JSON: `{"task_id": ["<task_id>"], "del_task_data": false}` |
-| Restart Task | `POST /api/task/restart/` | JSON: `{"task_id": ["<task_id>"]}` |
-
-The deletion endpoint only accepts tasks in `done`, `stop`, or `error` states; other states return business code `104` ("Task is currently running"). If deletion is required, verify the status, terminate the task via the stop endpoint if necessary, and then issue the deletion call. Stopping a task uses **GET** in the current implementation; do not assume it is read-only, and avoid guessing endpoints like `DELETE /api/task/<id>` or `POST /api/task/stop/`.
-
-### Query Result Namespaces
-
-Task-scoped results are queried under endpoints such as `/api/domain/`, `/api/ip/`, and `/api/site/`. Results synced to Asset Groups reside under the `asset_*` namespace, including `/api/asset_domain/`, `/api/asset_ip/`, and `/api/asset_site/`. These represent distinct datasets: task queries require `task_id`, whereas asset group queries require `scope_id`. Refer to `/api/doc` for current parameter specifications and pagination schema.
+* 📖 **Interactive Swagger UI**: After deployment, access `https://<your-arl-host>:5173/api/doc` in your browser to inspect full OpenAPI schemas and test endpoints interactively.
+* 📘 **Calling Conventions & Gotchas**: For token authentication, task lifecycle constraints, HTTP method conventions (e.g., GET for stopping tasks), and asset query namespaces, refer to ➔ [**API Calling Guide (API_GUIDE_en.md)**](./docs/API_GUIDE_en.md).
 
 ---
 
@@ -367,19 +389,19 @@ Task-scoped results are queried under endpoints such as `/api/domain/`, `/api/ip
   ```
   > [!NOTE]
   > The platform protects existing passwords on startup by default. Adding `--reset` forces the `admin` password back to `arlpass`. Run this within a trusted host shell.
-- **Reset or View Basic Auth Credentials**: Edit `frontend/.htpasswd` in your deployment directory, or toggle the Basic Auth switch in the web top navigation bar after logging in.
+- **Reset or View Basic Auth Credentials**: Edit `frontend/.htpasswd` in your deployment directory, or toggle the Basic Auth switch in the web top navigation bar after logging in (to change the password, disable and re-enable it).
 </details>
 
 <details>
 <summary><b>Q3: Web console displays <code>[ERROR] Trigger update failed</code> when clicking "One-Click System Update"?</b></summary>
 <br/>
 
-**A:** This typically occurs when the host updater daemon is inactive. Resolve via either of the following methods:
-- **Method 1 (Recommended)**: Perform a manual terminal upgrade:
+**A:** This typically occurs when the host updater daemon is inactive. Resolve via either of the following:
+- **Option A (Recommended)**: Perform a standard manual terminal upgrade:
   ```bash
   cd ~/ARL-Next && sudo bash start-prod.sh
   ```
-- **Method 2**: Restart the updater service and retry from the Web console:
+- **Option B**: Restart the updater service and retry from the Web console:
   ```bash
   sudo systemctl restart arl-updater.service
   ```

@@ -11,10 +11,10 @@
           <a-badge v-if="hasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
-            <a-button type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
-              <template #icon><sync-outlined :spin="refreshLoading" /></template>
-              更新主体资产
+          <a-tooltip :title="isUpdating ? '主体资产正在后台更新测绘中...' : '重新抓取企业最新备案、APP与投资数据，比对发现增量资产'">
+            <a-button type="primary" size="small" :loading="refreshLoading || isUpdating" :disabled="isUpdating" @click="handleRefreshTask">
+              <template #icon><sync-outlined :spin="refreshLoading || isUpdating" /></template>
+              {{ isUpdating ? '正在更新主体...' : '更新主体资产' }}
             </a-button>
           </a-tooltip>
         </div>
@@ -28,6 +28,17 @@
       class="osint-sticky-control-box"
       :style="{ top: (props.stickyTopOffset || 0) + 'px' }"
     >
+      <!-- 测绘更新中顶部平滑提示条 -->
+      <div v-if="isUpdating" class="osint-updating-banner">
+        <div class="updating-banner-content">
+          <sync-outlined :spin="true" class="updating-spin-icon" />
+          <span class="updating-banner-text">
+            <b>主体资产测绘更新中</b>：后台正在抓取企业最新工商、备案与生态资产<span v-if="updateElapsed > 0">（已执行 {{ updateElapsed }} 秒）</span>，当前视图完整保留历史快照。测绘完成后将自动切换并比对增量资产。
+          </span>
+        </div>
+        <a-tag color="processing" class="updating-banner-tag">正在比对增量</a-tag>
+      </div>
+
       <!-- 维度 Tabs 导航 (微徽标胶囊风格) -->
       <a-tabs v-model:activeKey="activeTab" type="card" size="small" class="arl-detail-tabs osint-tabs-nav" @change="onTabChange">
         <a-tab-pane v-for="t in osintTabList" :key="t.key">
@@ -66,10 +77,24 @@
 
           <div class="toolbar-right">
             <template v-if="activeTab !== 'log'">
-              <a-tooltip title="重新抓取企业最新备案、APP与投资数据，比对发现增量资产">
-                <a-button type="primary" size="small" :loading="refreshLoading" @click="handleRefreshTask">
-                  <template #icon><sync-outlined :spin="refreshLoading" /></template>
-                  更新主体资产
+              <!-- 扩充本组按钮 (仅在 Web 备案维度且存在未纳管域名时呈现) -->
+              <a-popconfirm
+                v-if="props.scopeId && activeTab === 'web' && untrackedWebDomains.length > 0"
+                :title="`确认将发现的 ${untrackedWebDomains.length} 个未纳管域名扩充至当前资产组？`"
+                ok-text="确认扩充"
+                cancel-text="取消"
+                @confirm="handleOneClickExpandScope"
+              >
+                <a-button type="primary" size="small" :loading="expandingScopeLoading" style="background: #52c41a; border-color: #52c41a;">
+                  <template #icon><plus-circle-outlined /></template>
+                  扩充本组 (+{{ untrackedWebDomains.length }})
+                </a-button>
+              </a-popconfirm>
+
+              <a-tooltip :title="isUpdating ? '主体资产正在后台更新测绘中...' : '重新抓取企业最新备案、APP与投资数据，比对发现增量资产'">
+                <a-button type="primary" size="small" :loading="refreshLoading || isUpdating" :disabled="isUpdating" @click="handleRefreshTask">
+                  <template #icon><sync-outlined :spin="refreshLoading || isUpdating" /></template>
+                  {{ isUpdating ? '正在更新主体...' : '更新主体资产' }}
                 </a-button>
               </a-tooltip>
               <a-tooltip title="更换当前资产组绑定的企业主体并重新拉取全域资产">
@@ -255,6 +280,17 @@
             </div>
           </template>
 
+          <!-- 纳管状态 -->
+          <template v-else-if="column.key === 'managedStatus'">
+            <a-tag v-if="!props.scopeId" color="default" style="font-size: 11px;">未关联组</a-tag>
+            <a-tag v-else-if="isDomainManaged(record)" color="success" style="font-size: 11px;">
+              <check-circle-outlined /> 已纳管
+            </a-tag>
+            <a-tag v-else color="orange" style="font-size: 11px;">
+              <plus-circle-outlined /> 未纳管
+            </a-tag>
+          </template>
+
           <!-- 首页网址外链与快捷复制 -->
           <template v-else-if="column.key === 'homeUrl'">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
@@ -408,9 +444,14 @@
             <span>已选中 <b style="color: var(--arl-theme-color); margin: 0 4px;">{{ selectedWebRowKeys.length }}</b> 项备案域名</span>
           </div>
           <div class="floating-actions">
-            <a-button type="primary" size="middle" @click="openSyncModalWithSelected">
+            <!-- 若在资产组内，优先提供直达扩充当前组，免弹窗！ -->
+            <a-button v-if="props.scopeId" type="primary" size="middle" :loading="expandingScopeLoading" @click="handleExpandSelectedToScope">
+              <template #icon><plus-circle-outlined /></template>
+              扩充至当前资产组 ({{ selectedWebRowKeys.length }})
+            </a-button>
+            <a-button size="middle" @click="openSyncModalWithSelected">
               <template #icon><cloud-sync-outlined /></template>
-              同步至资产组 ({{ selectedWebRowKeys.length }})
+              {{ props.scopeId ? '同步至其他资产组...' : `同步至资产组 (${selectedWebRowKeys.length})` }}
             </a-button>
             <a-button size="middle" @click="handleBatchCopyDomains">
               <template #icon><copy-outlined /></template>
@@ -445,12 +486,12 @@
             <span class="log-title">[{{ log.title }}]</span>
             <span class="log-msg">{{ log.message }}</span>
           </div>
-          <div v-if="syslogList.length === 0" class="log-empty">[System] 暂无日志记录... (历史任务或日志正在生成中)</div>
+          <div v-if="syslogList.length === 0" class="log-empty">[System] 暂无日志记录（任务未产生日志，或日志仍在生成中）</div>
         </div>
       </div>
     </div>
 
-    <!-- 同步至资产分组弹窗 -->
+    <!-- 同步至资产组弹窗 -->
     <SyncToScopeModal
       v-model:open="syncModalVisible"
       :task="taskRecord"
@@ -468,7 +509,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
-import { message } from 'ant-design-vue';
+import { message, notification } from 'ant-design-vue';
 import {
   SearchOutlined,
   DownloadOutlined,
@@ -480,6 +521,8 @@ import {
   RedoOutlined,
   CodeOutlined,
   CheckCircleFilled,
+  CheckCircleOutlined,
+  PlusCircleOutlined,
   LinkOutlined,
   FilterOutlined,
   DownOutlined,
@@ -510,10 +553,89 @@ const props = defineProps({
   stickyTopOffset: {
     type: Number,
     default: 120
+  },
+  updatingTaskId: {
+    type: String,
+    default: ''
   }
 });
 
 const emit = defineEmits(['synced', 'refreshed', 'taskLoaded', 'update:taskId', 'openBind']);
+
+const activeUpdatingTaskId = ref('');
+const isUpdating = ref(false);
+const updateElapsed = ref(0);
+let updateTimer = null;
+let elapsedTimer = null;
+
+const stopUpdatePolling = () => {
+  if (updateTimer) {
+    clearInterval(updateTimer);
+    updateTimer = null;
+  }
+  if (elapsedTimer) {
+    clearInterval(elapsedTimer);
+    elapsedTimer = null;
+  }
+};
+
+const startUpdatePolling = (targetUpdatingId) => {
+  if (!targetUpdatingId) return;
+  stopUpdatePolling();
+  isUpdating.value = true;
+  activeUpdatingTaskId.value = targetUpdatingId;
+  updateElapsed.value = 0;
+  elapsedTimer = setInterval(() => {
+    updateElapsed.value += 1;
+  }, 1000);
+
+  updateTimer = setInterval(async () => {
+    try {
+      const res = await request.get('/icp/task', { params: { _id: targetUpdatingId } });
+      if (res && res.code === 200 && res.items && res.items.length > 0) {
+        const task = res.items[0];
+        if (task.status === 'done') {
+          stopUpdatePolling();
+          isUpdating.value = false;
+          activeUpdatingTaskId.value = '';
+          notification.success({
+            message: '主体资产更新完成',
+            description: `企业生态资产画像已更新至最新版本，共检索到 ${task.statistic?.asset_cnt || 0} 项资产记录。`,
+            duration: 4
+          });
+          emit('update:taskId', targetUpdatingId);
+          emit('refreshed', targetUpdatingId);
+          fetchTaskDetail();
+          fetchAssets(1, pagination.pageSize);
+        } else if (task.status === 'error' || task.status === 'stop') {
+          stopUpdatePolling();
+          isUpdating.value = false;
+          activeUpdatingTaskId.value = '';
+          notification.error({
+            message: '主体资产更新未完成',
+            description: task.error_msg || '后台测绘任务执行异常，已为您保留当前存量资产。',
+            duration: 5
+          });
+          fetchTaskDetail();
+        }
+      }
+    } catch (e) {
+      console.warn('轮询更新任务状态失败', e);
+    }
+  }, 3000);
+};
+
+watch(() => props.updatingTaskId, (newVal) => {
+  if (newVal && !isUpdating.value) {
+    startUpdatePolling(newVal);
+  }
+}, { immediate: true });
+
+watch(isUpdating, () => {
+  nextTick(() => {
+    updateOsintHeight();
+  });
+});
 
 const osintControlRef = ref(null);
 const isAdvancedFilterOpen = ref(true);
@@ -554,6 +676,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopLogPolling();
+  stopUpdatePolling();
   if (osintResizeObserver) osintResizeObserver.disconnect();
 });
 
@@ -599,18 +722,18 @@ const displayName = computed(() => {
 });
 
 const taskTypeLabel = computed(() => {
-  if (taskType.value === 'tyc') return '天眼查';
-  if (taskType.value === 'icp') return 'ICP备案';
-  return '';
+  if (taskType.value === 'tyc') return '全景双轨';
+  if (taskType.value === 'icp') return '官方备案';
+  return '企业测绘';
 });
 
 const taskStatusLabel = computed(() => {
   const map = {
-    waiting: '等待中',
-    running: '运行中',
+    waiting: '排队中',
+    running: '进行中',
     done: '已完成',
     stop: '已停止',
-    error: '执行失败'
+    error: '异常失败'
   };
   return map[taskStatus.value] || taskStatus.value;
 });
@@ -629,6 +752,59 @@ const taskStatusColor = computed(() => {
 const syncModalVisible = ref(false);
 const selectedWebRowKeys = ref([]);
 const selectedWebDomains = ref([]);
+
+// 资产组当前已纳管域名集合 & 任务 Web 域名（后端单次返回上限 5000 条）
+const managedDomainSet = ref(new Set());
+const allTaskWebDomains = ref([]);
+const expandingScopeLoading = ref(false);
+
+const fetchManagedDomains = async () => {
+  if (!props.scopeId) {
+    managedDomainSet.value = new Set();
+    return;
+  }
+  try {
+    const res = await request.get('/asset_scope/', { params: { _id: props.scopeId } });
+    if (res.code === 200 && res.items && res.items.length > 0) {
+      const scopeItem = res.items[0];
+      const domains = scopeItem.domain_array || (scopeItem.scope ? scopeItem.scope.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : []);
+      managedDomainSet.value = new Set(domains.map(d => String(d).trim().toLowerCase()));
+    }
+  } catch (e) {
+    console.error('获取资产组已纳管域名失败', e);
+  }
+};
+
+const fetchAllTaskWebDomains = async () => {
+  if (!props.taskId) {
+    allTaskWebDomains.value = [];
+    return;
+  }
+  try {
+    const res = await request.get('/icp/asset', { params: { task_id: props.taskId, query_type: 'web', size: 5000 } });
+    if (res.code === 200 && res.items) {
+      const set = new Set();
+      res.items.forEach(item => {
+        const d = (item.domain || item.ym || '').trim().toLowerCase();
+        if (d) set.add(d);
+      });
+      allTaskWebDomains.value = Array.from(set);
+    }
+  } catch (e) {
+    console.error('获取任务域名列表失败', e);
+  }
+};
+
+const untrackedWebDomains = computed(() => {
+  if (!props.scopeId || allTaskWebDomains.value.length === 0) return [];
+  return allTaskWebDomains.value.filter(d => !managedDomainSet.value.has(d.toLowerCase()));
+});
+
+const isDomainManaged = (record) => {
+  if (!props.scopeId) return false;
+  const d = (record.domain || record.ym || '').trim().toLowerCase();
+  return managedDomainSet.value.has(d);
+};
 
 const onWebSelectChange = (keys, rows) => {
   selectedWebRowKeys.value = keys;
@@ -656,24 +832,93 @@ const openSyncModalWithSelected = () => {
   syncModalVisible.value = true;
 };
 
-const handleSyncSuccess = (res) => {
+const handleSyncSuccess = async (res) => {
   fetchTaskStatistic();
+  await fetchManagedDomains();
+  await fetchAllTaskWebDomains();
   emit('synced', res);
 };
 
+const handleOneClickExpandScope = async () => {
+  if (!props.scopeId || !props.taskId) return;
+  if (untrackedWebDomains.value.length === 0) {
+    message.info('当前主体所有备案域名已全部纳管在组内');
+    return;
+  }
+  expandingScopeLoading.value = true;
+  try {
+    const payload = {
+      mode: 'existing',
+      scope_id: props.scopeId,
+      selected_domains: untrackedWebDomains.value,
+      auto_scan: false
+    };
+    const res = await request.post(`/icp/sync/${props.taskId}`, payload);
+    if (res && res.code === 200) {
+      // 以后端实际入库数为准；缺失该字段时如实说明，不将提交数当作成功数展示
+      const inserted = res.data?.insert_count;
+      if (Number.isInteger(inserted)) {
+        message.success(`成功扩充 ${inserted} 个新域名至当前资产组`);
+      } else {
+        message.success(`已提交 ${untrackedWebDomains.value.length} 个域名扩充请求，实际入库数量请以列表刷新结果为准`);
+      }
+      await fetchManagedDomains();
+      await fetchAllTaskWebDomains();
+      emit('synced', res);
+    } else {
+      message.error(res?.message || '扩充资产组失败');
+    }
+  } catch (err) {
+    console.error('扩充资产组失败', err);
+    message.error('请求网络错误');
+  } finally {
+    expandingScopeLoading.value = false;
+  }
+};
+
+const handleExpandSelectedToScope = async () => {
+  if (!props.scopeId || !props.taskId) return;
+  if (selectedWebDomains.value.length === 0) {
+    message.warning('请至少选择一个域名');
+    return;
+  }
+  expandingScopeLoading.value = true;
+  try {
+    const payload = {
+      mode: 'existing',
+      scope_id: props.scopeId,
+      selected_domains: selectedWebDomains.value,
+      auto_scan: false
+    };
+    const res = await request.post(`/icp/sync/${props.taskId}`, payload);
+    if (res && res.code === 200) {
+      message.success(`成功将所选域名扩充至当前资产组`);
+      clearWebSelection();
+      await fetchManagedDomains();
+      await fetchAllTaskWebDomains();
+      emit('synced', res);
+    } else {
+      message.error(res?.message || '扩充资产组失败');
+    }
+  } catch (err) {
+    console.error('扩充资产组失败', err);
+    message.error('请求网络错误');
+  } finally {
+    expandingScopeLoading.value = false;
+  }
+};
+
 const handleRefreshTask = async () => {
-  if (!props.taskId) return;
+  if (!props.taskId || isUpdating.value) return;
   refreshLoading.value = true;
   try {
     const res = await request.get(`/icp/restart/${props.taskId}`);
     if (res.code === 200) {
-      message.success('已触发主体资产更新任务');
-      const newTaskId = res.data?.task_id;
+      message.success('已触发主体资产更新任务，正在后台测绘与比对');
+      const newTaskId = res.data?.task_id || res.data?.updating_task_id;
       if (newTaskId) {
-        emit('update:taskId', newTaskId);
+        startUpdatePolling(newTaskId);
       }
-      fetchTaskDetail();
-      emit('refreshed', newTaskId);
     } else {
       message.error(res.message || '触发失败');
     }
@@ -795,6 +1040,7 @@ const columnConfigs = {
   web: [
     { title: '序号', key: 'index', width: 55, align: 'center' },
     { title: '域名', dataIndex: 'domain', key: 'domain', width: 170 },
+    { title: '纳管状态', key: 'managedStatus', width: 95, align: 'center' },
     { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName', width: 160, ellipsis: true },
     { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
     { title: '单位性质', dataIndex: 'companyType', key: 'companyType', width: 90, align: 'center' },
@@ -1124,6 +1370,8 @@ const handleExport = async () => {
 watch(() => props.taskId, (newVal) => {
   if (newVal) {
     fetchTaskDetail();
+    fetchAllTaskWebDomains();
+    if (props.scopeId) fetchManagedDomains();
     if (activeTab.value === 'log') {
       fetchLogs(true);
       startLogPolling();
@@ -1134,9 +1382,17 @@ watch(() => props.taskId, (newVal) => {
   }
 }, { immediate: true });
 
+watch(() => props.scopeId, (newVal) => {
+  if (newVal) {
+    fetchManagedDomains();
+  }
+}, { immediate: true });
+
 defineExpose({
   handleRefreshTask,
   refreshLoading,
+  isUpdating,
+  activeUpdatingTaskId,
   queryCounts,
   taskRecord,
   fetchTaskDetail
@@ -1144,6 +1400,38 @@ defineExpose({
 </script>
 
 <style scoped>
+/* ================= 测绘更新中顶部平滑提示条 ================= */
+.osint-updating-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: #e6f7ff;
+  border-bottom: 1px solid #91d5ff;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  font-size: 13px;
+  color: #1890ff;
+}
+
+.updating-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.updating-spin-icon {
+  font-size: 14px;
+}
+
+.updating-banner-text {
+  color: var(--arl-text-color, #1f2225);
+}
+
+.updating-banner-tag {
+  margin: 0;
+}
+
 /* ================= OSINT 吸顶控制区 (与 ASM 完全对齐) ================= */
 .osint-sticky-control-box {
   position: sticky;
