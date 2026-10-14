@@ -6,7 +6,9 @@
 
 Usage:
   python3 tools/verify_mcp_matrix.py --old <旧客户端> --new <新客户端> \
-      --host https://192.0.2.10:5173 --token <token> [--cert <arl.crt>]
+      --host https://<ARL_HOST> --token <token> [--cert <arl.crt>] [--loopback <url>]
+
+凭据经环境变量传入，不落盘；隔离工作目录内的 ARL_auth.md 在进程结束时删除。
 """
 import argparse
 import json
