@@ -71,17 +71,72 @@ async def _finish_recon_task(task_id, task_status, update_data):
         await _sync_scope_after_task_completion(task_id, task_status)
 
 
+async def _abort_recon_task(task_id, title, message):
+    """
+    派发阶段的致命异常收尾：显式将任务置为 error 并补写运行日志。
+
+    任务在异常退出前可能已被 _claim_recon_task 置为 running，若不收尾会永久停留
+    在"进行中"；同时派发阶段的异常发生在 insert_syslog 闭包建立之前，无法复用，
+    故在此直接写入 syslog 集合，保证任务详情运行日志可见。
+    """
+    try:
+        await db['icp_task'].update_one(
+            {"_id": ObjectId(task_id), "status": {"$in": ["waiting", "running"]}},
+            {"$set": {
+                "status": "error",
+                "end_time": curr_date(),
+                "error_msg": message
+            }}
+        )
+    except Exception as abort_err:
+        logger.error(f"Failed to abort recon task {task_id}: {abort_err}")
+    try:
+        await db['syslog'].insert_one({
+            "task_id": task_id,
+            "level": "error",
+            "title": title,
+            "message": message,
+            "create_time": curr_date()
+        })
+    except Exception as log_err:
+        logger.error(f"Failed to write abnormal syslog for task {task_id}: {log_err}")
+
+
+async def _log_rejected_claim(task_id, title):
+    """任务未被受理(重复派发或状态非 waiting)：仅补写运行日志，不改变既有状态。"""
+    try:
+        current = await db['icp_task'].find_one({"_id": ObjectId(task_id)}, {"status": 1})
+    except Exception:
+        current = None
+    status_label = (current or {}).get("status", "未知")
+    try:
+        await db['syslog'].insert_one({
+            "task_id": task_id,
+            "level": "warning",
+            "title": title,
+            "message": f"本次派发未被受理：任务当前状态为 [{status_label}]，非排队中；"
+                       f"通常为重复派发或已被其他 Worker 接管，本条记录不代表任务失败。",
+            "create_time": curr_date()
+        })
+    except Exception as log_err:
+        logger.error(f"Failed to write rejected-claim syslog for task {task_id}: {log_err}")
+
+
 async def run_icp_job(options):
     task_id = options.get("task_id")
     target = options.get("target")
     query_types = options.get("query_type", [])
     if not task_id or not target:
         logger.error(f"Missing required ICP params for task {task_id}")
+        if task_id:
+            await _abort_recon_task(task_id, "ICP查询", "任务派发参数不完整(缺少 task_id 或查询目标)，无法启动查询")
         return
-        
+
     if not await _claim_recon_task(task_id):
+        logger.warning(f"ICP task {task_id} claim rejected (already running or not in waiting state)")
+        await _log_rejected_claim(task_id, "ICP查询")
         return
-    
+
     total_assets = 0
     error_msg = []
     
@@ -90,9 +145,17 @@ async def run_icp_job(options):
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from ymicp import beian
-    
-    myicp = beian()
-    
+
+    try:
+        myicp = beian()
+    except Exception as init_icp_err:
+        logger.error(f"Failed to initialize beian for ICP job {task_id}: {init_icp_err}")
+        await _abort_recon_task(
+            task_id, "ICP查询",
+            f"工信部备案查询模块初始化失败，任务无法执行：{init_icp_err}"
+        )
+        return
+
     handlers = {
         "web": myicp.ymWeb,
         "app": myicp.ymApp,
@@ -174,9 +237,10 @@ async def run_icp_job(options):
                 error_msg.append(f"{qt} error: {str(e)}")
                 await insert_syslog("error", f"{qt}查询", f"执行过程发生异常: {str(e)}")
         
-    # 只要成功抓取到了资产（total_assets > 0），状态即设为 done，确保前端【同步】资产组按钮畅通；
-    # 仅在无任何资产入库且存在致命错误时标记为 error
-    task_status = "error" if (error_msg and total_assets == 0) else "done"
+    # 终态判定口径（与 TYC 任务保持一致）：
+    # 只要成功抓取到资产即视为完成，确保前端【同步】资产组按钮畅通；
+    # 仅当未入库任何资产且存在致命错误时，才标记为异常失败。
+    task_status = "done" if total_assets > 0 else ("error" if error_msg else "done")
     update_data = {
         "$set": {
             "status": task_status,
@@ -532,14 +596,19 @@ async def run_tyc_job(options):
     tyc_token = options.get("tyc_token")
     if not task_id or not tyc_id or not tyc_token:
         logger.error(f"Missing required TYC params for task {task_id}")
+        if task_id:
+            await _abort_recon_task(task_id, "派发参数缺失", "任务派发参数不完整(缺少 task_id / 天眼查凭据)，无法启动测绘")
         return
     if not await _claim_recon_task(task_id):
+        logger.warning(f"TYC task {task_id} claim rejected (already running or not in waiting state)")
+        await _log_rejected_claim(task_id, "TYC查询")
         return
     total_assets_holder = [0]
     error_msg = []
     counts = {"web": 0, "app": 0, "mapp": 0, "wechat": 0, "weibo": 0, "invest": 0, "kapp": 0}
 
     myicp = None
+    icp_init_error = ""
     if enable_icp:
         try:
             import sys
@@ -551,6 +620,7 @@ async def run_tyc_job(options):
             logger.error(f"Failed to initialize beian for TYC job {task_id}: {init_icp_err}")
             enable_icp = False
             myicp = None
+            icp_init_error = str(init_icp_err)
 
     async def insert_syslog(level, title, message):
         log_doc = {
@@ -610,8 +680,19 @@ async def run_tyc_job(options):
                     {"$set": {"company_name": root_company_name}}
                 )
                 await insert_syslog("info", "主体解析", f"已成功定向解析到天眼查根企业官方全称【{root_company_name}】(GID: {gid})")
+            else:
+                await insert_syslog(
+                    "warning", "主体解析",
+                    f"根企业 GID {gid} 未能解析到官方工商全称：天眼查各接口均未返回有效主体名称。"
+                    f"该 GID 可能无效、已注销或非企业节点；本次任务将跳过工信部备案双轨补全。"
+                )
         except Exception as e:
             logger.warning(f"Failed to get root company name for GID {gid}: {e}")
+            await insert_syslog(
+                "warning", "主体解析",
+                f"根企业 GID {gid} 解析官方工商全称异常：{e}。"
+                f"本次任务将跳过工信部备案双轨补全。"
+            )
 
     if root_company_name:
         gid_to_name[str(gid)] = root_company_name
@@ -630,6 +711,12 @@ async def run_tyc_job(options):
     icp_tip = "开启" if enable_icp else "关闭"
     config_msg = f"任务开始运行，配置如下：目标(GID): {gid}，查询层数: {depth}，最低投资比例: {ratio_str}，需查询模块: {modules_str}，工信部ICP联动: {icp_tip}"
     await insert_syslog("info", "TYC查询", config_msg)
+    if icp_init_error:
+        await insert_syslog(
+            "warning", "工信部查重",
+            f"工信部备案查询模块初始化失败，本次任务已自动降级为纯天眼查测绘，"
+            f"不含工信部官方备案补全：{icp_init_error}"
+        )
 
     visited_gids = {str(gid)}
     gids_to_query = [gid]
@@ -655,8 +742,19 @@ async def run_tyc_job(options):
                                 root_company_name = current_company_name
                                 await db['icp_task'].update_one({"_id": ObjectId(task_id)}, {"$set": {"company_name": root_company_name}})
                             await insert_syslog("info", "主体解析", f"已成功定向解析到企业官方全称【{current_company_name}】(GID: {current_gid})")
+                        else:
+                            await insert_syslog(
+                                "warning", "主体解析",
+                                f"子企业 GID {current_gid} 未能解析到官方工商全称，"
+                                f"其资产仍会正常抓取入库，但主体名称字段将为空，且跳过该主体的工信部备案补全。"
+                            )
                     except Exception as e:
                         logger.warning(f"Failed to get company name for GID {current_gid}: {e}")
+                        await insert_syslog(
+                            "warning", "主体解析",
+                            f"子企业 GID {current_gid} 解析官方工商全称异常：{e}。"
+                            f"其资产仍会正常抓取入库，但主体名称字段将为空，且跳过该主体的工信部备案补全。"
+                        )
 
                 if idx > 0:
                     await asyncio.sleep(random.uniform(5.0, 8.0))
@@ -883,7 +981,6 @@ async def run_tyc_job(options):
                         logger.error(f"TYC Query exception for mapp: {e}")
                         error_msg.append(f"mapp error: {str(e)}")
                         await insert_syslog("error", "小程序查询", f"目标 {current_gid} 小程序查询异常: {str(e)}")
-                        await insert_syslog("error", "小程序查询", f"目标 {current_gid} 小程序查询异常: {str(e)}")
 
                 # 工信部官方备案双轨查重与补全 (针对当前企业实体)
                 if enable_icp and myicp:
@@ -911,7 +1008,7 @@ async def run_tyc_job(options):
             except Exception:
                 pass
 
-    tyc_task_status = "done" if not error_msg else "error"
+    tyc_task_status = "done" if total_assets_holder[0] > 0 else ("error" if error_msg else "done")
     update_data = {
         "$set": {
             "status": tyc_task_status,

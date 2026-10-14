@@ -81,7 +81,8 @@ def runner(db):
            '__file__': str(ROOT / 'osint_service/clients/job_runner.py'), 'asyncio': asyncio, 're': re}
     return extract('osint_service/clients/job_runner.py',
                    ['_claim_recon_task', '_task_is_running', '_sync_scope_after_task_completion',
-                    '_finish_recon_task', 'run_icp_job', 'run_tyc_job', '_upsert_task_asset'], env)
+                    '_finish_recon_task', '_abort_recon_task', '_log_rejected_claim',
+                    'run_icp_job', 'run_tyc_job', '_upsert_task_asset'], env)
 
 
 def route(db, cls, method):

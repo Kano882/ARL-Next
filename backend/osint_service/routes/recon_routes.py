@@ -31,6 +31,11 @@ def submit_recon_job(task_manager, data):
     task_id = data.get("task_id")
     existing = task_manager.get_task(task_id)
     if existing is not None and not existing.done():
+        logger.info(f"Task {task_id} already in flight, skip duplicate submit.")
+        _schedule_syslog(
+            task_id, "warning", "任务派发",
+            "本次派发被忽略：该任务已在协程池中运行，未重复启动。"
+        )
         return existing
     semaphore = task_manager.get_semaphore("recon_task", 1, dynamic=True)
     from clients.job_runner import run_recon_job
@@ -53,9 +58,65 @@ def submit_recon_job(task_manager, data):
             t.result()
         except Exception as e:
             logger.error(f"Background task {task_id} crashed: {e}", exc_info=True)
+            _schedule_syslog(
+                task_id, "error", "任务异常",
+                f"测绘协程异常终止，任务未能正常收尾：{e}"
+            )
+            _schedule_abort(task_id, f"测绘协程异常终止：{e}")
 
     task.add_done_callback(handle_task_result)
     return task
+
+
+def _schedule_syslog(task_id, level, title, message):
+    """
+    在后台协程崩溃的回调中补写运行日志。
+
+    回调运行在事件循环上且可能处于异常收尾路径，统一以独立 Task 异步投递，
+    避免阻塞或二次抛出；写库失败仅落 logger。
+    """
+    if not task_id:
+        return
+
+    async def _write():
+        try:
+            from clients.job_runner import db, curr_date
+            await db['syslog'].insert_one({
+                "task_id": str(task_id),
+                "level": level,
+                "title": title,
+                "message": message,
+                "create_time": curr_date()
+            })
+        except Exception as log_err:
+            logger.error(f"Failed to write syslog for crashed task {task_id}: {log_err}")
+
+    try:
+        asyncio.create_task(_write())
+    except Exception as e:
+        logger.error(f"Failed to schedule syslog write for task {task_id}: {e}")
+
+
+def _schedule_abort(task_id, message):
+    """协程崩溃后显式将任务收敛到 error 终态，避免长期滞留 running。"""
+    if not task_id:
+        return
+
+    async def _abort():
+        try:
+            from clients.job_runner import db, curr_date
+            from bson import ObjectId
+            await db['icp_task'].update_one(
+                {"_id": ObjectId(str(task_id)), "status": {"$in": ["waiting", "running"]}},
+                {"$set": {"status": "error", "end_time": curr_date(), "error_msg": message}}
+            )
+        except Exception as abort_err:
+            logger.error(f"Failed to abort crashed task {task_id}: {abort_err}")
+
+    try:
+        asyncio.create_task(_abort())
+    except Exception as e:
+        logger.error(f"Failed to schedule abort for task {task_id}: {e}")
 
 
 async def start_recon(request):
@@ -120,8 +181,16 @@ async def reconcile_orphan_tasks(app):
                         "error_msg": "服务异常重启中断，已自动置为已停止，可按需手动重启"
                     }}
                 )
+                _schedule_syslog(
+                    it_id, "warning", "任务中断",
+                    "osint-service 异常重启导致本次测绘中断，任务已自动置为已停止，可按需手动重启。"
+                )
             except Exception as it_err:
                 logger.error(f"Failed to reconcile interrupted task {it.get('_id')}: {it_err}")
+                _schedule_syslog(
+                    str(it.get("_id")), "error", "任务自愈",
+                    f"处理服务重启前中断的任务时发生异常：{it_err}"
+                )
 
         # 2. 扫描残留的 waiting 任务并重新入队排队 (按 FIFO 启动时间正序)
         waiting_tasks = await db['icp_task'].find({"status": "waiting"}).sort("start_time", 1).to_list(length=500)
@@ -155,6 +224,11 @@ async def reconcile_orphan_tasks(app):
                             {"_id": wt["_id"]},
                             {"$set": {"status": "error", "error_msg": "系统未配置天眼查凭据，自愈恢复失败"}}
                         )
+                        _schedule_syslog(
+                            tid, "error", "任务自愈",
+                            "服务重启后自动恢复失败：系统未配置天眼查凭据，任务已置为异常失败，"
+                            "请前往系统设置补充凭据后手动重启。"
+                        )
                         continue
 
                     options = {
@@ -181,8 +255,16 @@ async def reconcile_orphan_tasks(app):
 
                 submit_recon_job(task_manager, options)
                 logger.info(f"Re-enqueued waiting task {tid} ({wt.get('name')}) successfully.")
+                _schedule_syslog(
+                    tid, "info", "任务自愈",
+                    "服务重启后已自动将该排队任务重新入队，等待调度执行。"
+                )
             except Exception as wt_err:
                 logger.error(f"Failed to re-enqueue waiting task {wt.get('_id')}: {wt_err}")
+                _schedule_syslog(
+                    str(wt.get("_id")), "error", "任务自愈",
+                    f"服务重启后自动恢复该排队任务失败：{wt_err}"
+                )
 
     except Exception as e:
         logger.error(f"Failed to reconcile orphan tasks: {e}", exc_info=True)
