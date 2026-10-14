@@ -45,10 +45,12 @@ def submit_recon_job(task_manager, data):
 
     def handle_task_result(t):
         background_tasks.discard(t)
+        # 取消是正常控制流：任务是被 stop 主动终止的，不作为异常上报。
+        if t.cancelled():
+            logger.info(f"Background task {task_id} cancelled.")
+            return
         try:
             t.result()
-        except asyncio.CancelledError:
-            pass
         except Exception as e:
             logger.error(f"Background task {task_id} crashed: {e}", exc_info=True)
 
@@ -64,6 +66,8 @@ async def start_recon(request):
             return web.json_response({"code": 400, "msg": "Invalid task_id"}, status=400)
         if data.get("type") not in ("icp", "tyc"):
             return web.json_response({"code": 400, "msg": "Invalid task type"}, status=400)
+        if not isinstance(data.get("target"), str) or not data["target"].strip():
+            return web.json_response({"code": 400, "msg": "Invalid target"}, status=400)
 
         task_manager = request.app.get('task_manager')
         submit_recon_job(task_manager, data)

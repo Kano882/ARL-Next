@@ -307,15 +307,19 @@ class HTTPTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.client.close)
 
     async def test_real_http_dispatch_failure_has_error_status(self):
+        payload = {'task_id': TID, 'type': 'icp', 'target': 'fixture'}
         with patch.object(self.routes, 'submit_recon_job', side_effect=RuntimeError('fixture')):
-            response = await self.client.post('/start', json={'task_id': TID, 'type': 'icp'})
+            response = await self.client.post('/start', json=payload)
         self.assertEqual(response.status, 500)
         self.assertEqual((await response.json())['code'], 500)
 
-    async def test_invalid_id_and_type_return_bad_request(self):
-        for data in ({}, [], {'task_id': 'bad'}, {'task_id': TID, 'type': 'unknown'}):
+    async def test_invalid_id_type_and_target_return_bad_request(self):
+        invalid = ({}, [], {'task_id': 'bad'}, {'task_id': TID, 'type': 'unknown'},
+                   {'task_id': TID, 'type': 'icp'}, {'task_id': TID, 'type': 'icp', 'target': '   '},
+                   {'task_id': TID, 'type': 'icp', 'target': 42})
+        for data in invalid:
             response = await self.client.post('/start', json=data)
-            self.assertEqual(response.status, 400)
+            self.assertEqual(response.status, 400, f'payload={data!r}')
 
     async def test_stop_waits_for_cancel_cleanup_and_releases_semaphore(self):
         semaphore = self.manager.get_semaphore('recon_task', 1, dynamic=True)
