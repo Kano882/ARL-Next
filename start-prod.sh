@@ -492,6 +492,21 @@ if [ -f "./ssl-certs/arl.crt" ]; then
 fi
 echo "✅ 证书目录与文件权限已配置完毕！"
 
+# 2.1 同步自签证书到 MCP 客户端可自动发现的路径
+# MCP 客户端默认校验证书链；首次启动自动签发的证书 CN=localhost 且不含 SAN 扩展，
+# 无法覆盖局域网 IP。将同一证书放置于 ./certs/arl.crt，客户端在同机回环部署下
+# 即可自动信任（链校验保留，仅跳过主机名匹配），无需手工分发证书文件。
+# 注：./certs/arl.crt 与 MCP 客户端本机运行时的 <项目>/certs/arl.crt 是不同副本，
+#     同机部署需在客户端侧另行放置；远程部署需设置 ARL_CA_BUNDLE。
+if [ -f "./ssl-certs/arl.crt" ]; then
+    mkdir -p ./certs
+    if ! cmp -s ./ssl-certs/arl.crt ./certs/arl.crt; then
+        cp -f ./ssl-certs/arl.crt ./certs/arl.crt
+        echo "✅ 已将自签证书同步至 ./certs/arl.crt（供 MCP 客户端自动发现）"
+    fi
+    chmod 644 ./certs/arl.crt
+fi
+
 # 2.5 宿主机防火墙与 Docker 网桥互通加固 (针对 CentOS/RHEL/Firewalld 等环境)
 configure_firewall_and_network() {
     if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then

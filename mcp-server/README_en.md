@@ -7,7 +7,17 @@
 
 # ARL-Next MCP Server (v2.0 Lightweight Edition)
 
-HTTPS verifies certificates and hostnames by default. For a self-signed deployment, set `ARL_CA_BUNDLE` to the trusted PEM certificate or CA file and use an `ARL_HOST` matching the certificate hostname. `ARL_TLS_VERIFY=false` explicitly disables verification for temporary testing; remote deployments should use trusted certificates.
+HTTPS validates the certificate chain by default. The certificate auto-issued on first startup is `CN=localhost` with no SAN extension, which cannot cover a LAN IP, so behavior depends on the deployment shape:
+
+| Deployment | `ARL_HOST` | Configuration |
+| :--- | :--- | :--- |
+| Client on the same host as the server | `https://127.0.0.1:5173` | **None.** `certs/arl.crt` (or `ARL_LOCAL_CERT` in `ARL_auth.md`) is trusted automatically |
+| Trusted domain certificate deployed | `https://arl.example.com` | **None.** Chain and hostname are fully verified |
+| Remote self-signed deployment (accessed by IP) | `https://<server-ip>:5173` | Copy the server certificate to the client and set `ARL_CA_BUNDLE=/abs/path/arl.crt` |
+
+In the remote self-signed case the certificate carries no SAN for that IP, so hostname matching has no solution. The chain is still verified (any certificate outside `ARL_CA_BUNDLE` is rejected, so the connection cannot be substituted); only hostname matching is skipped, with a notice on stderr. Set `ARL_STRICT_HOSTNAME=true` to require a hostname match, or issue a server certificate carrying an IP/domain SAN for full verification.
+
+`ARL_TLS_VERIFY=false` explicitly disables all verification for temporary testing. It cannot authenticate the server and the connection may be intercepted by a man-in-the-middle (the client prints a one-time warning on stderr); use it only for temporary tests. When unset, chain verification is always enabled.
 
 Legacy REST fallback reports authentication and query failures as tool errors. `not_found` is returned only after successful queries with no matching asset.
 
@@ -19,7 +29,7 @@ Legacy REST fallback reports authentication and query failures as tool errors. `
 ## 🌟 Core Features & Design Principles
 
 > [!NOTE]
-> **TLS Certificate Verification**: The MCP client verifies server certificates and hostnames by default. For a self-signed ARL-Next deployment, set `ARL_CA_BUNDLE` to the trusted PEM certificate and use a matching `ARL_HOST`. Temporary tests can explicitly set `ARL_TLS_VERIFY=false` without editing client code.
+> **TLS Certificate Verification**: The MCP client verifies the certificate chain and hostname by default. For a loopback deployment (`ARL_HOST` pointing at `127.0.0.1`/`localhost`), an existing `certs/arl.crt` or an `ARL_LOCAL_CERT` path registered in `ARL_auth.md` is trusted automatically with no extra configuration. Remote deployments should set `ARL_CA_BUNDLE` to the trusted PEM. `ARL_STRICT_HOSTNAME=true` forces hostname matching, and `ARL_TLS_VERIFY=false` disables verification entirely (temporary testing only).
 
 1. **⚡ Standard Library Implementation**:
    - Eliminates third-party package dependencies (no `mcp[cli]`, no `pydantic`, no `requests`).

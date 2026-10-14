@@ -15,7 +15,7 @@
 ## 🌟 核心特性与设计哲学
 
 > [!NOTE]
-> **TLS 证书校验策略**：MCP 客户端默认校验服务端证书和主机名。ARL-Next 使用自签名证书时，通过 `ARL_CA_BUNDLE` 指定可信 PEM 证书，并使用与证书主机名匹配的 `ARL_HOST`。临时测试可显式设置 `ARL_TLS_VERIFY=false`，无需修改客户端代码。
+> **TLS 证书校验策略**：MCP 客户端默认校验服务端证书与主机名。本地回环部署（`ARL_HOST` 指向 `127.0.0.1`/`localhost`）只要存在 `certs/arl.crt` 或 `ARL_auth.md` 中登记的 `ARL_LOCAL_CERT` 路径，即自动信任该自签证书，无需额外配置。远程部署请通过 `ARL_CA_BUNDLE` 指定可信 PEM；`ARL_STRICT_HOSTNAME=true` 强制主机名匹配，`ARL_TLS_VERIFY=false` 显式关闭校验（仅限临时测试）。
 
 1. **⚡ 标准库轻量启动**：
    - 移除庞大的第三方框架依赖（无需额外安装 `mcp[cli]`、`pydantic`、`requests` 等）。
@@ -76,9 +76,17 @@
 
 ## 🚀 客户端接入配置指南
 
-HTTPS 默认验证证书及主机名。部署使用自签证书时，请通过 `ARL_CA_BUNDLE` 指定可信 CA 或自签证书的 PEM 文件，并使用与证书主机名匹配的 `ARL_HOST`。例如将证书复制到客户端后设置 `ARL_CA_BUNDLE=/绝对路径/arl.crt`。
+HTTPS 默认验证证书链。首次启动自动签发的证书 `CN=localhost` 且不含 SAN 扩展，无法覆盖局域网 IP，因此按部署形态分三类处理：
 
-临时测试环境可显式设置 `ARL_TLS_VERIFY=false` 关闭验证；此配置无法验证服务端身份，远程部署建议使用可信证书。未配置该变量时始终启用验证。
+| 部署形态 | `ARL_HOST` | 需要的配置 |
+| :--- | :--- | :--- |
+| 客户端与服务端同机 | `https://127.0.0.1:5173` | **无需配置**。检测到 `certs/arl.crt`（或 `ARL_auth.md` 中的 `ARL_LOCAL_CERT`）即自动信任 |
+| 已配置受信任域名证书 | `https://arl.example.com` | **无需配置**。完整校验证书链与主机名 |
+| 远程自签部署（经 IP 访问） | `https://<服务器IP>:5173` | 将服务端证书复制到客户端后设置 `ARL_CA_BUNDLE=/绝对路径/arl.crt` |
+
+远程自签场景下证书不含对应 IP 的 SAN，主机名匹配无解。此时仍会校验证书链（`ARL_CA_BUNDLE` 之外的证书一律拒绝，连接不可被替换），仅跳过主机名匹配，并在 stderr 输出提示。如需强制主机名匹配，设置 `ARL_STRICT_HOSTNAME=true`；如需完整校验，请为服务端证书签发含 IP/域名 SAN 的版本。
+
+临时测试环境可显式设置 `ARL_TLS_VERIFY=false` 关闭全部校验；该模式无法验证服务端身份，连接可能被中间人截获（客户端会在 stderr 输出一次性告警），仅限临时测试。未配置该变量时始终启用证书链校验。
 
 兼容旧 REST 接口时，鉴权错误、网络异常及任一维度查询失败会返回工具错误；只有查询成功且没有匹配记录才返回 `not_found`。
 

@@ -23,6 +23,51 @@ class MCPTests(unittest.TestCase):
         self.auth.start()
         self.addCleanup(self.auth.stop)
 
+    @classmethod
+    def setUpClass(cls):
+        """回环 HTTPS 服务 + 自签证书（CN=localhost，不带 SAN，复刻真实部署证书）。"""
+        if not shutil.which('openssl'):
+            raise unittest.SkipTest('openssl is required for the loopback TLS fixture')
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"code":200,"items":[]}')
+
+            def log_message(self, *args):
+                pass
+
+        cls._directory = tempfile.TemporaryDirectory()
+        cls.directory = cls._directory.name
+        cls.cert = str(Path(cls.directory) / 'cert.pem')
+        key = str(Path(cls.directory) / 'key.pem')
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                        '-subj', '/CN=localhost',
+                        '-keyout', key, '-out', cls.cert],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cls.httpd = HTTPServer(('127.0.0.1', 0), Handler)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cls.cert, key)
+        cls.httpd.socket = context.wrap_socket(cls.httpd.socket, server_side=True)
+        cls._thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
+        cls._thread.start()
+        cls.loopback_host = 'https://127.0.0.1:{}'.format(cls.httpd.server_port)
+        cls.loopback_alias = 'https://localhost:{}'.format(cls.httpd.server_port)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+        cls._thread.join(timeout=2)
+        cls._directory.cleanup()
+
+    def clean_tls_env(self, **overrides):
+        """屏蔽外部环境残留的 TLS 变量，逐用例显式声明生效配置。"""
+        env = {'ARL_CA_BUNDLE': '', 'ARL_TLS_VERIFY': '', 'ARL_STRICT_HOSTNAME': ''}
+        env.update(overrides)
+        return env
+
     def call_tool(self):
         return server.handle_request({'id': 1, 'method': 'tools/call', 'params': {
             'name': 'get_asset_profile', 'arguments': {'target': 'alpha.example'}}})['result']
@@ -74,52 +119,117 @@ class MCPTests(unittest.TestCase):
             self.assertEqual(server._request_api('/site/')[0], 500)
             request.assert_not_called()
 
+    def test_tls_context_matrix(self):
+        """链校验/主机名校验/显式关闭三档组合，逐项锁定预期上下文特征。"""
+        cases = [
+            ('default', {}, False, True, ssl.CERT_REQUIRED),
+            ('explicit off', {'ARL_TLS_VERIFY': 'false'}, False, False, ssl.CERT_NONE),
+            ('trusted ca (dns)', {'ARL_CA_BUNDLE': self.cert}, False, True, ssl.CERT_REQUIRED),
+        ]
+        for label, env, expect_pinned, expect_hostname_check, expect_verify in cases:
+            with self.subTest(label=label), patch.dict(os.environ, self.clean_tls_env(**env)):
+                context, peer_check, insecure = server._build_ssl_context('https://arl.example/api/site/')
+                self.assertEqual(isinstance(context, server._PinnedCAContext), expect_pinned)
+                self.assertEqual(context.check_hostname, expect_hostname_check)
+                self.assertEqual(context.verify_mode, expect_verify)
+                self.assertEqual(bool(peer_check), expect_pinned)
+                self.assertEqual(insecure, expect_verify == ssl.CERT_NONE)
+
+    def test_ip_literal_accepts_ca_verified_certificate_without_san(self):
+        """证书无 SAN（CN=localhost）时，IP 字面量访问放行而非整链失败。"""
+        with patch.object(server, '_get_auth', return_value=(self.loopback_host, 'fixture-token')), \
+                patch.dict(os.environ, self.clean_tls_env(ARL_CA_BUNDLE=self.cert,
+                                                          NO_PROXY='127.0.0.1', no_proxy='127.0.0.1')):
+            self.assertEqual(server._request_api('/site/')[0], 200)
+
+    def test_ip_literal_trusting_another_certificate_is_still_rejected(self):
+        """可信 CA 与实际服务端证书不符时仍须拒绝——链校验不可被绕过。"""
+        other = str(Path(self.directory) / 'other.pem')
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                        '-subj', '/CN=localhost', '-keyout', str(Path(self.directory) / 'other.key'),
+                        '-out', other], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        with patch.object(server, '_get_auth', return_value=(self.loopback_host, 'fixture-token')), \
+                patch.dict(os.environ, self.clean_tls_env(ARL_CA_BUNDLE=other,
+                                                          NO_PROXY='127.0.0.1', no_proxy='127.0.0.1')):
+            code, error = server._request_api('/site/')
+            self.assertEqual(code, 500)
+            self.assertIn('CERTIFICATE_VERIFY_FAILED', error['message'])
+
+    def test_strict_hostname_env_keeps_hostname_check(self):
+        with patch.dict(os.environ, self.clean_tls_env(ARL_CA_BUNDLE=self.cert, ARL_STRICT_HOSTNAME='true')):
+            context, peer_check, insecure = server._build_ssl_context('https://192.0.2.10/api/site/')
+        self.assertFalse(isinstance(context, server._PinnedCAContext))
+        self.assertTrue(context.check_hostname)
+        self.assertIsNone(peer_check)
+        self.assertFalse(insecure)
+
+    def test_dns_host_keeps_hostname_check_with_ca_bundle(self):
+        with patch.dict(os.environ, self.clean_tls_env(ARL_CA_BUNDLE=self.cert)):
+            context, peer_check, insecure = server._build_ssl_context('https://arl.example/api/site/')
+        self.assertFalse(isinstance(context, server._PinnedCAContext))
+        self.assertTrue(context.check_hostname)
+        self.assertIsNone(peer_check)
+        self.assertFalse(insecure)
+
+    def test_local_self_signed_cert_is_not_trusted_for_remote_host(self):
+        """本地自签证书只对本机回环地址自动生效，远程目标不得被本地文件静默放行。"""
+        with patch.dict(os.environ, self.clean_tls_env()):
+            self.assertEqual(server._resolve_ca_bundle('https://192.0.2.10:5173'), ('', False))
+            self.assertEqual(server._resolve_ca_bundle('https://localhost:5173'), ('', False))
+            self.assertEqual(server._resolve_ca_bundle('https://127.0.0.1:5173'), ('', False))
+
+        # 无自动发现时，远程 IP 回到系统默认：严格校验且不使用任何本地 CA
+        with patch.dict(os.environ, self.clean_tls_env()), \
+                patch.object(server, '_resolve_ca_bundle', return_value=('', False)):
+            remote, peer_check, insecure = server._build_ssl_context('https://192.0.2.10/api/site/')
+        self.assertTrue(remote.check_hostname)
+        self.assertEqual(remote.verify_mode, ssl.CERT_REQUIRED)
+        self.assertIsNone(peer_check)
+        self.assertFalse(insecure)
+
+    def test_auto_discovery_reads_cert_path_from_auth_doc(self):
+        """ARL_auth.md 中登记的 ARL_LOCAL_CERT 路径被自动识别为本地自签证书。"""
+        doc = Path(self.directory) / 'ARL_doc' / 'ARL_auth.md'
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        doc.write_text(f'ARL_LOCAL_CERT: {self.cert}\n', encoding='utf-8')
+        with patch.object(server, '__file__', str(doc.parent / 'server.py')), \
+                patch.dict(os.environ, self.clean_tls_env()):
+            self.assertEqual(server._resolve_ca_bundle('https://127.0.0.1:5173'), (self.cert, True))
+            # 非回环目标不得被本地文件自动放行
+            self.assertEqual(server._resolve_ca_bundle('https://192.0.2.10:5173'), ('', False))
+
+    def test_ca_bundle_auto_discovery_prefers_explicit_env(self):
+        with patch.dict(os.environ, self.clean_tls_env(ARL_CA_BUNDLE='/tmp/explicit.pem')):
+            path, is_local = server._resolve_ca_bundle('https://127.0.0.1:5173')
+        self.assertEqual(path, '/tmp/explicit.pem')
+        self.assertFalse(is_local)
+
+    def test_ca_bundle_auto_discovery_skips_non_loopback(self):
+        with patch.dict(os.environ, self.clean_tls_env()):
+            self.assertEqual(server._resolve_ca_bundle('https://192.0.2.10:5173'), ('', False))
+
     def test_downloadable_client_matches_server(self):
         root = Path(__file__).resolve().parents[1]
         self.assertEqual((root / 'mcp-server/server.py').read_bytes(),
                          (root / 'frontend/public/mcp/server.py').read_bytes())
 
-    @unittest.skipUnless(shutil.which('openssl'), 'openssl is required for the loopback TLS fixture')
     def test_loopback_tls_default_rejects_self_signed_and_explicit_ca_works(self):
-        class Handler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(b'{"code":200,"items":[]}')
-            def log_message(self, *args):
-                pass
-
-        with tempfile.TemporaryDirectory() as directory:
-            cert, key = str(Path(directory) / 'cert.pem'), str(Path(directory) / 'key.pem')
-            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-                            '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
-                            '-keyout', key, '-out', cert], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            httpd = HTTPServer(('127.0.0.1', 0), Handler)
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            context.load_cert_chain(cert, key)
-            httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
-            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-            thread.start()
-            try:
-                host = 'https://localhost:{}'.format(httpd.server_port)
-                with patch.object(server, '_get_auth', return_value=(host, 'fixture-token')), \
-                        patch.dict(os.environ, {'NO_PROXY': 'localhost', 'no_proxy': 'localhost',
-                                               'ARL_CA_BUNDLE': '', 'ARL_TLS_VERIFY': 'true'}):
-                    code, error = server._request_api('/site/')
-                    self.assertEqual(code, 500)
-                    self.assertIn('CERTIFICATE_VERIFY_FAILED', error['message'])
-                    with patch.dict(os.environ, {'ARL_CA_BUNDLE': cert}):
-                        self.assertEqual(server._request_api('/site/')[0], 200)
-                    # A trusted certificate must still match the requested hostname.
-                    with patch.object(server, '_get_auth', return_value=(host.replace('localhost', '127.0.0.1'), 'fixture-token')), \
-                            patch.dict(os.environ, {'ARL_CA_BUNDLE': cert, 'NO_PROXY': '127.0.0.1', 'no_proxy': '127.0.0.1'}):
-                        self.assertEqual(server._request_api('/site/')[0], 500)
-                    with patch.dict(os.environ, {'ARL_TLS_VERIFY': 'false'}):
-                        self.assertEqual(server._request_api('/site/')[0], 200)
-            finally:
-                httpd.shutdown()
-                httpd.server_close()
-                thread.join(timeout=2)
+        """默认拒绝自签；指定 CA 后按主机名口径放行 localhost、拒绝 IP 字面量。"""
+        with patch.object(server, '_get_auth', return_value=(self.loopback_alias, 'fixture-token')), \
+                patch.dict(os.environ, self.clean_tls_env(ARL_TLS_VERIFY='true',
+                                                          NO_PROXY='localhost', no_proxy='localhost')):
+            code, error = server._request_api('/site/')
+            self.assertEqual(code, 500)
+            self.assertIn('CERTIFICATE_VERIFY_FAILED', error['message'])
+            with patch.dict(os.environ, {'ARL_CA_BUNDLE': self.cert}):
+                self.assertEqual(server._request_api('/site/')[0], 200)
+            # A trusted certificate must still match the requested hostname.
+            with patch.object(server, '_get_auth', return_value=(self.loopback_host, 'fixture-token')), \
+                    patch.dict(os.environ, {'ARL_CA_BUNDLE': self.cert, 'ARL_STRICT_HOSTNAME': 'true',
+                                           'NO_PROXY': '127.0.0.1', 'no_proxy': '127.0.0.1'}):
+                self.assertEqual(server._request_api('/site/')[0], 500)
+            with patch.dict(os.environ, {'ARL_TLS_VERIFY': 'false'}):
+                self.assertEqual(server._request_api('/site/')[0], 200)
 
 
 if __name__ == '__main__':
