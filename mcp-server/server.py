@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-ARL-Next Ultra-Fast Zero-Dependency MCP Server (JSON-RPC 2.0 over Stdio)
-- 零第三方依赖：纯 Python 3 标准库（sys, json, urllib, ssl, concurrent.futures），无需 pip 安装任何包
-- 极致冷启动：启动耗时 < 20ms，跨平台（Mac/Linux/Windows）即插即用
-- 聚焦全链路画像：仅暴露单一核心工具 `get_asset_profile`，系统级 Token 消耗降低 85%+
-- 双阶引擎保障：优先调用后端原生 `/api/mcp/asset_profile` 极速聚合接口；若远端尚未热重启则自动无缝降级到标准 REST 聚合，100% 开箱即用
-- 广泛客户端兼容：原生支持 Antigravity, Claude Code, OpenAI Codex, DeepSeek Harness, ZCode, WorkBuddy
+ARL-Next Zero-Dependency MCP Server (JSON-RPC 2.0 over Stdio)
+- 标准库实现：纯 Python 3 标准库（sys, json, urllib, ssl, concurrent.futures），无需 pip 安装额外依赖
+- 轻量冷启动：跨平台（Mac/Linux/Windows）即插即用，低资源开销
+- 聚焦资产画像：提供核心工具 `get_asset_profile`，收敛上下文 Token 开销
+- 双阶引擎保障：优先调用后端原生 `/api/mcp/asset_profile` 聚合接口；若远端尚未就绪则自动降级到标准 REST 聚合，保障高可用
+- 广泛客户端兼容：支持 Antigravity, Claude Code, OpenAI Codex, DeepSeek Harness, ZCode, WorkBuddy 等标准客户端
 """
 
 import os
@@ -25,7 +25,7 @@ SERVER_VERSION = "2.0.0"
 
 TOOL_GET_ASSET_PROFILE = {
     "name": "get_asset_profile",
-    "description": "获取指定目标（站点URL/IP/子域名）的全链路资产画像，包括解析IP、开放端口与服务、Web指纹与标题、SSL证书、已知漏洞及敏感泄露等关联情报。",
+    "description": "获取指定目标（站点URL/IP/子域名）的综合资产画像，包括解析IP、开放端口与服务、Web指纹与标题、SSL证书、已知漏洞及敏感泄露等关联情报。",
     "inputSchema": {
         "type": "object",
         "properties": {
@@ -388,7 +388,7 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
 
 
 def _fetch_asset_profile(target: str, task_id: str = "") -> dict:
-    """智能双阶获取画像：优先原生 /api/mcp/asset_profile，缺失时自动无缝降级到 REST 聚合"""
+    """双阶获取画像：优先原生 /api/mcp/asset_profile，缺失时自动降级到 REST 聚合"""
     params = {"target": target}
     if task_id:
         params["task_id"] = task_id
@@ -455,7 +455,7 @@ def handle_request(req: dict) -> dict:
             "result": {}
         }
 
-    # 4. 列出可用工具集（极致精炼单工具）
+    # 4. 列出可用工具集（单核心工具聚焦）
     if method == "tools/list":
         return {
             "jsonrpc": "2.0",
@@ -488,7 +488,7 @@ def handle_request(req: dict) -> dict:
 
             profile_data = _fetch_asset_profile(target=target, task_id=task_id)
             is_error = isinstance(profile_data, dict) and profile_data.get("status") in ("auth_error", "error")
-            # 采用极致精简 JSON 序列化（消除多余空格与缩进，最大化节省 Token）
+            # 采用紧凑 JSON 序列化（消除多余空格与缩进，节省上下文 Token）
             compact_json_str = json.dumps(profile_data, ensure_ascii=False, separators=(",", ":"))
 
             return {

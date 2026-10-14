@@ -328,7 +328,7 @@
 
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'name'">
-              <a style="color: var(--arl-theme-color); font-weight: 500;" @click="goToSchedulerDetail(record)">{{ record.name }}</a>
+              <a style="color: var(--arl-theme-color); font-weight: 500;" @click="openResultDrawer(record, 'scheduler')">{{ record.name }}</a>
             </template>
 
             <template v-else-if="column.key === 'status'">
@@ -338,6 +338,13 @@
             </template>
 
             <template v-else-if="column.key === 'action'">
+              <a-button
+                  size="small"
+                  type="link"
+                  style="padding: 0 4px; margin-right: 8px;"
+                  @click="openResultDrawer(record, 'scheduler')"
+              >查看</a-button>
+
               <a-button
                   size="small"
                   style="margin-right: 8px;"
@@ -431,7 +438,7 @@
 
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'name'">
-              <a style="color: var(--arl-theme-color); font-weight: 500;" @click="goToTaskDetail(record)">{{ record.name }}</a>
+              <a style="color: var(--arl-theme-color); font-weight: 500;" @click="openResultDrawer(record, 'task')">{{ record.name }}</a>
             </template>
 
             <template v-else-if="column.key === 'status'">
@@ -447,6 +454,13 @@
             </template>
 
             <template v-else-if="column.key === 'action'">
+              <a-button
+                  size="small"
+                  type="link"
+                  style="padding: 0 4px; margin-right: 8px;"
+                  @click="openResultDrawer(record, 'task')"
+              >查看</a-button>
+
               <a-button
                   size="small"
                   style="margin-right: 8px;"
@@ -502,6 +516,107 @@
           </template>
         </template>
       </a-table>
+    </a-drawer>
+
+    <!-- ================= GitHub 任务与监控结果详情抽屉 ================= -->
+    <a-drawer
+      :title="resultDrawerTitle"
+      placement="right"
+      :width="920"
+      :open="resultDrawerVisible"
+      @close="closeResultDrawer"
+    >
+      <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; background: var(--arl-bg-light); padding: 12px 16px; border-radius: 6px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <a-tag :color="resultDrawerType === 'task' ? 'blue' : 'purple'">
+            {{ resultDrawerType === 'task' ? '单次扫描任务' : '周期监控策略' }}
+          </a-tag>
+          <span style="font-weight: 600; font-size: 14px;">{{ resultCurrentRecord?.name }}</span>
+          <span style="color: var(--arl-text-color); opacity: 0.65; font-size: 12px;">关键字：{{ resultCurrentRecord?.keyword }}</span>
+        </div>
+        <a-button type="dashed" size="small" @click="fetchResultData" :loading="resultLoading">
+          <template #icon><sync-outlined /></template> 刷新
+        </a-button>
+      </div>
+
+      <a-tabs v-model:activeKey="resultActiveTab" type="card">
+        <!-- Tab 1: 命中结果 -->
+        <a-tab-pane key="result" tab="🎯 命中泄露结果">
+          <!-- 搜索过滤栏 -->
+          <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; align-items: center;">
+            <a-input v-model:value="resultSearchForm.repo_full_name" placeholder="仓库名 (如 user/repo)" style="width: 180px;" allowClear @pressEnter="onResultSearch">
+              <template #suffix><search-outlined @click="onResultSearch" style="cursor: pointer; opacity: 0.4;" /></template>
+            </a-input>
+            <a-input v-model:value="resultSearchForm.path" placeholder="文件路径 (如 config.py)" style="width: 180px;" allowClear @pressEnter="onResultSearch">
+              <template #suffix><search-outlined @click="onResultSearch" style="cursor: pointer; opacity: 0.4;" /></template>
+            </a-input>
+            <a-input v-model:value="resultSearchForm.human_content" placeholder="代码内容关键词" style="width: 180px;" allowClear @pressEnter="onResultSearch">
+              <template #suffix><search-outlined @click="onResultSearch" style="cursor: pointer; opacity: 0.4;" /></template>
+            </a-input>
+            <a-button @click="resetResultSearch">重置</a-button>
+          </div>
+
+          <a-table
+            :loading="resultLoading"
+            :dataSource="resultDataSource"
+            :columns="resultColumns"
+            :pagination="false"
+            size="middle"
+            rowKey="_id"
+          >
+            <template #emptyText>
+              <div style="padding: 30px 0; text-align: center;">
+                <inbox-outlined style="font-size: 40px; color: var(--arl-border-color);" />
+                <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无泄露命中数据</div>
+              </div>
+            </template>
+            <template #bodyCell="{ column, record, text }">
+              <template v-if="column.key === 'repo_full_name'">
+                <a :href="`https://github.com/${record.repo_full_name}`" target="_blank" style="word-break: break-all; font-weight: 500;">
+                  {{ record.repo_full_name }} <link-outlined style="font-size: 11px;" />
+                </a>
+              </template>
+              <template v-else-if="column.key === 'path'">
+                <a :href="record.html_url || `https://github.com/${record.repo_full_name}/blob/master/${record.path}`" target="_blank" style="word-break: break-all;">
+                  {{ record.path }}
+                </a>
+              </template>
+              <template v-else-if="column.key === 'human_content'">
+                <div style="white-space: pre-wrap; word-break: break-word; font-family: 'SFMono-Regular', Consolas, Monaco, monospace; max-height: 240px; overflow-y: auto; background: var(--arl-bg-light); padding: 10px; border-radius: 6px; border: 1px solid var(--arl-border-color); font-size: 12px; line-height: 1.5; color: var(--arl-text-color);">
+                  {{ record.human_content }}
+                </div>
+              </template>
+              <template v-else-if="column.key === 'keyword'">
+                <a-tag color="blue">{{ record.keyword }}</a-tag>
+              </template>
+              <template v-else-if="column.key === 'commit_date'">
+                <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.85;">{{ record.commit_date || record.insert_time || '-' }}</span>
+              </template>
+            </template>
+          </a-table>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
+            <div style="color: var(--arl-text-color); opacity: 0.65; font-size: 12px;">共 {{ Math.ceil(resultPagination.total / resultPagination.pageSize) || 1 }} 页 / {{ resultPagination.total }} 条数据</div>
+            <a-pagination size="small" :pageSizeOptions="['10', '20', '50']" v-model:current="resultPagination.current" v-model:pageSize="resultPagination.pageSize" :total="resultPagination.total" show-size-changer @change="handleResultTableChange" />
+          </div>
+        </a-tab-pane>
+
+        <!-- Tab 2: 任务日志 (仅单次任务支持 syslog) -->
+        <a-tab-pane v-if="resultDrawerType === 'task'" key="log" tab="📋 任务日志">
+          <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 8px; background-color: var(--arl-bg-light);">
+            <div ref="resultTerminalContainer" style="background-color: #001529; color: #e6f7ff; font-family: 'Fira Code', Consolas, monospace; padding: 14px; border-radius: 4px; height: 500px; overflow-y: auto; font-size: 12px; line-height: 1.6;">
+              <div v-for="(log, idx) in resultLogDataSource" :key="log._id || idx" style="margin-bottom: 4px; word-break: break-all; border-bottom: 1px dashed rgba(255,255,255,0.08); padding-bottom: 2px;">
+                <span style="margin-right: 8px; opacity: 0.7;">[{{ log.create_time }}]</span>
+                <span :style="{ color: log.level === 'error' ? '#ff4d4f' : log.level === 'warning' ? '#faad14' : '#52c41a', fontWeight: 'bold', marginRight: '8px' }">[{{ (log.level || 'info').toUpperCase() }}]</span>
+                <span style="margin-right: 8px;" v-if="log.title">[{{ log.title }}]</span>
+                <span style="color: #e6f7ff;">{{ log.message }}</span>
+              </div>
+              <div v-if="resultLogDataSource.length === 0 && !resultLogLoading" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 暂无日志记录...</div>
+              <div v-if="resultLogLoading" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 正在拉取日志...</div>
+            </div>
+          </div>
+        </a-tab-pane>
+      </a-tabs>
     </a-drawer>
 
     <!-- ================= 策略弹窗 (新增/修改) ================= -->
@@ -591,7 +706,7 @@
 
 <script setup>
 defineOptions({ name: 'GithubManage' });
-import { ref, reactive, onMounted, onDeactivated, computed, watch } from 'vue';
+import { ref, reactive, onMounted, onDeactivated, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
@@ -708,7 +823,7 @@ const handleSchedulerTableChange = (page, pageSize) => {
 };
 
 const goToSchedulerDetail = (record) => {
-  router.push({ path: '/GitHubMonitor/GitHubMonitorInfo', query: { _id: record._id } });
+  openResultDrawer(record, 'scheduler');
 };
 
 const performSchedulerAction = async (actionType, idArray) => {
@@ -843,8 +958,149 @@ const handleTaskTableChange = (page, pageSize) => {
 };
 
 const goToTaskDetail = (record) => {
-  router.push({ path: '/GitHubTasks/GitHubTasksInfo', query: { _id: record._id } });
+  openResultDrawer(record, 'task');
 };
+
+// ================= GitHub 任务与监控命中结果抽屉 =================
+const resultDrawerVisible = ref(false);
+const resultDrawerTitle = ref('');
+const resultDrawerType = ref('task'); // 'task' | 'scheduler'
+const resultCurrentRecord = ref(null);
+const resultActiveTab = ref('result');
+const resultLoading = ref(false);
+const resultDataSource = ref([]);
+const resultSearchForm = reactive({ path: '', repo_full_name: '', human_content: '' });
+const resultPagination = reactive({ current: 1, pageSize: 10, total: 0 });
+
+const resultColumns = [
+  { title: '仓库名', dataIndex: 'repo_full_name', key: 'repo_full_name', width: 220 },
+  { title: '文件路径', dataIndex: 'path', key: 'path', width: 260 },
+  { title: '代码/命中内容', dataIndex: 'human_content', key: 'human_content' },
+  { title: '提交/入库时间', dataIndex: 'commit_date', key: 'commit_date', width: 170 },
+  { title: '关键字', dataIndex: 'keyword', key: 'keyword', width: 110 }
+];
+
+const openResultDrawer = (record, type) => {
+  resultCurrentRecord.value = record;
+  resultDrawerType.value = type;
+  resultDrawerTitle.value = type === 'task' 
+    ? `🎯 单次扫描任务结果 - ${record.name}` 
+    : `🎯 周期监控命中结果 - ${record.name}`;
+  resultActiveTab.value = 'result';
+  resultSearchForm.path = '';
+  resultSearchForm.repo_full_name = '';
+  resultSearchForm.human_content = '';
+  resultPagination.current = 1;
+  resultDrawerVisible.value = true;
+  fetchResultData();
+};
+
+const closeResultDrawer = () => {
+  resultDrawerVisible.value = false;
+  stopResultSyslogTimer();
+};
+
+const fetchResultData = async () => {
+  if (!resultCurrentRecord.value?._id) return;
+  resultLoading.value = true;
+  try {
+    const params = {
+      page: resultPagination.current,
+      size: resultPagination.pageSize
+    };
+    if (resultDrawerType.value === 'task') {
+      params.github_task_id = resultCurrentRecord.value._id;
+    } else {
+      params.github_scheduler_id = resultCurrentRecord.value._id;
+    }
+    if (resultSearchForm.path) params.path = resultSearchForm.path;
+    if (resultSearchForm.repo_full_name) params.repo_full_name = resultSearchForm.repo_full_name;
+    if (resultSearchForm.human_content) params.human_content = resultSearchForm.human_content;
+
+    const apiUrl = resultDrawerType.value === 'task' ? '/github_result/' : '/github_monitor_result/';
+    const res = await request.get(apiUrl, { params });
+    if (res.code === 200) {
+      resultDataSource.value = res.items || [];
+      resultPagination.total = res.total || 0;
+    }
+  } catch (e) {
+    message.error('加载命中结果失败');
+  } finally {
+    resultLoading.value = false;
+  }
+};
+
+const onResultSearch = () => {
+  resultPagination.current = 1;
+  fetchResultData();
+};
+
+const resetResultSearch = () => {
+  resultSearchForm.path = '';
+  resultSearchForm.repo_full_name = '';
+  resultSearchForm.human_content = '';
+  resultPagination.current = 1;
+  fetchResultData();
+};
+
+const handleResultTableChange = (page, pageSize) => {
+  resultPagination.current = page;
+  resultPagination.pageSize = pageSize;
+  fetchResultData();
+};
+
+// ================= 日志查询 (单次扫描) =================
+const resultLogLoading = ref(false);
+const resultLogDataSource = ref([]);
+const resultTerminalContainer = ref(null);
+let resultSyslogTimer = null;
+
+const fetchResultLogData = async (isPolling = false) => {
+  if (!resultCurrentRecord.value?._id || resultDrawerType.value !== 'task') return;
+  if (!isPolling) resultLogLoading.value = true;
+  try {
+    const params = {
+      size: 50000,
+      task_id: resultCurrentRecord.value._id,
+      order: 'create_time'
+    };
+    const res = await request.get('/syslog/', { params });
+    if (res.code === 200) {
+      resultLogDataSource.value = res.items || [];
+      nextTick(() => {
+        if (resultTerminalContainer.value) {
+          resultTerminalContainer.value.scrollTop = resultTerminalContainer.value.scrollHeight;
+        }
+      });
+    }
+  } catch (e) {
+    if (!isPolling) message.error('加载任务日志失败');
+  } finally {
+    if (!isPolling) resultLogLoading.value = false;
+  }
+};
+
+const startResultSyslogTimer = () => {
+  stopResultSyslogTimer();
+  fetchResultLogData();
+  resultSyslogTimer = setInterval(() => fetchResultLogData(true), 5000);
+};
+
+const stopResultSyslogTimer = () => {
+  if (resultSyslogTimer) {
+    clearInterval(resultSyslogTimer);
+    resultSyslogTimer = null;
+  }
+};
+
+watch(resultActiveTab, (tab) => {
+  if (tab === 'result') {
+    stopResultSyslogTimer();
+    fetchResultData();
+  } else if (tab === 'log') {
+    startResultSyslogTimer();
+  }
+});
 
 const performTaskAction = async (actionType, idArray) => {
   try {
@@ -1359,6 +1615,12 @@ onDeactivated(() => {
   taskModalVisible.value = false;
   toolModalVisible.value = false;
   hackerModalVisible.value = false;
+  resultDrawerVisible.value = false;
+  stopResultSyslogTimer();
+});
+
+onUnmounted(() => {
+  stopResultSyslogTimer();
 });
 </script>
 

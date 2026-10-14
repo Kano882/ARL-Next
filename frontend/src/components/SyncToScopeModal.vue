@@ -2,7 +2,7 @@
   <a-modal
     :open="open"
     @update:open="val => $emit('update:open', val)"
-    :title="step === 'form' ? '同步资产至资产分组' : '资产同步完成'"
+    :title="step === 'form' ? '同步资产至资产组' : '资产同步完成'"
     wrapClassName="arl-theme-modal"
     width="680px"
     :destroyOnClose="true"
@@ -11,6 +11,10 @@
     <!-- 步骤 1：同步配置与域名预检表单 -->
     <a-spin :spinning="modalDataLoading || syncLoading" :tip="syncLoading ? '正在同步数据与下发任务...' : '正在加载资产组及预检数据...'">
       <div v-if="step === 'form'">
+        <!-- 明确"同步"的实际作用，避免被理解为拉取最新数据 -->
+        <div style="background: var(--arl-bg-light, rgba(0,0,0,0.03)); border: 1px solid var(--arl-border-color, rgba(0,0,0,0.08)); border-radius: 4px; padding: 8px 12px; margin-bottom: 16px; font-size: 12px; color: var(--arl-text-color); opacity: 0.85; line-height: 1.6;">
+          本操作将把勾选的域名<strong>写入目标资产组</strong>并纳入资产组归档；是否同时下发扫描任务取决于下方「立即发起探测」选项。
+        </div>
         <a-form :label-col="{ style: { width: '100px' } }" :wrapper-col="{ style: { width: 'calc(100% - 100px)' } }">
           
           <a-form-item label="所属集团">
@@ -95,7 +99,7 @@
                   />
                   <a-button size="small" @click="selectAllDomains">全选</a-button>
                   <a-button size="small" @click="selectOnlyNewDomains">仅选全新</a-button>
-                  <a-button size="small" @click="unselectAllDomains">清空</a-button>
+                  <a-button size="small" @click="unselectAllDomains">取消全选</a-button>
                 </div>
               </div>
 
@@ -133,7 +137,7 @@
           <template v-if="syncFormState.auto_scan">
             <a-form-item label="任务类型">
               <a-radio-group v-model:value="syncFormState.task_type">
-                <a-radio value="oneshot">一次性扫描 (立刻深度探测并入库)</a-radio>
+                <a-radio value="oneshot">一次性扫描 (下发后深度探测并入库)</a-radio>
                 <a-radio value="periodic">周期性监控 (定时自动化巡航)</a-radio>
               </a-radio-group>
             </a-form-item>
@@ -172,7 +176,7 @@
           <div style="font-size: 40px; margin-bottom: 8px;">🎉</div>
           <div style="font-size: 18px; font-weight: 600;">资产同步完成</div>
           <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65; margin-top: 4px;">
-            企业资产查询数据已成功写入资产分组与探测调度管线
+            企业资产查询数据已成功写入资产组与探测调度管线
           </div>
         </div>
 
@@ -204,7 +208,7 @@
         <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
           <a-button @click="handleStayHere">留在当前页</a-button>
           <a-button type="primary" @click="handleGoToScope">
-            立即前往资产分组查看 &rarr;
+            立即前往资产组查看 &rarr;
           </a-button>
         </div>
       </div>

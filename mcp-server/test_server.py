@@ -74,6 +74,11 @@ class MCPTests(unittest.TestCase):
             self.assertEqual(server._request_api('/site/')[0], 500)
             request.assert_not_called()
 
+    def test_downloadable_client_matches_server(self):
+        root = Path(__file__).resolve().parents[1]
+        self.assertEqual((root / 'mcp-server/server.py').read_bytes(),
+                         (root / 'frontend/public/mcp/server.py').read_bytes())
+
     @unittest.skipUnless(shutil.which('openssl'), 'openssl is required for the loopback TLS fixture')
     def test_loopback_tls_default_rejects_self_signed_and_explicit_ca_works(self):
         class Handler(BaseHTTPRequestHandler):

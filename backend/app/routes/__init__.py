@@ -524,6 +524,8 @@ class ARLResource(Resource):
             "url": "url",
             "cip": "cidr_ip",
             "wih": "content",
+            "npoc_service": "target",
+            "asset_npoc_service": "target",
         }
 
         # 2. 复用之前讲过的总调度室 build_data，去数据库里把符合条件的数据全捞出来
@@ -797,5 +799,6 @@ from .assetCip import ns as asset_cip_ns
 from .assetNucleiResult import ns as asset_nuclei_result_ns
 from .assetStatFinger import ns as asset_stat_finger_ns
 from .mcp import ns as mcp_ns
+from .nuclei import ns as nuclei_ns
 
 

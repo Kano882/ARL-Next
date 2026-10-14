@@ -98,7 +98,7 @@ class DashboardStats(ARLResource):
 class DashboardTrend(ARLResource):
     @auth
     def get(self):
-        """获取最近7天风险趋势（单次聚合管道秒级统计）"""
+        """获取最近7天风险趋势（单次聚合管道完成统计）"""
         now = time.time()
         if _DASHBOARD_CACHE["trend"]["data"] and (now - _DASHBOARD_CACHE["trend"]["ts"] < 60):
             return utils.build_ret(ErrorMsg.Success, _DASHBOARD_CACHE["trend"]["data"])

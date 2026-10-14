@@ -1,41 +1,67 @@
 <template>
-  <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+  <div class="arl-page-container">
+    <!-- 吸顶 Hero 操作卡片 -->
+    <div ref="actionBarRef" class="arl-hero-card">
+      <div class="arl-toolbar-row">
+        <!-- 左侧：紧凑搜索与重置 -->
+        <div class="arl-filter-group">
+          <div class="arl-filter-item">
+            <span class="arl-filter-label">策略名称：</span>
+            <a-input
+              v-model:value="searchForm.name"
+              placeholder="请输入策略名称"
+              style="width: 210px;"
+              allowClear
+              size="small"
+              @pressEnter="onSearch"
+            >
+              <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+            </a-input>
+          </div>
+          <a-button size="small" @click="resetSearch">
+            <template #icon><undo-outlined /></template>
+            重置
+          </a-button>
+        </div>
 
-    <div style="margin-bottom: 16px;">
-      <a-button type="primary" @click="goToDetail">新建策略</a-button>
-    </div>
-
-    <div class="search-row" style="margin-bottom: 16px; ">
-      <div class="search-item">
-        <span class="label">策略名称：</span>
-        <a-input v-model:value="searchForm.name" placeholder="请输入策略名称进行搜索" style="width: 220px;" allowClear @pressEnter="onSearch">
-          <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-        </a-input>
+        <!-- 右侧：主操作与批量删除 -->
+        <div class="arl-actions-group">
+          <a-button type="primary" size="small" @click="goToDetail">
+            <template #icon><plus-outlined /></template>
+            新建策略
+          </a-button>
+          <a-popconfirm
+            title="确认批量删除选中的策略数据吗？"
+            ok-text="确认"
+            cancel-text="取消"
+            @confirm="handleBatchDelete"
+            :disabled="selectedRowKeys.length === 0"
+          >
+            <a-button danger size="small" :disabled="selectedRowKeys.length === 0">
+              <template #icon><delete-outlined /></template>
+              批量删除
+            </a-button>
+          </a-popconfirm>
+        </div>
       </div>
     </div>
 
-    <div style="margin-bottom: 16px; display: flex; gap: 8px;">
-      <a-button @click="resetSearch">清 除</a-button>
-      <a-popconfirm
-          title="确认批量删除选中的数据吗？"
-          ok-text="确认"
-          cancel-text="取消"
-          @confirm="handleBatchDelete"
-          :disabled="selectedRowKeys.length === 0"
-      >
-        <a-button danger :disabled="selectedRowKeys.length === 0">批量删除</a-button>
-      </a-popconfirm>
-    </div>
-
-    
-    </div>
-<a-table :sticky="stickyConfig" :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: keys => selectedRowKeys = keys, preserveSelectedRowKeys: true }" :loading="loading" :dataSource="dataSource" :columns="columns" :pagination="false" size="middle" :rowKey="(record) => record._id">
+    <!-- 表格：统一小尺寸，保留 sticky -->
+    <a-table
+      :sticky="stickyConfig"
+      :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: keys => selectedRowKeys = keys, preserveSelectedRowKeys: true }"
+      :loading="loading"
+      :dataSource="dataSource"
+      :columns="columns"
+      :pagination="false"
+      size="small"
+      :rowKey="(record) => record._id"
+    >
       <template #bodyCell="{ column, record, index }">
         <template v-if="column.key === 'index'"><span>{{ (pagination.current - 1) * pagination.pageSize + index + 1 }}</span></template>
 
         <template v-else-if="column.key === 'action'">
-          <div style="display: flex; gap: 8px;">
+          <div style="display: flex; gap: 6px;">
             <a-button size="small" @click="openDispatchModal(record)">任务下发</a-button>
             <a-button size="small" @click="router.push({ path: '/policyDetail', query: { _id: record._id } })">编辑</a-button>
             <a-popconfirm
@@ -81,9 +107,19 @@
       </template>
     </a-table>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
-      <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-      <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" />
+    <!-- 统一微型分页栏 -->
+    <div class="arl-pagination-bar">
+      <div class="pagination-info">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+      <a-pagination
+        :pageSizeOptions="$pageSizeOptions"
+        v-model:current="pagination.current"
+        v-model:pageSize="pagination.pageSize"
+        :total="pagination.total"
+        show-size-changer
+        size="small"
+        @change="handleTableChange"
+        @showSizeChange="handleTableChange"
+      />
     </div>
   </div>
 
@@ -128,7 +164,7 @@ const { stickyConfig } = useSticky(actionBarRef);
 import { useRouter } from 'vue-router'; // 引入路由
 import request from '../utils/request';
 import { message } from 'ant-design-vue';
-import { SearchOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, PlusOutlined, DeleteOutlined, UndoOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 
 const router = useRouter(); // 实例化路由
@@ -391,10 +427,7 @@ onDeactivated(() => {
 </script>
 
 <style scoped>
-.search-row { display: flex; flex-wrap: wrap; gap: 16px 12px; align-items: center; }
-.search-item { display: flex; align-items: center; }
-.search-item .label { color: var(--arl-text-color); margin-right: 8px; min-width: 60px; text-align: right; white-space: nowrap; }
-.policy-expanded-box { margin: 8px 16px 16px 16px; background: var(--arl-bg-white); border: 1px solid var(--arl-border-color); border-radius: 2px; }
+.policy-expanded-box { margin: 8px 16px 16px 16px; background: var(--arl-bg-white); border: 1px solid var(--arl-border-color); border-radius: 6px; }
 .policy-section { padding: 16px 24px; }
 .policy-title { font-weight: bold; color: var(--arl-text-color); margin-bottom: 16px; }
 .policy-row { display: flex; margin-bottom: 12px; line-height: 1.5; }

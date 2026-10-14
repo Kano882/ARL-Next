@@ -840,7 +840,7 @@ class WebSiteFetch(object):
 
     def nuclei_scan(self):
         logger.info("start nuclei_scan， poc_sites:{}".format(len(self.poc_sites)))
-        scan_results = nuclei_scan(list(self.poc_sites))
+        scan_results = nuclei_scan(list(self.poc_sites), options=self.options)
         if scan_results:
             for item in scan_results:
                 item["task_id"] = self.task_id

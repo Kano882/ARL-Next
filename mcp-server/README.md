@@ -5,31 +5,34 @@
   </p>
 </div>
 
-# ARL-Next MCP Server (v2.0 极速低耗版)
+# ARL-Next MCP Server (v2.0 轻量客户端)
 
-> **极速响应 · 极致低 Token · 全客户端免装依赖通杀**<br>
-> 专为 **Antigravity、Claude Code、OpenAI Codex、DeepSeek Harness、ZCode、WorkBuddy** 等全系列 AI Agent 深度优化的资产侦察情报协议。
+> **标准库实现 · 紧凑上下文 · 跨平台开箱即用**<br>
+> 专为 **Antigravity、Claude Code、OpenAI Codex、DeepSeek Harness、ZCode、WorkBuddy** 等支持 MCP 协议的 AI Agent 适配优化的资产侦察情报协议。
 
 ---
 
 ## 🌟 核心特性与设计哲学
 
-1. **⚡ 零依赖冷启动（< 20ms）**：
-   - 彻底摆脱庞大的第三方库（无 `mcp[cli]`、无 `pydantic`、无 `requests`）。
-   - 仅依赖 Python 3.8+ 原生标准库（`sys`, `json`, `urllib`, `ssl`），在任何机器上均可直接用系统 Python 瞬间启动，彻底消除环境依赖与虚拟环境配置故障。
-2. **🎯 全链路画像（精准聚焦）**：
-   - 摒弃以往大粒度、倾倒成百上千行 CSV 的反人类设计。
-   - 仅暴露单一核心工具 `get_asset_profile`，单次调用即可穿透网络层（IP/端口/服务/Geo/ASN）、应用层（标题/状态码/Web指纹）、证书层（SANs/签发者）以及攻防层（历史漏洞/Nuclei命中标的/文件与敏感信息泄露）。
-3. **📉 极致节省 Token（-85%+）**：
-   - 系统级工具提示词从以往的 ~2,500 Token 骤降至 **~120 Token**。
-   - 数据返回格式为**极致精简 JSON**，递归剪枝剔除所有 `null`、空数组与多余 header；端口与漏洞采取**全量紧凑平铺**展示，不遗漏任何边界风险。
+> [!NOTE]
+> **TLS 证书校验策略**：MCP 客户端默认校验服务端证书和主机名。ARL-Next 使用自签名证书时，通过 `ARL_CA_BUNDLE` 指定可信 PEM 证书，并使用与证书主机名匹配的 `ARL_HOST`。临时测试可显式设置 `ARL_TLS_VERIFY=false`，无需修改客户端代码。
+
+1. **⚡ 标准库轻量启动**：
+   - 移除庞大的第三方框架依赖（无需额外安装 `mcp[cli]`、`pydantic`、`requests` 等）。
+   - 仅依赖 Python 3.8+ 原生标准库（`sys`, `json`, `urllib`, `ssl`），直接使用系统 Python 即可启动，规避环境与虚拟环境配置冲突。
+2. **🎯 综合资产画像（聚焦核心指标）**：
+   - 摒弃大粒度倾倒冗余原始数据的交互方式。
+   - 仅暴露单一核心工具 `get_asset_profile`，单次调用即可关联网络层（IP/端口/服务/Geo/ASN）、应用层（标题/状态码/Web指纹）、证书层（SANs/签发者）以及攻防层（历史漏洞/Nuclei命中标的/文件与敏感信息泄露）。
+3. **📉 紧凑上下文设计**：
+   - 系统级工具提示词精炼聚焦，大幅精简无用说明。
+   - 数据返回格式采用**紧凑 JSON**，递归剪枝剔除所有 `null`、空数组与多余响应头；端口与漏洞采取结构化平铺展示，保障关键风险不被截断。
 
 ---
 
 ## 🛠️ 工具参考
 
 ### `get_asset_profile`
-获取指定目标的全链路资产综合情报。
+获取指定目标的综合资产情报。
 
 #### 参数
 - `target` (*string, 必填*)：资产标的，支持：

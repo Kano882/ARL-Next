@@ -10,7 +10,7 @@
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
-                  <span class="card-title-text">总资产暴露面</span>
+                  <span class="card-title-text">站点资产总量</span>
                   <div class="stat-icon-box primary">
                     <DatabaseOutlined />
                   </div>
@@ -21,7 +21,7 @@
                 <div class="card-footer-ribbon">
                   <div class="status-indicator">
                     <span class="pulse-beacon green"></span>
-                    <span class="status-text">实时监控中</span>
+                    <span class="status-text">站点库监控中</span>
                   </div>
                   <div class="trend-badge positive">
                     今日 +{{ stats.today_new_assets || 0 }} 站点
@@ -39,7 +39,7 @@
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
-                  <span class="card-title-text">今日侦察动向</span>
+                  <span class="card-title-text">今日扫描动向</span>
                   <div class="stat-icon-box success">
                     <SyncOutlined />
                   </div>
@@ -82,14 +82,14 @@
                 <div class="vuln-matrix-header">
                   <div class="vuln-total-num">
                     {{ totalVulnCount }}
-                    <span class="vuln-total-unit">处全库脆弱点</span>
+                    <span class="vuln-total-unit">处漏洞命中（多引擎累计，未去重）</span>
                   </div>
                   <a-tag v-if="criticalVulnCount > 0" color="error" class="critical-alert-tag">
                     <template #icon><span class="pulse-beacon red"></span></template>
-                    {{ criticalVulnCount }} 处高危/严重
+                    Nuclei {{ criticalVulnCount }} 处严重+高危
                   </a-tag>
                   <a-tag v-else color="success" class="critical-alert-tag">
-                    风险收敛正常
+                    Nuclei 无高危/严重
                   </a-tag>
                 </div>
                 <div class="vuln-pill-row">
@@ -484,11 +484,13 @@
                       {{ getFingerCategory(item.name) }}
                     </span>
                   </div>
-                  <div class="finger-bar-wrap">
-                    <div class="finger-progress-bar">
-                      <div class="finger-progress-fill" :style="{ width: getFingerPercent(item.count) + '%' }"></div>
+                  <a-tooltip title="条形长度以 TOP1 指纹为基准（最长即为 100%），右侧百分比为该指纹占全库站点的绝对占比">
+                    <div class="finger-bar-wrap">
+                      <div class="finger-progress-bar">
+                        <div class="finger-progress-fill" :style="{ width: getFingerPercent(item.count) + '%' }"></div>
+                      </div>
                     </div>
-                  </div>
+                  </a-tooltip>
                   <div class="finger-count-box">
                     <span class="finger-count-num">{{ item.count }}</span>
                     <span class="finger-pct-lbl">{{ getFingerRatio(item.count) }}</span>
@@ -813,11 +815,11 @@ const getLogColor = (level) => {
 // 任务状态文案映射
 const getTaskStatusLabel = (status) => {
   const map = {
-    'running': '执行中',
-    'waiting': '排队等待',
+    'running': '进行中',
+    'waiting': '排队中',
     'done': '已完成',
-    'error': '异常中断',
-    'stop': '已手动终止'
+    'error': '异常失败',
+    'stop': '已停止'
   };
   return map[status] || status || '未知';
 };
@@ -844,7 +846,7 @@ const getFingerPercent = (cnt) => {
   return Math.min(Math.round((cnt / maxFingerCount.value) * 100), 100);
 };
 
-// 指纹相对全库站点的绝对占比
+// 指纹相对全库站点的绝对占比（与左侧“以 TOP1 为基准”的条形长度口径不同）
 const getFingerRatio = (cnt) => {
   if (!cnt || !stats.value.total_assets) return '0%';
   const ratio = (cnt / stats.value.total_assets) * 100;

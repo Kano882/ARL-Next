@@ -4,6 +4,42 @@
 
 ---
 
+## [v1.4.1] - 2026-10-13
+
+### 🚀 新增功能
+- **Nuclei 漏洞探测与 PoC 资产治理引擎**：新增独立 Nuclei PoC 管理体系（`NucleiManage.vue`、`backend/app/routes/nuclei.py`），支持官方社区模板库定时/离线同步、自定义 PoC 上传与增删改查；建立模板误报黑名单拦截与自动排除机制（`nuclei_blacklist`），与底层扫描调度引擎（`nuclei_scan.py`）深度打通。
+- **GitHub 威胁情报雷达异步解耦与并发治理**：威胁监控（CVE、安全工具、白帽子动态）任务执行全面解耦为 Celery 异步任务模型（`github_threat_monitor.py`），引入基于 MongoDB CAS 状态锁（`is_running`）的防重入并发控制；前端（`GithubManage.vue`）即时联动呈现运行态监控指标与交互式刷新。
+- **资产任务完成推送纯净结构化重构**：资产任务完成消息推送服务全面重构（`backend/app/utils/push.py`），剥离混杂 Markdown 渲染语法并升级为标准结构化统计概要，提升各消息推送终端（飞书、钉钉、企业微信、Server酱等）的可读性与格式一致性；邮件通道保持响应式 HTML 卡片渲染。
+- **全链路资产画像 IP 维度 CDN 属性增强**：在 `ChainDrawer.vue` 资产画像侧边抽屉中穿透识别并呈现 IP 级别的 CDN 标签与服务商属性，提升源站定位与网络资产辨识精度。
+- **端点与插件服务批量运维与文本流导出**：新增端口开放服务与 Python NPoC 插件服务批量删除（`/service/batch_delete`、`/npoc_service/batch_delete`）与大批量数据文本流式导出（`/service/export`、`/npoc_service/export`）后端接口契约，打通跨任务与资产组的轻量运维闭环 (`service.py`、`npoc_service.py`)。
+- **双语国际化技术文档体系全面交付**：交付全套原生英文技术文档体系（`README_en.md`、`mcp-server/README_en.md`），全面对齐系统架构、快速开始、MCP 协议集成规范与核心功能导览。
+
+### 🛠️ 性能与重构
+- **任务概览单 RPC 聚合指标优化与防重复加载**：重构资产任务与企业任务列表统计计数链路，合并为单 RPC 状态聚合请求（`task_statistics.py`、`taskStatistics.js`），消除任务新建与生命周期变更操作后的冗余重复请求，收敛页面初次挂载与 KeepAlive 激活时的重复打点与网络开销 (PR #60, Issue #55)。
+- **计划与调度中心双轨重构与端到端生命周期治理**：彻底打破定时计划任务（`/task_schedule/`）与资产持续监控（`/scheduler/`）的割裂边界，整合为统一双轨工作台（`PlanningTasks.vue`），支持 Tab 状态与 URL 参数联动（`?tab=monitor`）及 KeepAlive 恢复；全面增强资产监控全生命周期运维能力，支持单项与批量停止、恢复、删除及批量立即下发（`/scheduler/run/batch`），支持穿透下钻至资产范围；路由层为历史 `/asset/monitor` 路径建立平滑自动重定向，物理清理废弃孤立视图（`AssetMonitor.vue`、`GitHubMonitorInfo.vue`、`GitHubTasksInfo.vue`）及冗余路由；底层打通与调度守护进程（`scheduler.py`）的任务生命周期协同与失联看门狗自愈闭环。
+- **服务视图归一化与统一引擎切换**：在任务详情（`TaskDetail.vue`）、资产组详情（`GroupAssetsDetail.vue`）与全网资产检索（`AssetSearch.vue`）中合并原先割裂的双轨服务 Tab 为统一视图，支持 Nmap 端口服务与 Python NPoC 插件服务无缝切换与按需筛选。
+- **GitHub 威胁情报抽屉化下钻与导航层级归并**：将 GitHub 威胁情报泄露详情从独立跳转页面重构为即时抽屉式展开（Drawer，`GithubManage.vue`），物理清理冗余路由；主导航将独立 CDN 字典整合下沉至【字典与规则库】，收敛侧边栏层级结构。
+- **策略配置交互全流程重构与边界防御**：重构策略编辑与详情页面（`PolicyDetail.vue`），精简 Nuclei 策略面板并移除低效的手工标签与冗余输入；支持动态精准更新策略中的 `nuclei_config`；前端样式与交互规范全面对齐 Ant Design Vue 现代体系。
+- **多 Tab 状态持久化与插件服务加载状态流转优化**：优化 `useTabStateCache.js` 多 Tab 状态记忆机制，修复 Python 插件服务在分页切换与多 Tab 复用时的加载死锁与状态脱节异常。
+- **现代前端交互与视觉设计全流程规范化**：重构登录页卡片视觉流（`Login.vue`），统一指纹库（`Fingerprint.vue`）、PoC 管理（`PocList.vue`）与系统设置的交互规范，全面对齐 Ant Design Vue 现代设计与统一色系规范。
+
+### 🐛 问题修复与加固
+- **工信部 ICP 测绘任务删除拦截与风控熔断**：企业测绘任务删除增设活跃状态前置拦截保护；工信部接口发生频控或风控封禁时自动触发熔断降级与级联解绑保护，规避任务死锁与资产脏写 (`backend/app/routes/icp.py`)。
+- **失联与 OOM 僵尸任务日志收敛诊断**：完善针对 Worker 进程因 OOM 或意外终止导致的任务状态失联诊断机制，系统日志收敛告警并更新任务状态 (`scheduler.py`)。
+- **策略参数边界防御与安全归一化**：策略接口增加端口范围及排除端口合法性校验（`is_valid_exclude_ports`、`build_port_custom`），针对发包并发数、发包速率与主机超时实施数值边界防御；加固底层 Nmap 发包参数保底，收敛非法参数注入与端口扫描异常 (`helpers/policy.py`、`portScan.py`)。
+- **资产表格分页切换与尺寸变更误判修复**：修复各资产视图在切换每页容量（pageSize）时由于 `v-model` 尺寸变更导致 `handleTableChange` 误判并拦截请求的问题，引入 `lastFetched` 基准追踪机制规避历史小分页切片残留 (`bbe700b`)。
+- **FOFA 客户端运行时配置防污染修复**：修复运行时合并用户参数时就地修改全局插件配置字典的副作用缺陷，保障高并发多任务场景下的配置隔离与一致性 (PR #52, `fofaClient.py`)。
+- **字典上传 TTL 自动清理生效**：修复历史整型时间戳无法触发 MongoDB 原生 TTL 索引清理的问题，平滑迁移至绝对 `expire_at` (BSON Date) 与 TTL=0 自动过期 (PR #53, `dict_upload.py`)。
+- **策略动态更新缺陷修复**：修复 `policy/edit` 接口中 `nuclei_config` 字典无法被动态更新的问题。
+
+### 🛡️ 安全与配置
+- **数据库平滑演进与复合唯一索引防崩**：在 `arlupdate.py` 中为 `nuclei_template`、`nuclei_blacklist` 建立安全联合唯一索引并内置基于聚合管道的动态去重降级机制；增设 `normalize_threat_radar_configs` 自动初始化系统威胁雷达配置与自愈重启状态；增设 `update_policy_schema` 自动物理清理死字段（`scope_config`、`site_capture`）并双向对齐服务检测配置。
+- **OpenAPI 规范与任务调用命名空间契约**：在核心技术文档中详尽规范 API 鉴权机制、任务查询与下发接口、以及各扫描结果命名空间（Result Namespaces）标准数据契约，消除外部集成与 AI Agent 编排二义性 (PR #54)。
+- **部署容错与规范化技术文档校准**：更新 `README.md`、`README_en.md` 与 MCP 服务文档，客观严谨校准架构描述、MCP 能力规范与部署脚本容错，消除不可证伪断言。
+- **全链路分层自动化测试矩阵与基准建设**：新增 11+ 个自动化测试套件与验证脚本，建立覆盖 Nuclei 治理（76 项全景测试）、任务聚合指标（前后端 27 项单测）、OOM 僵尸任务自愈诊断、威胁情报异步调度、字典 TTL 自动回收、FOFA 运行时配置隔离及纯文本推送脱敏的端到端质量保障基准。
+
+---
+
 ## [v1.4.0] - 2026-09-24
 
 ### 🚀 新增功能
