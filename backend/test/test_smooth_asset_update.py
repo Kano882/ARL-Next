@@ -239,8 +239,14 @@ class TestSmoothAssetUpdate(unittest.TestCase):
                 return mock_task_col
             return MockCollection()
 
-        mock_requests_post = MagicMock()
-        mock_requests_post.return_value.raise_for_status = MagicMock()
+        # 复刻微服务真实确认响应：_request_recon 会校验 code 与 task_id 必须回显一致。
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json = lambda: {
+            "code": 200, "msg": "Task accepted",
+            "task_id": str(mock_task_col.data[-1]["_id"])
+        }
+        mock_requests_post = MagicMock(return_value=mock_response)
 
         with patch('app.routes.icp.conn_db', side_effect=fake_conn_db), \
              patch('requests.post', mock_requests_post):
