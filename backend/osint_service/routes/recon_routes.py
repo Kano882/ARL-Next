@@ -159,6 +159,7 @@ async def reconcile_orphan_tasks(app):
 
                     options = {
                         "task_id": tid,
+                        "target": wt.get("target") or f"TYC_{wt.get('gid')}",
                         "gid": wt.get("gid"),
                         "depth": wt.get("depth", 1),
                         "invest_ratio": wt.get("invest_ratio", 0),

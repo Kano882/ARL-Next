@@ -266,6 +266,7 @@ class IcpTask(ARLResource):
 
             options = {
                 "task_id": task_id,
+                "target": f"TYC_{gid}",
                 "gid": gid,
                 "depth": depth,
                 "invest_ratio": invest_ratio,
@@ -438,6 +439,7 @@ class TycTask(ARLResource):
 
         options = {
             "task_id": task_id,
+            "target": f"TYC_{gid}",
             "gid": gid,
             "depth": depth,
             "invest_ratio": invest_ratio,
@@ -948,6 +950,7 @@ def _restart_single_icp_task(task_id: str):
             client = TycClient()
             options = {
                 "task_id": new_task_id,
+                "target": task.get("target") or f"TYC_{task.get('gid')}",
                 "gid": task.get("gid"),
                 "depth": task.get("depth", 1),
                 "invest_ratio": task.get("invest_ratio", 0),
