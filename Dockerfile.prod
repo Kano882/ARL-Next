@@ -109,7 +109,10 @@ COPY --from=builder-c /root/.config/nuclei /root/.config/nuclei
 
 # 3. 拷贝源码
 WORKDIR /code
+# osint_service 由独立镜像 (backend/osint_service/Dockerfile) 构建并运行于
+# arl-osint-service-prod，web/worker 不加载该目录，故从镜像中排除以避免副本漂移。
 COPY ./backend /code/backend
+RUN rm -rf /code/backend/osint_service
 
 # =====================================================================
 # ⚠️ 警告 (WARNING): 以下 COPY 指令属于核心黑科技 (反 GFW 阻断)！
