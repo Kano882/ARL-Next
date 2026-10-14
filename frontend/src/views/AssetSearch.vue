@@ -2,26 +2,30 @@
   <div :class="['asset-search-page', 'arl-page-container', { 'is-virtual-mode': pagination.pageSize >= 100 }]">
 
     <div ref="actionBarRef" class="arl-hero-card">
+      <div class="scope-hint-line">
+        <span class="scope-hint-tag">全库范围</span>
+        <span>当前统计与检索覆盖全部资产，不受资产组限制；查看单个资产组的资产请前往「资产组」详情页</span>
+      </div>
       <a-tabs style="margin-bottom: 12px;" v-model:activeKey="activeTab" type="card" class="arl-detail-tabs">
-        <a-tab-pane key="site" tab="站点"></a-tab-pane>
-        <a-tab-pane key="domain" tab="子域名"></a-tab-pane>
-        <a-tab-pane key="ip" tab="IP"></a-tab-pane>
-        <a-tab-pane key="cert" tab="SSL证书"></a-tab-pane>
-        <a-tab-pane key="service" tab="服务"></a-tab-pane>
-        <a-tab-pane key="fileleak" tab="文件泄露"></a-tab-pane>
-        <a-tab-pane key="url" tab="URL信息"></a-tab-pane>
-        <a-tab-pane key="cip" tab="C段"></a-tab-pane>
-        <a-tab-pane key="stat_finger" tab="指纹统计"></a-tab-pane>
-        <a-tab-pane key="wih" tab="WIH"></a-tab-pane>
-        <a-tab-pane key="vuln" tab="风险"></a-tab-pane>
-        <a-tab-pane key="nuclei_result" tab="nuclei"></a-tab-pane>
+        <a-tab-pane v-for="t in assetTabList" :key="t.key">
+          <template #tab>
+            <span class="asm-tab-item">
+              <span>{{ t.label }}</span>
+              <span
+                v-if="overviewCounts[t.key] !== undefined"
+                class="asm-tab-badge"
+                :class="{ 'has-data': (overviewCounts[t.key] || 0) > 0 }"
+              >{{ overviewCounts[t.key] === null ? '-' : overviewCounts[t.key] }}</span>
+            </span>
+          </template>
+        </a-tab-pane>
       </a-tabs>
 
       <div v-if="activeTab === 'service'" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 13px; color: var(--arl-text-secondary);">识别引擎：</span>
         <a-radio-group v-model:value="serviceEngineType" button-style="solid" size="small" @change="onServiceEngineChange">
-          <a-radio-button value="nmap">端口扫描 (Nmap / Service)</a-radio-button>
-          <a-radio-button value="npoc">指纹识别 (Python / NPoC)</a-radio-button>
+          <a-radio-button value="nmap">端口服务 (Nmap)</a-radio-button>
+          <a-radio-button value="npoc">Python 插件服务</a-radio-button>
         </a-radio-group>
       </div>
 
@@ -476,7 +480,7 @@
 <script setup>
 defineOptions({ name: 'AssetSearch' });
 
-import { ref, onMounted, onDeactivated, reactive, watch, onUnmounted, computed, nextTick } from 'vue';
+import { ref, onMounted, onActivated, onDeactivated, reactive, watch, onUnmounted, computed, nextTick } from 'vue';
 import { useSticky } from '../utils/useSticky';
 const actionBarRef = ref(null);
 const { stickyConfig, actionBarHeight } = useSticky(actionBarRef);
@@ -514,6 +518,37 @@ const effectiveTab = computed(() => {
 });
 const loading = ref(false);
 const dataSource = ref([]);
+
+// 资产维度页签定义（key 需与后端 /asset_overview/count 的 counts 键保持一致）
+const assetTabList = [
+  { key: 'site', label: '站点' },
+  { key: 'domain', label: '子域名' },
+  { key: 'ip', label: 'IP' },
+  { key: 'cert', label: 'SSL证书' },
+  { key: 'service', label: '服务' },
+  { key: 'fileleak', label: '文件泄露' },
+  { key: 'url', label: 'URL信息' },
+  { key: 'cip', label: 'C段' },
+  { key: 'stat_finger', label: '指纹统计' },
+  { key: 'wih', label: 'WIH' },
+  { key: 'vuln', label: '风险' },
+  { key: 'nuclei_result', label: 'nuclei' }
+];
+
+// 各维度总量徽标：一次请求取回全部维度计数，避免为 12 个页签各发一次计数请求
+// 取值为 null 表示该维度计数失败，徽标显示 "-" 而非 0
+const overviewCounts = ref({});
+
+const fetchOverviewCounts = async () => {
+  try {
+    const res = await request.get('/asset_overview/count');
+    if (res.code === 200 && res.counts) {
+      overviewCounts.value = res.counts;
+    }
+  } catch (e) {
+    console.error('获取资产维度总览计数失败', e);
+  }
+};
 
 const fingerModalVisible = ref(false);
 const currentFingerName = ref('');
@@ -783,7 +818,7 @@ const tabConfig = reactive({
     ]
   },
 
-  // 💡 新增：服务(python) Tab 的 1:1 配置
+  // 💡 新增：Python 插件服务 Tab 的 1:1 配置
   npoc_service: {
     url: '/npoc_service/',
     // 🚨 截图显示无导出按钮，不配置 exportUrl
@@ -1154,6 +1189,14 @@ onMounted(() => {
   nextTick(() => {
     isHydrating.value = false;
   });
+
+  // 页签数量徽标：与列表数据并行拉取，不阻塞表格渲染
+  fetchOverviewCounts();
+});
+
+onActivated(() => {
+  // 页面被 keep-alive 复用时刷新徽标，避免数量停留在离开前的旧值
+  fetchOverviewCounts();
 });
 
 onUnmounted(() => {
@@ -1237,6 +1280,58 @@ onDeactivated(() => {
 </script>
 
 <style scoped>
+
+/* 页签数量徽标：与资产组详情页 ASM 视图保持同一视觉语言 */
+.asm-tab-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.asm-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 500;
+  background: var(--arl-bg-light);
+  color: var(--arl-text-secondary);
+  transition: all 0.2s;
+}
+
+.asm-tab-badge.has-data {
+  background: color-mix(in srgb, var(--arl-theme-color) 12%, transparent);
+  color: var(--arl-theme-color);
+  font-weight: 600;
+}
+
+/* 全库 / 资产组范围的显式标注：两页 tab 结构一致，需明确各自数据范围避免误读 */
+.scope-hint-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--arl-text-secondary);
+}
+
+.scope-hint-tag {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--arl-primary-color, #1890ff);
+  background: var(--arl-primary-bg, rgba(24, 144, 255, 0.1));
+  border: 1px solid var(--arl-primary-border, rgba(24, 144, 255, 0.3));
+}
 .site-header { line-height: 1.5; word-break: break-all; }
 .site-img { width: 16px; height: 16px; margin-right: 8px; vertical-align: middle; }
 .site-word { color: var(--arl-text-color) !important; font-size: 14px !important; margin-top: 4px; margin-bottom: 0; line-height: 1.5; }

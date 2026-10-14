@@ -675,7 +675,7 @@ const metricChips = computed(() => {
     { id: 'chain-sec-stat-finger', label: '指纹统计', count: statFingerList.value.length, icon: TagOutlined, color: '#1d39c4' },
     { id: 'chain-sec-wih', label: 'WIH', count: d.wih?.length || 0, icon: RadarChartOutlined, color: '#fa8c16' },
     { id: 'chain-sec-vuln', label: '风险', count: d.vuln?.length || 0, icon: BugOutlined, color: '#f5222d' },
-    { id: 'chain-sec-npoc', label: '服务(python)', count: d.npoc_service?.length || 0, icon: CodeOutlined, color: '#722ed1' },
+    { id: 'chain-sec-npoc', label: 'Python 插件服务', count: d.npoc_service?.length || 0, icon: CodeOutlined, color: '#722ed1' },
     { id: 'chain-sec-nuclei', label: 'nuclei', count: d.nuclei_result?.length || 0, icon: FireOutlined, color: '#fa541c' }
   ];
 });

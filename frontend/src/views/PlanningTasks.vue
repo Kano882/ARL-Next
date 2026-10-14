@@ -66,12 +66,10 @@
               </a-button>
             </a-popconfirm>
 
-            <a-popconfirm title="确认删除所选计划任务吗？" ok-text="确认" cancel-text="取消" @confirm="handleBatchDelete">
-              <a-button danger size="small" :disabled="!hasPlanSelected">
-                <template #icon><delete-outlined /></template>
-                批量删除
-              </a-button>
-            </a-popconfirm>
+            <a-button danger size="small" :disabled="!hasPlanSelected" @click="handleBatchDelete">
+              <template #icon><delete-outlined /></template>
+              批量删除
+            </a-button>
           </div>
         </div>
       </template>
@@ -283,42 +281,70 @@
         cancelText="取消"
         destroyOnClose
     >
-      <a-form :model="addForm" :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
-        <a-form-item label="名称" required>
+      <a-form
+        ref="addFormRef"
+        :model="addForm"
+        :rules="addRules"
+        :label-col="{ span: 5 }"
+        :wrapper-col="{ span: 18 }"
+        style="margin-top: 20px;"
+      >
+        <a-form-item label="名称" name="name">
           <a-input v-model:value="addForm.name" placeholder="请输入名称" />
         </a-form-item>
-        <a-form-item label="目标" required>
+        <a-form-item
+          label="目标"
+          name="target"
+          extra="支持域名、IP 或 CIDR，多个目标请用逗号或换行分隔；按「任务类别」决定解析方式"
+        >
           <a-textarea v-model:value="addForm.target" :rows="3" placeholder="请输入目标" />
         </a-form-item>
 
-        <a-form-item label="计划类型" required>
+        <a-form-item label="计划类型" name="schedule_type">
           <a-select v-model:value="addForm.schedule_type" @change="onScheduleTypeChange">
             <a-select-option value="future_scan">定时任务</a-select-option>
             <a-select-option value="recurrent_scan">周期任务</a-select-option>
           </a-select>
         </a-form-item>
 
-        <a-form-item label="策略" required>
-          <a-select v-model:value="addForm.policy_id" placeholder="请选择策略">
-            <a-select-option v-for="p in policyList" :key="p._id" :value="p._id">{{ p.name }}</a-select-option>
+        <a-form-item label="策略" name="policy_id">
+          <a-select
+            v-model:value="addForm.policy_id"
+            placeholder="请选择策略"
+            show-search
+            option-filter-prop="label"
+          >
+            <a-select-option v-for="p in policyList" :key="p._id" :value="p._id">
+              {{ p.name }} (PoC : {{ p.policy?.poc_config?.length || 0 }})
+            </a-select-option>
           </a-select>
         </a-form-item>
 
-        <a-form-item v-if="addForm.schedule_type === 'future_scan'" label="开始时间" required>
+        <a-form-item v-if="addForm.schedule_type === 'future_scan'" label="开始时间" name="start_date">
           <a-date-picker
               v-model:value="addForm.start_date"
               show-time
+              :disabled-date="disablePastDate"
               valueFormat="YYYY-MM-DD HH:mm:ss"
               style="width: 100%"
               placeholder="请选择开始日期"
           />
         </a-form-item>
 
-        <a-form-item v-if="addForm.schedule_type === 'recurrent_scan'" label="Cron" required>
+        <a-form-item
+          v-if="addForm.schedule_type === 'recurrent_scan'"
+          label="Cron"
+          name="cron"
+          extra="标准 5 段 Cron：分 时 日 月 周，例如 0 0 */1 * * 表示每小时整点执行；执行间隔不得小于 6 小时"
+        >
           <a-input v-model:value="addForm.cron" placeholder="请输入Cron，如 0 0 */1 * *" />
         </a-form-item>
 
-        <a-form-item label="任务类别" required>
+        <a-form-item
+          label="任务类别"
+          name="task_tag"
+          extra="资产侦查任务：目标按域名与 IP 解析后执行资产发现；风险巡航任务：目标可为 URL，直接执行风险检测"
+        >
           <a-select v-model:value="addForm.task_tag" placeholder="请选择任务类别">
             <a-select-option value="task">资产侦查任务</a-select-option>
             <a-select-option value="risk_cruising">风险巡航任务</a-select-option>
@@ -340,6 +366,7 @@ import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
 import { SearchOutlined, InboxOutlined, ExclamationCircleOutlined, PlusOutlined, DeleteOutlined, UndoOutlined, PauseCircleOutlined, PlayCircleOutlined, SendOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
+import dayjs from 'dayjs';
 
 const route = useRoute();
 const router = useRouter();
@@ -443,11 +470,49 @@ const handlePlanTableChange = (page, pageSize) => { pagination.current = page; p
 // 添加计划任务弹窗
 const addModalVisible = ref(false);
 const addLoading = ref(false);
+const addFormRef = ref();
 const addForm = reactive({
   name: '', target: '', schedule_type: 'future_scan',
   policy_id: undefined, task_tag: undefined,
   start_date: '', cron: ''
 });
+
+// 5 段 Cron 最小校验：分 时 日 月 周，允许 */n、a-b、a,b 与 * 形式
+const CRON_SEGMENT_RE = /^(\*|\d+|\*\/\d+|\d+-\d+|\d+(,\d+)*)$/;
+
+const isValidCron = (value) => {
+  const segments = String(value || '').trim().split(/\s+/);
+  if (segments.length !== 5) return false;
+  return segments.every((seg) => {
+    if (!CRON_SEGMENT_RE.test(seg)) return false;
+    if (/^\d+$/.test(seg)) {
+      const num = Number(seg);
+      return num <= 59;
+    }
+    return true;
+  });
+};
+
+// 与后端 FutureDateInvalid 校验对齐：禁止选择过去的时间
+const disablePastDate = (current) => current && current < dayjs().startOf('day');
+
+const addRules = {
+  name: [{ required: true, message: '请输入名称' }],
+  target: [{ required: true, message: '请输入目标' }],
+  schedule_type: [{ required: true, message: '请选择计划类型' }],
+  policy_id: [{ required: true, message: '请选择策略' }],
+  task_tag: [{ required: true, message: '请选择任务类别' }],
+  start_date: [{ required: true, message: '请选择开始时间' }],
+  cron: [
+    { required: true, message: '请输入 Cron 表达式' },
+    {
+      validator: (_rule, value) => {
+        if (!value || isValidCron(value)) return Promise.resolve();
+        return Promise.reject('Cron 格式不正确，需为标准 5 段表达式，如 0 0 */1 * *');
+      }
+    }
+  ]
+};
 
 const openAddModal = () => {
   Object.assign(addForm, {
@@ -457,14 +522,24 @@ const openAddModal = () => {
   addModalVisible.value = true;
 };
 
+// 切换计划类型时清空不适用的排期字段；若原本已填写则提示用户，避免静默丢失
 const onScheduleTypeChange = () => {
+  const hadValue = !!addForm.start_date || !!addForm.cron;
   addForm.start_date = '';
   addForm.cron = '';
+  // 清空后消除上一类型遗留的字段级校验态
+  addFormRef.value?.clearValidate(['start_date', 'cron']);
+  if (hadValue) {
+    message.info('已切换计划类型，请重新填写排期时间');
+  }
 };
 
 const submitAdd = async () => {
-  if (!addForm.name || !addForm.target || !addForm.policy_id || !addForm.task_tag) {
-    return message.warning('请填写所有必填项！');
+  try {
+    await addFormRef.value.validate();
+  } catch (error) {
+    // 交由 antd 展示字段级错误提示
+    return;
   }
 
   const payload = {
@@ -476,10 +551,8 @@ const submitAdd = async () => {
   };
 
   if (addForm.schedule_type === 'future_scan') {
-    if (!addForm.start_date) return message.warning('请选择开始时间！');
     payload.start_date = addForm.start_date;
   } else {
-    if (!addForm.cron) return message.warning('请输入Cron表达式！');
     payload.cron = addForm.cron;
   }
 
@@ -517,7 +590,29 @@ const performPlanAction = async (actionType, idArray) => {
 
 const handleSingleAction = (type, id) => performPlanAction(type, [id]);
 const handleBatchStop = () => performPlanAction('stop', planSelectedRowKeys.value);
-const handleBatchDelete = () => performPlanAction('delete', planSelectedRowKeys.value);
+
+// 批量删除为不可逆操作：确认框必须列出待删除对象清单，避免用户只看到数量无法复核范围
+const handleBatchDelete = () => {
+  const selectedIds = planSelectedRowKeys.value;
+  if (selectedIds.length === 0) return;
+
+  const names = (dataSource.value || [])
+    .filter(item => selectedIds.includes(item._id))
+    .map(item => item.name || item._id);
+
+  const preview = names.slice(0, 10).map(n => `· ${n}`).join('\n');
+  const more = names.length > 10 ? `\n… 另有 ${names.length - 10} 项` : '';
+
+  Modal.confirm({
+    title: `确认删除所选 ${selectedIds.length} 个计划任务？`,
+    icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
+    content: `以下计划任务及其调度配置将被永久移除，且不可恢复：\n\n${preview}${more}`,
+    okText: `确认删除 ${selectedIds.length} 项`,
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: () => performPlanAction('delete', selectedIds)
+  });
+};
 
 
 // ==========================================

@@ -180,6 +180,7 @@ import { message } from 'ant-design-vue';
 import request from '../utils/request';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { useSticky } from '../utils/useSticky';
+import { formatTaskStatus, formatTaskStatusColor } from '../constants/taskStatus';
 
 const route = useRoute();
 const router = useRouter();
@@ -253,25 +254,11 @@ const taskTypeLabel = computed(() => {
 });
 
 const taskStatusLabel = computed(() => {
-  const map = {
-    waiting: '排队中',
-    running: '进行中',
-    done: '已完成',
-    error: '异常失败',
-    stop: '已停止'
-  };
-  return map[taskStatus.value] || '';
+  return formatTaskStatus(taskStatus.value);
 });
 
 const taskStatusColor = computed(() => {
-  const map = {
-    waiting: 'blue',
-    running: 'processing',
-    done: 'success',
-    error: 'error',
-    stop: 'default'
-  };
-  return map[taskStatus.value] || 'default';
+  return formatTaskStatusColor(taskStatus.value);
 });
 
 const actionBarRef = ref(null);

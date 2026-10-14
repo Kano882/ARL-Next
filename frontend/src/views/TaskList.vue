@@ -912,6 +912,11 @@
                   :rows="3"
                   style="resize: vertical;"
                 />
+                <!-- 如实预告任务派生数量：域名逐个建任务，IP/CIDR 合并为一个任务 -->
+                <div v-if="fanoutHint.text" class="target-fanout-hint">
+                  <InfoCircleOutlined />
+                  <span>{{ fanoutHint.text }}</span>
+                </div>
               </a-form-item>
             </a-col>
           </a-row>
@@ -926,29 +931,33 @@
             <a-col :span="12">
               <a-form-item label="域名爆破字典" name="domain_brute_type" :rules="[{ required: !!formState.domain_brute, message: '请选择域名爆破字典' }]">
                 <a-select v-model:value="formState.domain_brute_type" :disabled="!formState.domain_brute" placeholder="请选择字典">
-                  <a-select-option v-for="item in domainDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
+                  <a-select-option v-for="item in domainDicts" :key="item.name" :value="item.name">{{ describeDict(item) }}</a-select-option>
                 </a-select>
+                <div v-if="!formState.domain_brute" class="dict-disabled-hint">需先在下方「扫描插件与调度策略」中启用「域名爆破」</div>
               </a-form-item>
             </a-col>
             <a-col :span="12">
               <a-form-item label="智能子域字典" name="alt_dns_dict" :rules="[{ required: !!formState.alt_dns, message: '请选择智能字典' }]">
                 <a-select v-model:value="formState.alt_dns_dict" :disabled="!formState.alt_dns" placeholder="请选择字典">
-                  <a-select-option v-for="item in altDnsDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
+                  <a-select-option v-for="item in altDnsDicts" :key="item.name" :value="item.name">{{ describeDict(item) }}</a-select-option>
                 </a-select>
+                <div v-if="!formState.alt_dns" class="dict-disabled-hint">需先在下方「扫描插件与调度策略」中启用「DNS字典智能生成」</div>
               </a-form-item>
             </a-col>
             <a-col :span="12">
               <a-form-item label="端口扫描类型" name="port_scan_type" :rules="[{ required: !!formState.port_scan, message: '请选择端口策略' }]">
                 <a-select v-model:value="formState.port_scan_type" :disabled="!formState.port_scan" placeholder="请选择策略">
-                  <a-select-option v-for="item in portDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
+                  <a-select-option v-for="item in portDicts" :key="item.name" :value="item.name">{{ describeDict(item) }}</a-select-option>
                 </a-select>
+                <div v-if="!formState.port_scan" class="dict-disabled-hint">需先在下方「扫描插件与调度策略」中启用「端口扫描」</div>
               </a-form-item>
             </a-col>
             <a-col :span="12">
               <a-form-item label="目录泄露字典" name="file_leak_dict" :rules="[{ required: !!formState.file_leak, message: '请选择泄露字典' }]">
                 <a-select v-model:value="formState.file_leak_dict" :disabled="!formState.file_leak" placeholder="请选择字典">
-                  <a-select-option v-for="item in fileLeakDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
+                  <a-select-option v-for="item in fileLeakDicts" :key="item.name" :value="item.name">{{ describeDict(item) }}</a-select-option>
                 </a-select>
+                <div v-if="!formState.file_leak" class="dict-disabled-hint">需先在下方「扫描插件与调度策略」中启用「文件泄露」</div>
               </a-form-item>
             </a-col>
           </a-row>
@@ -962,9 +971,15 @@
             </div>
             <div class="preset-btn-group">
               <span class="preset-tip">快捷预设:</span>
-              <a-button size="small" @click="applyPreset('fast')">快速侦查</a-button>
-              <a-button size="small" @click="applyPreset('normal')">常规探测</a-button>
-              <a-button size="small" @click="applyPreset('deep')">深度全量</a-button>
+              <a-tooltip title="启用域名查询、域名爆破、端口扫描、跳过 CDN、站点与指纹识别；耗时最短，适用于初步摸底">
+                <a-button size="small" @click="applyPreset('fast')">快速侦查</a-button>
+              </a-tooltip>
+              <a-tooltip title="在「快速侦查」基础上追加服务识别、SSL 证书获取、文件泄露；覆盖较全面，耗时中等">
+                <a-button size="small" @click="applyPreset('normal')">常规探测</a-button>
+              </a-tooltip>
+              <a-tooltip title="启用全部插件，并关闭「跳过 CDN」（将对 CDN 节点 IP 一并扫描）；覆盖面最大、耗时与资源占用最高">
+                <a-button size="small" @click="applyPreset('deep')">深度全量</a-button>
+              </a-tooltip>
             </div>
           </div>
 
@@ -1078,6 +1093,7 @@ import { Modal, message, Checkbox } from 'ant-design-vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
   ExclamationCircleOutlined,
+  InfoCircleOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   ClockCircleOutlined,
@@ -1088,6 +1104,12 @@ import dayjs from 'dayjs';
 import request from '../utils/request';
 import { applyTaskStatistics, createTaskListClient } from '../utils/taskStatistics';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
+import { describeTaskFanout } from '../utils/targetParse';
+import {
+  PLUGIN_NAME_MAP,
+  formatTaskStatus,
+  formatTaskStatusColor
+} from '../constants/taskStatus';
 import TycTaskModal from '../components/TycTaskModal.vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 
@@ -1098,6 +1120,8 @@ const { stickyConfig } = useSticky(actionBarRef);
 // --- 路由与顶层 Tab 联动逻辑 ---
 const router = useRouter();
 const route = useRoute();
+// 默认落地「企业测绘任务」；侧边栏与仪表盘入口均显式携带 ?tab= 参数，
+// 避免同一路由出现两种默认落地页导致用户误判入口行为。
 const activeMainTab = ref(route.query.tab === 'task' ? 'task' : 'enterprise');
 
 // --- 字典配置 ---
@@ -1106,43 +1130,8 @@ const altDnsDicts = ref([]);
 const fileLeakDicts = ref([]);
 const portDicts = ref([]);
 
-// --- 状态中文化与插件中文名映射表 ---
-const pluginNameMap = {
-  domain_brute: '域名爆破',
-  dns_query_plugin: '域名查询',
-  arl_search: '历史查询',
-  alt_dns: 'DNS智能生成',
-  recursive_domain_brute: '递归爆破',
-  port_scan: '端口扫描',
-  ssl_cert: 'SSL证书获取',
-  service_detection: '服务识别',
-  os_detection: '系统识别',
-  find_site: '站点发现',
-  site_identify: '指纹识别',
-  search_engines: '搜索引擎',
-  site_spider: '站点爬虫',
-  file_leak: '文件泄露',
-  find_vhost: 'Host碰撞',
-  findvhost: 'Host碰撞',
-  npoc_service_detection: 'Python服务识别',
-  poc_run: 'PoC验证',
-  nuclei_scan: 'Nuclei扫描',
-  weak_brute: '弱口令爆破',
-  wih_domain_update: 'WIH更新',
-  web_info_hunter: 'WIH探测'
-};
-
-// 任务状态文案（全站统一口径，勿与插件名混用）
-const TASK_STATUS_LABEL = {
-  running: '进行中',
-  waiting: '排队中',
-  done: '已完成',
-  stop: '已停止',
-  error: '异常失败'
-};
-
-// 阶段状态（后端返回插件/阶段标识时表示任务正在该阶段执行）
-const isStageStatus = (status) => !!status && !(status in TASK_STATUS_LABEL);
+// --- 状态中文化与插件中文名映射表（唯一事实源见 @/constants/taskStatus） ---
+const pluginNameMap = PLUGIN_NAME_MAP;
 
 // ==========================================
 // 📊 顶部指标统计数据模型
@@ -1416,14 +1405,7 @@ const enterpriseColumns = [
 ];
 
 const getEnterpriseStatusColor = (status) => {
-  const map = {
-    done: 'success',
-    running: 'processing',
-    waiting: 'default',
-    stop: 'warning',
-    error: 'error'
-  };
-  return map[status] || 'default';
+  return formatTaskStatusColor(status);
 };
 
 const getEnterpriseStatusIcon = (status) => {
@@ -1434,16 +1416,7 @@ const getEnterpriseStatusIcon = (status) => {
   return SyncOutlined;
 };
 
-const formatEnterpriseStatusText = (status) => {
-  const map = {
-    done: '已完成',
-    running: '进行中',
-    waiting: '排队中',
-    stop: '已停止',
-    error: '异常失败'
-  };
-  return map[status] || status;
-};
+const formatEnterpriseStatusText = (status) => formatTaskStatus(status);
 
 const tycModalVisible = ref(false);
 const syncModalVisible = ref(false);
@@ -1715,11 +1688,7 @@ const isStatusRunning = (status) => {
 };
 
 const getStatusTagColor = (status) => {
-  if (status === 'done') return 'success';
-  if (status === 'error') return 'error';
-  if (status === 'stop') return 'warning';
-  if (status === 'waiting') return 'default';
-  return 'processing';
+  return formatTaskStatusColor(status);
 };
 
 const getStatusIcon = (status) => {
@@ -1730,13 +1699,7 @@ const getStatusIcon = (status) => {
   return SyncOutlined;
 };
 
-const formatStatusText = (status) => {
-  if (TASK_STATUS_LABEL[status]) return TASK_STATUS_LABEL[status];
-
-  // 阶段状态：明确标注为“进行中”，避免把插件名误读为任务状态
-  const stageName = pluginNameMap[status] || status;
-  return stageName ? `进行中 · ${stageName}` : '进行中';
-};
+const formatStatusText = (status) => formatTaskStatus(status);
 
 const formatOptionsSummary = (options) => {
   if (!options) return '默认配置';
@@ -2250,6 +2213,38 @@ const defaultFormState = {
 
 const formState = reactive({ ...defaultFormState });
 
+// 提交前如实预告任务派生数量（域名逐个建任务，IP/CIDR 合并为一个任务）
+const fanoutHint = computed(() => describeTaskFanout(formState.target));
+
+// 字典下拉的可读标签：把磁盘文件名转换为「含义 (规模)」，
+// 避免用户需要从 domain_2w.txt / port_top1000.txt 等文件名反推字典规模。
+const dictLabelOverrides = {
+  'domain_2w.txt': '大字典 (约 2 万条)',
+  'domain_top300.txt': '小字典 (约 300 条)',
+  'altdnsdict.txt': '智能生成词表',
+  'port_top100.txt': 'Top 100 常用端口',
+  'port_top1000.txt': 'Top 1000 常见端口',
+  'port_all.txt': '全端口 (1-65535)',
+  'port_custom.txt': '自定义端口',
+  'file_top_200.txt': '小字典 (约 200 条)',
+  'file_top_2000.txt': '大字典 (约 2000 条)'
+};
+
+const formatDictSize = (bytes) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const describeDict = (item) => {
+  if (!item) return '';
+  const base = dictLabelOverrides[item.name];
+  if (base) return base;
+  const size = formatDictSize(item.size);
+  return size ? `${item.name} (${size})` : item.name;
+};
+
 const showModal = () => {
   visible.value = true;
 };
@@ -2282,22 +2277,33 @@ const applyPreset = (type) => {
     formState.ssl_cert = true;
     message.info('已载入「常规全面探测」预设方案');
   } else if (type === 'deep') {
-    Object.keys(defaultPlugins).forEach(k => { formState[k] = true; });
-    formState.skip_scan_cdn_ip = false;
-    message.info('已载入「深度全量测绘」预设方案');
+    // 「深度全量」会一并关闭「跳过 CDN」，显著扩大扫描面，先向用户明示后果再套用
+    Modal.confirm({
+      title: '确认套用「深度全量」预设？',
+      icon: createVNode(ExclamationCircleOutlined, { style: 'color: #faad14;' }),
+      content: '该预设将启用全部 16 项插件，并关闭「跳过 CDN」——即对 CDN 节点 IP 一并执行扫描，扫描面与耗时将明显增加。',
+      okText: '套用预设',
+      cancelText: '取消',
+      onOk: () => {
+        Object.keys(defaultPlugins).forEach(k => { formState[k] = true; });
+        formState.skip_scan_cdn_ip = false;
+        message.info('已载入「深度全量测绘」预设方案');
+      }
+    });
   }
 };
 
-const handleOk = async () => {
+const doSubmitTask = async () => {
+  submitLoading.value = true;
   try {
-    await formRef.value.validate();
-    submitLoading.value = true;
     const payload = { ...formState };
     // 🛡️ 服务识别双向严格协同（开启同开，关闭同关）
     payload.npoc_service_detection = !!payload.service_detection;
     const res = await request.post('/task/', payload);
     if (res.code === 200) {
-      message.success('任务下发成功！');
+      // 域名目标会被拆分为多个任务，此处按实际返回的任务数如实回报
+      const createdCount = Array.isArray(res.items) ? res.items.length : 0;
+      message.success(createdCount > 1 ? `任务下发成功，共创建 ${createdCount} 个任务！` : '任务下发成功！');
       visible.value = false;
       fetchTasks(1, pagination.pageSize);
     } else {
@@ -2308,6 +2314,33 @@ const handleOk = async () => {
   } finally {
     submitLoading.value = false;
   }
+};
+
+const handleOk = async () => {
+  try {
+    await formRef.value.validate();
+  } catch (error) {
+    // 表单校验未通过，交由 antd 展示字段级错误提示
+    if (!error.errorFields) message.error('网络异常');
+    return;
+  }
+
+  const { taskCount, text } = fanoutHint.value;
+
+  // 仅在会发生「一个输入派生多个任务」时二次确认，避免用户误以为只下发一个任务
+  if (taskCount > 1) {
+    Modal.confirm({
+      title: '确认下发多个任务？',
+      icon: createVNode(ExclamationCircleOutlined, { style: 'color: #faad14;' }),
+      content: `${text}每个域名任务将独立排队与执行，请确认目标范围无误。`,
+      okText: `确认下发 ${taskCount} 个任务`,
+      cancelText: '返回修改',
+      onOk: () => doSubmitTask()
+    });
+    return;
+  }
+
+  await doSubmitTask();
 };
 
 // ==========================================
@@ -3108,6 +3141,30 @@ onUnmounted(() => {
   border-radius: 6px;
   padding: 12px 16px;
   margin-bottom: 12px;
+}
+
+/* 任务派生数量预告：域名逐个建任务，IP/CIDR 合并为一个任务 */
+.target-fanout-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--arl-text-secondary);
+}
+
+.target-fanout-hint .anticon {
+  margin-top: 2px;
+  color: var(--arl-primary-color, #1890ff);
+}
+
+/* 字典下拉被依赖开关禁用时，显式告知解锁位置，避免用户面对灰置控件无从下手 */
+.dict-disabled-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--arl-text-secondary);
 }
 
 .section-title {

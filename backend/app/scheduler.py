@@ -382,6 +382,87 @@ def _get_task_latest_activity(task):
     return None
 
 
+def icp_auto_group_scheduler():
+    """
+    企业全景测绘「自动纳管建组」后台消费器
+
+    背景：该流程原先由前端浏览器页面轮询驱动，关闭或离开页面即暂停追踪，
+    导致主成功路径与前台进程强绑定。此处改为后端统一消费，页面仅负责展示。
+
+    消费条件：icp_task 中 status=done 且 auto_group=true 且尚未被消费的任务。
+    通过 auto_group_claimed 标记做原子领取，规避多实例并发重复建组。
+    """
+    query = {
+        "status": TaskStatus.DONE,
+        "auto_group": True,
+        "$or": [
+            {"auto_group_claimed": {"$exists": False}},
+            {"auto_group_claimed": False}
+        ]
+    }
+
+    claimed = []
+    for item in conn('icp_task').find(query).limit(20):
+        # 原子领取：仅当仍未领取时才置位，避免并发重复消费
+        res = conn('icp_task').update_one(
+            {"_id": item["_id"],
+             "$or": [{"auto_group_claimed": {"$exists": False}},
+                     {"auto_group_claimed": False}]},
+            {"$set": {"auto_group_claimed": True, "auto_group_claim_time": curr_date()}}
+        )
+        if res.modified_count == 1:
+            claimed.append(item)
+
+    for item in claimed:
+        task_id = str(item["_id"])
+        try:
+            process_icp_auto_group(item, task_id)
+        except Exception as e:
+            logger.exception(f"Failed to auto-group icp task {task_id}: {e}")
+            conn('icp_task').update_one(
+                {"_id": item["_id"]},
+                {"$set": {"auto_group_result": "error", "auto_group_msg": str(e)[:500]}}
+            )
+
+    return len(claimed)
+
+
+def process_icp_auto_group(task, task_id):
+    """对单个已完成的企业测绘任务执行自动建组与资产入库"""
+    from app.routes.icp import build_auto_group_payload, perform_icp_sync
+
+    domains = []
+    for asset in conn('icp_asset').find({"task_id": task_id, "query_type": "web"}):
+        d = asset.get('domain') or asset.get('ym')
+        if d and isinstance(d, str):
+            domains.append(d.strip().lower())
+    domains = sorted(set(domains))
+
+    if not domains:
+        logger.info(f"Auto-group skipped for {task_id}: no web domains found")
+        conn('icp_task').update_one(
+            {"_id": task["_id"]},
+            {"$set": {"auto_group_result": "no_domain",
+                      "auto_group_msg": "未发现可纳管的网站域名"}}
+        )
+        return
+
+    payload = build_auto_group_payload(task, domains)
+    ok, err_code, result = perform_icp_sync(task_id, payload)
+
+    conn('icp_task').update_one(
+        {"_id": task["_id"]},
+        {"$set": {
+            "auto_group_result": "success" if ok else "error",
+            "auto_group_msg": result.get("msg") or result.get("error", ""),
+            "auto_group_domain_count": len(domains),
+            "auto_group_scope_id": result.get("scope_id") or "",
+            "auto_group_time": curr_date()
+        }}
+    )
+    logger.info(f"Auto-group finished for {task_id}: {len(domains)} domains, ok={ok}")
+
+
 def cleanup_zombie_tasks(window_seconds=1800):
     """
     🛡️【系统韧性与活性双重探测】清理因系统异常重启或中断的真正僵尸任务
@@ -561,6 +642,9 @@ def run_forever():
 
         # 计划任务调度
         task_schedule.task_scheduler()
+
+        # 企业全景测绘自动纳管建组（原前端轮询职责下沉至后端）
+        icp_auto_group_scheduler()
 
         # 每小时自动巡检并清理一次孤儿临时文件
         curr_time = time.time()

@@ -33,7 +33,13 @@ add_icp_task_fields = ns.model('AddIcpTask', {
     'query_type': fields.List(fields.String, required=False, example=["web", "app"], description="查询类型列表(web/app/mapp/kapp)"),
     'depth': fields.Integer(required=False, default=1, description="递归查询层数(1~20)"),
     'invest_ratio': fields.Float(required=False, default=50, description="对外投资最小比例(%)"),
-    'enable_icp': fields.Boolean(required=False, default=True, description="是否联动工信部ICP双轨查重与补全")
+    'enable_icp': fields.Boolean(required=False, default=True, description="是否联动工信部ICP双轨查重与补全"),
+    'auto_group': fields.Boolean(required=False, default=False, description="测绘完成后是否由后端自动纳管建组"),
+    'auto_group_scan': fields.Boolean(required=False, default=False, description="自动建组后是否立即下发主动探测"),
+    'auto_group_task_type': fields.String(required=False, default="oneshot", description="自动探测任务类型(oneshot/periodic)"),
+    'auto_group_policy_id': fields.String(required=False, default="", description="自动探测使用的扫描策略ID"),
+    'auto_group_interval_hours': fields.Integer(required=False, default=24, description="周期探测运行间隔(小时)"),
+    'group_id': fields.String(required=False, default="", description="建组时关联的所属集团ID")
 })
 
 add_tyc_task_fields = ns.model('AddTycTask', {
@@ -43,8 +49,34 @@ add_tyc_task_fields = ns.model('AddTycTask', {
     'depth': fields.Integer(required=False, default=1, description="递归查询层数"),
     'invest_ratio': fields.Float(required=False, default=50, description="对外投资最小比例(%)"),
     'query_type': fields.List(fields.String, required=True, description="查询类型(web/app/mapp/wechat/weibo/invest/trademark)"),
-    'enable_icp': fields.Boolean(required=False, default=True, description="是否联动工信部ICP双轨查重与补全")
+    'enable_icp': fields.Boolean(required=False, default=True, description="是否联动工信部ICP双轨查重与补全"),
+    'auto_group': fields.Boolean(required=False, default=False, description="测绘完成后是否由后端自动纳管建组"),
+    'auto_group_scan': fields.Boolean(required=False, default=False, description="自动建组后是否立即下发主动探测"),
+    'auto_group_task_type': fields.String(required=False, default="oneshot", description="自动探测任务类型(oneshot/periodic)"),
+    'auto_group_policy_id': fields.String(required=False, default="", description="自动探测使用的扫描策略ID"),
+    'auto_group_interval_hours': fields.Integer(required=False, default=24, description="周期探测运行间隔(小时)"),
+    'group_id': fields.String(required=False, default="", description="建组时关联的所属集团ID")
 })
+
+def build_auto_group_intent(args):
+    """
+    从请求参数中提取「自动纳管建组」意图字段。
+
+    该意图由后端调度器 icp_auto_group_scheduler 消费，取代原先依赖浏览器页面轮询的实现。
+    """
+    try:
+        interval = int(args.get('auto_group_interval_hours') or 24)
+    except (ValueError, TypeError):
+        interval = 24
+    return {
+        "auto_group": bool(args.get('auto_group', False)),
+        "auto_group_scan": bool(args.get('auto_group_scan', False)),
+        "auto_group_task_type": args.get('auto_group_task_type') or "oneshot",
+        "auto_group_policy_id": args.get('auto_group_policy_id') or "",
+        "auto_group_interval_hours": interval,
+        "group_id": (args.get('group_id') or "").strip()
+    }
+
 
 @ns.route('/task')
 class IcpTask(ARLResource):
@@ -216,6 +248,7 @@ class IcpTask(ARLResource):
                     "asset_cnt": 0
                 }
             }
+            task_data.update(build_auto_group_intent(args))
             result = conn.insert_one(task_data)
             task_id = str(result.inserted_id)
 
@@ -258,6 +291,7 @@ class IcpTask(ARLResource):
                 "asset_cnt": 0
             }
         }
+        task_data.update(build_auto_group_intent(args))
         result = conn.insert_one(task_data)
         task_id = str(result.inserted_id)
 
@@ -383,8 +417,10 @@ class TycTask(ARLResource):
             "end_time": "-",
             "statistic": {
                 "asset_cnt": 0
-            }
+            },
         }
+        # 自动纳管建组意图：由后端调度器消费，不再依赖前端页面轮询
+        task_data.update(build_auto_group_intent(args))
 
         conn = conn_db('icp_task')
         result = conn.insert_one(task_data)
@@ -1138,225 +1174,280 @@ class IcpTaskBatchExport(ARLResource):
 
 
 
+def perform_icp_sync(task_id, args):
+    """
+    企业测绘任务 → 资产组同步核心逻辑（与 Flask 请求上下文解耦）
+
+    供 /icp/sync 接口与后端自动建组调度器共同复用，避免两套业务逻辑漂移。
+    :param task_id: icp_task 的 _id 字符串
+    :param args: 同步参数字典，字段语义同 /icp/sync 请求体
+    :return: (ok: bool, err_code, payload: dict)
+    """
+    from app.helpers.scope import trigger_scope_domain_scan
+    mode = args.get('mode', 'new')  # 'new' or 'existing'
+    target_name = (args.get('target_name') or '').strip()
+    scope_id = args.get('scope_id')
+    group_id = (args.get('group_id') or '').strip()
+    selected_domains = args.get('selected_domains')
+    auto_scan = args.get('auto_scan', False)
+    task_type = args.get('task_type', 'oneshot')
+    policy_id = args.get('policy_id', '')
+    interval_hours = int(args.get('interval_hours', 24) or 24)
+
+    try:
+        task = conn_db('icp_task').find_one({"_id": bson.ObjectId(task_id)})
+    except Exception:
+        return False, ErrorMsg.Error, {"error": "任务 ID 格式非法"}
+    if not task:
+        return False, ErrorMsg.NotFoundTask, {"task_id": task_id}
+
+    task_name = task.get('name', 'ICP查询任务')
+
+    # 校验所属集团
+    group_name = ""
+    if group_id:
+        try:
+            group = conn_db('asset_group').find_one({"_id": bson.ObjectId(group_id)})
+            if group:
+                group_name = group.get('name', '')
+            else:
+                group_id = ""
+        except Exception:
+            group_id = ""
+
+    # 查出当前任务下所有 web 查询的资产 (只取网站)
+    assets = list(conn_db('icp_asset').find({"task_id": task_id, "query_type": "web"}))
+    domains = set()
+    for asset in assets:
+        d = asset.get('domain') or asset.get('ym')
+        if d and isinstance(d, str):
+            domains.add(d.strip())
+
+    # 若前端指定了勾选的特定域名列表，则精准过滤
+    if isinstance(selected_domains, list) and len(selected_domains) > 0:
+        selected_set = {str(d).strip().lower() for d in selected_domains if str(d).strip()}
+        domains = {d for d in domains if d.lower() in selected_set}
+
+    if not domains:
+        return False, ErrorMsg.Error, {"error": "未发现匹配的网站资产，无法同步"}
+
+    final_scope_id = None
+    task_triggered_count = 0
+
+    # 封装生成 domain_status 的元数据辅助函数
+    def build_domain_meta(existing_meta=None):
+        meta = existing_meta if isinstance(existing_meta, dict) else {}
+        meta.update({
+            "status": meta.get("status", "unprobed"),
+            "sync_source": "icp",
+            "task_id": str(task["_id"]),
+            "task_name": task_name,
+            "sync_time": curr_date()
+        })
+        return meta
+
+    if mode == 'existing' and scope_id:
+        # 关联已有资产
+        scope = conn_db('asset_scope').find_one({"_id": bson.ObjectId(scope_id)})
+        if not scope:
+            return False, ErrorMsg.Error, {"error": "指定的资产组不存在"}
+        final_scope_id = str(scope["_id"])
+        old_array = scope.get("scope_array", [])
+            
+        # Calculate duplicates and new additions
+        old_set = set(old_array)
+        duplicates = domains.intersection(old_set)
+        duplicate_count = len(duplicates)
+        new_additions = domains - old_set
+        insert_count = len(new_additions)
+            
+        new_array = list(old_set | domains)
+        old_domain_array = scope.get("domain_array")
+        if old_domain_array is None:
+            old_domain_array = old_array if scope.get("scope_type", "domain") == "domain" else []
+        new_domain_array = list(set(old_domain_array) | domains)
+
+        domain_status = scope.get("domain_status", {})
+        if not isinstance(domain_status, dict):
+            domain_status = {}
+
+        for d in domains:
+            domain_status[d] = build_domain_meta(domain_status.get(d))
+
+        update_fields = {
+            "scope_array": new_array,
+            "scope": ",".join(new_array),
+            "domain_array": new_domain_array,
+            "domain_status": domain_status
+        }
+        # 若已有资产组未分配集团，且同步时指定了集团，则补充绑定
+        if group_id and not scope.get('group_id'):
+            update_fields["group_id"] = group_id
+            update_fields["group_name"] = group_name
+
+        conn_db('asset_scope').update_one(
+            {"_id": scope["_id"]},
+            {"$set": update_fields}
+        )
+        target_name = scope.get('name')
+        if not group_name:
+            group_name = scope.get('group_name', '')
+    else:
+        # 新建资产组
+        if not target_name:
+            target_name = task_name
+
+        # 检查是否同名，不再限制 scope_type
+        scope = conn_db('asset_scope').find_one({"name": target_name})
+        if scope:
+            final_scope_id = str(scope["_id"])
+            old_array = scope.get("scope_array", [])
+                
+            old_set = set(old_array)
+            duplicates = domains.intersection(old_set)
+            duplicate_count = len(duplicates)
+            new_additions = domains - old_set
+            insert_count = len(new_additions)
+
+            new_array = list(old_set | domains)
+            old_domain_array = scope.get("domain_array")
+            if old_domain_array is None:
+                old_domain_array = old_array if scope.get("scope_type", "domain") == "domain" else []
+            new_domain_array = list(set(old_domain_array) | domains)
+
+            domain_status = scope.get("domain_status", {})
+            if not isinstance(domain_status, dict):
+                domain_status = {}
+
+            for d in domains:
+                domain_status[d] = build_domain_meta(domain_status.get(d))
+
+            update_fields = {
+                "scope_array": new_array,
+                "scope": ",".join(new_array),
+                "domain_array": new_domain_array,
+                "domain_status": domain_status
+            }
+            if group_id and not scope.get('group_id'):
+                update_fields["group_id"] = group_id
+                update_fields["group_name"] = group_name
+
+            conn_db('asset_scope').update_one(
+                {"_id": scope["_id"]},
+                {"$set": update_fields}
+            )
+            if not group_name:
+                group_name = scope.get('group_name', '')
+        else:
+            new_array = list(domains)
+            new_additions = set(domains)
+            insert_count = len(domains)
+            duplicate_count = 0
+                
+            domain_status = {}
+            for d in domains:
+                domain_status[d] = build_domain_meta()
+
+            scope_data = {
+                "name": target_name,
+                "group_id": group_id,
+                "group_name": group_name,
+                "scope_type": "mixed",
+                "scope": ",".join(new_array),
+                "scope_array": new_array,
+                "domain_array": new_array,
+                "domain_status": domain_status,
+                "ip_array": []
+            }
+            insert_res = conn_db('asset_scope').insert_one(scope_data)
+            final_scope_id = str(insert_res.inserted_id)
+
+    # 回写 icp_task 最近同步状态
+    conn_db('icp_task').update_one(
+        {"_id": task["_id"]},
+        {"$set": {
+            "synced_scope_id": final_scope_id,
+            "synced_scope_name": target_name,
+            "synced_group_name": group_name,
+            "synced_at": curr_date()
+        }}
+    )
+
+    # 如果用户勾选了自动下发任务且存在新增域名
+    if auto_scan and policy_id and new_additions and final_scope_id:
+        try:
+            task_triggered_count = trigger_scope_domain_scan(
+                scope_id=final_scope_id,
+                domains=list(new_additions),
+                policy_id=policy_id,
+                task_type=task_type,
+                interval=interval_hours * 3600
+            )
+        except Exception as e:
+            logger.error(f"Auto trigger scan error after sync: {e}")
+
+    return True, ErrorMsg.Success, {
+        "msg": f"成功同步了 {len(domains)} 个域名到资产分组 '{target_name}'",
+        "insert_count": insert_count,
+        "duplicate_count": duplicate_count,
+        "task_triggered_count": task_triggered_count,
+        "new_domains": list(new_additions),
+        "target_name": target_name,
+        "scope_id": final_scope_id,
+        "group_id": group_id,
+        "group_name": group_name,
+        "mode": mode
+    }
+
+
+def build_auto_group_payload(task, domains):
+    """
+    由已完成的企业测绘任务推导自动建组参数。
+    与前端向导保持同一语义：新建资产组、名称沿用企业官方名称、按需联动主动探测。
+    """
+    return {
+        "mode": "new",
+        "target_name": _resolve_auto_group_name(task),
+        "group_id": task.get("group_id") or "",
+        "selected_domains": domains,
+        "auto_scan": bool(task.get("auto_group_scan")),
+        "task_type": task.get("auto_group_task_type") or "oneshot",
+        "policy_id": task.get("auto_group_policy_id") or "",
+        "interval_hours": int(task.get("auto_group_interval_hours") or 24)
+    }
+
+
+def _resolve_auto_group_name(task):
+    """推导自动建组使用的资产组名称，优先企业官方名称"""
+    company_name = (task.get("company_name") or "").strip()
+    if company_name:
+        return company_name
+    name = (task.get("name") or "").strip()
+    if name:
+        # 去掉测绘任务名后缀，还原企业名。
+        # 必须按长度降序匹配，否则「企业全景测绘」会先命中较短的「全景测绘」而残留「企业」。
+        for suffix in sorted(("企业全景测绘", "企业测绘", "全景测绘"), key=len, reverse=True):
+            if name.endswith(suffix):
+                name = name[: -len(suffix)].strip()
+                break
+        if name:
+            return name
+    return task.get("target") or "企业资产组"
+
+
 @ns.route('/sync/<string:task_id>')
 class IcpTaskSync(ARLResource):
     @auth
     def post(self, task_id):
         """将 ICP/TYC 任务中的网站域名同步至资产分组"""
+        from flask import request as flask_request
         try:
-            from flask import request as flask_request
-            from app.helpers.scope import trigger_scope_domain_scan
             args = flask_request.json or {}
-            mode = args.get('mode', 'new') # 'new' or 'existing'
-            target_name = args.get('target_name', '').strip()
-            scope_id = args.get('scope_id')
-            group_id = args.get('group_id', '').strip()
-            selected_domains = args.get('selected_domains')
-            auto_scan = args.get('auto_scan', False)
-            task_type = args.get('task_type', 'oneshot')
-            policy_id = args.get('policy_id', '')
-            interval_hours = int(args.get('interval_hours', 24) or 24)
-
-            task = conn_db('icp_task').find_one({"_id": bson.ObjectId(task_id)})
-            if not task:
-                return build_ret(ErrorMsg.NotFoundTask, {"task_id": task_id})
-
-            task_name = task.get('name', 'ICP查询任务')
-
-            # 校验所属集团
-            group_name = ""
-            if group_id:
-                try:
-                    group = conn_db('asset_group').find_one({"_id": bson.ObjectId(group_id)})
-                    if group:
-                        group_name = group.get('name', '')
-                    else:
-                        group_id = ""
-                except Exception:
-                    group_id = ""
-
-            # 查出当前任务下所有 web 查询的资产 (只取网站)
-            assets = list(conn_db('icp_asset').find({"task_id": task_id, "query_type": "web"}))
-            domains = set()
-            for asset in assets:
-                d = asset.get('domain') or asset.get('ym')
-                if d and isinstance(d, str):
-                    domains.add(d.strip())
-
-            # 若前端指定了勾选的特定域名列表，则精准过滤
-            if isinstance(selected_domains, list) and len(selected_domains) > 0:
-                selected_set = {str(d).strip().lower() for d in selected_domains if str(d).strip()}
-                domains = {d for d in domains if d.lower() in selected_set}
-
-            if not domains:
-                return build_ret(ErrorMsg.Error, {"error": "未发现匹配的网站资产，无法同步"})
-
-            final_scope_id = None
-            task_triggered_count = 0
-
-            # 封装生成 domain_status 的元数据辅助函数
-            def build_domain_meta(existing_meta=None):
-                meta = existing_meta if isinstance(existing_meta, dict) else {}
-                meta.update({
-                    "status": meta.get("status", "unprobed"),
-                    "sync_source": "icp",
-                    "task_id": str(task["_id"]),
-                    "task_name": task_name,
-                    "sync_time": curr_date()
-                })
-                return meta
-
-            if mode == 'existing' and scope_id:
-                # 关联已有资产
-                scope = conn_db('asset_scope').find_one({"_id": bson.ObjectId(scope_id)})
-                if not scope:
-                    return build_ret(ErrorMsg.Error, {"error": "指定的资产组不存在"})
-                final_scope_id = str(scope["_id"])
-                old_array = scope.get("scope_array", [])
-                
-                # Calculate duplicates and new additions
-                old_set = set(old_array)
-                duplicates = domains.intersection(old_set)
-                duplicate_count = len(duplicates)
-                new_additions = domains - old_set
-                insert_count = len(new_additions)
-                
-                new_array = list(old_set | domains)
-                old_domain_array = scope.get("domain_array")
-                if old_domain_array is None:
-                    old_domain_array = old_array if scope.get("scope_type", "domain") == "domain" else []
-                new_domain_array = list(set(old_domain_array) | domains)
-
-                domain_status = scope.get("domain_status", {})
-                if not isinstance(domain_status, dict):
-                    domain_status = {}
-
-                for d in domains:
-                    domain_status[d] = build_domain_meta(domain_status.get(d))
-
-                update_fields = {
-                    "scope_array": new_array,
-                    "scope": ",".join(new_array),
-                    "domain_array": new_domain_array,
-                    "domain_status": domain_status
-                }
-                # 若已有资产组未分配集团，且同步时指定了集团，则补充绑定
-                if group_id and not scope.get('group_id'):
-                    update_fields["group_id"] = group_id
-                    update_fields["group_name"] = group_name
-
-                conn_db('asset_scope').update_one(
-                    {"_id": scope["_id"]},
-                    {"$set": update_fields}
-                )
-                target_name = scope.get('name')
-                if not group_name:
-                    group_name = scope.get('group_name', '')
-            else:
-                # 新建资产组
-                if not target_name:
-                    target_name = task_name
-
-                # 检查是否同名，不再限制 scope_type
-                scope = conn_db('asset_scope').find_one({"name": target_name})
-                if scope:
-                    final_scope_id = str(scope["_id"])
-                    old_array = scope.get("scope_array", [])
-                    
-                    old_set = set(old_array)
-                    duplicates = domains.intersection(old_set)
-                    duplicate_count = len(duplicates)
-                    new_additions = domains - old_set
-                    insert_count = len(new_additions)
-
-                    new_array = list(old_set | domains)
-                    old_domain_array = scope.get("domain_array")
-                    if old_domain_array is None:
-                        old_domain_array = old_array if scope.get("scope_type", "domain") == "domain" else []
-                    new_domain_array = list(set(old_domain_array) | domains)
-
-                    domain_status = scope.get("domain_status", {})
-                    if not isinstance(domain_status, dict):
-                        domain_status = {}
-
-                    for d in domains:
-                        domain_status[d] = build_domain_meta(domain_status.get(d))
-
-                    update_fields = {
-                        "scope_array": new_array,
-                        "scope": ",".join(new_array),
-                        "domain_array": new_domain_array,
-                        "domain_status": domain_status
-                    }
-                    if group_id and not scope.get('group_id'):
-                        update_fields["group_id"] = group_id
-                        update_fields["group_name"] = group_name
-
-                    conn_db('asset_scope').update_one(
-                        {"_id": scope["_id"]},
-                        {"$set": update_fields}
-                    )
-                    if not group_name:
-                        group_name = scope.get('group_name', '')
-                else:
-                    new_array = list(domains)
-                    new_additions = set(domains)
-                    insert_count = len(domains)
-                    duplicate_count = 0
-                    
-                    domain_status = {}
-                    for d in domains:
-                        domain_status[d] = build_domain_meta()
-
-                    scope_data = {
-                        "name": target_name,
-                        "group_id": group_id,
-                        "group_name": group_name,
-                        "scope_type": "mixed",
-                        "scope": ",".join(new_array),
-                        "scope_array": new_array,
-                        "domain_array": new_array,
-                        "domain_status": domain_status,
-                        "ip_array": []
-                    }
-                    insert_res = conn_db('asset_scope').insert_one(scope_data)
-                    final_scope_id = str(insert_res.inserted_id)
-
-            # 回写 icp_task 最近同步状态
-            conn_db('icp_task').update_one(
-                {"_id": task["_id"]},
-                {"$set": {
-                    "synced_scope_id": final_scope_id,
-                    "synced_scope_name": target_name,
-                    "synced_group_name": group_name,
-                    "synced_at": curr_date()
-                }}
-            )
-
-            # 如果用户勾选了自动下发任务且存在新增域名
-            if auto_scan and policy_id and new_additions and final_scope_id:
-                try:
-                    task_triggered_count = trigger_scope_domain_scan(
-                        scope_id=final_scope_id,
-                        domains=list(new_additions),
-                        policy_id=policy_id,
-                        task_type=task_type,
-                        interval=interval_hours * 3600
-                    )
-                except Exception as e:
-                    logger.error(f"Auto trigger scan error after sync: {e}")
-
-            return build_ret(ErrorMsg.Success, {
-                "msg": f"成功同步了 {len(domains)} 个域名到资产分组 '{target_name}'",
-                "insert_count": insert_count,
-                "duplicate_count": duplicate_count,
-                "task_triggered_count": task_triggered_count,
-                "new_domains": list(new_additions),
-                "target_name": target_name,
-                "scope_id": final_scope_id,
-                "group_id": group_id,
-                "group_name": group_name,
-                "mode": mode
-            })
+            ok, err_code, payload = perform_icp_sync(task_id, args)
+            if not ok:
+                return build_ret(err_code, payload)
+            return build_ret(ErrorMsg.Success, payload)
         except Exception as e:
+            logger.exception(e)
             return build_ret(ErrorMsg.Error, {"error": str(e)})
+

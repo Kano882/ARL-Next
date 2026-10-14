@@ -1127,6 +1127,44 @@ def heal_stale_updating_icp_tasks():
         logging.getLogger().error(f"heal_stale_updating_icp_tasks failed: {e}")
 
 
+def migrate_icp_auto_group_intent():
+    """
+    平滑兼容存量企业测绘任务：补齐自动纳管建组意图字段。
+
+    背景：自动建组原先由前端浏览器页面轮询驱动，现已下沉至后端调度器
+    (app/scheduler.py 的 icp_auto_group_scheduler)。存量任务缺少 auto_group 等字段，
+    若不补齐，升级前已下发且仍在排队/运行的任务完成后将不会被自动建组。
+
+    此处仅对「非终态」任务补齐 auto_group=True（保持与旧行为一致：向导默认开启自动建组），
+    已完成/失败/停止的历史任务不做补写，避免升级后批量触发历史建组。
+    """
+    try:
+        icp_task_col = conn_db('icp_task')
+        # 仅补齐仍可能完成的在途任务（waiting / running），且尚未声明过该字段
+        result = icp_task_col.update_many(
+            {
+                "status": {"$in": ["waiting", "running"]},
+                "auto_group": {"$exists": False}
+            },
+            {"$set": {
+                "auto_group": True,
+                "auto_group_scan": False,
+                "auto_group_task_type": "oneshot",
+                "auto_group_policy_id": "",
+                "auto_group_interval_hours": 24,
+                "group_id": ""
+            }}
+        )
+        if result.modified_count:
+            import logging
+            logging.getLogger().info(
+                f"migrate_icp_auto_group_intent: backfilled {result.modified_count} in-flight icp tasks"
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger().error(f"migrate_icp_auto_group_intent failed: {e}")
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -1198,6 +1236,7 @@ def arl_update():
         _run_step("normalize_threat_radar_configs", normalize_threat_radar_configs)
         _run_step("update_policy_schema", update_policy_schema)
         _run_step("heal_stale_updating_icp_tasks", heal_stale_updating_icp_tasks)
+        _run_step("migrate_icp_auto_group_intent", migrate_icp_auto_group_intent)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:
         import logging
