@@ -85,6 +85,13 @@ def main():
     ap.add_argument("--loopback", help="已建立到服务端的本地端口转发地址（如 https://127.0.0.1:5173）")
     args = ap.parse_args()
 
+    # 子进程以隔离工作目录为 cwd，客户端路径必须先转为绝对路径，
+    # 否则导入时会按 cwd 解析而找不到文件。
+    args.old = os.path.abspath(args.old)
+    args.new = os.path.abspath(args.new)
+    if args.cert:
+        args.cert = os.path.abspath(args.cert)
+
     dead = "deadbeef" * 6
     workdir = tempfile.mkdtemp(prefix="arl56-matrix-")
     print(f"工作目录: {workdir}（凭据经 ARL_auth.md 解析，与生产一致）")
