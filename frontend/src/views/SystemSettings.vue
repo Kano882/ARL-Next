@@ -1,11 +1,11 @@
 <template>
-  <div style="padding: 24px; background: var(--arl-bg-white); min-height: 100%;">
-    
-
+  <div class="arl-page-container">
     <a-tabs v-model:activeKey="activeKey">
-      <!-- 统一字典管理 Tab -->
-      <a-tab-pane key="dictionary" tab="字典管理">
-        <a-spin :spinning="loading || bruteLoading">
+      <!-- 统一字典与规则库 Tab -->
+      <a-tab-pane key="dictionary" tab="字典与规则库">
+        <a-tabs v-model:activeKey="dictSubTab" type="card" class="dict-sub-tabs" style="margin-bottom: 16px;">
+          <a-tab-pane key="dict" tab="📖 通用文本字典 (资产 / 弱口令)">
+            <a-spin :spinning="loading || bruteLoading">
             <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> <!-- 左侧语义化菜单与独立滚动 -->
             <div style="width: 256px; flex-shrink: 0; border-right: 1px solid var(--arl-border-color); background: var(--arl-bg-white); display: flex; flex-direction: column;">
               <div style="padding: 16px; border-bottom: 1px solid var(--arl-border-color); display: flex; align-items: center; min-height: 64px; box-sizing: border-box;">
@@ -327,8 +327,7 @@ admin123
         </a-drawer>
       </a-tab-pane>
 
-      <!-- CDN 字典管理 Tab -->
-      <a-tab-pane key="cdn" tab="CDN字典管理" force-render>
+      <a-tab-pane key="cdn" tab="🌐 CDN 特征与规则字典" force-render>
         <a-spin :spinning="cdnLoading">
           <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> 
             
@@ -517,6 +516,8 @@ admin123
             </div>
           </div>
         </a-drawer>
+          </a-tab-pane>
+        </a-tabs>
       </a-tab-pane>
 
       <!-- 安全策略管理 Tab -->
@@ -702,7 +703,12 @@ admin123
               <a-row :gutter="16">
                 <!-- 2. 企业与代码监控 (左半边) -->
                 <a-col :span="12">
-                  <a-card title="🏢 企业资产查询 (天眼查)" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 190px;">
+                  <a-card title="🏢 企业全景测绘凭据 (天眼查 API)" size="small" style="margin-bottom: 16px; border-radius: 6px; min-height: 190px;">
+                    <template #extra>
+                      <a-tooltip title="选配项。配置后支持投资控股树深度穿透与工信部双轨校对；未配置时系统仍可通过工信部 ICP 备案数据进行资产归集。">
+                        <info-circle-outlined style="color: #bfbfbf;" />
+                      </a-tooltip>
+                    </template>
                     <a-form-item label="天眼查 ID (X-Tycid)" style="margin-bottom: 12px;">
                       <a-input v-model:value="generalForm.tyc_id" placeholder="请输入天眼查 ID" />
                     </a-form-item>
@@ -1119,8 +1125,8 @@ admin123
 
 <script setup>
 defineOptions({ name: 'SystemSettings' });
-import { InfoCircleOutlined } from '@ant-design/icons-vue';
-import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, watch } from 'vue';
+import { InfoCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
+import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, watch, createVNode } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
 import { copyText } from '@/utils/clipboard';
@@ -1132,6 +1138,7 @@ const reloadPage = () => {
 
 const route = useRoute();
 const activeKey = ref('dictionary');
+const dictSubTab = ref('dict');
 const loading = ref(false);
 const searchLoading = ref(false);
 const submitLoading = ref(false);
@@ -1738,13 +1745,25 @@ const handleAppendAndClose = async () => {
   if (ok) appendDrawerVisible.value = false;
 };
 
-const handleDeleteBatchCustom = async () => {
+const handleDeleteBatchCustom = () => {
   if (!batchDeleteEntries.value.trim()) return;
-  const ok = await deleteEntries(batchDeleteEntries.value);
-  if (ok) {
-    batchDeleteEntries.value = '';
-    searchDrawerVisible.value = false;
-  }
+  const entryCount = batchDeleteEntries.value.split('\n').map(x => x.trim()).filter(Boolean).length;
+  Modal.confirm({
+    title: '批量删除字典条目确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认从当前字典中删除提交的 ${entryCount} 条条目吗？未匹配的条目不生效。`,
+    okText: '确认删除',
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: async () => {
+      const ok = await deleteEntries(batchDeleteEntries.value);
+      if (ok) {
+        batchDeleteEntries.value = '';
+        searchDrawerVisible.value = false;
+      }
+      return ok;
+    }
+  });
 };
 
 // 分类选择状态（默认对齐首个分类的唯一分组 key）
@@ -2001,26 +2020,49 @@ const handleAppend = async () => {
 
 
 // 单条删除
-const handleDeleteSingle = async (item) => {
+const handleDeleteSingle = (item) => {
   if (!item) return false;
-  const ok = await deleteEntries(item);
-  if (ok && searchResult.value) {
-    searchResult.value = searchResult.value.filter(x => x !== item);
-  }
-  return ok;
+  Modal.confirm({
+    title: '删除字典条目确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认从当前字典中删除条目「${item}」吗？`,
+    okText: '确认删除',
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: async () => {
+      const ok = await deleteEntries(item);
+      if (ok && searchResult.value) {
+        searchResult.value = searchResult.value.filter(x => x !== item);
+      }
+      return ok;
+    }
+  });
+  return true;
 };
 
 // 删除选中字典文件
-const handleDeleteDict = async () => {
+const handleDeleteDict = () => {
   if (!selectedDict.value) return;
-  
+  const targetName = selectedDict.value;
+  Modal.confirm({
+    title: '删除字典文件确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认删除字典文件「${targetName}」及其全部条目吗？此操作不可恢复。`,
+    okText: '确认删除',
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: () => executeDeleteDict(targetName)
+  });
+};
+
+const executeDeleteDict = async (targetName) => {
   loading.value = true;
   try {
     const res = await request.post(`${dictApiBase.value}/delete_file`, {
-      name: selectedDict.value
+      name: targetName
     });
     if (res.code === 200) {
-      message.success(`字典 ${selectedDict.value} 删除成功！`);
+      message.success(`字典 ${targetName} 删除成功！`);
       // 重置选中状态
       unifiedSelectedKeys.value = [];
       selectedDict.value = '';
@@ -2655,7 +2697,12 @@ const scrollToBottom = () => {
 
 onMounted(() => {
   if (route.query.tab) {
-    activeKey.value = route.query.tab;
+    if (route.query.tab === 'cdn') {
+      activeKey.value = 'dictionary';
+      dictSubTab.value = 'cdn';
+    } else {
+      activeKey.value = route.query.tab;
+    }
   }
   checkVersion();
   fetchDictList();

@@ -35,7 +35,276 @@
 
     <!-- 二级 Sub-Tabs -->
     <a-tabs v-model:activeKey="innerTab" type="card" class="nuclei-inner-tabs">
-      <!-- 1. 自建模板库 -->
+      <!-- 1. 社区模板库 (只读检索) -->
+      <a-tab-pane key="community" tab="社区模板库 (只读检索)">
+        <div class="tab-content-wrapper">
+          <div class="filter-bar-row">
+            <div class="filter-item">
+              <span class="filter-label">关键词 / CVE：</span>
+              <a-input v-model:value="communitySearch.search" placeholder="输入 CVE 或名称进行检索" style="width: 240px;" allowClear @pressEnter="onSearchCommunity" />
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">危害级别：</span>
+              <a-select v-model:value="communitySearch.severity" style="width: 130px;" allowClear placeholder="全部级别" @change="onSearchCommunity">
+                <a-select-option value="critical">严重 (Critical)</a-select-option>
+                <a-select-option value="high">高危 (High)</a-select-option>
+                <a-select-option value="medium">中危 (Medium)</a-select-option>
+                <a-select-option value="low">低危 (Low)</a-select-option>
+                <a-select-option value="info">信息 (Info)</a-select-option>
+              </a-select>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">扫描状态：</span>
+              <a-select v-model:value="communitySearch.blacklist_status" style="width: 140px;" placeholder="全部状态" @change="onSearchCommunity">
+                <a-select-option value="all">全部模板</a-select-option>
+                <a-select-option value="normal">正常扫描</a-select-option>
+                <a-select-option value="blacklisted">已屏蔽(误报)</a-select-option>
+              </a-select>
+            </div>
+            <div class="filter-actions">
+              <a-button type="primary" @click="onSearchCommunity"><template #icon><search-outlined /></template>查 询</a-button>
+              <a-button @click="resetSearchCommunity">重 置</a-button>
+            </div>
+
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+              <!-- 同步状态指示 -->
+              <a-tag v-if="syncStatus.status === 'syncing'" color="processing" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
+                <template #icon><sync-outlined spin /></template>
+                官方模板加速同步中...
+              </a-tag>
+              <a-tag v-else-if="syncStatus.status === 'success'" color="success" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
+                <template #icon><check-circle-outlined /></template>
+                同步已完成 ({{ syncStatus.diff_count >= 0 ? '+' : '' }}{{ syncStatus.diff_count }}条)
+              </a-tag>
+              <a-tag v-else-if="syncStatus.status === 'failed'" color="error" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
+                <template #icon><close-circle-outlined /></template>
+                同步异常 (点击查看)
+              </a-tag>
+
+              <!-- 查看日志按钮 -->
+              <a-button type="link" size="small" style="padding: 0 4px;" @click="openSyncLogModal">
+                <template #icon><file-text-outlined /></template>
+                查看同步日志
+              </a-button>
+
+              <!-- 在线同步按钮 -->
+              <a-popconfirm
+                title="确认启动官方模板库加速同步吗？系统将自动通过镜像加速通道更新至最新版本。"
+                ok-text="确认同步"
+                cancel-text="取消"
+                @confirm="handleSyncCommunity"
+              >
+                <a-button type="primary" :loading="syncStatus.status === 'syncing'">
+                  <template #icon><sync-outlined /></template>
+                  同步最新官方版本
+                </a-button>
+              </a-popconfirm>
+
+              <!-- 离线更新包按钮 -->
+              <a-button @click="isOfflineModalVisible = true">
+                <template #icon><cloud-upload-outlined /></template>
+                离线更新包
+              </a-button>
+            </div>
+          </div>
+
+          <!-- 社区模板表格 -->
+          <a-table
+            :loading="communityLoading"
+            :dataSource="communityList"
+            :columns="communityColumns"
+            :pagination="false"
+            size="middle"
+            :rowKey="(record) => record.file_path || record.template_id"
+          >
+            <template #bodyCell="{ column, record, index }">
+              <template v-if="column.key === 'index'">
+                <span>{{ (communityPagination.current - 1) * communityPagination.pageSize + index + 1 }}</span>
+              </template>
+              <template v-if="column.key === 'template_id'">
+                <span style="font-family: monospace; font-weight: 600;">{{ record.template_id }}</span>
+              </template>
+              <template v-if="column.key === 'severity'">
+                <a-tag :color="getSeverityColor(record.severity)" style="font-weight: 500; text-transform: uppercase;">
+                  {{ record.severity || 'UNKNOWN' }}
+                </a-tag>
+              </template>
+              <template v-if="column.key === 'status'">
+                <a-tooltip v-if="record.is_blacklisted" :title="record.blacklist_reason ? `屏蔽原因: ${record.blacklist_reason}` : '已加入误报黑名单，扫描不执行'">
+                  <a-tag color="orange" style="cursor: pointer;">已屏蔽 (误报)</a-tag>
+                </a-tooltip>
+                <a-tag v-else color="blue">正常扫描</a-tag>
+              </template>
+              <template v-if="column.key === 'file_path'">
+                <span style="font-family: monospace; font-size: 12px; color: var(--arl-text-color); opacity: 0.65;">
+                  {{ record.file_path }}
+                </span>
+              </template>
+              <template v-if="column.key === 'action'">
+                <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
+                  <a @click="viewCommunitySource(record)">
+                    <file-text-outlined /> 查看 YAML
+                  </a>
+                  <a-popconfirm
+                    v-if="record.is_blacklisted"
+                    title="确认解除该模板的误报屏蔽（恢复参与扫描）吗？"
+                    ok-text="解除屏蔽"
+                    cancel-text="取消"
+                    @confirm="handleRemoveBlacklist(record.template_id)"
+                  >
+                    <a style="color: #52c41a;"><check-outlined /> 解除屏蔽</a>
+                  </a-popconfirm>
+                  <a v-else style="color: #fa8c16;" @click="openMarkBlacklistModal(record)">
+                    <stop-outlined /> 标记误报
+                  </a>
+                </div>
+              </template>
+            </template>
+          </a-table>
+
+          <!-- 分页器 -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
+            <div style="color: var(--arl-text-color); opacity: 0.65;">
+              共 {{ Math.ceil(communityPagination.total / communityPagination.pageSize) || 1 }} 页 / {{ communityPagination.total }} 条数据
+            </div>
+            <a-pagination
+              :pageSizeOptions="$pageSizeOptions"
+              v-model:current="communityPagination.current"
+              v-model:pageSize="communityPagination.pageSize"
+              :total="communityPagination.total"
+              show-size-changer
+              @change="fetchCommunityTemplates"
+            />
+          </div>
+        </div>
+      </a-tab-pane>
+
+      <!-- 2. 误报黑名单 (集中治理) -->
+      <a-tab-pane key="blacklist" tab="误报黑名单 (集中治理)">
+        <div class="tab-content-wrapper">
+          <!-- 顶部操作栏 -->
+          <div class="action-bar-row">
+            <a-button type="primary" @click="openAddBlacklistModal">
+              <template #icon><plus-outlined /></template>
+              手动录入误报
+            </a-button>
+            <a-popconfirm
+              title="确认将选中的模板从误报黑名单移除（恢复参与扫描）吗？"
+              ok-text="确认移除"
+              cancel-text="取消"
+              @confirm="handleBatchRemoveBlacklist"
+              :disabled="blacklistSelectedRowKeys.length === 0"
+            >
+              <a-button danger :disabled="blacklistSelectedRowKeys.length === 0">
+                <template #icon><delete-outlined /></template>
+                批量解除屏蔽
+              </a-button>
+            </a-popconfirm>
+            <div style="margin-left: auto; color: var(--arl-text-color); opacity: 0.65; font-size: 13px;">
+              💡 提示：被屏蔽的模板将在后续全站所有 Nuclei 扫描任务中自动排除（通过引擎原生 -eid 临时清单注入，零篡改模板文件）
+            </div>
+          </div>
+
+          <!-- 搜索过滤栏 -->
+          <div class="filter-bar-row">
+            <div class="filter-item">
+              <span class="filter-label">关键词：</span>
+              <a-input v-model:value="blacklistSearch.search" placeholder="输入 ID、名称或误报原因" style="width: 240px;" allowClear @pressEnter="onSearchBlacklist" />
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">危害级别：</span>
+              <a-select v-model:value="blacklistSearch.severity" style="width: 130px;" allowClear placeholder="全部级别" @change="onSearchBlacklist">
+                <a-select-option value="critical">严重 (Critical)</a-select-option>
+                <a-select-option value="high">高危 (High)</a-select-option>
+                <a-select-option value="medium">中危 (Medium)</a-select-option>
+                <a-select-option value="low">低危 (Low)</a-select-option>
+                <a-select-option value="info">信息 (Info)</a-select-option>
+              </a-select>
+            </div>
+            <div class="filter-actions">
+              <a-button type="primary" @click="onSearchBlacklist"><template #icon><search-outlined /></template>查 询</a-button>
+              <a-button @click="resetSearchBlacklist">重 置</a-button>
+            </div>
+          </div>
+
+          <!-- 黑名单数据表格 -->
+          <a-table
+            :loading="blacklistLoading"
+            :dataSource="blacklistItems"
+            :columns="blacklistColumns"
+            :pagination="false"
+            size="middle"
+            :rowKey="(record) => record.template_id"
+            :rowSelection="{ selectedRowKeys: blacklistSelectedRowKeys, onChange: onBlacklistSelectChange, preserveSelectedRowKeys: true }"
+          >
+            <template #bodyCell="{ column, record, index }">
+              <template v-if="column.key === 'index'">
+                <span>{{ (blacklistPagination.current - 1) * blacklistPagination.pageSize + index + 1 }}</span>
+              </template>
+              <template v-if="column.key === 'template_id'">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-family: monospace; font-weight: 600; color: #fa8c16;">{{ record.template_id }}</span>
+                  <a-tooltip title="复制模板 ID">
+                    <copy-outlined style="cursor: pointer; opacity: 0.5; font-size: 12px;" @click="copyText(record.template_id)" />
+                  </a-tooltip>
+                </div>
+              </template>
+              <template v-if="column.key === 'name'">
+                <span style="font-weight: 500;">{{ record.name }}</span>
+              </template>
+              <template v-if="column.key === 'severity'">
+                <a-tag :color="getSeverityColor(record.severity)" style="font-weight: 500; text-transform: uppercase;">
+                  {{ record.severity || 'UNKNOWN' }}
+                </a-tag>
+              </template>
+              <template v-if="column.key === 'reason'">
+                <span style="color: var(--arl-text-color); font-size: 13px;">{{ record.reason || '手工标记误报' }}</span>
+              </template>
+              <template v-if="column.key === 'created_at'">
+                <span style="font-size: 12px; opacity: 0.7;">{{ record.created_at || '-' }}</span>
+              </template>
+              <template v-if="column.key === 'action'">
+                <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
+                  <a @click="viewCommunitySource(record)">
+                    <file-text-outlined /> 查看 YAML
+                  </a>
+                  <a-popconfirm
+                    title="确认将该模板移出误报黑名单（恢复参与扫描）吗？"
+                    ok-text="解除屏蔽"
+                    cancel-text="取消"
+                    @confirm="handleRemoveBlacklist(record.template_id)"
+                  >
+                    <a style="color: #52c41a;"><check-outlined /> 解除屏蔽</a>
+                  </a-popconfirm>
+                </div>
+              </template>
+            </template>
+            <template #emptyText>
+              <div style="padding: 40px 0;">
+                <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
+                <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无被屏蔽的误报模板，扫描将使用官方推荐规则执行</div>
+              </div>
+            </template>
+          </a-table>
+
+          <!-- 分页器 -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
+            <div style="color: var(--arl-text-color); opacity: 0.65;">
+              共 {{ Math.ceil(blacklistPagination.total / blacklistPagination.pageSize) || 1 }} 页 / {{ blacklistPagination.total }} 条被屏蔽规则
+            </div>
+            <a-pagination
+              :pageSizeOptions="$pageSizeOptions"
+              v-model:current="blacklistPagination.current"
+              v-model:pageSize="blacklistPagination.pageSize"
+              :total="blacklistPagination.total"
+              show-size-changer
+              @change="fetchBlacklist"
+            />
+          </div>
+        </div>
+      </a-tab-pane>
+
+      <!-- 3. 自建模板库 (工作台) -->
       <a-tab-pane key="custom" tab="自建模板库 (工作台)">
         <div class="tab-content-wrapper">
           <!-- 顶部操作栏 -->
@@ -193,275 +462,6 @@
               :total="customPagination.total"
               show-size-changer
               @change="fetchCustomTemplates"
-            />
-          </div>
-        </div>
-      </a-tab-pane>
-
-      <!-- 2. 社区模板库 (只读检索) -->
-      <a-tab-pane key="community" tab="社区模板库 (只读检索)">
-        <div class="tab-content-wrapper">
-          <div class="filter-bar-row">
-            <div class="filter-item">
-              <span class="filter-label">关键词 / CVE：</span>
-              <a-input v-model:value="communitySearch.search" placeholder="输入 CVE 或名称进行检索" style="width: 240px;" allowClear @pressEnter="onSearchCommunity" />
-            </div>
-            <div class="filter-item">
-              <span class="filter-label">危害级别：</span>
-              <a-select v-model:value="communitySearch.severity" style="width: 130px;" allowClear placeholder="全部级别" @change="onSearchCommunity">
-                <a-select-option value="critical">严重 (Critical)</a-select-option>
-                <a-select-option value="high">高危 (High)</a-select-option>
-                <a-select-option value="medium">中危 (Medium)</a-select-option>
-                <a-select-option value="low">低危 (Low)</a-select-option>
-                <a-select-option value="info">信息 (Info)</a-select-option>
-              </a-select>
-            </div>
-            <div class="filter-item">
-              <span class="filter-label">扫描状态：</span>
-              <a-select v-model:value="communitySearch.blacklist_status" style="width: 140px;" placeholder="全部状态" @change="onSearchCommunity">
-                <a-select-option value="all">全部模板</a-select-option>
-                <a-select-option value="normal">正常扫描</a-select-option>
-                <a-select-option value="blacklisted">已屏蔽(误报)</a-select-option>
-              </a-select>
-            </div>
-            <div class="filter-actions">
-              <a-button type="primary" @click="onSearchCommunity"><template #icon><search-outlined /></template>查 询</a-button>
-              <a-button @click="resetSearchCommunity">重 置</a-button>
-            </div>
-
-            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-              <!-- 同步状态指示 -->
-              <a-tag v-if="syncStatus.status === 'syncing'" color="processing" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
-                <template #icon><sync-outlined spin /></template>
-                官方模板加速同步中...
-              </a-tag>
-              <a-tag v-else-if="syncStatus.status === 'success'" color="success" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
-                <template #icon><check-circle-outlined /></template>
-                同步已完成 ({{ syncStatus.diff_count >= 0 ? '+' : '' }}{{ syncStatus.diff_count }}条)
-              </a-tag>
-              <a-tag v-else-if="syncStatus.status === 'failed'" color="error" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
-                <template #icon><close-circle-outlined /></template>
-                同步异常 (点击查看)
-              </a-tag>
-
-              <!-- 查看日志按钮 -->
-              <a-button type="link" size="small" style="padding: 0 4px;" @click="openSyncLogModal">
-                <template #icon><file-text-outlined /></template>
-                查看同步日志
-              </a-button>
-
-              <!-- 在线同步按钮 -->
-              <a-popconfirm
-                title="确认启动官方模板库加速同步吗？系统将自动通过镜像加速通道更新至最新版本。"
-                ok-text="确认同步"
-                cancel-text="取消"
-                @confirm="handleSyncCommunity"
-              >
-                <a-button type="primary" :loading="syncStatus.status === 'syncing'">
-                  <template #icon><sync-outlined /></template>
-                  同步最新官方版本
-                </a-button>
-              </a-popconfirm>
-
-              <!-- 离线更新包按钮 -->
-              <a-button @click="isOfflineModalVisible = true">
-                <template #icon><cloud-upload-outlined /></template>
-                离线更新包
-              </a-button>
-            </div>
-          </div>
-
-          <!-- 社区模板表格 -->
-          <a-table
-            :loading="communityLoading"
-            :dataSource="communityList"
-            :columns="communityColumns"
-            :pagination="false"
-            size="middle"
-            :rowKey="(record) => record.file_path || record.template_id"
-          >
-            <template #bodyCell="{ column, record, index }">
-              <template v-if="column.key === 'index'">
-                <span>{{ (communityPagination.current - 1) * communityPagination.pageSize + index + 1 }}</span>
-              </template>
-              <template v-if="column.key === 'template_id'">
-                <span style="font-family: monospace; font-weight: 600;">{{ record.template_id }}</span>
-              </template>
-              <template v-if="column.key === 'severity'">
-                <a-tag :color="getSeverityColor(record.severity)" style="font-weight: 500; text-transform: uppercase;">
-                  {{ record.severity || 'UNKNOWN' }}
-                </a-tag>
-              </template>
-              <template v-if="column.key === 'status'">
-                <a-tooltip v-if="record.is_blacklisted" :title="record.blacklist_reason ? `屏蔽原因: ${record.blacklist_reason}` : '已加入误报黑名单，扫描不执行'">
-                  <a-tag color="orange" style="cursor: pointer;">已屏蔽 (误报)</a-tag>
-                </a-tooltip>
-                <a-tag v-else color="blue">正常扫描</a-tag>
-              </template>
-              <template v-if="column.key === 'file_path'">
-                <span style="font-family: monospace; font-size: 12px; color: var(--arl-text-color); opacity: 0.65;">
-                  {{ record.file_path }}
-                </span>
-              </template>
-              <template v-if="column.key === 'action'">
-                <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
-                  <a @click="viewCommunitySource(record)">
-                    <file-text-outlined /> 查看 YAML
-                  </a>
-                  <a-popconfirm
-                    v-if="record.is_blacklisted"
-                    title="确认解除该模板的误报屏蔽（恢复参与扫描）吗？"
-                    ok-text="解除屏蔽"
-                    cancel-text="取消"
-                    @confirm="handleRemoveBlacklist(record.template_id)"
-                  >
-                    <a style="color: #52c41a;"><check-outlined /> 解除屏蔽</a>
-                  </a-popconfirm>
-                  <a v-else style="color: #fa8c16;" @click="openMarkBlacklistModal(record)">
-                    <stop-outlined /> 标记误报
-                  </a>
-                </div>
-              </template>
-            </template>
-          </a-table>
-
-          <!-- 分页器 -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
-            <div style="color: var(--arl-text-color); opacity: 0.65;">
-              共 {{ Math.ceil(communityPagination.total / communityPagination.pageSize) || 1 }} 页 / {{ communityPagination.total }} 条数据
-            </div>
-            <a-pagination
-              :pageSizeOptions="$pageSizeOptions"
-              v-model:current="communityPagination.current"
-              v-model:pageSize="communityPagination.pageSize"
-              :total="communityPagination.total"
-              show-size-changer
-              @change="fetchCommunityTemplates"
-            />
-          </div>
-        </div>
-      </a-tab-pane>
-
-      <!-- 3. 误报黑名单 (Blacklist 集中治理) -->
-      <a-tab-pane key="blacklist" tab="误报黑名单 (集中治理)">
-        <div class="tab-content-wrapper">
-          <!-- 顶部操作栏 -->
-          <div class="action-bar-row">
-            <a-button type="primary" @click="openAddBlacklistModal">
-              <template #icon><plus-outlined /></template>
-              手动录入误报
-            </a-button>
-            <a-popconfirm
-              title="确认将选中的模板从误报黑名单移除（恢复参与扫描）吗？"
-              ok-text="确认移除"
-              cancel-text="取消"
-              @confirm="handleBatchRemoveBlacklist"
-              :disabled="blacklistSelectedRowKeys.length === 0"
-            >
-              <a-button danger :disabled="blacklistSelectedRowKeys.length === 0">
-                <template #icon><delete-outlined /></template>
-                批量解除屏蔽
-              </a-button>
-            </a-popconfirm>
-            <div style="margin-left: auto; color: var(--arl-text-color); opacity: 0.65; font-size: 13px;">
-              💡 提示：被屏蔽的模板将在后续全站所有 Nuclei 扫描任务中自动排除（通过引擎原生 -eid 临时清单注入，零篡改模板文件）
-            </div>
-          </div>
-
-          <!-- 搜索过滤栏 -->
-          <div class="filter-bar-row">
-            <div class="filter-item">
-              <span class="filter-label">关键词：</span>
-              <a-input v-model:value="blacklistSearch.search" placeholder="输入 ID、名称或误报原因" style="width: 240px;" allowClear @pressEnter="onSearchBlacklist" />
-            </div>
-            <div class="filter-item">
-              <span class="filter-label">危害级别：</span>
-              <a-select v-model:value="blacklistSearch.severity" style="width: 130px;" allowClear placeholder="全部级别" @change="onSearchBlacklist">
-                <a-select-option value="critical">严重 (Critical)</a-select-option>
-                <a-select-option value="high">高危 (High)</a-select-option>
-                <a-select-option value="medium">中危 (Medium)</a-select-option>
-                <a-select-option value="low">低危 (Low)</a-select-option>
-                <a-select-option value="info">信息 (Info)</a-select-option>
-              </a-select>
-            </div>
-            <div class="filter-actions">
-              <a-button type="primary" @click="onSearchBlacklist"><template #icon><search-outlined /></template>查 询</a-button>
-              <a-button @click="resetSearchBlacklist">重 置</a-button>
-            </div>
-          </div>
-
-          <!-- 黑名单数据表格 -->
-          <a-table
-            :loading="blacklistLoading"
-            :dataSource="blacklistItems"
-            :columns="blacklistColumns"
-            :pagination="false"
-            size="middle"
-            :rowKey="(record) => record.template_id"
-            :rowSelection="{ selectedRowKeys: blacklistSelectedRowKeys, onChange: onBlacklistSelectChange, preserveSelectedRowKeys: true }"
-          >
-            <template #bodyCell="{ column, record, index }">
-              <template v-if="column.key === 'index'">
-                <span>{{ (blacklistPagination.current - 1) * blacklistPagination.pageSize + index + 1 }}</span>
-              </template>
-              <template v-if="column.key === 'template_id'">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                  <span style="font-family: monospace; font-weight: 600; color: #fa8c16;">{{ record.template_id }}</span>
-                  <a-tooltip title="复制模板 ID">
-                    <copy-outlined style="cursor: pointer; opacity: 0.5; font-size: 12px;" @click="copyText(record.template_id)" />
-                  </a-tooltip>
-                </div>
-              </template>
-              <template v-if="column.key === 'name'">
-                <span style="font-weight: 500;">{{ record.name }}</span>
-              </template>
-              <template v-if="column.key === 'severity'">
-                <a-tag :color="getSeverityColor(record.severity)" style="font-weight: 500; text-transform: uppercase;">
-                  {{ record.severity || 'UNKNOWN' }}
-                </a-tag>
-              </template>
-              <template v-if="column.key === 'reason'">
-                <span style="color: var(--arl-text-color); font-size: 13px;">{{ record.reason || '手工标记误报' }}</span>
-              </template>
-              <template v-if="column.key === 'created_at'">
-                <span style="font-size: 12px; opacity: 0.7;">{{ record.created_at || '-' }}</span>
-              </template>
-              <template v-if="column.key === 'action'">
-                <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
-                  <a @click="viewCommunitySource(record)">
-                    <file-text-outlined /> 查看 YAML
-                  </a>
-                  <a-popconfirm
-                    title="确认将该模板移出误报黑名单（恢复参与扫描）吗？"
-                    ok-text="解除屏蔽"
-                    cancel-text="取消"
-                    @confirm="handleRemoveBlacklist(record.template_id)"
-                  >
-                    <a style="color: #52c41a;"><check-outlined /> 解除屏蔽</a>
-                  </a-popconfirm>
-                </div>
-              </template>
-            </template>
-            <template #emptyText>
-              <div style="padding: 40px 0;">
-                <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
-                <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无被屏蔽的误报模板，扫描将使用官方推荐规则执行</div>
-              </div>
-            </template>
-          </a-table>
-
-          <!-- 分页器 -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
-            <div style="color: var(--arl-text-color); opacity: 0.65;">
-              共 {{ Math.ceil(blacklistPagination.total / blacklistPagination.pageSize) || 1 }} 页 / {{ blacklistPagination.total }} 条被屏蔽规则
-            </div>
-            <a-pagination
-              :pageSizeOptions="$pageSizeOptions"
-              v-model:current="blacklistPagination.current"
-              v-model:pageSize="blacklistPagination.pageSize"
-              :total="blacklistPagination.total"
-              show-size-changer
-              @change="fetchBlacklist"
             />
           </div>
         </div>
@@ -780,7 +780,7 @@ const uploadHeaders = computed(() => {
 });
 
 // ---------- 页面状态与统计 ----------
-const innerTab = ref('custom');
+const innerTab = ref('community');
 const stats = reactive({
   custom_total: 0,
   custom_enabled: 0,

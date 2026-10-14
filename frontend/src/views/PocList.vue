@@ -1,97 +1,155 @@
 <template>
-  <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <a-tabs v-model:activeKey="mainTab" size="large" style="margin-bottom: 16px;">
+  <div class="arl-page-container">
+    <a-tabs v-model:activeKey="mainTab" size="large" style="margin-bottom: 12px;">
       <a-tab-pane key="arl" tab="ARL 插件 (Python)">
-        <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -16px -24px 16px -24px; padding: 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <!-- 吸顶 Hero 操作卡片 -->
+        <div ref="actionBarRef" class="arl-hero-card">
+          <div class="arl-toolbar-row">
+            <!-- 左侧：紧凑搜索条件与重置 -->
+            <div class="arl-filter-group">
+              <div class="arl-filter-item">
+                <span class="arl-filter-label">漏洞名称：</span>
+                <a-input
+                  v-model:value="searchForm.vul_name"
+                  placeholder="请输入漏洞名称"
+                  style="width: 160px;"
+                  allowClear
+                  size="small"
+                  @pressEnter="onSearch"
+                >
+                  <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+                </a-input>
+              </div>
+              <div class="arl-filter-item">
+                <span class="arl-filter-label">应用：</span>
+                <a-input
+                  v-model:value="searchForm.app_name"
+                  placeholder="请输入应用"
+                  style="width: 140px;"
+                  allowClear
+                  size="small"
+                  @pressEnter="onSearch"
+                >
+                  <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+                </a-input>
+              </div>
+              <div class="arl-filter-item">
+                <span class="arl-filter-label">类别：</span>
+                <a-input
+                  v-model:value="searchForm.category"
+                  placeholder="请输入类别"
+                  style="width: 130px;"
+                  allowClear
+                  size="small"
+                  @pressEnter="onSearch"
+                >
+                  <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+                </a-input>
+              </div>
+              <div class="arl-filter-item">
+                <span class="arl-filter-label">协议：</span>
+                <a-input
+                  v-model:value="searchForm.scheme"
+                  placeholder="请输入协议"
+                  style="width: 120px;"
+                  allowClear
+                  size="small"
+                  @pressEnter="onSearch"
+                >
+                  <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+                </a-input>
+              </div>
 
+              <a-button size="small" @click="resetSearch">
+                <template #icon><undo-outlined /></template>
+                重置
+              </a-button>
+            </div>
 
-    <div style="display: flex; align-items: center; margin-bottom: 20px; gap: 16px;">
-      <a-button type="primary" @click="openCreateModal">新建 PoC</a-button>
-      <a-button type="primary" @click="isImportModalVisible = true">导入 PoC</a-button>
-      <a-button type="primary" @click="downloadTemplate">下载导入模板</a-button>
+            <!-- 右侧：单一主要操作 + 次要操作组 + 批量动作 -->
+            <div class="arl-actions-group">
+              <a-button type="primary" size="small" @click="openCreateModal">
+                <template #icon><plus-outlined /></template>
+                新建 PoC
+              </a-button>
 
-      <a-tooltip title="扫描磁盘并同步 PoC 插件库至数据库">
-        <a-button type="primary" :loading="syncLoading" @click="handleSync">
-          <template #icon><sync-outlined /></template>
-          同步本地插件
-        </a-button>
-      </a-tooltip>
-    </div>
+              <a-button size="small" @click="isImportModalVisible = true">
+                <template #icon><upload-outlined /></template>
+                导入 PoC
+              </a-button>
 
-    <div class="search-row" style="margin-bottom: 16px; ">
-      <div class="search-item">
-        <span class="label">漏洞名称：</span>
-        <a-input v-model:value="searchForm.vul_name" placeholder="请输入漏洞名称进行搜索" style="width: 200px;" allowClear @pressEnter="onSearch">
-          <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-        </a-input>
-      </div>
-      <div class="search-item">
-        <span class="label">应用：</span>
-        <a-input v-model:value="searchForm.app_name" placeholder="请输入应用进行搜索" style="width: 200px;" allowClear @pressEnter="onSearch">
-          <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-        </a-input>
-      </div>
-      <div class="search-item">
-        <span class="label">类别：</span>
-        <a-input v-model:value="searchForm.category" placeholder="请输入类别进行搜索" style="width: 200px;" allowClear @pressEnter="onSearch">
-          <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-        </a-input>
-      </div>
-      <div class="search-item">
-        <span class="label">协议：</span>
-        <a-input v-model:value="searchForm.scheme" placeholder="请输入协议进行搜索" style="width: 200px;" allowClear @pressEnter="onSearch">
-          <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-        </a-input>
-      </div>
-    </div>
+              <a-button size="small" @click="downloadTemplate">
+                <template #icon><download-outlined /></template>
+                下载模板
+              </a-button>
 
-    <div style="margin-bottom: 16px; display: flex; gap: 16px;">
-      <a-button @click="resetSearch">清 除</a-button>
-      <a-popconfirm
-          title="确认批量删除选中的 PoC 吗？"
-          ok-text="确认"
-          cancel-text="取消"
-          @confirm="handleBatchDelete"
-          :disabled="selectedRowKeys.length === 0"
-      >
-        <a-button type="primary" danger :disabled="selectedRowKeys.length === 0" :loading="deleteLoading">批量删除</a-button>
-      </a-popconfirm>
-    </div>
+              <a-tooltip title="扫描磁盘并同步 PoC 插件库至数据库">
+                <a-button size="small" :loading="syncLoading" @click="handleSync">
+                  <template #icon><sync-outlined /></template>
+                  同步插件
+                </a-button>
+              </a-tooltip>
 
-    
-    </div>
-<a-table :sticky="stickyConfig"
-        :loading="loading"
-        :dataSource="dataSource"
-        :columns="columns"
-        :pagination="false"
-        size="middle"
-        :rowKey="(record) => record._id"
-        :rowSelection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
-    >
-      <template #bodyCell="{ column, record, index }">
-        <template v-if="column.key === 'index'">
-          <span>{{ (pagination.current - 1) * pagination.pageSize + index + 1 }}</span>
-        </template>
-        <template v-if="column.key === 'vul_name'">
-          <a @click="showPocDetail(record)" style="font-weight: 500;">{{ record.vul_name }}</a>
-        </template>
-        <template v-if="column.key === 'action'">
-          <a @click="editPocSource(record)">编辑源码</a>
-        </template>
-      </template>
-      <template #emptyText>
-        <div style="padding: 40px 0;">
-          <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
-          <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无数据</div>
+              <a-popconfirm
+                title="确认批量删除选中的 PoC 吗？"
+                ok-text="确认"
+                cancel-text="取消"
+                @confirm="handleBatchDelete"
+                :disabled="selectedRowKeys.length === 0"
+              >
+                <a-button danger size="small" :disabled="selectedRowKeys.length === 0" :loading="deleteLoading">
+                  <template #icon><delete-outlined /></template>
+                  批量删除
+                </a-button>
+              </a-popconfirm>
+            </div>
+          </div>
         </div>
-      </template>
-    </a-table>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
-      <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-      <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" />
-    </div>
+        <!-- 表格：统一小尺寸 -->
+        <a-table
+          :sticky="stickyConfig"
+          :loading="loading"
+          :dataSource="dataSource"
+          :columns="columns"
+          :pagination="false"
+          size="small"
+          :rowKey="(record) => record._id"
+          :rowSelection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
+        >
+          <template #bodyCell="{ column, record, index }">
+            <template v-if="column.key === 'index'">
+              <span>{{ (pagination.current - 1) * pagination.pageSize + index + 1 }}</span>
+            </template>
+            <template v-if="column.key === 'vul_name'">
+              <a @click="showPocDetail(record)" style="font-weight: 500;">{{ record.vul_name }}</a>
+            </template>
+            <template v-if="column.key === 'action'">
+              <a @click="editPocSource(record)">编辑源码</a>
+            </template>
+          </template>
+          <template #emptyText>
+            <div style="padding: 40px 0;">
+              <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
+              <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无数据</div>
+            </div>
+          </template>
+        </a-table>
+
+        <!-- 统一微型分页栏 -->
+        <div class="arl-pagination-bar">
+          <div class="pagination-info">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+          <a-pagination
+            :pageSizeOptions="$pageSizeOptions"
+            v-model:current="pagination.current"
+            v-model:pageSize="pagination.pageSize"
+            :total="pagination.total"
+            show-size-changer
+            size="small"
+            @change="handleTableChange"
+            @showSizeChange="handleTableChange"
+          />
+        </div>
 
     <!-- 导入 PoC 弹窗 -->
     <a-modal v-model:open="isImportModalVisible" title="导入 PoC 文件" :footer="null">
@@ -251,7 +309,7 @@ import { python } from '@codemirror/lang-python';
 import { oneDark } from '@codemirror/theme-one-dark';
 import request from '../utils/request';
 import { message } from 'ant-design-vue';
-import { SearchOutlined, InboxOutlined, LinkOutlined, SyncOutlined, DownloadOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, InboxOutlined, LinkOutlined, SyncOutlined, DownloadOutlined, PlusOutlined, UploadOutlined, DeleteOutlined, UndoOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 
 const editExtensions = [python(), oneDark];
@@ -707,9 +765,3 @@ onDeactivated(() => {
   isCreateModalVisible.value = false;
 });
 </script>
-
-<style scoped>
-.search-row { display: flex; flex-wrap: wrap; gap: 16px 12px; align-items: center; }
-.search-item { display: flex; align-items: center; }
-.search-item .label { color: var(--arl-text-color); margin-right: 8px; min-width: 60px; text-align: right; white-space: nowrap; }
-</style>

@@ -21,7 +21,7 @@ RUN cd /tmp && \
     tar xvf v1.1.0.tar.gz && cd massdns-1.1.0 && make -j$(nproc) && \
     cp bin/massdns /usr/local/bin/massdns && cd /tmp && rm -rf massdns*
 
-# 3. 编译 Nmap 7.95 (黄金 LTS 版本：补齐 2500+ 服务指纹与 336 种现代 OS 指纹，修复核心内存泄漏)
+# 3. 编译 Nmap 7.95 (补齐 2500+ 服务指纹与 336 种现代 OS 指纹，修复核心内存泄漏)
 # 针对 ARM64 / QEMU 交叉编译进行极致工程裁剪：
 # - 剥离无用的 zenmap, ndiff, nping (重型 C++ 模板), ncat
 # - 严格限制 make 并发数 (max 2)，有效规避 QEMU 内存溢出与多线程竞态段错误

@@ -1,6 +1,7 @@
 from flask_restx import Namespace, fields
 from app.utils import get_logger, auth, build_ret, curr_date, conn_db
 from app.modules import TaskStatus, ErrorMsg
+from app.utils.task_statistics import get_task_statistics, attach_task_statistics
 from . import ARLResource, get_arl_parser, base_query_fields
 import bson
 
@@ -12,6 +13,7 @@ base_search_icp_task_fields = {
     'name': fields.String(required=False, description="任务名"),
     'target': fields.String(description="查询目标"),
     'status': fields.String(description="任务状态"),
+    'include_statistics': fields.Integer(description="设为 1 时附带全局企业查询状态统计"),
     'query_type': fields.String(description="查询类型"),
     'end_time__gte': fields.String(description="结束时间大于等于"),
     'end_time__lte': fields.String(description="结束时间小于等于"),
@@ -26,9 +28,12 @@ search_icp_task_fields = ns.model('SearchIcpTask', base_search_icp_task_fields)
 
 # 新建任务参数
 add_icp_task_fields = ns.model('AddIcpTask', {
-    'name': fields.String(required=True, example="腾讯备案查询", description="任务名"),
+    'name': fields.String(required=False, example="腾讯备案查询", description="任务名"),
     'target': fields.String(required=True, example="深圳市腾讯计算机系统有限公司", description="查询目标"),
-    'query_type': fields.List(fields.String, required=True, example=["web", "app"], description="查询类型列表(web/app/mapp/kapp)")
+    'query_type': fields.List(fields.String, required=False, example=["web", "app"], description="查询类型列表(web/app/mapp/kapp)"),
+    'depth': fields.Integer(required=False, default=1, description="递归查询层数(1~20)"),
+    'invest_ratio': fields.Float(required=False, default=50, description="对外投资最小比例(%)"),
+    'enable_icp': fields.Boolean(required=False, default=True, description="是否联动工信部ICP双轨查重与补全")
 })
 
 add_tyc_task_fields = ns.model('AddTycTask', {
@@ -45,6 +50,23 @@ add_tyc_task_fields = ns.model('AddTycTask', {
 class IcpTask(ARLResource):
     parser = get_arl_parser(search_icp_task_fields, location='args')
 
+    def build_db_query(self, args):
+        status_val = args.get("status")
+        # 聚合态筛选：与统计口径保持一致（active = running + waiting，abnormal = error + stop），
+        # 避免指标卡展示数量与点击筛选后的结果集数量不一致。
+        aggregate_status = {
+            "active": {"$nin": ["done", "error", "stop"]},
+            "abnormal": {"$in": ["error", "stop"]},
+            "running": {"$nin": ["done", "error", "stop", "waiting"]},
+        }
+        if status_val in aggregate_status:
+            args_copy = dict(args)
+            args_copy.pop("status", None)
+            q = super().build_db_query(args_copy)
+            q["status"] = aggregate_status[status_val]
+            return q
+        return super().build_db_query(args)
+
     @auth
     @ns.expect(parser)
     def get(self):
@@ -52,6 +74,7 @@ class IcpTask(ARLResource):
         获取 ICP 任务列表
         """
         args = self.parser.parse_args()
+        include_statistics = args.pop('include_statistics', 0) == 1
         data = self.build_data(args=args, collection='icp_task')
         items = data.get('items', [])
         if items:
@@ -112,23 +135,122 @@ class IcpTask(ARLResource):
                     item['sync_badge_status'] = 'unsynced'
                     item['has_increment'] = False
 
+        if include_statistics:
+            attach_task_statistics(data, conn_db('icp_task'), logger)
+
         return data
 
     @auth
     @ns.expect(add_icp_task_fields)
     def post(self):
         """
-        新建 ICP 查询任务
+        新建企业全景测绘/ICP 查询任务 (支持企业名称自动天眼查全景升级)
         """
         args = self.parse_args(add_icp_task_fields)
         name = args.get('name')
         target = args.get('target')
         query_type = args.get('query_type')
 
+        depth_val = args.get('depth')
+        try:
+            depth = min(20, max(1, int(depth_val))) if depth_val is not None else 1
+        except (ValueError, TypeError):
+            depth = 1
+
+        invest_ratio_val = args.get('invest_ratio')
+        try:
+            invest_ratio = float(invest_ratio_val) if invest_ratio_val is not None else 50.0
+        except (ValueError, TypeError):
+            invest_ratio = 50.0
+
+        enable_icp = args.get('enable_icp')
+        if enable_icp is None:
+            enable_icp = True
+        else:
+            enable_icp = bool(enable_icp)
+
+        target_str = str(target or '').strip()
+        custom_name = str(name or '').strip()
+
+        # 尝试通过天眼查 API 进行智能识别与全景升级
+        matched_tyc = None
+        from app.services.tycClient import TycClient
+        try:
+            client = TycClient()
+            if client.gid and client.token:
+                if target_str.startswith("TYC_"):
+                    raw_gid = target_str.replace("TYC_", "").strip()
+                    cname = client.get_company_name(raw_gid)
+                    matched_tyc = {"gid": raw_gid, "company_name": cname or target_str}
+                elif target_str.isdigit() and len(target_str) >= 6:
+                    cname = client.get_company_name(target_str)
+                    matched_tyc = {"gid": target_str, "company_name": cname or target_str}
+                else:
+                    matched_tyc = client.search_suggest(target_str)
+        except Exception as e:
+            logger.warning(f"Failed to auto-suggest tyc for target {target_str}: {e}")
+
+        conn = conn_db('icp_task')
+
+        # 分支 1: 成功匹配到天眼查企业 -> 全景双轨任务升级
+        if matched_tyc and matched_tyc.get("gid"):
+            gid = str(matched_tyc["gid"])
+            official_company_name = matched_tyc.get("company_name") or target_str
+            final_name = custom_name or (f"{official_company_name}全景测绘" if official_company_name else f"TYC_{gid}")
+            full_query_type = ['invest', 'web', 'app', 'mapp', 'wechat', 'weibo']
+
+            task_data = {
+                "name": final_name,
+                "company_name": official_company_name,
+                "target": f"TYC_{gid}",
+                "gid": gid,
+                "depth": depth,
+                "invest_ratio": invest_ratio,
+                "query_type": full_query_type,
+                "enable_icp": enable_icp,
+                "task_type": "tyc",
+                "status": TaskStatus.WAITING,
+                "start_time": curr_date(),
+                "end_time": "-",
+                "statistic": {
+                    "asset_cnt": 0
+                }
+            }
+            result = conn.insert_one(task_data)
+            task_id = str(result.inserted_id)
+
+            options = {
+                "task_id": task_id,
+                "gid": gid,
+                "depth": depth,
+                "invest_ratio": invest_ratio,
+                "query_type": full_query_type,
+                "enable_icp": enable_icp,
+                "company_name": official_company_name,
+                "name": final_name,
+                "type": "tyc",
+                "tyc_id": client.gid,
+                "tyc_token": client.token
+            }
+            import requests
+            try:
+                res = requests.post("http://osint-service:16181/api/v1/recon/start", json=options, timeout=5)
+                res.raise_for_status()
+            except Exception as e:
+                logger.error(f"Failed to trigger osint-service for tyc task: {e}")
+                conn.update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+
+            return build_ret(ErrorMsg.Success, {"task_id": task_id, "matched_tyc": True})
+
+        # 分支 2: 未配置天眼查或未匹配到 -> 工信部全维度官方备案直连
+        final_query_type = query_type if (query_type and len(query_type) > 1) else ['web', 'app', 'mapp', 'kapp']
+        final_name = custom_name or target_str
+
         task_data = {
-            "name": name,
-            "target": target,
-            "query_type": query_type,
+            "name": final_name,
+            "target": target_str,
+            "query_type": final_query_type,
+            "task_type": "icp",
             "status": TaskStatus.WAITING,
             "start_time": curr_date(),
             "end_time": "-",
@@ -136,30 +258,43 @@ class IcpTask(ARLResource):
                 "asset_cnt": 0
             }
         }
-
-        # 存入数据库
-        conn = conn_db('icp_task')
         result = conn.insert_one(task_data)
         task_id = str(result.inserted_id)
 
-        # 异步调度 celery
         options = {
             "task_id": task_id,
-            "target": target,
-            "query_type": query_type
+            "target": target_str,
+            "query_type": final_query_type,
+            "type": "icp"
         }
-
-        # 将任务发给 celery
-        options["type"] = "icp"
         import requests
         try:
             res = requests.post("http://osint-service:16181/api/v1/recon/start", json=options, timeout=5)
             res.raise_for_status()
         except Exception as e:
-            logger.error(f"Failed to trigger osint-service: {e}")
+            logger.error(f"Failed to trigger osint-service for icp task: {e}")
             conn.update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
 
-        return build_ret(ErrorMsg.Success, {"task_id": task_id})
+        return build_ret(ErrorMsg.Success, {"task_id": task_id, "matched_tyc": False})
+
+
+@ns.route('/task/statistics')
+@ns.route('/task/statistics/')
+@ns.route('/task/overview_count')
+@ns.route('/task/overview_count/')
+class IcpTaskStatistics(ARLResource):
+    @auth
+    def get(self):
+        """仅返回企业查询任务的全局状态数量。"""
+        try:
+            return build_ret(ErrorMsg.Success, get_task_statistics(conn_db('icp_task')))
+        except Exception:
+            logger.exception('Failed to aggregate enterprise task status statistics')
+            return build_ret(ErrorMsg.Error, {'error': '获取企业查询统计失败'})
+
+
+# 向下兼容别名引用
+IcpTaskOverviewCount = IcpTaskStatistics
 
 
 @ns.route('/tyc_check')
@@ -190,12 +325,14 @@ class TycTask(ARLResource):
         name = args.get('name')
         company_name_arg = args.get('company_name')
         gid = args.get('gid')
-        depth = min(25, max(1, int(args.get('depth', 1) or 1)))
+        depth = min(20, max(1, int(args.get('depth', 1) or 1)))
         invest_ratio = args.get('invest_ratio', 0)
         query_type = args.get('query_type')
         enable_icp = args.get('enable_icp', True)
         if enable_icp is None:
             enable_icp = True
+
+        official_company_name = (company_name_arg or "").strip()
 
         # 校验天眼查配置是否有效
         from app.services.tycClient import TycClient
@@ -207,11 +344,20 @@ class TycTask(ARLResource):
         except Exception as e:
             return build_ret(f"校验天眼查配置异常: {e}", {})
 
+        # 若 gid 为企业名称而非纯数字ID，自动通过 search_suggest 提取真实 GID
+        gid_str = str(gid or '').strip()
+        if not gid_str.isdigit() and len(gid_str) >= 2:
+            try:
+                suggest_res = client.search_suggest(gid_str)
+                if suggest_res and suggest_res.get("gid"):
+                    gid = str(suggest_res["gid"])
+                    if not official_company_name:
+                        official_company_name = suggest_res.get("company_name", "")
+            except Exception as e:
+                logger.warning(f"Failed to auto-suggest tyc for {gid_str}: {e}")
+
         # 定向解析企业官方工商全称（彻底脱钩用户任务自定义名称）
-        official_company_name = ""
-        if company_name_arg and company_name_arg.strip():
-            official_company_name = company_name_arg.strip()
-        else:
+        if not official_company_name:
             try:
                 official_company_name = client.get_company_name(gid)
             except Exception as e:
@@ -713,21 +859,31 @@ def _restart_single_icp_task(task_id: str):
         task['end_time'] = "-"
         task['statistic'] = {"asset_cnt": 0}
         task['error_msg'] = ""
+        task['prev_task_id'] = str(task_id)
 
         # 插入新任务
         result = conn_db('icp_task').insert_one(task)
         new_task_id = str(result.inserted_id)
 
-        # 若原任务关联了资产组，同步更新资产组关联至新任务
+        # 若原任务关联了资产组，记录 updating_icp_task_id，保持原有主指针 synced_icp_task_id 不变
         synced_scope_id = task.get('synced_scope_id')
+        if not synced_scope_id:
+            scope_doc = conn_db('asset_scope').find_one({"synced_icp_task_id": str(task_id)})
+            if scope_doc:
+                synced_scope_id = str(scope_doc['_id'])
+                conn_db('icp_task').update_one(
+                    {"_id": result.inserted_id},
+                    {"$set": {"synced_scope_id": synced_scope_id}}
+                )
+
         if synced_scope_id:
             try:
                 conn_db('asset_scope').update_one(
                     {"_id": bson.ObjectId(synced_scope_id)},
-                    {"$set": {"synced_icp_task_id": new_task_id}}
+                    {"$set": {"updating_icp_task_id": new_task_id}}
                 )
             except Exception as scope_err:
-                logger.warning(f"Failed to update asset_scope synced_icp_task_id: {scope_err}")
+                logger.warning(f"Failed to update asset_scope updating_icp_task_id: {scope_err}")
 
         # 格式化 query_type 确保为 list
         query_type = task.get("query_type", ["web"])
@@ -766,9 +922,18 @@ def _restart_single_icp_task(task_id: str):
         except Exception as e:
             logger.error(f"Failed to trigger osint-service: {e}")
             conn_db('icp_task').update_one({"_id": result.inserted_id}, {"$set": {"status": "error", "error_msg": "请求 osint-service 失败或超时"}})
+            # 若调度失败，同步清理 updating_icp_task_id 熔断回滚
+            if synced_scope_id:
+                try:
+                    conn_db('asset_scope').update_one(
+                        {"_id": bson.ObjectId(synced_scope_id)},
+                        {"$unset": {"updating_icp_task_id": ""}}
+                    )
+                except Exception:
+                    pass
             return False, "trigger_failed", {"task_id": task_id, "error": f"微服务调度失败: {e}"}
 
-        return True, "success", {"old_task_id": task_id, "new_task_id": new_task_id}
+        return True, "success", {"old_task_id": task_id, "new_task_id": new_task_id, "updating_task_id": new_task_id}
     except Exception as e:
         logger.error(f"Restart task {task_id} failed: {e}")
         return False, "error", {"task_id": task_id, "error": str(e)}
@@ -789,7 +954,12 @@ class IcpTaskRestart(ARLResource):
     def _restart(self, task_id):
         ok, reason, res = _restart_single_icp_task(task_id)
         if ok:
-            return build_ret(ErrorMsg.Success, {"task_id": res["new_task_id"]})
+            return build_ret(ErrorMsg.Success, {
+                "task_id": res["new_task_id"],
+                "old_task_id": res.get("old_task_id"),
+                "updating_task_id": res["new_task_id"],
+                "status": "waiting"
+            })
         if reason == "not_found":
             return build_ret(ErrorMsg.NotFoundTask, {"task_id": task_id})
         if reason == "running":
@@ -975,7 +1145,7 @@ class IcpTaskSync(ARLResource):
         """将 ICP/TYC 任务中的网站域名同步至资产分组"""
         try:
             from flask import request as flask_request
-            from app.helpers.scope import update_scope_domain_status, trigger_scope_domain_scan
+            from app.helpers.scope import trigger_scope_domain_scan
             args = flask_request.json or {}
             mode = args.get('mode', 'new') # 'new' or 'existing'
             target_name = args.get('target_name', '').strip()

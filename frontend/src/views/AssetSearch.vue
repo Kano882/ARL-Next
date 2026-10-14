@@ -1,102 +1,128 @@
 <template>
-  <div :class="['asset-search-page', { 'is-virtual-mode': pagination.pageSize >= 100 }]" style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
+  <div :class="['asset-search-page', 'arl-page-container', { 'is-virtual-mode': pagination.pageSize >= 100 }]">
 
-        <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-    <a-tabs style="margin-bottom: 16px;" v-model:activeKey="activeTab" type="card" class="arl-detail-tabs">
-      <a-tab-pane key="site" tab="站点"></a-tab-pane>
-      <a-tab-pane key="domain" tab="子域名"></a-tab-pane>
-      <a-tab-pane key="ip" tab="IP"></a-tab-pane>
-      <a-tab-pane key="cert" tab="SSL证书"></a-tab-pane>
-      <a-tab-pane key="service" tab="服务"></a-tab-pane>
-      <a-tab-pane key="fileleak" tab="文件泄露"></a-tab-pane>
-      <a-tab-pane key="url" tab="URL信息"></a-tab-pane>
-      <a-tab-pane key="cip" tab="C段"></a-tab-pane>
-      <a-tab-pane key="stat_finger" tab="指纹统计"></a-tab-pane>
-      <a-tab-pane key="wih" tab="WIH"></a-tab-pane>
-      <a-tab-pane key="vuln" tab="风险"></a-tab-pane>
-      <a-tab-pane key="npoc_service" tab="服务（python）"></a-tab-pane>
-      <a-tab-pane key="nuclei_result" tab="nuclei"></a-tab-pane>
-    </a-tabs>
-<div v-if="tabConfig[activeTab]?.searchFields" style="margin-bottom: 16px;">
-      <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
-      <a-form-item v-for="field in tabConfig[activeTab].searchFields" :key="field.key" :label="field.label + '：'">
-                <a-select
-            v-if="field.type === 'select'"
-            v-model:value="searchForm[field.key]"
-            :placeholder="`请选择${field.label}`"
-            style="width: 200px;"
-            allowClear
-            @change="onSearch"
-        >
-          <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">
-            {{ opt.label }}
-          </a-select-option>
-        </a-select>
+    <div ref="actionBarRef" class="arl-hero-card">
+      <a-tabs style="margin-bottom: 12px;" v-model:activeKey="activeTab" type="card" class="arl-detail-tabs">
+        <a-tab-pane key="site" tab="站点"></a-tab-pane>
+        <a-tab-pane key="domain" tab="子域名"></a-tab-pane>
+        <a-tab-pane key="ip" tab="IP"></a-tab-pane>
+        <a-tab-pane key="cert" tab="SSL证书"></a-tab-pane>
+        <a-tab-pane key="service" tab="服务"></a-tab-pane>
+        <a-tab-pane key="fileleak" tab="文件泄露"></a-tab-pane>
+        <a-tab-pane key="url" tab="URL信息"></a-tab-pane>
+        <a-tab-pane key="cip" tab="C段"></a-tab-pane>
+        <a-tab-pane key="stat_finger" tab="指纹统计"></a-tab-pane>
+        <a-tab-pane key="wih" tab="WIH"></a-tab-pane>
+        <a-tab-pane key="vuln" tab="风险"></a-tab-pane>
+        <a-tab-pane key="nuclei_result" tab="nuclei"></a-tab-pane>
+      </a-tabs>
 
-        <div
-            v-else-if="field.hasOperatorSelect"
-            style="display: flex; align-items: center; border: 1px solid var(--arl-border-color); border-radius: 2px; width: 280px; background: var(--arl-bg-white);"
-        >
-          <template v-if="field.type === 'select'">
+      <div v-if="activeTab === 'service'" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 13px; color: var(--arl-text-secondary);">识别引擎：</span>
+        <a-radio-group v-model:value="serviceEngineType" button-style="solid" size="small" @change="onServiceEngineChange">
+          <a-radio-button value="nmap">端口扫描 (Nmap / Service)</a-radio-button>
+          <a-radio-button value="npoc">指纹识别 (Python / NPoC)</a-radio-button>
+        </a-radio-group>
+      </div>
+
+      <div v-if="tabConfig[effectiveTab]?.searchFields" style="margin-bottom: 8px;">
+        <a-form :model="searchForm" layout="inline" style="row-gap: 10px;">
+          <a-form-item v-for="field in tabConfig[effectiveTab].searchFields" :key="field.key" :label="field.label + '：'">
             <a-select
-                v-model:value="searchForm[field.key]"
-                :placeholder="`请选择${field.label}`"
-                :bordered="false"
-                style="flex: 1; box-shadow: none;"
-                allowClear
-                @change="onSearch"
+              v-if="field.type === 'select'"
+              v-model:value="searchForm[field.key]"
+              :placeholder="`请选择${field.label}`"
+              style="width: 180px;"
+              size="small"
+              allowClear
+              @change="onSearch"
             >
               <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
               </a-select-option>
             </a-select>
-          </template>
-          <template v-else>
-            <a-input
-                v-model:value="searchForm[field.key]"
-                :placeholder="field.placeholder || `请输入${field.label}`"
+
+            <div
+              v-else-if="field.hasOperatorSelect"
+              style="display: flex; align-items: center; border: 1px solid var(--arl-border-color); border-radius: 4px; width: 280px; background: var(--arl-bg-white); height: 24px;"
+            >
+              <template v-if="field.type === 'select'">
+                <a-select
+                  v-model:value="searchForm[field.key]"
+                  :placeholder="`请选择${field.label}`"
+                  :bordered="false"
+                  size="small"
+                  style="flex: 1; box-shadow: none;"
+                  allowClear
+                  @change="onSearch"
+                >
+                  <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </a-select-option>
+                </a-select>
+              </template>
+              <template v-else>
+                <a-input
+                  v-model:value="searchForm[field.key]"
+                  :placeholder="field.placeholder || `请输入${field.label}`"
+                  :bordered="false"
+                  size="small"
+                  style="flex: 1; box-shadow: none;"
+                  allowClear
+                  @pressEnter="onSearch"
+                >
+                  <template #suffix>
+                    <search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" />
+                  </template>
+                </a-input>
+              </template>
+              <div style="width: 1px; height: 14px; background-color: var(--arl-border-color);"></div>
+              <a-select
+                v-model:value="field.operator"
                 :bordered="false"
-                style="flex: 1; box-shadow: none;"
-                allowClear
-                @pressEnter="onSearch"
+                size="small"
+                style="width: 85px; box-shadow: none;"
+                @change="onSearch"
+              >
+                <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op }}</a-select-option>
+              </a-select>
+            </div>
+
+            <a-input
+              v-else
+              v-model:value="searchForm[field.key]"
+              :placeholder="`请输入${field.label}`"
+              style="width: 180px;"
+              size="small"
+              allowClear
+              @pressEnter="onSearch"
             >
               <template #suffix>
-                <search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" />
+                <search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" />
               </template>
             </a-input>
-          </template>
-          <div style="width: 1px; height: 16px; background-color: var(--arl-border-color);"></div>
-          <a-select
-              v-model:value="field.operator"
-              :bordered="false"
-              style="width: 90px; box-shadow: none;"
-              @change="onSearch"
-          >
-            <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op }}</a-select-option>
-          </a-select>
+          </a-form-item>
+        </a-form>
+      </div>
+
+      <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <a-button size="small" @click="resetSearch">
+            <template #icon><undo-outlined /></template>
+            重置
+          </a-button>
+          <a-button v-if="tabConfig[effectiveTab]?.exportName" size="small" @click="handleExport">
+            <template #icon><download-outlined /></template>
+            导出{{ tabConfig[effectiveTab].exportName }}
+          </a-button>
         </div>
-
-        <a-input
-            v-else
-            v-model:value="searchForm[field.key]"
-            :placeholder="`请输入${field.label}`"
-            style="width: 200px;"
-            allowClear
-            @pressEnter="onSearch"
-        >
-          <template #suffix>
-            <search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" />
-          </template>
-        </a-input>
-      </a-form-item>
-      </a-form>
-    </div>
-
-    <div style="margin-bottom: 16px;">
-      <a-button style="margin-right: 16px;" @click="resetSearch">清 除</a-button>
-      <a-button v-if="tabConfig[activeTab]?.exportName" type="primary" style="margin-right: 16px;" @click="handleExport">导出{{ tabConfig[activeTab].exportName }}</a-button>
-      <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">风险任务下发</a-button>
-    </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <a-button v-if="activeTab === 'site'" type="primary" size="small" @click="openRiskModal">
+            <template #icon><thunderbolt-outlined /></template>
+            风险任务下发
+          </a-button>
+        </div>
+      </div>
     </div>
 
     <a-table :sticky="pagination.pageSize >= 100 ? false : stickyConfig"
@@ -106,7 +132,7 @@
         :pagination="false"
         :scroll="pagination.pageSize >= 100 ? { y: tableScrollY, x: 'max-content' } : { x: 'max-content' }"
         :virtual="pagination.pageSize >= 100"
-        size="middle"
+        size="small"
         :rowKey="(record) => record._id || record.id"
     >
             <template #bodyCell="{ column, record, index }">
@@ -379,9 +405,18 @@
     <!-- 综合C段详情弹窗 (提取为组件) -->
     <CidrDetailModal v-model:open="cipDetailModalVisible" :record="currentCidrRecord" />
 
-    <div v-if="tabConfig[activeTab]" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; margin-top: 16px;">
-      <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-      <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
+    <div v-if="tabConfig[effectiveTab]" class="arl-pagination-bar">
+      <div class="pagination-info">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+      <a-pagination
+        :pageSizeOptions="$pageSizeOptions"
+        v-model:current="pagination.current"
+        v-model:pageSize="pagination.pageSize"
+        :total="pagination.total"
+        show-size-changer
+        size="small"
+        @change="handleTableChange"
+        @showSizeChange="handleTableChange"
+      />
     </div>
 
     <a-modal v-model:open="previewVisible" :footer="null" width="85vw" centered @cancel="previewVisible = false" :bodyStyle="{ padding: '16px' }">
@@ -448,7 +483,7 @@ const { stickyConfig, actionBarHeight } = useSticky(actionBarRef);
 import { useRoute } from 'vue-router';
 import request from '../utils/request';
 import { message } from 'ant-design-vue';
-import { SearchOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, UndoOutlined, DownloadOutlined, ThunderboltOutlined } from '@ant-design/icons-vue';
 import CidrDetailModal from '../components/CidrDetailModal.vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { createTabStateCache } from '../utils/useTabStateCache';
@@ -469,7 +504,14 @@ const tableScrollY = computed(() => {
 
 const route = useRoute();
 const isHydrating = ref(true);
-const activeTab = ref(route.query.tab || 'site');
+const serviceEngineType = ref(route.query.tab === 'npoc_service' ? 'npoc' : 'nmap');
+const activeTab = ref(route.query.tab === 'npoc_service' ? 'service' : (route.query.tab || 'site'));
+const effectiveTab = computed(() => {
+  if (activeTab.value === 'service' && serviceEngineType.value === 'npoc') {
+    return 'npoc_service';
+  }
+  return activeTab.value;
+});
 const loading = ref(false);
 const dataSource = ref([]);
 
@@ -508,13 +550,25 @@ const openFingerModal = async (fingerName) => {
 const searchForm = ref({});
 const globalPageSize = useGlobalPageSize(10);
 const pagination = reactive({ current: 1, pageSize: globalPageSize.value, total: 0 });
+let lastFetchedPage = 1;
+let lastFetchedSize = globalPageSize.value;
 
 watch(() => pagination.pageSize, (newSize) => {
-  globalPageSize.value = newSize;
+  const target = Number(newSize) || 10;
+  if (globalPageSize.value !== target) {
+    globalPageSize.value = target;
+  }
 });
 
 watch(globalPageSize, (newSize) => {
-  pagination.pageSize = newSize;
+  const target = Number(newSize) || 10;
+  if (pagination.pageSize !== target) {
+    pagination.pageSize = target;
+    tabCache.invalidateAllMemoryCaches();
+    if (tabConfig[effectiveTab.value]) {
+      fetchData();
+    }
+  }
 });
 
 const previewVisible = ref(false);
@@ -857,14 +911,37 @@ const tabCache = createTabStateCache({
   defaultTab: 'site'
 });
 
-const columns = ref(tabConfig[activeTab.value]?.cols || tabConfig.site.cols);
+const columns = ref(tabConfig[effectiveTab.value]?.cols || tabConfig.site.cols);
+
+// 切换服务识别引擎
+const onServiceEngineChange = () => {
+  const prevTabKey = effectiveTab.value === 'npoc_service' ? 'service' : 'npoc_service';
+  tabCache.saveCurrentTab(prevTabKey, searchForm.value, pagination.current);
+
+  const currentTabKey = effectiveTab.value;
+  searchForm.value = tabCache.getTabSearchForm(currentTabKey);
+  tabCache.applyTabOperators(currentTabKey);
+  pagination.current = tabCache.getTabPage(currentTabKey);
+  columns.value = tabConfig[currentTabKey]?.cols || [];
+
+  const cached = tabCache.getMemoryCache(currentTabKey, pagination.pageSize);
+  if (cached) {
+    dataSource.value = cached.dataSource;
+    pagination.total = cached.total;
+    lastFetchedPage = pagination.current;
+    lastFetchedSize = pagination.pageSize;
+  } else {
+    fetchData();
+  }
+};
 
 // 🚨 核心逻辑调整：去掉 task_id 参数，纯净的全局搜索
 const fetchData = async () => {
-  const config = tabConfig[activeTab.value];
+  const currentTab = effectiveTab.value;
+  const config = tabConfig[currentTab];
   if (!config) return;
 
-  const currentReqTab = activeTab.value;
+  const currentReqTab = currentTab;
   loading.value = true;
   try {
     const params = { page: pagination.current, size: pagination.pageSize };
@@ -884,27 +961,30 @@ const fetchData = async () => {
     }
     const res = await request.get(config.url, { params });
     // 竞态防御：若响应到达时 Tab 已切换，丢弃过期响应
-    if (activeTab.value !== currentReqTab) return;
+    if (effectiveTab.value !== currentReqTab) return;
 
     if (res.code === 200) {
       dataSource.value = res.items || [];
       pagination.total = res.total || 0;
-      tabCache.updateMemoryCache(activeTab.value, dataSource.value, pagination.total);
-      tabCache.saveCurrentTab(activeTab.value, searchForm.value, pagination.current);
+      lastFetchedPage = pagination.current;
+      lastFetchedSize = pagination.pageSize;
+      tabCache.updateMemoryCache(currentTab, dataSource.value, pagination.total, pagination.pageSize);
+      tabCache.saveCurrentTab(currentTab, searchForm.value, pagination.current);
     }
   } catch (error) {
-    if (activeTab.value === currentReqTab) {
+    if (effectiveTab.value === currentReqTab) {
       message.error('加载资产数据失败');
     }
   } finally {
-    if (activeTab.value === currentReqTab) {
+    if (effectiveTab.value === currentReqTab) {
       loading.value = false;
     }
   }
 };
 
 const handleExport = async () => {
-  const config = tabConfig[activeTab.value];
+  const currentTab = effectiveTab.value;
+  const config = tabConfig[currentTab];
   if (!config || !config.exportUrl) return;
 
   try {
@@ -925,7 +1005,7 @@ const handleExport = async () => {
       }
     }
     const res = await request.get(config.exportUrl, { params, responseType: 'blob' });
-    const isCert = activeTab.value === 'cert';
+    const isCert = currentTab === 'cert';
     const mimeType = isCert ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
     const ext = isCert ? 'json' : 'txt';
 
@@ -933,7 +1013,7 @@ const handleExport = async () => {
     const downloadUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `ARL_Global_${activeTab.value}_Export.${ext}`;
+    link.download = `ARL_Global_${currentTab}_Export.${ext}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -946,38 +1026,58 @@ const handleExport = async () => {
 
 const onSearch = () => {
   pagination.current = 1;
-  tabCache.saveCurrentTab(activeTab.value, searchForm.value, 1);
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, 1);
   fetchData();
 };
 const resetSearch = () => {
   searchForm.value = {};
-  tabCache.resetTabState(activeTab.value);
+  tabCache.resetTabState(effectiveTab.value);
   pagination.current = 1;
   fetchData();
 };
 const handleTableChange = (page, pageSize) => {
-  pagination.current = page;
-  pagination.pageSize = pageSize;
-  tabCache.saveCurrentTab(activeTab.value, searchForm.value, page);
+  const targetSize = Number(pageSize) || Number(pagination.pageSize) || 10;
+  const sizeChanged = targetSize !== lastFetchedSize;
+  const targetPage = sizeChanged ? 1 : (Number(page) || 1);
+
+  // 防御重复触发：只有在单页条数未变且目标页码与已拉取页码完全相同时才阻断
+  if (!sizeChanged && targetPage === lastFetchedPage && targetSize === lastFetchedSize) {
+    return;
+  }
+
+  lastFetchedPage = targetPage;
+  lastFetchedSize = targetSize;
+
+  pagination.current = targetPage;
+  pagination.pageSize = targetSize;
+
+  if (sizeChanged) {
+    tabCache.invalidateAllMemoryCaches();
+    globalPageSize.value = targetSize;
+  }
+
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, pagination.current);
   fetchData();
 };
 
 watch(activeTab, (newVal, oldVal) => {
-  if (oldVal && tabConfig[oldVal] && !isHydrating.value) {
-    tabCache.saveCurrentTab(oldVal, searchForm.value, pagination.current);
+  const prevEffective = (oldVal === 'service' && serviceEngineType.value === 'npoc') ? 'npoc_service' : oldVal;
+  if (prevEffective && tabConfig[prevEffective] && !isHydrating.value) {
+    tabCache.saveCurrentTab(prevEffective, searchForm.value, pagination.current);
   }
 
-  if (tabConfig[newVal]) {
-    columns.value = tabConfig[newVal].cols;
+  const currentTab = effectiveTab.value;
+  if (tabConfig[currentTab]) {
+    columns.value = tabConfig[currentTab].cols;
 
     // 恢复新选项卡的搜索表单、操作符与页码
-    searchForm.value = tabCache.getTabSearchForm(newVal);
-    tabCache.applyTabOperators(newVal);
-    pagination.current = tabCache.getTabPage(newVal);
+    searchForm.value = tabCache.getTabSearchForm(currentTab);
+    tabCache.applyTabOperators(currentTab);
+    pagination.current = tabCache.getTabPage(currentTab);
 
     // 检查 URL query 是否为当前 Tab 提供了下钻参数覆盖
     let hasQueryOverrides = false;
-    if (route.query && (route.query.tab === newVal || (!route.query.tab && newVal === 'site'))) {
+    if (route.query && (route.query.tab === currentTab || (!route.query.tab && currentTab === 'site'))) {
       for (const key in route.query) {
         if (key !== 'tab') {
           searchForm.value[key] = route.query[key];
@@ -985,15 +1085,17 @@ watch(activeTab, (newVal, oldVal) => {
         }
       }
       if (hasQueryOverrides) {
-        tabCache.saveCurrentTab(newVal, searchForm.value, pagination.current);
+        tabCache.saveCurrentTab(currentTab, searchForm.value, pagination.current);
       }
     }
 
-    // 检查内存数据缓存（若有外部 query 下钻参数则强制穿透缓存）
-    const cached = !hasQueryOverrides ? tabCache.getMemoryCache(newVal) : null;
+    // 检查内存数据缓存（若有外部 query 下钻参数则强制穿透缓存，同时校验 pageSize）
+    const cached = !hasQueryOverrides ? tabCache.getMemoryCache(currentTab, pagination.pageSize) : null;
     if (cached) {
       dataSource.value = cached.dataSource;
       pagination.total = cached.total;
+      lastFetchedPage = pagination.current;
+      lastFetchedSize = pagination.pageSize;
     } else {
       fetchData();
     }
@@ -1002,21 +1104,31 @@ watch(activeTab, (newVal, oldVal) => {
 
 onMounted(() => {
   const restoredTab = tabCache.init();
-  
+  let queryTab = route.query.tab;
+  if (queryTab === 'npoc_service') {
+    serviceEngineType.value = 'npoc';
+    queryTab = 'service';
+  } else if (queryTab === 'service') {
+    serviceEngineType.value = 'nmap';
+  } else if (!queryTab && restoredTab === 'npoc_service') {
+    serviceEngineType.value = 'npoc';
+  }
+
   // 优先级：若 URL 带了 tab 参数则以 URL 为准，否则以 SessionStorage 恢复的为准
-  const targetTab = (route.query.tab && tabConfig[route.query.tab])
-    ? route.query.tab
-    : ((restoredTab && tabConfig[restoredTab]) ? restoredTab : 'site');
+  const targetTab = (queryTab && tabConfig[queryTab])
+    ? queryTab
+    : ((restoredTab && tabConfig[restoredTab]) ? (restoredTab === 'npoc_service' ? 'service' : restoredTab) : 'site');
 
   window.addEventListener('resize', onWindowResize);
 
   if (activeTab.value !== targetTab) {
     activeTab.value = targetTab;
   } else {
-    columns.value = tabConfig[targetTab].cols;
-    searchForm.value = tabCache.getTabSearchForm(targetTab);
-    tabCache.applyTabOperators(targetTab);
-    pagination.current = tabCache.getTabPage(targetTab);
+    const currentTab = effectiveTab.value;
+    columns.value = tabConfig[currentTab].cols;
+    searchForm.value = tabCache.getTabSearchForm(currentTab);
+    tabCache.applyTabOperators(currentTab);
+    pagination.current = tabCache.getTabPage(currentTab);
 
     // 若 URL query 有额外搜索参数，覆盖进 searchForm 并保存
     let hasQueryOverrides = false;
@@ -1027,10 +1139,10 @@ onMounted(() => {
       }
     }
     if (hasQueryOverrides) {
-      tabCache.saveCurrentTab(targetTab, searchForm.value, 1);
+      tabCache.saveCurrentTab(currentTab, searchForm.value, 1);
     }
 
-    const cached = !hasQueryOverrides ? tabCache.getMemoryCache(targetTab) : null;
+    const cached = !hasQueryOverrides ? tabCache.getMemoryCache(currentTab) : null;
     if (cached) {
       dataSource.value = cached.dataSource;
       pagination.total = cached.total;

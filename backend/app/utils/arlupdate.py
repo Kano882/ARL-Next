@@ -46,7 +46,7 @@ def create_index():
         "asset_stat_finger": "scope_id",
         "asset_wih": ["scope_id", "record_type", "fnv_hash"],
         "dict_upload_task": "task_id",
-        "asset_scope": "group_id",
+        "asset_scope": ["group_id", "updating_icp_task_id"],
         "asset_group": "sort_order",
         "nuclei_template": ["name", "severity", "tags", "enable", "updated_at"],
         "nuclei_blacklist": ["severity", "created_at"],
@@ -1095,6 +1095,38 @@ def update_policy_schema():
         logging.getLogger().error(f"update_policy_schema failed: {e}")
 
 
+def heal_stale_updating_icp_tasks():
+    """
+    🛡️【平滑演进与死锁自愈】
+    检查并自愈 asset_scope 中的 updating_icp_task_id：
+    1. 若对应的 icp_task 状态已为 done，自动平滑晋升为 synced_icp_task_id；
+    2. 若对应的 icp_task 状态为 error/stop 或任务不存在，自动清理 updating_icp_task_id 避免状态残留。
+    """
+    try:
+        import bson
+        scope_col = conn_db('asset_scope')
+        task_col = conn_db('icp_task')
+        scopes = list(scope_col.find({"updating_icp_task_id": {"$exists": True, "$ne": ""}}))
+        for s in scopes:
+            up_id = s.get("updating_icp_task_id")
+            if not up_id:
+                continue
+            try:
+                t = task_col.find_one({"_id": bson.ObjectId(up_id)})
+            except Exception:
+                t = None
+            if not t or t.get("status") in ["error", "stop"]:
+                scope_col.update_one({"_id": s["_id"]}, {"$unset": {"updating_icp_task_id": ""}})
+            elif t.get("status") == "done":
+                scope_col.update_one(
+                    {"_id": s["_id"]},
+                    {"$set": {"synced_icp_task_id": str(t["_id"])}, "$unset": {"updating_icp_task_id": ""}}
+                )
+    except Exception as e:
+        import logging
+        logging.getLogger().error(f"heal_stale_updating_icp_tasks failed: {e}")
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -1165,6 +1197,7 @@ def arl_update():
         _run_step("migrate_asset_group_sort_order", migrate_asset_group_sort_order)
         _run_step("normalize_threat_radar_configs", normalize_threat_radar_configs)
         _run_step("update_policy_schema", update_policy_schema)
+        _run_step("heal_stale_updating_icp_tasks", heal_stale_updating_icp_tasks)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:
         import logging

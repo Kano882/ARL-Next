@@ -1,60 +1,94 @@
 <template>
-  <div style="background-color: var(--arl-bg-layout); padding: 24px; min-height: calc(100vh - 64px);">
-    <div ref="actionBarRef" style="position: sticky; top: 0px; z-index: 10; background-color: var(--arl-bg-layout); margin: -24px -24px 16px -24px; padding: 24px 24px 16px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+  <div class="arl-page-container">
+    <!-- 吸顶 Hero 操作卡片 -->
+    <div ref="actionBarRef" class="arl-hero-card">
+      <div class="arl-toolbar-row">
+        <!-- 左侧：紧凑搜索条件与重置 -->
+        <div class="arl-filter-group">
+          <div class="arl-filter-item">
+            <span class="arl-filter-label">名称：</span>
+            <a-input
+              v-model:value="searchForm.name"
+              placeholder="请输入指纹名称"
+              style="width: 180px;"
+              allowClear
+              size="small"
+              @pressEnter="onSearch"
+            >
+              <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+            </a-input>
+          </div>
 
+          <div class="arl-filter-item">
+            <span class="arl-filter-label">规则：</span>
+            <a-input
+              v-model:value="searchForm.rule"
+              placeholder="请输入规则内容"
+              style="width: 180px;"
+              allowClear
+              size="small"
+              @pressEnter="onSearch"
+            >
+              <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
+            </a-input>
+          </div>
 
-    <div style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap;">
-      <a-button type="primary" @click="openAddModal">添加指纹</a-button>
-      <a-upload
-          name="file"
-          :show-upload-list="false"
-          :customRequest="handleUpload"
-          accept=".json,.yaml,.yml"
-      >
-        <a-button type="primary">上传指纹</a-button>
-      </a-upload>
-      <a-button @click="handleExport" type="primary">一键导出</a-button>
-    </div>
+          <a-button size="small" @click="resetSearch">
+            <template #icon><undo-outlined /></template>
+            重置
+          </a-button>
+        </div>
 
-    <div class="search-row" style="margin-bottom: 16px; ">
-      <div class="search-item">
-        <span class="label">名称：</span>
-        <a-input v-model:value="searchForm.name" placeholder="请输入名称进行搜索" style="width: 220px;" allowClear @pressEnter="onSearch">
-          <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-        </a-input>
+        <!-- 右侧：单一主要操作 + 次要操作组 + 批量动作 -->
+        <div class="arl-actions-group">
+          <a-button type="primary" size="small" @click="openAddModal">
+            <template #icon><plus-outlined /></template>
+            添加指纹
+          </a-button>
+
+          <a-upload
+            name="file"
+            :show-upload-list="false"
+            :customRequest="handleUpload"
+            accept=".json,.yaml,.yml"
+          >
+            <a-button size="small">
+              <template #icon><upload-outlined /></template>
+              上传指纹
+            </a-button>
+          </a-upload>
+
+          <a-button size="small" @click="handleExport">
+            <template #icon><download-outlined /></template>
+            导出
+          </a-button>
+
+          <a-popconfirm
+            title="确认删除所选指纹数据吗？"
+            ok-text="确认"
+            cancel-text="取消"
+            @confirm="handleBatchDelete"
+            :disabled="!hasSelected"
+          >
+            <a-button danger size="small" :disabled="!hasSelected">
+              <template #icon><delete-outlined /></template>
+              批量删除
+            </a-button>
+          </a-popconfirm>
+        </div>
       </div>
-
-      <div class="search-item">
-        <span class="label">规则：</span>
-        <a-input v-model:value="searchForm.rule" placeholder="请输入规则进行搜索" style="width: 220px;" allowClear @pressEnter="onSearch">
-          <template #suffix><search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.25;" /></template>
-        </a-input>
-      </div>
     </div>
 
-    <div style="margin-bottom: 16px; display: flex; gap: 8px;">
-      <a-button @click="resetSearch">清 除</a-button>
-      <a-popconfirm
-          title="确认删除所选数据吗？"
-          ok-text="确认"
-          cancel-text="取消"
-          @confirm="handleBatchDelete"
-          :disabled="!hasSelected"
-      >
-        <a-button :disabled="!hasSelected">批量删除</a-button>
-      </a-popconfirm>
-    </div>
-
-    
-    </div>
-<a-table :sticky="stickyConfig"
-        :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
-        :loading="loading"
-        :dataSource="dataSource"
-        :columns="columns"
-        :pagination="false"
-        size="middle"
-        :rowKey="(record) => record._id"
+    <!-- 表格：统一小尺寸 -->
+    <a-table
+      :sticky="stickyConfig"
+      :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
+      :loading="loading"
+      :dataSource="dataSource"
+      :columns="columns"
+      :pagination="false"
+      size="small"
+      :rowKey="(record) => record._id"
     >
       <template #emptyText>
         <div style="padding: 40px 0;">
@@ -71,9 +105,19 @@
       </template>
     </a-table>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
-      <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-      <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" />
+    <!-- 统一微型分页栏 -->
+    <div class="arl-pagination-bar">
+      <div class="pagination-info">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+      <a-pagination
+        :pageSizeOptions="$pageSizeOptions"
+        v-model:current="pagination.current"
+        v-model:pageSize="pagination.pageSize"
+        :total="pagination.total"
+        show-size-changer
+        size="small"
+        @change="handleTableChange"
+        @showSizeChange="handleTableChange"
+      />
     </div>
 
 
@@ -114,7 +158,7 @@ const { stickyConfig } = useSticky(actionBarRef);
 
 import request from '../utils/request';
 import { message } from 'ant-design-vue';
-import { SearchOutlined, InboxOutlined } from '@ant-design/icons-vue';
+import { SearchOutlined, InboxOutlined, PlusOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined, UndoOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 
 const loading = ref(false);
@@ -328,9 +372,3 @@ onDeactivated(() => {
   addModalVisible.value = false;
 });
 </script>
-
-<style scoped>
-.search-row { display: flex; flex-wrap: wrap; gap: 16px 12px; align-items: center; }
-.search-item { display: flex; align-items: center; }
-.search-item .label { color: var(--arl-text-color); margin-right: 8px; min-width: 40px; text-align: right; white-space: nowrap; }
-</style>

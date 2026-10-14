@@ -23,18 +23,18 @@
               v-if="taskRecord.synced_scope_id"
               color="blue"
               style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"
-              @click="goToScope(taskRecord.synced_scope_id)"
-              title="点击前往该资产分组"
+              @click="goToScope(taskRecord.synced_scope_id, taskRecord.synced_scope_name)"
+              title="点击前往该资产组"
             >
               <export-outlined />
-              <span>已同步至: {{ taskRecord.synced_scope_name || '资产分组' }}</span>
+              <span>已纳管至: {{ taskRecord.synced_scope_name || '资产组' }}</span>
             </a-tag>
           </div>
         </template>
         <template #extra>
           <a-tooltip v-if="taskStatus === 'done' && (taskRecord.statistic?.web_cnt === 0)" title="当前任务无网站资产可同步">
             <a-button type="primary" disabled>
-              <cloud-sync-outlined /> 同步至资产分组
+              <cloud-sync-outlined /> 同步至资产组
             </a-button>
           </a-tooltip>
           <a-button
@@ -43,7 +43,7 @@
             @click="openSyncModal"
             :disabled="taskStatus !== 'done' && taskStatus !== 'stop'"
           >
-            <cloud-sync-outlined /> {{ taskRecord.synced_scope_id ? (taskRecord.has_increment ? '同步增量至分组' : '再次同步至分组') : '同步至资产分组' }}
+            <cloud-sync-outlined /> {{ taskRecord.synced_scope_id ? (taskRecord.has_increment ? '同步增量至资产组' : '再次同步至资产组') : '同步至资产组' }}
           </a-button>
         </template>
       </a-page-header>
@@ -157,7 +157,7 @@
             <span style="color: #e6f7ff;">{{ log.message }}</span>
           </div>
           <div v-if="syslogLoading && syslogList.length === 0" style="color: rgba(255,255,255,0.65); font-style: italic;">[System] 正在加载任务运行日志...</div>
-          <div v-else-if="syslogList.length === 0" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 暂无日志记录... (等待日志生成或当前为历史遗留任务)</div>
+          <div v-else-if="syslogList.length === 0" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 暂无日志记录（任务未产生日志，或日志仍在生成中）</div>
         </div>
       </div>
     </div>
@@ -224,9 +224,12 @@ const handleSyncSuccess = (res) => {
   fetchTaskStatistic();
 };
 
-const goToScope = (scopeId) => {
+const goToScope = (scopeId, scopeName) => {
   if (scopeId) {
-    router.push({ path: '/group', query: { scope_id: scopeId } });
+    router.push({
+      path: '/groupAssetsManagement/groupAssetsDetail',
+      query: { scope_id: scopeId, targetName: scopeName || '', view: 'osint' }
+    });
   }
 };
 
@@ -244,17 +247,17 @@ const displayTitle = computed(() => {
 });
 
 const taskTypeLabel = computed(() => {
-  if (taskType.value === 'tyc') return '天眼查';
-  if (taskType.value === 'icp') return 'ICP备案';
-  return '';
+  if (taskType.value === 'tyc') return '全景双轨';
+  if (taskType.value === 'icp') return '官方备案';
+  return '企业测绘';
 });
 
 const taskStatusLabel = computed(() => {
   const map = {
-    waiting: '等待中',
-    running: '运行中',
+    waiting: '排队中',
+    running: '进行中',
     done: '已完成',
-    error: '失败',
+    error: '异常失败',
     stop: '已停止'
   };
   return map[taskStatus.value] || '';

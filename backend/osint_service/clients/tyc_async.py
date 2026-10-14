@@ -203,3 +203,30 @@ class AsyncTycClient:
             logger.warning(f"Fallback miniProgram list for GID {gid} failed: {e}")
 
         return ""
+
+    async def search_suggest(self, keyword):
+        """
+        根据企业关键词定向检索匹配官方天眼查企业 (异步版本)
+        POST /cloud-tempest/search/suggest/v3
+        Payload: {"keyword": keyword}
+        """
+        if not keyword or not str(keyword).strip():
+            return None
+        keyword = str(keyword).strip()
+        path = "/cloud-tempest/search/suggest/v3"
+        try:
+            data = await self._request("POST", path, json_data={"keyword": keyword})
+            if data and isinstance(data, list) and len(data) > 0:
+                first = data[0]
+                gid = str(first.get("id") or first.get("graphId") or "")
+                name = first.get("comName") or first.get("name") or ""
+                clean_name = name.replace("<em>", "").replace("</em>", "").strip() if name else ""
+                if gid:
+                    return {
+                        "gid": gid,
+                        "company_name": clean_name or keyword,
+                        "raw": first
+                    }
+        except Exception as e:
+            logger.warning(f"Failed to async search_suggest for {keyword}: {e}")
+        return None

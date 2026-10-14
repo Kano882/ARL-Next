@@ -18,9 +18,9 @@
             >
               <bank-outlined class="capsule-icon" />
               <span>企业测绘任务</span>
-              <span class="capsule-count" v-if="enterpriseRunningCount > 0">
+              <span class="capsule-count" v-if="enterpriseMetricCounts.running > 0">
                 <span class="pulse-dot"></span>
-                {{ enterpriseRunningCount }} 运行中
+                {{ enterpriseMetricCounts.running }} 运行中
               </span>
             </button>
             <button
@@ -41,7 +41,7 @@
 
         <!-- 右侧：全局自适应静默轮询开关 + 手动刷新 + 主操作按钮 -->
         <div class="task-hero-right">
-          <a-tooltip :title="autoRefreshEnabled ? '自动刷新已开启：有运行任务时每 8 秒静默同步' : '自动刷新已暂停'">
+          <a-tooltip :title="autoRefreshEnabled ? '自动刷新已开启：有运行任务时每 9 秒静默同步' : '自动刷新已暂停'">
             <div class="auto-refresh-toggle">
               <a-switch
                 v-model:checked="autoRefreshEnabled"
@@ -70,7 +70,7 @@
           <template v-if="activeMainTab === 'enterprise'">
             <a-button type="primary" size="small" class="primary-action-btn" @click="showTycModal">
               <template #icon><plus-outlined /></template>
-              新建企业资产查询
+              新建企业全景测绘
             </a-button>
           </template>
 
@@ -113,8 +113,8 @@
 
         <div
           class="metric-stat-card"
-          :class="{ active: currentStatusFilter === 'running' }"
-          @click="toggleStatusFilter('running')"
+          :class="{ active: currentStatusFilter === 'active' }"
+          @click="toggleStatusFilter('active')"
           title="点击快速筛选进行中/排队中的任务"
         >
           <div class="stat-card-inner">
@@ -150,8 +150,8 @@
 
         <div
           class="metric-stat-card"
-          :class="{ active: currentStatusFilter === 'error' || currentStatusFilter === 'stop' }"
-          @click="toggleStatusFilter('error')"
+          :class="{ active: currentStatusFilter === 'abnormal' }"
+          @click="toggleStatusFilter('abnormal')"
           title="点击快速筛选异常或已停止的任务"
         >
           <div class="stat-card-inner">
@@ -200,6 +200,9 @@
                 @change="onReconSearch"
               >
                 <a-select-option value="">全部状态</a-select-option>
+                <a-select-option value="active">
+                  <span class="status-option-item"><span class="status-dot running"></span> 进行中 / 排队</span>
+                </a-select-option>
                 <a-select-option value="running">
                   <span class="status-option-item"><span class="status-dot running"></span> 进行中</span>
                 </a-select-option>
@@ -215,12 +218,15 @@
                 <a-select-option value="error">
                   <span class="status-option-item"><span class="status-dot error"></span> 异常失败</span>
                 </a-select-option>
+                <a-select-option value="abnormal">
+                  <span class="status-option-item"><span class="status-dot error"></span> 异常 / 已停止</span>
+                </a-select-option>
               </a-select>
 
               <a-range-picker
                 v-model:value="reconSearchForm.dateRange"
                 :presets="rangePresets"
-                :placeholder="['结束开始日期', '结束截止日期']"
+                :placeholder="['开始日期', '结束日期']"
                 format="YYYY-MM-DD"
                 style="width: 240px;"
                 allowClear
@@ -267,6 +273,9 @@
                 @change="onSearch"
               >
                 <a-select-option value="">全部状态</a-select-option>
+                <a-select-option value="active">
+                  <span class="status-option-item"><span class="status-dot running"></span> 进行中 / 排队</span>
+                </a-select-option>
                 <a-select-option value="running">
                   <span class="status-option-item"><span class="status-dot running"></span> 进行中</span>
                 </a-select-option>
@@ -281,6 +290,9 @@
                 </a-select-option>
                 <a-select-option value="error">
                   <span class="status-option-item"><span class="status-dot error"></span> 异常失败</span>
+                </a-select-option>
+                <a-select-option value="abnormal">
+                  <span class="status-option-item"><span class="status-dot error"></span> 异常 / 已停止</span>
                 </a-select-option>
               </a-select>
             </div>
@@ -511,12 +523,21 @@
               <span class="task-target-text" :title="record.target">{{ record.target }}</span>
             </template>
 
+            <template v-else-if="column.key === 'task_type'">
+              <a-tag v-if="record.task_type === 'tyc'" color="blue" style="margin: 0; font-size: 12px; border-radius: 4px; padding: 1px 6px;">
+                🏢 全景双轨
+              </a-tag>
+              <a-tag v-else color="purple" style="margin: 0; font-size: 12px; border-radius: 4px; padding: 1px 6px;">
+                🏛️ 官方备案
+              </a-tag>
+            </template>
+
             <template v-else-if="column.key === 'policy_options'">
               <a-tooltip v-if="hasEnterpriseOptions(record)" placement="bottom">
                 <template #title>
                   <div class="options-tooltip-content">
                     <div class="tooltip-header">
-                      {{ record.task_type === 'tyc' ? '天眼查测绘策略' : '工信部ICP查询策略' }}
+                      {{ record.task_type === 'tyc' ? '企业全景测绘策略 (全景双轨)' : '企业全景测绘策略 (官方备案)' }}
                     </div>
                     <template v-if="record.task_type === 'tyc'">
                       <div class="tooltip-section-title">穿透策略</div>
@@ -574,11 +595,11 @@
                 <a-tag
                   color="blue"
                   class="synced-scope-tag"
-                  @click="goToScope(record.synced_scope_id)"
-                  title="点击前往该资产分组"
+                  @click="goToScope(record.synced_scope_id, record.synced_scope_name)"
+                  title="点击前往该资产组"
                 >
                   <export-outlined />
-                  <span>{{ record.synced_scope_name || '已同步' }}</span>
+                  <span>{{ record.synced_scope_name || '已纳管' }}</span>
                 </a-tag>
                 <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
               </div>
@@ -987,7 +1008,7 @@
     <!-- 5. 同步至资产组弹窗 -->
     <a-modal
       v-model:open="syncVisible"
-      title="同步任务至资产分组"
+      title="同步任务至资产组"
       @ok="handleSyncOk"
       :confirmLoading="syncLoading"
       width="480px"
@@ -997,10 +1018,10 @@
       cancelText="取 消"
     >
       <div style="margin: 16px 0 8px 0;">
-        <p style="color: var(--arl-text-secondary); font-size: 13px;">请选择将该任务探测出的资产数据关联归属的资产分组：</p>
+        <p style="color: var(--arl-text-secondary); font-size: 13px;">请选择将该任务探测出的资产数据关联归属的资产组：</p>
       </div>
       <a-form :model="syncFormState" layout="vertical">
-        <a-form-item label="目标资产组" name="scope_id" :rules="[{ required: true, message: '请选择资产分组' }]">
+        <a-form-item label="目标资产组" name="scope_id" :rules="[{ required: true, message: '请选择资产组' }]">
           <AssetScopeSelect v-model:value="syncFormState.scope_id" />
         </a-form-item>
       </a-form>
@@ -1063,14 +1084,16 @@ import { useSticky } from '../utils/useSticky';
 import { Modal, message, Checkbox } from 'ant-design-vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
-  SearchOutlined, DownOutlined, ExclamationCircleOutlined, ExportOutlined,
-  ReloadOutlined, FilterOutlined, CheckCircleOutlined,
-  CloseCircleOutlined, ClockCircleOutlined, StopOutlined, PlusOutlined,
-  DeleteOutlined, SyncOutlined, SettingOutlined, AppstoreOutlined,
-  GlobalOutlined, BankOutlined, ThunderboltOutlined, CompassOutlined
+  ExclamationCircleOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+  StopOutlined,
+  SyncOutlined
 } from '@ant-design/icons-vue';
 import dayjs from 'dayjs';
 import request from '../utils/request';
+import { applyTaskStatistics, createTaskListClient } from '../utils/taskStatistics';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import TycTaskModal from '../components/TycTaskModal.vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
@@ -1115,13 +1138,20 @@ const pluginNameMap = {
   nuclei_scan: 'Nuclei扫描',
   weak_brute: '弱口令爆破',
   wih_domain_update: 'WIH更新',
-  web_info_hunter: 'WIH探测',
-  running: '运行中',
-  waiting: '排队等待',
+  web_info_hunter: 'WIH探测'
+};
+
+// 任务状态文案（全站统一口径，勿与插件名混用）
+const TASK_STATUS_LABEL = {
+  running: '进行中',
+  waiting: '排队中',
   done: '已完成',
   stop: '已停止',
   error: '异常失败'
 };
+
+// 阶段状态（后端返回插件/阶段标识时表示任务正在该阶段执行）
+const isStageStatus = (status) => !!status && !(status in TASK_STATUS_LABEL);
 
 // ==========================================
 // 📊 顶部指标统计数据模型
@@ -1141,9 +1171,14 @@ const enterpriseMetricCounts = reactive({
 });
 
 const enterpriseRunningCount = ref(0);
+const taskListClient = createTaskListClient(request);
+let taskRequestVersion = 0;
+let enterpriseRequestVersion = 0;
+let taskStatisticsReady = false;
+let enterpriseStatisticsReady = false;
 
 const currentTotalCount = computed(() => {
-  return activeMainTab.value === 'enterprise' ? enterprisePagination.total : pagination.total;
+  return activeMainTab.value === 'enterprise' ? enterpriseMetricCounts.total : taskMetricCounts.total;
 });
 
 const currentRunningCount = computed(() => {
@@ -1181,57 +1216,6 @@ const toggleStatusFilter = (targetStatus) => {
   }
 };
 
-// 拉取资产侦查任务 4 维指标计数
-const fetchTaskMetricCounts = async () => {
-  try {
-    const [runningRes, waitingRes, doneRes, errorRes, stopRes] = await Promise.allSettled([
-      request.get('/task/', { params: { status: 'running', size: 1 } }),
-      request.get('/task/', { params: { status: 'waiting', size: 1 } }),
-      request.get('/task/', { params: { status: 'done', size: 1 } }),
-      request.get('/task/', { params: { status: 'error', size: 1 } }),
-      request.get('/task/', { params: { status: 'stop', size: 1 } })
-    ]);
-
-    const running = (runningRes.status === 'fulfilled' && runningRes.value.code === 200 ? (runningRes.value.total || 0) : 0);
-    const waiting = (waitingRes.status === 'fulfilled' && waitingRes.value.code === 200 ? (waitingRes.value.total || 0) : 0);
-    const done = (doneRes.status === 'fulfilled' && doneRes.value.code === 200 ? (doneRes.value.total || 0) : 0);
-    const error = (errorRes.status === 'fulfilled' && errorRes.value.code === 200 ? (errorRes.value.total || 0) : 0);
-    const stop = (stopRes.status === 'fulfilled' && stopRes.value.code === 200 ? (stopRes.value.total || 0) : 0);
-
-    taskMetricCounts.running = running + waiting;
-    taskMetricCounts.done = done;
-    taskMetricCounts.abnormal = error + stop;
-  } catch (e) {
-    console.error('获取资产侦查指标失败:', e);
-  }
-};
-
-// 拉取企业测绘任务 4 维指标计数
-const fetchEnterpriseMetricCounts = async () => {
-  try {
-    const [runningRes, waitingRes, doneRes, errorRes, stopRes] = await Promise.allSettled([
-      request.get('/icp/task', { params: { status: 'running', size: 1 } }),
-      request.get('/icp/task', { params: { status: 'waiting', size: 1 } }),
-      request.get('/icp/task', { params: { status: 'done', size: 1 } }),
-      request.get('/icp/task', { params: { status: 'error', size: 1 } }),
-      request.get('/icp/task', { params: { status: 'stop', size: 1 } })
-    ]);
-
-    const running = (runningRes.status === 'fulfilled' && runningRes.value.code === 200 ? (runningRes.value.total || 0) : 0);
-    const waiting = (waitingRes.status === 'fulfilled' && waitingRes.value.code === 200 ? (waitingRes.value.total || 0) : 0);
-    const done = (doneRes.status === 'fulfilled' && doneRes.value.code === 200 ? (doneRes.value.total || 0) : 0);
-    const error = (errorRes.status === 'fulfilled' && errorRes.value.code === 200 ? (errorRes.value.total || 0) : 0);
-    const stop = (stopRes.status === 'fulfilled' && stopRes.value.code === 200 ? (stopRes.value.total || 0) : 0);
-
-    enterpriseMetricCounts.running = running + waiting;
-    enterpriseMetricCounts.done = done;
-    enterpriseMetricCounts.abnormal = error + stop;
-    enterpriseRunningCount.value = running + waiting;
-  } catch (e) {
-    console.error('获取企业测绘指标失败:', e);
-  }
-};
-
 // ==========================================
 // 🔄 自适应静默轮询机制 (Smart Polling)
 // ==========================================
@@ -1251,14 +1235,12 @@ const startSmartPolling = () => {
   pollingTimer = setInterval(async () => {
     // 仅在有进行中任务或激活状态时静默更新
     if (activeMainTab.value === 'enterprise') {
-      if (enterpriseMetricCounts.running > 0) {
+      if (!enterpriseStatisticsReady || enterpriseMetricCounts.running > 0) {
         await fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
-        fetchEnterpriseMetricCounts();
       }
     } else {
-      if (taskMetricCounts.running > 0) {
+      if (!taskStatisticsReady || taskMetricCounts.running > 0) {
         await fetchTasks(pagination.current, pagination.pageSize, true);
-        fetchTaskMetricCounts();
       }
     }
   }, 9000);
@@ -1286,10 +1268,8 @@ const handleManualRefresh = async () => {
   try {
     if (activeMainTab.value === 'enterprise') {
       await fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-      await fetchEnterpriseMetricCounts();
     } else {
       await fetchTasks(pagination.current, pagination.pageSize);
-      await fetchTaskMetricCounts();
     }
     lastRefreshTime.value = new Date();
     message.success('任务列表已刷新');
@@ -1327,7 +1307,8 @@ const onEnterpriseSelectChange = (keys) => {
   enterpriseSelectedRowKeys.value = keys;
 };
 
-const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false) => {
+const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false, includeStatistics = true) => {
+  const requestVersion = ++enterpriseRequestVersion;
   if (!silent) enterpriseLoading.value = true;
   try {
     const queryParams = { page, size };
@@ -1339,8 +1320,14 @@ const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false) => {
       queryParams.end_time__lte = dayjs(reconSearchForm.dateRange[1]).endOf('day').format('YYYY-MM-DD HH:mm:ss');
     }
 
-    const res = await request.get('/icp/task', { params: queryParams });
+    const res = await taskListClient.get('/icp/task', queryParams, includeStatistics);
+    if (requestVersion !== enterpriseRequestVersion) return;
+
     if (res.code === 200) {
+      if (applyTaskStatistics(enterpriseMetricCounts, res.statistics)) {
+        enterpriseStatisticsReady = true;
+        enterpriseRunningCount.value = enterpriseMetricCounts.running;
+      }
       enterpriseTaskList.value = res.items || [];
       (res.items || []).forEach(item => {
         if (item && item._id) {
@@ -1355,13 +1342,12 @@ const fetchEnterpriseTasks = async (page = 1, size = 10, silent = false) => {
   } catch (error) {
     console.error('获取企业测绘列表失败:', error);
   } finally {
-    if (!silent) enterpriseLoading.value = false;
+    if (requestVersion === enterpriseRequestVersion) enterpriseLoading.value = false;
   }
 };
 
 const onReconSearch = () => {
   fetchEnterpriseTasks(1, enterprisePagination.pageSize);
-  fetchEnterpriseMetricCounts();
 };
 
 const resetReconSearch = () => {
@@ -1372,7 +1358,7 @@ const resetReconSearch = () => {
   onReconSearch();
 };
 
-const handleEnterpriseTableChange = (page, pageSize) => fetchEnterpriseTasks(page, pageSize);
+const handleEnterpriseTableChange = (page, pageSize) => fetchEnterpriseTasks(page, pageSize, false, false);
 
 const TYC_QUERY_TYPE_LABELS = {
   invest: '对外投资',
@@ -1429,7 +1415,7 @@ const formatEnterpriseOptionsSummary = (record) => {
 const enterpriseColumns = [
   { title: '任务名称', dataIndex: 'name', key: 'name', width: 220, ellipsis: true },
   { title: '查询目标', dataIndex: 'target', key: 'target', width: 200, ellipsis: true },
-  { title: '类型', dataIndex: 'task_type', key: 'task_type', width: 100, customRender: ({ text }) => text === 'tyc' ? '天眼查' : '工信部ICP' },
+  { title: '测绘模式', dataIndex: 'task_type', key: 'task_type', width: 110 },
   { title: '策略配置', key: 'policy_options', width: 140 },
   { title: '状态', dataIndex: 'status', key: 'status', width: 120 },
   { title: '核心/投资', key: 'statistic', width: 140 },
@@ -1478,7 +1464,6 @@ const showTycModal = () => {
 
 const handleEnterpriseCreateSuccess = () => {
   fetchEnterpriseTasks(1, enterprisePagination.pageSize);
-  fetchEnterpriseMetricCounts();
 };
 
 const handleSyncEnterprise = (record) => {
@@ -1494,9 +1479,12 @@ const handleSyncSuccess = (result) => {
   fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
 };
 
-const goToScope = (scopeId) => {
+const goToScope = (scopeId, scopeName) => {
   if (scopeId) {
-    router.push({ path: '/group', query: { scope_id: scopeId } });
+    router.push({
+      path: '/groupAssetsManagement/groupAssetsDetail',
+      query: { scope_id: scopeId, targetName: scopeName || '', view: 'osint' }
+    });
   }
 };
 
@@ -1589,7 +1577,6 @@ const handleBatchDeleteEnterprise = async () => {
       const maxPage = Math.max(1, Math.ceil(remainingCount / enterprisePagination.pageSize));
       const targetPage = Math.min(enterprisePagination.current, maxPage);
       fetchEnterpriseTasks(targetPage, enterprisePagination.pageSize);
-      fetchEnterpriseMetricCounts();
     } else {
       message.error({ content: res.message || '批量删除失败', key: 'batchDelete', duration: 3 });
     }
@@ -1609,22 +1596,32 @@ const handleBatchRestartEnterprise = async () => {
       message.success({ content: '成功下发批量重启', key: 'batchRestart', duration: 3 });
       enterpriseSelectedRowKeys.value = [];
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-      fetchEnterpriseMetricCounts();
     } else {
       message.error({ content: res.message || '批量重启失败', key: 'batchRestart', duration: 3 });
     }
   } catch (error) {
-    message.error({ content: '批量重启失败', key: 'batchRestart', duration: 3 });
+    message.error({ content: '批量重启失败', key: 'batchRestart', duration: 2 });
   }
 };
 
-const handleStopEnterprise = async (record) => {
+const handleStopEnterprise = (record) => {
+  Modal.confirm({
+    title: '停止企业测绘任务确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认停止企业测绘任务「${record.name}」吗？停止后不会自动建组或纳管资产。`,
+    okText: '确认停止',
+    okButtonProps: { danger: true },
+    cancelText: '取 消',
+    onOk: () => executeStopEnterprise(record)
+  });
+};
+
+const executeStopEnterprise = async (record) => {
   try {
     const res = await request.get(`/icp/stop/${record._id}`);
     if (res.code === 200) {
       message.success('已停止任务');
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-      fetchEnterpriseMetricCounts();
     } else {
       message.error(res.message || '停止失败');
     }
@@ -1633,13 +1630,23 @@ const handleStopEnterprise = async (record) => {
   }
 };
 
-const handleRestartEnterprise = async (record) => {
+const handleRestartEnterprise = (record) => {
+  Modal.confirm({
+    title: '重启企业测绘任务确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: `确认重启企业测绘任务「${record.name}」吗？重启将基于原目标重新发起一次测绘，并生成新的任务记录。`,
+    okText: '确认重启',
+    cancelText: '取 消',
+    onOk: () => executeRestartEnterprise(record)
+  });
+};
+
+const executeRestartEnterprise = async (record) => {
   try {
     const res = await request.get(`/icp/restart/${record._id}`);
     if (res.code === 200) {
       message.success('已重启任务');
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-      fetchEnterpriseMetricCounts();
     } else {
       message.error(res.message || '重启失败');
     }
@@ -1672,7 +1679,6 @@ const handleDeleteEnterprise = async (record) => {
           const maxPage = Math.max(1, Math.ceil(remainingCount / enterprisePagination.pageSize));
           const targetPage = Math.min(enterprisePagination.current, maxPage);
           fetchEnterpriseTasks(targetPage, enterprisePagination.pageSize);
-          fetchEnterpriseMetricCounts();
         } else {
           message.error(res.message || '删除失败');
         }
@@ -1735,13 +1741,11 @@ const getStatusIcon = (status) => {
 };
 
 const formatStatusText = (status) => {
-  if (status === 'done') return '已完成';
-  if (status === 'error') return '异常失败';
-  if (status === 'stop') return '已停止';
-  if (status === 'waiting') return '排队中';
+  if (TASK_STATUS_LABEL[status]) return TASK_STATUS_LABEL[status];
 
-  const pluginName = pluginNameMap[status] || status;
-  return `${pluginName}`;
+  // 阶段状态：明确标注为“进行中”，避免把插件名误读为任务状态
+  const stageName = pluginNameMap[status] || status;
+  return stageName ? `进行中 · ${stageName}` : '进行中';
 };
 
 const formatOptionsSummary = (options) => {
@@ -1820,7 +1824,8 @@ const onSelectChange = (keys) => {
 };
 
 // 获取任务列表数据
-const fetchTasks = async (page = 1, size = 10, silent = false) => {
+const fetchTasks = async (page = 1, size = 10, silent = false, includeStatistics = true) => {
+  const requestVersion = ++taskRequestVersion;
   if (!silent) loading.value = true;
   try {
     const queryParams = { page, size };
@@ -1843,9 +1848,11 @@ const fetchTasks = async (page = 1, size = 10, silent = false) => {
     appendCountParam(searchForm.domain_count, searchForm.domain_operator, 'statistic.domain_cnt');
     appendCountParam(searchForm.wih_count, searchForm.wih_operator, 'statistic.wih_cnt');
 
-    const res = await request.get('/task/', { params: queryParams });
+    const res = await taskListClient.get('/task/', queryParams, includeStatistics);
+    if (requestVersion !== taskRequestVersion) return;
 
     if (res.code === 200) {
+      if (applyTaskStatistics(taskMetricCounts, res.statistics)) taskStatisticsReady = true;
       taskList.value = res.items || [];
       pagination.total = res.total || 0;
       pagination.current = page;
@@ -1855,13 +1862,12 @@ const fetchTasks = async (page = 1, size = 10, silent = false) => {
   } catch (error) {
     console.error('获取资产侦查任务失败:', error);
   } finally {
-    if (!silent) loading.value = false;
+    if (requestVersion === taskRequestVersion) loading.value = false;
   }
 };
 
 const onSearch = () => {
   fetchTasks(1, pagination.pageSize);
-  fetchTaskMetricCounts();
 };
 
 const resetSearch = () => {
@@ -1873,7 +1879,7 @@ const resetSearch = () => {
   onSearch();
 };
 
-const handleTableChange = (page, pageSize) => fetchTasks(page, pageSize);
+const handleTableChange = (page, pageSize) => fetchTasks(page, pageSize, false, false);
 
 // ==========================================
 // 💥 任务批量操作
@@ -1887,17 +1893,34 @@ const handleBatchDelete = () => {
   const validKeys = selectedRowKeys.value.filter(key => key != null);
   if (validKeys.length === 0) return;
 
-  let isDeleteData = true;
+  // 默认不勾选：级联删除资产数据不可恢复，须由用户显式确认
+  let isDeleteData = false;
+
+  // 跨页选择时勾选项可能不在当前可见页，列出名称便于用户复核范围
+  const selectedNames = taskList.value
+    .filter(item => validKeys.includes(item._id || item.task_id))
+    .map(item => item.name)
+    .filter(Boolean);
+  const visibleCount = taskList.value.filter(item => validKeys.includes(item._id || item.task_id)).length;
 
   Modal.confirm({
     title: '批量删除任务确认',
     icon: createVNode(ExclamationCircleOutlined),
     content: createVNode('div', { style: 'margin-top: 8px;' }, [
       createVNode('div', { style: 'margin-bottom: 14px; color: var(--arl-text-color);' }, `确认要删除选中的 ${validKeys.length} 项任务吗？`),
+      selectedNames.length > 0 ? createVNode('div', {
+        style: 'max-height: 120px; overflow-y: auto; background: var(--arl-bg-light, rgba(0,0,0,0.03)); padding: 6px 8px; border-radius: 4px; margin-bottom: 14px; font-size: 12px; color: var(--arl-text-color); opacity: 0.85; line-height: 1.6;'
+      }, [
+        createVNode('div', { style: 'font-weight: 500; margin-bottom: 4px;' }, `本次将删除以下任务：`),
+        createVNode('div', null, `· ${selectedNames.join('\n· ')}`),
+        visibleCount < validKeys.length
+          ? createVNode('div', { style: 'margin-top: 4px; color: #faad14;' }, `其中 ${validKeys.length - visibleCount} 项来自其他页（跨页保留的勾选）。`)
+          : null
+      ]) : null,
       createVNode(Checkbox, {
         defaultChecked: isDeleteData,
         onChange: (e) => { isDeleteData = e.target.checked; }
-      }, () => '同时级联删除该任务关联的所有资产数据 (不可恢复)')
+      }, () => '同时级联删除本次删除任务名下的全部资产数据 (不可恢复，其他任务共享的资产不受影响)')
     ]),
     okText: '确认删除',
     cancelText: '取 消',
@@ -1913,7 +1936,6 @@ const handleBatchDelete = () => {
           message.success(`成功删除 ${validKeys.length} 项任务`);
           selectedRowKeys.value = [];
           fetchTasks(1, pagination.pageSize);
-          fetchTaskMetricCounts();
         } else {
           message.error('删除失败: ' + (res.message || '未知错误'));
         }
@@ -1955,7 +1977,6 @@ const handleBatchStop = () => {
           message.success('停止指令已下发');
           selectedRowKeys.value = [];
           fetchTasks(pagination.current, pagination.pageSize);
-          fetchTaskMetricCounts();
         } else {
           message.error('停止失败: ' + (res.message || '未知错误'));
         }
@@ -2031,7 +2052,6 @@ const restartTask = async (record) => {
         message.success('任务已重启，已生成新任务！🚀');
       }
       fetchTasks(pagination.current, pagination.pageSize);
-      fetchTaskMetricCounts();
     } else {
       const errMsg = res.data?.error || res.message || '未知错误';
       message.error('重启失败: ' + errMsg);
@@ -2049,7 +2069,6 @@ const stopSingleTask = async (record) => {
     if (res.code === 200) {
       message.success('已发送停止指令 🛑');
       fetchTasks(pagination.current, pagination.pageSize);
-      fetchTaskMetricCounts();
     } else {
       message.error('停止失败: ' + (res.message || '未知错误'));
     }
@@ -2084,7 +2103,6 @@ const deleteSingleTask = (record) => {
         if (res.code === 200) {
           message.success('任务删除成功');
           fetchTasks(pagination.current, pagination.pageSize);
-          fetchTaskMetricCounts();
         } else {
           message.error('删除失败: ' + (res.message || '未知错误'));
         }
@@ -2277,7 +2295,6 @@ const handleOk = async () => {
       visible.value = false;
       formState.related_scope_id = undefined;
       fetchTasks(1, pagination.pageSize);
-      fetchTaskMetricCounts();
     } else {
       message.error('下发失败: ' + (res.data?.error || res.message || '未知错误'));
     }
@@ -2369,7 +2386,6 @@ const submitFofaTask = async () => {
       message.success('FOFA 任务下发成功！');
       fofaVisible.value = false;
       fetchTasks(1, pagination.pageSize);
-      fetchTaskMetricCounts();
     } else {
       message.error(res.message || '任务下发失败');
     }
@@ -2414,10 +2430,8 @@ const handleMainTabChange = (key) => {
   router.replace({ query: nextQuery });
   if (key === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-    fetchEnterpriseMetricCounts();
   } else {
     fetchTasks(pagination.current, pagination.pageSize);
-    fetchTaskMetricCounts();
   }
   startSmartPolling();
 };
@@ -2434,10 +2448,8 @@ onMounted(async () => {
 
   if (activeMainTab.value === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
-    fetchEnterpriseMetricCounts();
   } else {
     fetchTasks(pagination.current, pagination.pageSize);
-    fetchTaskMetricCounts();
   }
 
   startSmartPolling();
@@ -2460,13 +2472,17 @@ onMounted(async () => {
   }
 });
 
+let firstActivation = true;
 onActivated(() => {
+  // KeepAlive 首次激活时 onMounted 已启动加载，消除并发双重触发
+  if (firstActivation) {
+    firstActivation = false;
+    return;
+  }
   if (activeMainTab.value === 'enterprise') {
     fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize, true);
-    fetchEnterpriseMetricCounts();
   } else {
     fetchTasks(pagination.current, pagination.pageSize, true);
-    fetchTaskMetricCounts();
   }
   startSmartPolling();
 });

@@ -14,15 +14,18 @@
 
 ## 🌟 Core Features & Design Principles
 
-1. **⚡ Zero External Dependencies (< 20ms startup)**:
+> [!NOTE]
+> **TLS Certificate Verification**: ARL-Next ships with a self-signed certificate by default, so the MCP client **does not verify the server certificate** to keep the out-of-the-box flow frictionless. If you deploy a trusted certificate, remove the two lines disabling verification inside `_request_api` in `server.py` to enable full verification.
+
+1. **⚡ Standard Library Implementation**:
    - Eliminates third-party package dependencies (no `mcp[cli]`, no `pydantic`, no `requests`).
-   - Built exclusively on Python 3.8+ standard libraries (`sys`, `json`, `urllib`, `ssl`), allowing instant execution with system Python without virtual environment setup issues.
+   - Built exclusively on Python 3.8+ standard libraries (`sys`, `json`, `urllib`, `ssl`), enabling instant execution with system Python and avoiding virtual environment conflicts.
 2. **🎯 Unified Asset Profiling**:
-   - Replaces unstructured, bulky CSV outputs with structured contextual telemetry.
+   - Replaces unstructured, bulky outputs with structured contextual telemetry.
    - Exposes a unified core tool `get_asset_profile`, consolidating network layer details (IPs, ports, services, GeoIP, ASN), application layer data (page title, status codes, Web fingerprints), TLS certificates (SANs, issuers), and exposure intelligence (historical vulnerabilities, Nuclei findings, credential/file leaks) in a single request.
-3. **📉 Token Footprint Reduction (-85%+ Tokens)**:
-   - Reduces system tool prompt definitions from ~2,500 tokens down to **~120 tokens**.
-   - Trims payload overhead with a compact JSON schema: strips `null` fields and empty arrays, and flattens ports and vulnerabilities into a compact representation for cost efficiency.
+3. **📉 Context-Efficient Design**:
+   - Streamlines system tool prompt definitions to minimize context footprint.
+   - Returns compact JSON payloads: strips `null` fields, empty arrays, and redundant headers to maintain essential risk indicators without truncation.
 
 ---
 

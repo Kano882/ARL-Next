@@ -26,21 +26,28 @@
       <a-tab-pane key="domain" :tab="taskId ? `子域名 - ${queryCounts.domain}` : '子域名'"></a-tab-pane>
       <a-tab-pane key="ip" :tab="taskId ? `IP - ${queryCounts.ip}` : 'IP'"></a-tab-pane>
       <a-tab-pane key="cert" :tab="taskId ? `SSL证书 - ${queryCounts.cert}` : 'SSL证书'"></a-tab-pane>
-      <a-tab-pane key="service" :tab="taskId ? `服务 - ${queryCounts.service}` : '服务'"></a-tab-pane>
+      <a-tab-pane key="service" :tab="taskId ? `服务 - ${(queryCounts.service || 0) + (queryCounts.npoc_service || 0)}` : '服务'"></a-tab-pane>
       <a-tab-pane key="fileleak" :tab="taskId ? `文件泄露 - ${queryCounts.fileleak}` : '文件泄露'"></a-tab-pane>
       <a-tab-pane key="url" :tab="taskId ? `URL信息 - ${queryCounts.url}` : 'URL信息'"></a-tab-pane>
       <a-tab-pane key="cip" :tab="taskId ? `C段 - ${queryCounts.cip}` : 'C段'"></a-tab-pane>
       <a-tab-pane key="stat_finger" :tab="taskId ? `指纹统计 - ${queryCounts.stat_finger}` : '指纹统计'"></a-tab-pane>
       <a-tab-pane key="wih" :tab="taskId ? `WIH - ${queryCounts.wih}` : 'WIH'"></a-tab-pane>
       <a-tab-pane key="vuln" :tab="taskId ? `风险 - ${queryCounts.vuln}` : '风险'"></a-tab-pane>
-      <a-tab-pane key="npoc_service" :tab="taskId ? `服务（python） - ${queryCounts.npoc_service}` : '服务（python）'"></a-tab-pane>
       <a-tab-pane key="nuclei_result" :tab="taskId ? `nuclei - ${queryCounts.nuclei_result}` : 'nuclei'"></a-tab-pane>
       <a-tab-pane v-if="taskId" key="syslog" tab="任务日志"></a-tab-pane>
     </a-tabs>
 
-    <div v-if="tabConfig[activeTab]?.searchFields && activeTab !== 'syslog'" style="margin-bottom: 16px;">
+    <div v-if="activeTab === 'service'" style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px; background: var(--arl-bg-light); padding: 10px 16px; border-radius: 6px; border: 1px solid var(--arl-border-color);">
+      <span style="font-weight: 600; font-size: 13px; color: var(--arl-text-color);">识别引擎：</span>
+      <a-radio-group v-model:value="serviceEngineType" button-style="solid" size="small" @change="onServiceEngineChange">
+        <a-radio-button value="nmap">端口服务 (Nmap) <span v-if="taskId">({{ queryCounts.service || 0 }})</span></a-radio-button>
+        <a-radio-button value="npoc">Python 插件服务 <span v-if="taskId">({{ queryCounts.npoc_service || 0 }})</span></a-radio-button>
+      </a-radio-group>
+    </div>
+
+    <div v-if="tabConfig[effectiveTab]?.searchFields && activeTab !== 'syslog'" style="margin-bottom: 16px;">
       <a-form :model="searchForm" layout="inline" style="row-gap: 16px;">
-      <a-form-item v-for="field in tabConfig[activeTab].searchFields" :key="field.key" :label="field.label + '：'">
+      <a-form-item v-for="field in tabConfig[effectiveTab].searchFields" :key="field.key" :label="field.label + '：'">
                 <a-select
             v-if="field.type === 'select'"
             v-model:value="searchForm[field.key]"
@@ -114,9 +121,9 @@
     </div>
 
     <div v-show="activeTab !== 'syslog'" style="margin-bottom: 16px;">
-      <a-button style="margin-right: 16px;" @click="resetSearch">清 除</a-button>
+      <a-button style="margin-right: 16px;" @click="resetSearch">清空筛选条件</a-button>
       <a-button :disabled="!hasSelected" style="margin-right: 16px;" @click="handleBatchDelete">批量删除</a-button>
-      <a-button v-if="tabConfig[activeTab]?.exportName" type="primary" style="margin-right: 16px;" @click="handleExport">导出{{ tabConfig[activeTab].exportName }}</a-button>
+      <a-button v-if="tabConfig[effectiveTab]?.exportName" type="primary" style="margin-right: 16px;" @click="handleExport">导出{{ tabConfig[effectiveTab].exportName }}</a-button>
       <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">风险任务下发</a-button>
     </div>
     </div>
@@ -465,14 +472,17 @@
         </template>
 
         <template v-else-if="column.key === 'wih_risk_level'">
+          <!-- 缺失风险等级时如实显示“未知”，避免被误读为已确认低危 -->
           <a-tag :color="record.risk_level === 'CRITICAL' ? 'red' : (record.risk_level === 'MEDIUM' ? 'orange' : 'default')">
-            {{ record.risk_level || 'LOW' }}
+            {{ record.risk_level || '未知' }}
           </a-tag>
         </template>
 
         <template v-else-if="column.key === 'ip_cdn_tag'">
           <a-tag v-if="record.is_cdn || record.cdn_name" color="blue">{{ record.cdn_name || 'CDN节点' }}</a-tag>
-          <a-tag v-else color="green">独立源站</a-tag>
+          <!-- is_cdn 为 null/undefined 表示该字段未采集，不应表述为“已确认独立源站” -->
+          <a-tag v-else-if="record.is_cdn === false" color="green">独立源站</a-tag>
+          <a-tag v-else color="default">未识别</a-tag>
         </template>
 
         <template v-else-if="column.key === 'content' && activeTab === 'wih'">
@@ -523,7 +533,7 @@
       </a-table>
     </a-modal>
 
-    <div v-if="tabConfig[activeTab] && activeTab !== 'syslog'" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
+    <div v-if="tabConfig[effectiveTab] && activeTab !== 'syslog'" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
       <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
       <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
     </div>
@@ -836,6 +846,31 @@ const isTaskRunning = computed(() => !!taskId.value && !['done', 'error', 'stop'
 const isHydrating = ref(true);
 
 const activeTab = ref('site');
+const serviceEngineType = ref('nmap'); // 'nmap' | 'npoc'
+const effectiveTab = computed(() => {
+  if (activeTab.value === 'service' && serviceEngineType.value === 'npoc') {
+    return 'npoc_service';
+  }
+  return activeTab.value;
+});
+
+const onServiceEngineChange = () => {
+  const currentTab = effectiveTab.value;
+  selectedRowKeys.value = [];
+  columns.value = tabConfig[currentTab]?.cols || [];
+  searchForm.value = tabCache.getTabSearchForm(currentTab);
+  tabCache.applyTabOperators(currentTab);
+  pagination.current = tabCache.getTabPage(currentTab) || 1;
+  const cached = tabCache.getMemoryCache(currentTab, pagination.pageSize);
+  if (cached) {
+    dataSource.value = cached.dataSource;
+    pagination.total = cached.total;
+    lastFetchedPage = pagination.current;
+    lastFetchedSize = pagination.pageSize;
+  } else {
+    fetchData();
+  }
+};
 const loading = ref(false);
 const dataSource = ref([]);
 
@@ -892,13 +927,25 @@ const onSelectChange = (keys) => { selectedRowKeys.value = keys; };
 const searchForm = ref({});
 const globalPageSize = useGlobalPageSize(10);
 const pagination = reactive({ current: 1, pageSize: globalPageSize.value, total: 0 });
+let lastFetchedPage = 1;
+let lastFetchedSize = globalPageSize.value;
 
 watch(() => pagination.pageSize, (newSize) => {
-  globalPageSize.value = newSize;
+  const target = Number(newSize) || 10;
+  if (globalPageSize.value !== target) {
+    globalPageSize.value = target;
+  }
 });
 
 watch(globalPageSize, (newSize) => {
-  pagination.pageSize = newSize;
+  const target = Number(newSize) || 10;
+  if (pagination.pageSize !== target) {
+    pagination.pageSize = target;
+    tabCache.invalidateAllMemoryCaches();
+    if (tabConfig[effectiveTab.value] && activeTab.value !== 'syslog') {
+      fetchData();
+    }
+  }
 });
 
 // 💥 核心修改 3：在配置字典中加入 deleteUrl
@@ -1041,8 +1088,8 @@ const tabConfig = reactive({
     ]
   },
   url: {
-    url: '/url/',
-    deleteUrl: '/site/delete/',
+    url: '/asset_url/',
+    deleteUrl: '/asset_url/delete/',
     exportUrl: '/url/export/',
     exportName: 'URL信息',
     searchFields: [
@@ -1104,6 +1151,8 @@ const tabConfig = reactive({
   npoc_service: {
     url: '/npoc_service/',
     deleteUrl: '/npoc_service/delete/',
+    exportUrl: '/npoc_service/export/',
+    exportName: 'Python插件服务',
     searchFields: [
       { label: '协议', key: 'scheme', operator: '=' },
       { label: '主机', key: 'host', operator: '=' },
@@ -1121,8 +1170,8 @@ const tabConfig = reactive({
     ]
   },
   cip: {
-    url: '/cip/',
-    deleteUrl: '/site/delete/',
+    url: '/asset_cip/',
+    deleteUrl: '/asset_cip/delete/',
     exportUrl: '/cip/export/',
     exportName: 'C段',
     searchFields: [
@@ -1158,8 +1207,8 @@ const tabConfig = reactive({
     ]
   },
   stat_finger: {
-    url: '/stat_finger/',
-    deleteUrl: '/site/delete/',
+    url: '/asset_stat_finger/',
+    deleteUrl: '/asset_stat_finger/delete/',
     searchFields: [
       { 
         label: 'finger', 
@@ -1222,13 +1271,13 @@ const fetchData = async (isPolling = false) => {
   const currentTaskId = taskId.value;
   // 🚨 核心修改 1：删除了 if (!taskId) return; 让全局查看也能放行！
 
-  const config = tabConfig[activeTab.value];
+  const config = tabConfig[effectiveTab.value];
   if (!config) {
     dataSource.value = [];
     return;
   }
 
-  const currentReqTab = activeTab.value;
+  const currentReqTab = effectiveTab.value;
   if (!isPolling) {
     loading.value = true;
   }
@@ -1259,21 +1308,23 @@ const fetchData = async (isPolling = false) => {
 
     const res = await request.get(config.url, { params });
     // 竞态防御：若响应到达时 Tab 已切换，丢弃过期响应
-    if (activeTab.value !== currentReqTab) return;
+    if (effectiveTab.value !== currentReqTab) return;
 
     if (res.code === 200) {
       dataSource.value = res.items || [];
       pagination.total = res.total || 0;
       selectedRowKeys.value = [];
-      tabCache.updateMemoryCache(activeTab.value, dataSource.value, pagination.total);
-      tabCache.saveCurrentTab(activeTab.value, searchForm.value, pagination.current);
+      lastFetchedPage = pagination.current;
+      lastFetchedSize = pagination.pageSize;
+      tabCache.updateMemoryCache(effectiveTab.value, dataSource.value, pagination.total, pagination.pageSize);
+      tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, pagination.current);
     }
   } catch (error) {
-    if (!isPolling && activeTab.value === currentReqTab) {
+    if (!isPolling && effectiveTab.value === currentReqTab) {
       message.error('加载资产数据失败');
     }
   } finally {
-    if (!isPolling && activeTab.value === currentReqTab) {
+    if (!isPolling && effectiveTab.value === currentReqTab) {
       loading.value = false;
     }
   }
@@ -1286,7 +1337,7 @@ const fetchData = async (isPolling = false) => {
 // 💥 智能导出：自动识别当前 Tab 导出纯文本
 // ==========================================
 const handleExport = async () => {
-  const config = tabConfig[activeTab.value];
+  const config = tabConfig[effectiveTab.value];
   if (!config || !config.exportUrl) return;
 
   try {
@@ -1317,7 +1368,7 @@ const handleExport = async () => {
       responseType: 'blob'
     });
 
-    const isCert = activeTab.value === 'cert';
+    const isCert = effectiveTab.value === 'cert';
     const mimeType = isCert ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
     const ext = isCert ? 'json' : 'txt';
 
@@ -1326,7 +1377,7 @@ const handleExport = async () => {
 
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `ARL_${activeTab.value}_Export_${taskId.value ? taskId.value.substring(0, 8) : 'Global'}.${ext}`;
+    link.download = `ARL_${effectiveTab.value}_Export_${taskId.value ? taskId.value.substring(0, 8) : 'Global'}.${ext}`;
     document.body.appendChild(link);
     link.click();
 
@@ -1350,20 +1401,20 @@ const handleBatchDelete = () => {
 
   // 2. 如果过滤后全是空的，说明 rowKey 绑定失败，直接拦截并弹窗警告
   if (validKeys.length === 0) {
-    message.error('未能获取到有效的资产ID，请按 F12 检查接口返回的字段名！');
+    message.error('未能获取到可删除的资产记录，请刷新页面后重试。');
     return;
   }
 
-  const config = tabConfig[activeTab.value];
+  const config = tabConfig[effectiveTab.value];
   if (!config || !config.deleteUrl) {
     message.warning('当前资产类型暂不支持批量删除');
     return;
   }
 
   Modal.confirm({
-    title: '操作确认',
-    icon: createVNode(ExclamationCircleOutlined),
-    content: `确认要删除选中的 ${validKeys.length} 项资产吗？`,
+    title: '批量删除确认',
+    icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
+    content: `确认要删除选中的 ${validKeys.length} 项${config.exportName || '资产'}记录吗？`,
     okText: '确认',
     cancelText: '取消',
     onOk: async () => {
@@ -1376,7 +1427,7 @@ const handleBatchDelete = () => {
         if (res.code === 200) {
           message.success(`成功删除 ${validKeys.length} 项资产！`);
           selectedRowKeys.value = []; // 清空勾选
-          tabCache.invalidateMemoryCache(activeTab.value);
+          tabCache.invalidateMemoryCache(effectiveTab.value);
           fetchData(); // 重新拉取表格数据更新界面
         } else {
           message.error('删除失败: ' + (res.message || '未知错误'));
@@ -1390,21 +1441,39 @@ const handleBatchDelete = () => {
 
 const onSearch = () => {
   pagination.current = 1;
-  tabCache.saveCurrentTab(activeTab.value, searchForm.value, 1);
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, 1);
   fetchData();
 };
 
 const resetSearch = () => {
   searchForm.value = {};
-  tabCache.resetTabState(activeTab.value);
+  tabCache.resetTabState(effectiveTab.value);
   pagination.current = 1;
   fetchData();
 };
 
 const handleTableChange = (page, pageSize) => {
-  pagination.current = page;
-  pagination.pageSize = pageSize;
-  tabCache.saveCurrentTab(activeTab.value, searchForm.value, page);
+  const targetSize = Number(pageSize) || Number(pagination.pageSize) || 10;
+  const sizeChanged = targetSize !== lastFetchedSize;
+  const targetPage = sizeChanged ? 1 : (Number(page) || 1);
+
+  // 防御重复触发：只有在单页条数未变且目标页码与已拉取页码完全相同时才阻断
+  if (!sizeChanged && targetPage === lastFetchedPage && targetSize === lastFetchedSize) {
+    return;
+  }
+
+  lastFetchedPage = targetPage;
+  lastFetchedSize = targetSize;
+
+  pagination.current = targetPage;
+  pagination.pageSize = targetSize;
+
+  if (sizeChanged) {
+    tabCache.invalidateAllMemoryCaches();
+    globalPageSize.value = targetSize;
+  }
+
+  tabCache.saveCurrentTab(effectiveTab.value, searchForm.value, pagination.current);
   fetchData();
 };
 
@@ -1524,30 +1593,35 @@ const stopTaskStatusTimer = () => {
 };
 
 watch(activeTab, (newVal, oldVal) => {
+  const oldEffective = (oldVal === 'service' && serviceEngineType.value === 'npoc') ? 'npoc_service' : oldVal;
+  const newEffective = (newVal === 'service' && serviceEngineType.value === 'npoc') ? 'npoc_service' : newVal;
+
   if (oldVal === 'syslog') {
     stopSyslogTimer();
-  } else if (oldVal && tabConfig[oldVal] && !isHydrating.value) {
-    tabCache.saveCurrentTab(oldVal, searchForm.value, pagination.current);
+  } else if (oldEffective && tabConfig[oldEffective] && !isHydrating.value) {
+    tabCache.saveCurrentTab(oldEffective, searchForm.value, pagination.current);
   }
 
   if (newVal === 'syslog') {
     stopSyslogTimer();
     startSyslogTimer();
-  } else if (tabConfig[newVal]) {
+  } else if (tabConfig[newEffective]) {
     stopSyslogTimer();
-    columns.value = tabConfig[newVal].cols;
+    columns.value = tabConfig[newEffective].cols;
     selectedRowKeys.value = [];
 
     // 恢复新选项卡的搜索表单、操作符与页码
-    searchForm.value = tabCache.getTabSearchForm(newVal);
-    tabCache.applyTabOperators(newVal);
-    pagination.current = tabCache.getTabPage(newVal);
+    searchForm.value = tabCache.getTabSearchForm(newEffective);
+    tabCache.applyTabOperators(newEffective);
+    pagination.current = tabCache.getTabPage(newEffective) || 1;
 
-    // 检查内存数据缓存（运行中任务会自动穿透并强制请求）
-    const cached = tabCache.getMemoryCache(newVal);
+    // 检查内存数据缓存（传入 pagination.pageSize 进行容量匹配校验）
+    const cached = tabCache.getMemoryCache(newEffective, pagination.pageSize);
     if (cached) {
       dataSource.value = cached.dataSource;
       pagination.total = cached.total;
+      lastFetchedPage = pagination.current;
+      lastFetchedSize = pagination.pageSize;
     } else {
       fetchData();
     }
@@ -1571,7 +1645,11 @@ const reloadTaskData = () => {
   dataSource.value = [];
   selectedRowKeys.value = [];
 
-  const restoredTab = tabCache.init();
+  let restoredTab = tabCache.init();
+  if (restoredTab === 'npoc_service') {
+    serviceEngineType.value = 'npoc';
+    restoredTab = 'service';
+  }
   if (restoredTab && tabConfig[restoredTab] && restoredTab !== activeTab.value) {
     activeTab.value = restoredTab;
     nextTick(() => {
@@ -1580,16 +1658,18 @@ const reloadTaskData = () => {
   } else {
     if (activeTab.value === 'syslog') {
       startSyslogTimer();
-    } else if (tabConfig[activeTab.value]) {
-      columns.value = tabConfig[activeTab.value].cols;
-      searchForm.value = tabCache.getTabSearchForm(activeTab.value);
-      tabCache.applyTabOperators(activeTab.value);
-      pagination.current = tabCache.getTabPage(activeTab.value);
+    } else if (tabConfig[effectiveTab.value]) {
+      columns.value = tabConfig[effectiveTab.value].cols;
+      searchForm.value = tabCache.getTabSearchForm(effectiveTab.value);
+      tabCache.applyTabOperators(effectiveTab.value);
+      pagination.current = tabCache.getTabPage(effectiveTab.value) || 1;
 
-      const cached = tabCache.getMemoryCache(activeTab.value);
+      const cached = tabCache.getMemoryCache(effectiveTab.value, pagination.pageSize);
       if (cached) {
         dataSource.value = cached.dataSource;
         pagination.total = cached.total;
+        lastFetchedPage = pagination.current;
+        lastFetchedSize = pagination.pageSize;
       } else {
         fetchData();
       }

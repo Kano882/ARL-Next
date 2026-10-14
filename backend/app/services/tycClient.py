@@ -250,3 +250,29 @@ class TycClient:
 
         return ""
 
+    def search_suggest(self, keyword):
+        """
+        根据企业关键词定向检索匹配官方天眼查企业 (返回包含 GID 和官方公司全称的首选结果)
+        POST /cloud-tempest/search/suggest/v3
+        Payload: {"keyword": keyword}
+        """
+        if not keyword or not str(keyword).strip():
+            return None
+        keyword = str(keyword).strip()
+        path = "/cloud-tempest/search/suggest/v3"
+        try:
+            data = self._request("POST", path, json_data={"keyword": keyword})
+            if data and isinstance(data, list) and len(data) > 0:
+                first = data[0]
+                gid = str(first.get("id") or first.get("graphId") or "")
+                name = first.get("comName") or first.get("name") or ""
+                clean_name = name.replace("<em>", "").replace("</em>", "").strip() if name else ""
+                if gid:
+                    return {
+                        "gid": gid,
+                        "company_name": clean_name or keyword,
+                        "raw": first
+                    }
+        except Exception as e:
+            logger.warning(f"Failed to search_suggest for {keyword}: {e}")
+        return None

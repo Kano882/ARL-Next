@@ -79,11 +79,18 @@ class ARLAssetScope(ARLResource):
         if items:
             scope_id_strs = [str(item.get('_id')) for item in items if item.get('_id')]
             synced_task_ids = []
+            updating_task_ids = []
             for item in items:
                 stid = item.get('synced_icp_task_id')
                 if stid:
                     try:
                         synced_task_ids.append(ObjectId(stid))
+                    except Exception:
+                        pass
+                utid = item.get('updating_icp_task_id')
+                if utid:
+                    try:
+                        updating_task_ids.append(ObjectId(utid))
                     except Exception:
                         pass
 
@@ -92,6 +99,8 @@ class ARLAssetScope(ARLResource):
                 task_query.append({"synced_scope_id": {"$in": scope_id_strs}})
             if synced_task_ids:
                 task_query.append({"_id": {"$in": synced_task_ids}})
+            if updating_task_ids:
+                task_query.append({"_id": {"$in": updating_task_ids}})
 
             if task_query:
                 try:
@@ -105,6 +114,42 @@ class ARLAssetScope(ARLResource):
 
                     for item in items:
                         sid_str = str(item.get('_id'))
+
+                        # 🛡️ 检查并处理测绘更新中任务状态
+                        utid = item.get('updating_icp_task_id')
+                        if utid and str(utid) in task_by_id:
+                            up_t = task_by_id[str(utid)]
+                            up_status = up_t.get('status')
+                            if up_status == 'done':
+                                # 测绘任务已圆满完成，原子晋升为主指针
+                                try:
+                                    utils.conn_db('asset_scope').update_one(
+                                        {'_id': item['_id']},
+                                        {
+                                            '$set': {'synced_icp_task_id': str(up_t['_id'])},
+                                            '$unset': {'updating_icp_task_id': ''}
+                                        }
+                                    )
+                                    item['synced_icp_task_id'] = str(up_t['_id'])
+                                    item.pop('updating_icp_task_id', None)
+                                except Exception as up_err:
+                                    logger.error(f"Failed to promote updating_icp_task_id: {up_err}")
+                            elif up_status in ['error', 'stop']:
+                                # 测绘任务执行失败或被终止，安全熔断回滚，保留原主指针
+                                try:
+                                    utils.conn_db('asset_scope').update_one(
+                                        {'_id': item['_id']},
+                                        {'$unset': {'updating_icp_task_id': ''}}
+                                    )
+                                    item.pop('updating_icp_task_id', None)
+                                    item['update_error_msg'] = up_t.get('error_msg') or '测绘任务执行失败'
+                                except Exception as up_err:
+                                    logger.error(f"Failed to clear failed updating_icp_task_id: {up_err}")
+                            else:
+                                item['updating_icp_task_id'] = str(up_t['_id'])
+                                item['updating_status'] = up_status
+                                item['updating_start_time'] = up_t.get('start_time')
+
                         t = None
                         if item.get('synced_icp_task_id') and str(item['synced_icp_task_id']) in task_by_id:
                             t = task_by_id[str(item['synced_icp_task_id'])]
