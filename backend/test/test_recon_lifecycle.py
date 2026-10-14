@@ -90,7 +90,8 @@ def route(db, cls, method):
     env = {'conn_db': db.__getitem__, 'bson': types.SimpleNamespace(ObjectId=lambda x: x),
            'TaskStatus': statuses, 'ErrorMsg': errors, 'build_ret': lambda msg, data: dict(msg, data=data),
            'curr_date': lambda: '2026-10-12 12:00:00', 'logger': LOG, 'add_icp_task_fields': None}
-    extract('app/routes/icp.py', ['_request_recon'], env)
+    # build_auto_group_intent 被 IcpTask.post 调用，属同一源码模块的依赖，需一并注入。
+    extract('app/routes/icp.py', ['_request_recon', 'build_auto_group_intent'], env)
     return extract('app/routes/icp.py', [method], env, cls)
 
 
@@ -316,10 +317,19 @@ class HTTPTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_id_type_and_target_return_bad_request(self):
         invalid = ({}, [], {'task_id': 'bad'}, {'task_id': TID, 'type': 'unknown'},
                    {'task_id': TID, 'type': 'icp'}, {'task_id': TID, 'type': 'icp', 'target': '   '},
-                   {'task_id': TID, 'type': 'icp', 'target': 42})
+                   {'task_id': TID, 'type': 'icp', 'target': 42},
+                   {'task_id': TID, 'type': 'tyc'}, {'task_id': TID, 'type': 'tyc', 'gid': '  '})
         for data in invalid:
             response = await self.client.post('/start', json=data)
             self.assertEqual(response.status, 400, f'payload={data!r}')
+
+    async def test_tyc_dispatch_without_target_is_accepted(self):
+        # TYC 派发以 gid 指定主体、不带 target；target 校验若不分类型会误拒全部 TYC 任务。
+        with patch.object(self.routes, 'submit_recon_job'):
+            response = await self.client.post(
+                '/start', json={'task_id': TID, 'type': 'tyc', 'gid': '3091447702'})
+        self.assertEqual(response.status, 200)
+        self.assertEqual((await response.json())['code'], 200)
 
     async def test_stop_waits_for_cancel_cleanup_and_releases_semaphore(self):
         semaphore = self.manager.get_semaphore('recon_task', 1, dynamic=True)

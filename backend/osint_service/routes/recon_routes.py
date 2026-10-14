@@ -64,10 +64,15 @@ async def start_recon(request):
         task_id = data.get("task_id") if isinstance(data, dict) else None
         if not isinstance(task_id, str) or not re.fullmatch(r"[0-9a-fA-F]{24}", task_id):
             return web.json_response({"code": 400, "msg": "Invalid task_id"}, status=400)
-        if data.get("type") not in ("icp", "tyc"):
+        task_type = data.get("type")
+        if task_type not in ("icp", "tyc"):
             return web.json_response({"code": 400, "msg": "Invalid task type"}, status=400)
-        if not isinstance(data.get("target"), str) or not data["target"].strip():
+        # ICP 任务以 target 为查询目标；TYC 任务改由 gid 指定主体，不带 target，
+        # 故校验必须按类型区分，否则会误拒全部 TYC 派发。
+        if task_type == "icp" and (not isinstance(data.get("target"), str) or not data["target"].strip()):
             return web.json_response({"code": 400, "msg": "Invalid target"}, status=400)
+        if task_type == "tyc" and not str(data.get("gid") or "").strip():
+            return web.json_response({"code": 400, "msg": "Invalid gid"}, status=400)
 
         task_manager = request.app.get('task_manager')
         submit_recon_job(task_manager, data)
