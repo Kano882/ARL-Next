@@ -97,6 +97,170 @@ def _get_auth():
     return host.rstrip("/"), token
 
 
+def _resolve_ca_bundle(host):
+    """解析启动时自动发现的本地证书，返回 (路径, 是否为 ARL 本地自签证书)。
+
+    仅当目标主机是本机回环地址时才自动信任本地自签证书，避免经隧道/代理连接
+    远程部署时，被本地文件静默放行任意证书。
+    """
+    explicit = os.environ.get("ARL_CA_BUNDLE", "").strip()
+    if explicit:
+        return os.path.expanduser(explicit), False
+
+    hostname = urllib.parse.urlparse(host).hostname or ""
+    if hostname not in ("127.0.0.1", "localhost", "::1"):
+        return "", False
+
+    # 客户端与服务端可能同处一个部署目录（服务端容器内 /code，客户端 /code/frontend/public/mcp）；
+    # cwd 与 __file__ 两条路径同时覆盖本地跑于仓库根目录的情形。.certs 为 docker-compose.prod.yml
+    # 的宿主挂载目录，certs 为 start-prod.sh 同步出的客户端可发现路径。
+    # 用 parent 目录而非 __file__ 本身做 resolve：对文件取 resolve 会解析符号链接（如 macOS
+    # 的 /tmp -> /private/tmp），可能把路径提升到部署根之外，导致向上遍历落空。
+    here = Path(__file__).parent.resolve()
+    roots = []
+    for anchor in (here, here.parent, here.parent.parent, here.parent.parent.parent,
+                   Path.cwd().resolve(), Path.cwd().resolve().parent):
+        if anchor not in roots:
+            roots.append(anchor)
+
+    for suffix in (".certs", "certs"):
+        for root in roots:
+            crt = root / suffix / "arl.crt"
+            if crt.is_file():
+                return str(crt), True
+
+    for suffix in ("ARL_auth.md", "ARL_server.md"):
+        for root in roots:
+            doc = root / suffix
+            if not doc.is_file():
+                continue
+            try:
+                content = doc.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            for line in content.splitlines():
+                line_s = line.strip()
+                if line_s.startswith("ARL_LOCAL_CERT:"):
+                    found = Path(line_s.split(":", 1)[1].strip())
+                    if found.is_file():
+                        return str(found), True
+    return "", False
+
+
+def _api_status(http_status, data):
+    """兼容旧 REST 接口通过 HTTP 200 返回业务错误的约定。"""
+    if http_status != 200 or not isinstance(data, dict):
+        return http_status
+    try:
+        business_code = int(data.get("code", 200))
+    except (TypeError, ValueError):
+        return 502
+    if business_code == 200:
+        return http_status
+    return business_code if 400 <= business_code <= 599 else 502
+
+
+_INSECURE_VALUES = ("false", "0", "no", "off")
+_IPV4_RE = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+_INSECURE_WARNED = [False]
+
+
+class _PinnedCAContext:
+    """以可信 CA 完成链校验后，放行主机名不匹配的自签部署。
+
+    ARL-Next 首次启动自动签发的证书 CN=localhost 且不含 SAN 扩展，局域网部署
+    只能以 IP 访问，证书无法覆盖该地址。此时证书链本身仍经 CA 验证（不可伪造），
+    仅跳过主机名匹配，避免"默认安全"演变为"默认不可用"。
+    显式设置 ARL_STRICT_HOSTNAME=true 可要求主机名严格匹配。
+    该折衷仍不可绕过的攻击面（TLS 层）在 mcp-server/README.md 中列明。
+
+    采用组合而非继承 ssl.SSLContext：其 C 层在 __new__ 中完成初始化，
+    Python 子类的 __init__ 无法可靠承接构造参数。
+    """
+
+    def __init__(self, ca_bundle_path):
+        self._inner = ssl.create_default_context(cafile=ca_bundle_path)
+        self._inner.check_hostname = False
+        self._inner.verify_mode = ssl.CERT_REQUIRED
+
+    def wrap_socket(self, sock, *args, **kwargs):
+        return self._inner.wrap_socket(sock, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def _build_ssl_context(url):
+    """按配置解析 TLS 上下文：显式关闭 > 可信 CA > 系统默认。
+
+    返回 (上下文, 对端证书复检回调, 是否已关闭证书校验)。
+    """
+    if os.environ.get("ARL_TLS_VERIFY", "true").strip().lower() in _INSECURE_VALUES:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx, None, True
+
+    ca_bundle, is_local_self_signed = _resolve_ca_bundle(_get_auth()[0])
+    if not ca_bundle:
+        return ssl.create_default_context(), None, False
+
+    if not os.path.isfile(ca_bundle):
+        if not is_local_self_signed:
+            raise FileNotFoundError(f"ARL_CA_BUNDLE 指向的证书文件不存在或不可读: {ca_bundle}")
+        # 自动发现的本地证书缺失时静默回退，不阻断开箱即用流程
+        return ssl.create_default_context(), None, False
+
+    strict = os.environ.get("ARL_STRICT_HOSTNAME", "").strip().lower() in ("true", "1", "yes", "on")
+    if strict:
+        return ssl.create_default_context(cafile=ca_bundle), None, False
+
+    # 证书未覆盖该地址时主机名匹配无解，仅保留链校验：
+    #   - 自动发现的本地自签证书：CN=localhost 且无 SAN，访问地址为 IP，必然不匹配
+    #   - 显式 ARL_CA_BUNDLE 且目标为 IP 字面量
+    # 域名目标仍走完整校验，两种情形下证书链均不可绕过。
+    hostname = urllib.parse.urlparse(url).hostname or ""
+    if not is_local_self_signed and not re.match(_IPV4_RE, hostname):
+        return ssl.create_default_context(cafile=ca_bundle), None, False
+    return _PinnedCAContext(ca_bundle), _verify_peer_instead(url, ca_bundle), False
+
+
+def _peer_hosts(cert):
+    """提取证书覆盖的主机名集合（仅取 SAN，与 ssl 模块的主机名判定口径一致）。
+
+    has_san 为假时主机名匹配本就无解（Python 3.10+ 起不再回退 CN），
+    此时与访问地址比较必然不等，正是需要放行的场景。
+    """
+    san = cert.get("subjectAltName") or []
+    return {value for kind, value in san if kind in ("DNS", "IP Address")}
+
+
+def _verify_peer_instead(url, ca_bundle_path):
+    """主机名跳过匹配时，改为自行校验对端证书，避免连接被静默替换。"""
+
+    def check(sock):
+        try:
+            cert = sock.getpeercert()
+        except Exception:
+            return
+        if not cert:
+            return
+        hosts = _peer_hosts(cert)
+        if hosts and not any(h.lower() in ("localhost", "127.0.0.1", "::1") for h in hosts):
+            return
+        actual = urllib.parse.urlparse(url).hostname or ""
+        print(
+            f"[arl-mcp] 警告: 对端证书声明的名称 {sorted(hosts)} 与访问地址 {actual} 不匹配，"
+            f"已按 ARL_CA_BUNDLE 完成证书链校验（未校验主机名）。如部署已配置正确域名，"
+            f"请将 ARL_HOST 改为该域名以获得完整校验；如确需兼容自签证书，可将该证书"
+            f"复制为 {ca_bundle_path} 并设置 ARL_CA_BUNDLE={ca_bundle_path},"
+            f"或设置 ARL_TLS_VERIFY=false。",
+            file=sys.stderr,
+        )
+
+    return check
+
+
 def _request_api(endpoint: str, params: dict = None) -> tuple:
     """向 ARL 后端发送统一 HTTP GET 请求 (返回 status_code, data)，支持快速超时控制"""
     host, token = _get_auth()
@@ -114,19 +278,18 @@ def _request_api(endpoint: str, params: dict = None) -> tuple:
         "User-Agent": "ARL-Next-MCP/2.0"
     }
 
-    # ARL-Next 默认使用自签名证书，为兼容开箱即用场景不校验服务端证书。
-    # 若部署了受信任的正式证书，可移除下面两行以启用完整的 TLS 校验。
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-
     req = urllib.request.Request(url, headers=headers, method="GET")
 
     try:
+        ctx, peer_check, insecure = _build_ssl_context(url)
         # 设置 8 秒快速超时，避免 Agent 终端长时间挂起
         with urllib.request.urlopen(req, context=ctx, timeout=8) as resp:
+            if peer_check:
+                peer_check(resp.fp.raw._sock)
             data = json.loads(resp.read().decode("utf-8"))
-            return resp.status, data
+            result = _api_status(resp.status, data), data
+    except FileNotFoundError as e:
+        return 500, {"message": str(e)}
     except urllib.error.HTTPError as e:
         try:
             err_data = json.loads(e.read().decode("utf-8"))
@@ -135,6 +298,15 @@ def _request_api(endpoint: str, params: dict = None) -> tuple:
             return e.code, {"message": str(e)}
     except Exception as e:
         return 500, {"message": str(e)}
+
+    if insecure and _INSECURE_WARNED[0] is False:
+        _INSECURE_WARNED[0] = True
+        print(
+            "[arl-mcp] 警告: ARL_TLS_VERIFY=false 已关闭服务端证书校验，连接可能被中间人截获，"
+            "仅限临时测试使用。生产环境请改用 ARL_CA_BUNDLE 指定可信证书。",
+            file=sys.stderr,
+        )
+    return result
 
 
 def _clean_empty(val, depth=0, max_depth=10):
@@ -148,6 +320,22 @@ def _clean_empty(val, depth=0, max_depth=10):
     elif val is None or val == "":
         return None
     return val
+
+
+def _request_items(endpoint, params):
+    code, data = _request_api(endpoint, params)
+    code = _api_status(code, data)
+    if code == 200 and (not isinstance(data, dict) or not isinstance(data.get("items"), list)):
+        return 502, []
+    return code, data.get("items", []) if isinstance(data, dict) else []
+
+
+def _profile_error(code, target):
+    if code == 200:
+        return None
+    if code in (401, 403):
+        return {"status": "auth_error", "message": "ARL 鉴权失败：Token 无效或已过期，请检查 ARL_TOKEN 配置", "target": target}
+    return {"status": "error", "message": f"ARL 兼容接口查询失败 (HTTP {code})，无法确认资产结果", "target": target}
 
 
 def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
@@ -187,12 +375,12 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
     def fetch_domain():
         if hostname:
             p = {"domain": hostname, "size": 5, **task_param}
-            c, res = _request_api("/domain/", p)
-            return "domain", c, res.get("items", []) if isinstance(res, dict) else []
+            c, items = _request_items("/domain/", p)
+            return "domain", c, items
         elif is_ip:
             p = {"ips": target_ip, "size": 10, **task_param}
-            c, res = _request_api("/domain/", p)
-            return "domain", c, res.get("items", []) if isinstance(res, dict) else []
+            c, items = _request_items("/domain/", p)
+            return "domain", c, items
         return "domain", 200, []
 
     def fetch_site():
@@ -201,8 +389,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["site"] = hostname
         elif target_ip:
             p["ip"] = target_ip
-        c, res = _request_api("/site/", p)
-        return "site", c, res.get("items", []) if isinstance(res, dict) else []
+        c, items = _request_items("/site/", p)
+        return "site", c, items
 
     def fetch_vuln():
         p = {"size": 30, **task_param}
@@ -210,8 +398,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["target"] = hostname
         elif target_ip:
             p["target"] = target_ip
-        c, res = _request_api("/vuln/", p)
-        return "vuln", c, res.get("items", []) if isinstance(res, dict) else []
+        c, items = _request_items("/vuln/", p)
+        return "vuln", c, items
 
     def fetch_nuclei():
         p = {"size": 30, **task_param}
@@ -219,8 +407,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["target"] = hostname
         elif target_ip:
             p["target"] = target_ip
-        c, res = _request_api("/nuclei_result/", p)
-        return "nuclei", c, res.get("items", []) if isinstance(res, dict) else []
+        c, items = _request_items("/nuclei_result/", p)
+        return "nuclei", c, items
 
     def fetch_leak():
         p = {"size": 30, **task_param}
@@ -228,8 +416,8 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
             p["url"] = hostname
         elif target_ip:
             p["url"] = target_ip
-        c, res = _request_api("/fileleak/", p)
-        return "fileleak", c, res.get("items", []) if isinstance(res, dict) else []
+        c, items = _request_items("/fileleak/", p)
+        return "fileleak", c, items
 
     futures = [
         _EXECUTOR.submit(fetch_domain),
@@ -241,12 +429,9 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
     results = {}
     for f in futures:
         k, c, items = f.result()
-        if c in (401, 403):
-            return {
-                "status": "auth_error",
-                "message": "ARL 鉴权失败：Token 无效或已过期，请检查 ARL_TOKEN 配置",
-                "target": target
-            }
+        error = _profile_error(c, target)
+        if error:
+            return error
         results[k] = items
 
     # 聚合 Domain 与 IP
@@ -284,9 +469,12 @@ def _fallback_aggregate_profile(target: str, task_id: str = "") -> dict:
         profile["resolved_ips"] = sorted(all_ips)
         for ip in all_ips[:3]:
             p = {"ip": ip, "size": 1, **task_param}
-            _, res = _request_api("/ip/", p)
-            if isinstance(res, dict) and res.get("items"):
-                ip_item = res["items"][0]
+            code, items = _request_items("/ip/", p)
+            error = _profile_error(code, target)
+            if error:
+                return error
+            if items:
+                ip_item = items[0]
                 if not geo_parts:
                     g = ip_item.get("geo_city", {})
                     parts = [g.get("country_name"), g.get("region_name"), g.get("city")]
