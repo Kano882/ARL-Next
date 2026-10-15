@@ -1,10 +1,228 @@
 <template>
   <div class="arl-page-container">
+    <!-- 未保存改动常驻提示：让"改过但没存"成为可见状态，而非点保存时才发现 -->
+    <a-alert
+      v-if="hasUnsavedChanges"
+      type="warning"
+      show-icon
+      banner
+      style="margin-bottom: 12px; border-radius: 6px;"
+    >
+      <template #message>
+        当前有 <strong>{{ unsavedCount }}</strong> 项配置改动尚未保存，
+        <a @click="activeKey = firstDirtyTabKey">点击跳转到待保存项</a>
+        。离开本页前请逐项保存。
+      </template>
+    </a-alert>
+    <!-- 设置项搜索：输入关键词直接定位到目标 Tab 并高亮，避免在 7 个 Tab 间盲翻 -->
+    <div class="arl-settings-search">
+      <a-input-search
+        v-model:value="settingsKeyword"
+        placeholder="搜索设置项，例如「FOFA」「并发」「黑名单」「Webhook」「代理」"
+        allow-clear
+        style="max-width: 520px;"
+      >
+        <template #prefix><span style="opacity: 0.45;">🔍</span></template>
+      </a-input-search>
+      <span v-if="settingsKeyword.trim()" class="arl-search-count">
+        {{ settingsSearchResults.length }} 项匹配
+      </span>
+      <a v-if="settingsKeyword.trim()" @click="settingsKeyword = ''" style="font-size: 12px;">清除</a>
+    </div>
+
+    <!-- 搜索结果：点击直达对应 Tab 并高亮目标设置项 -->
+    <div v-if="settingsKeyword.trim()" class="arl-search-panel">
+      <div v-if="settingsSearchResults.length === 0" class="arl-search-empty">
+        未找到匹配的设置项，请尝试「FOFA / 并发 / 黑名单 / Webhook / 代理 / 版本」等关键词
+      </div>
+      <div
+        v-for="item in settingsSearchResults"
+        :key="item.tab + item.label"
+        class="arl-search-item"
+        @click="jumpToSetting(item)"
+      >
+        <div class="arl-search-item-main">
+          <span class="arl-search-item-label">{{ item.label }}</span>
+          <span class="arl-search-item-desc">{{ item.desc }}</span>
+        </div>
+        <a-tag color="blue" style="margin: 0;">{{ item.tabLabel }}</a-tag>
+      </div>
+    </div>
+
+    <!-- 全局凭据总览：内容跨「资产测绘与情报 / 通知与回调 / 高级扫描」三个 Tab，
+         故置于 Tab 之外。默认折叠为一行摘要，需要时展开——避免每次进入设置页
+         都被 12 项明细占据首屏。 -->
+    <div v-if="credentialOverview.length" class="arl-global-cred">
+      <div class="arl-cred-summary" @click="credExpanded = !credExpanded">
+        <span class="arl-cred-chevron">{{ credExpanded ? '▾' : '▸' }}</span>
+        <span class="arl-cred-summary-title">凭据配置状态</span>
+        <a-tag :color="missingRequiredCredentials.length ? 'red' : 'green'" style="margin: 0;">
+          已配置 {{ configuredCredentialCount }} / {{ credentialOverview.length }}
+        </a-tag>
+        <span v-if="missingRequiredCredentials.length" class="arl-cred-alert">
+          ⚠️ {{ missingRequiredCredentials.map(c => c.label).join('、') }} 未配置，相关能力不可用
+        </span>
+        <span v-else class="arl-cred-ok">所需凭据均已配置</span>
+        <a class="arl-cred-toggle">{{ credExpanded ? '收起' : '展开明细' }}</a>
+      </div>
+
+      <div v-show="credExpanded" class="arl-cred-body">
+        <div class="arl-cred-hint">
+          以下状态读取的是系统<strong>当前实际生效值</strong>。标记为「未配置」的凭据对应的采集能力将不可用或降级。
+        </div>
+        <a-row :gutter="[8, 8]" style="margin-top: 12px;">
+          <a-col :span="8" v-for="item in credentialOverview" :key="item.key">
+            <div class="arl-cred-item" :class="item.configured ? 'is-ok' : 'is-missing'">
+              <span class="arl-cred-name">{{ item.label }}</span>
+              <a-tag :color="item.configured ? 'green' : (item.required ? 'red' : 'default')" style="margin: 0;">
+                {{ item.configured ? '已配置' : (item.required ? '未配置 · 必需' : '未配置 · 可选') }}
+              </a-tag>
+            </div>
+          </a-col>
+        </a-row>
+      </div>
+    </div>
+
     <a-tabs v-model:activeKey="activeKey">
       <!-- 统一字典与规则库 Tab -->
-      <a-tab-pane key="dictionary" tab="字典与规则库">
+      <a-tab-pane key="api_config" :tab="tabTitle('资产测绘与情报', Object.keys(pendingByGroup.api_config).length > 0)" force-render>
+        <div style="max-width: 1000px; padding-bottom: 40px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <span style="color: var(--arl-text-color); opacity: 0.45;">
+              此处的配置项用于三方情报或搜索接口的 API 凭证管理，配置保存后将动态应用至对应的域名/资产收集任务。
+            </span>
+            <a-button
+              type="primary"
+              :class="{ 'arl-dirty-btn': Object.keys(pendingByGroup.api_config).length > 0 }"
+              @click="saveGeneralConfig('api_config', 'API 配置已保存')"
+              :loading="generalSaveLoading"
+            >
+              保存 API 配置
+              <a-badge
+                v-if="Object.keys(pendingByGroup.api_config).length > 0"
+                :count="Object.keys(pendingByGroup.api_config).length"
+                :offset="[8, -8]"
+                color="#faad14"
+              />
+            </a-button>
+          </div>
+          
+          <a-spin :spinning="generalLoading">
+            <a-form layout="vertical">
+
+              <!-- 1. 空间测绘情报 -->
+              <a-card data-setting-anchor="fofa" title="🌐 空间测绘情报 (FOFA)" size="small" style="margin-bottom: 16px; border-radius: 6px;">
+                <a-row :gutter="24">
+                  <a-col :span="12">
+                    <a-form-item label="FOFA URL" style="margin-bottom: 12px;">
+                      <a-input v-model:value="generalForm.fofa_url" placeholder="例如：https://fofa.info" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item label="FOFA KEY" style="margin-bottom: 12px;">
+                      <a-input-password v-model:value="generalForm.fofa_key" placeholder="请输入您的 FOFA API KEY" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item label="最大查询页数 (Max Page)" style="margin-bottom: 0;">
+                      <a-input-number v-model:value="generalForm.fofa_max_page" :min="1" style="width: 100%" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item label="每页条数 (Page Size)" style="margin-bottom: 0;">
+                      <a-input-number v-model:value="generalForm.fofa_page_size" :min="1" style="width: 100%" />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+              </a-card>
+
+              <a-row :gutter="16">
+                <!-- 2. 企业与代码监控 (左半边) -->
+                <a-col :span="12">
+                  <a-card data-setting-anchor="tyc" title="🏢 企业全景测绘凭据 (天眼查 API)" size="small" style="margin-bottom: 16px; border-radius: 6px; min-height: 190px;">
+                    <template #extra>
+                      <a-tooltip title="选配项。配置后支持投资控股树深度穿透与工信部双轨校对；未配置时系统仍可通过工信部 ICP 备案数据进行资产归集。">
+                        <info-circle-outlined style="color: #bfbfbf;" />
+                      </a-tooltip>
+                    </template>
+                    <a-form-item label="天眼查 ID (X-Tycid)" style="margin-bottom: 12px;">
+                      <a-input v-model:value="generalForm.tyc_id" placeholder="请输入天眼查 ID" />
+                    </a-form-item>
+                    <a-form-item label="天眼查 Token (X-Auth-Token)" style="margin-bottom: 0;">
+                      <a-input-password v-model:value="generalForm.tyc_token" placeholder="请输入 JWT Token" />
+                    </a-form-item>
+                  </a-card>
+                </a-col>
+
+                <!-- 3. 代码与搜索引擎 (右半边) -->
+                <a-col :span="12">
+                  <a-card data-setting-anchor="search_cookie" title="🔍 搜索引擎 & 开源情报" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 190px;">
+                    <a-form-item data-setting-anchor="github_token" label="GitHub Token (监控任务调用)" style="margin-bottom: 12px;">
+                      <a-input-password v-model:value="generalForm.github_token" placeholder="请输入您的 GitHub PAT" />
+                    </a-form-item>
+                    <a-form-item label="360搜索 Cookie (反爬绕过)" style="margin-bottom: 0;">
+                      <a-input-password v-model:value="generalForm.so_search_cookie" placeholder="so_search_cookie" />
+                    </a-form-item>
+                  </a-card>
+                </a-col>
+              </a-row>
+
+              <!-- 单独一行放必应，如果上面放不下 -->
+              <a-card size="small" style="margin-bottom: 16px; border-radius: 6px;">
+                 <a-form-item label="必应搜索 Cookie (bing_search_cookie)" style="margin-bottom: 0;">
+                   <a-input-password v-model:value="generalForm.bing_search_cookie" placeholder="请输入必应搜索 Cookie" />
+                 </a-form-item>
+              </a-card>
+
+
+              <!-- 4. 插件配置 -->
+              <a-card data-setting-anchor="query_plugin" title="🧩 域名收集扩展插件配置 (QUERY_PLUGIN)" size="small" style="border-radius: 6px;">
+                <div style="background: var(--arl-bg-light); border-radius: 4px; padding: 12px;">
+                  <a-row :gutter="[12, 12]">
+                    <a-col :span="8" v-for="(conf, pluginName) in generalForm.query_plugin_config" :key="pluginName">
+                      <div style="border: 1px solid var(--arl-border-color); background: var(--arl-bg-white); padding: 12px; border-radius: 4px; min-height: 110px; position: relative;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                          <a style="font-weight: 600; text-transform: uppercase; ">{{ pluginName }}</a>
+                          <a-switch v-model:checked="conf.enable" size="small" />
+                        </div>
+                        
+                        <a-input 
+                          v-if="conf.hasOwnProperty('api_key')" 
+                          v-model:value="conf.api_key" 
+                          placeholder="API Key" 
+                          size="small" 
+                        />
+                        <div v-if="pluginName === 'hunter_qax'" style="margin-top: 8px; display: flex; gap: 8px;">
+                          <a-input-number v-model:value="conf.max_page" placeholder="Max Page" size="small" style="flex: 1;" />
+                          <a-input-number v-model:value="conf.page_size" placeholder="Page Size" size="small" style="flex: 1;" />
+                        </div>
+                        <div v-if="pluginName === 'certspotter'" style="margin-top: 8px;">
+                          <a-input-number v-model:value="conf.max_page" placeholder="Max Page" size="small" style="width: 100%;" />
+                        </div>
+                        <a-input 
+                          v-if="conf.hasOwnProperty('quake_token')" 
+                          v-model:value="conf.quake_token" 
+                          placeholder="Quake Token" 
+                          size="small"
+                          style="margin-top: 8px;"
+                        />
+                        <div v-if="pluginName === 'passivetotal'" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                          <a-input v-model:value="conf.auth_email" placeholder="Auth Email" size="small" />
+                          <a-input v-model:value="conf.auth_key" placeholder="Auth Key" size="small" />
+                        </div>
+                      </div>
+                    </a-col>
+                  </a-row>
+                </div>
+              </a-card>
+
+            </a-form>
+          </a-spin>
+        </div>
+      </a-tab-pane>
+      <a-tab-pane key="dictionary" :tab="tabTitle('字典与规则库', false)">
         <a-tabs v-model:activeKey="dictSubTab" type="card" class="dict-sub-tabs" style="margin-bottom: 16px;">
-          <a-tab-pane key="dict" tab="📖 通用文本字典 (资产 / 弱口令)">
+          <a-tab-pane key="dict" tab="通用文本字典">
             <a-spin :spinning="loading || bruteLoading">
             <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> <!-- 左侧语义化菜单与独立滚动 -->
             <div style="width: 256px; flex-shrink: 0; border-right: 1px solid var(--arl-border-color); background: var(--arl-bg-white); display: flex; flex-direction: column;">
@@ -327,7 +545,7 @@ admin123
         </a-drawer>
       </a-tab-pane>
 
-      <a-tab-pane key="cdn" tab="🌐 CDN 特征与规则字典" force-render>
+      <a-tab-pane key="cdn" tab="CDN 特征与规则字典" force-render>
         <a-spin :spinning="cdnLoading">
           <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> 
             
@@ -519,280 +737,329 @@ admin123
           </a-tab-pane>
         </a-tabs>
       </a-tab-pane>
-
-      <!-- 安全策略管理 Tab -->
-      <a-tab-pane key="security" tab="安全策略管理" force-render>
-        <div style="max-width: 1000px; padding-bottom: 40px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <span style="color: var(--arl-text-color); opacity: 0.45;">
-              此处的配置项用于全局的安全限制，防止系统对指定范围的 IP 或域名发起扫描。保存后立即生效，无需重启。
-            </span>
-            <a-button type="primary" @click="saveSecurityPolicy" :loading="securitySaveLoading">
-              保存安全策略
-            </a-button>
-          </div>
-          <a-spin :spinning="securityLoading">
-            <a-form layout="vertical">
-              <a-form-item label="IP 黑名单 (支持 CIDR，如 127.0.0.0/8, 192.168.0.0/16，每行一个)">
-                <a-textarea v-model:value="securityForm.blackIpsText" :rows="8" placeholder="例如：\n127.0.0.0/8\n10.0.0.0/8" />
-              </a-form-item>
-              
-              <a-form-item label="禁止扫描域名 (支持后缀匹配，如 gov.cn, edu.cn，每行一个)">
-                <a-textarea v-model:value="securityForm.forbiddenDomainsText" :rows="8" placeholder="例如：\ngov.cn\nedu.cn" />
-              </a-form-item>
-            </a-form>
-          </a-spin>
-        </div>
-      </a-tab-pane>
-      <!-- 性能与并发配置 Tab -->
-      <a-tab-pane key="performance" tab="性能与并发配置" force-render>
-        <div style="max-width: 1000px; padding-bottom: 40px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <span style="color: var(--arl-text-color); opacity: 0.45;">
-              此处的配置用于精细化控制轻/重任务队列的并发处理能力。
-            </span>
-            <div>
-              <a-button @click="fetchPerformanceConfig" :loading="performanceLoading" style="margin-right: 8px;">
-                刷新状态
-              </a-button>
-              <a-button type="primary" @click="savePerformanceConfig" :loading="performanceSaveLoading">
-                保存性能配置
-              </a-button>
-            </div>
-          </div>
-          <a-spin :spinning="performanceLoading">
-            <a-form layout="vertical">
-              <a-row :gutter="24">
-                <a-col :span="12">
-                  <a-card title="⚙️ 重任务 (Heavy Task) 调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #ff4d4f;">
-                    <a-form-item>
-                      <template #label>
-                        <span>重任务并发数</span>
-                        <a-tag v-if="runtimePerformance.runtime_heavy_concurrency !== null" color="blue" style="margin-left: 8px; font-size: 12px;">
-                          实时运行: {{ runtimePerformance.runtime_heavy_concurrency }} 进程
-                        </a-tag>
-                        <a-tag v-else color="default" style="margin-left: 8px; font-size: 12px;">Worker 离线</a-tag>
-                        <a-popover placement="right">
-                          <template #content>
-                            <div style="max-width: 320px;">
-                              <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 阻塞式长线任务：</div>
-                              <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
-                                <li>常规域名 / IP 扫描任务</li>
-                                <li>风险巡航任务 (批量漏洞检测)</li>
-                                <li>定时域名 / IP 监控任务</li>
-                              </ul>
-                            </div>
-                          </template>
-                          <InfoCircleOutlined style="margin-left: 4px; color: #888; cursor: pointer;" />
-                        </a-popover>
-                      </template>
-                      <a-input-number v-model:value="performanceForm.celery_heavy_concurrency" :min="1" :max="128" style="width: 100%" />
-                      <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
-                        控制常规扫描、风险巡航等长线任务的并发数。单个任务峰值占用内存1G左右，建议配置与内存相同的并发数，过大易导致系统 OOM 或压垮目标。
+      <a-tab-pane key="performance" :tab="tabTitle('扫描与并发', isPerformanceDirty || isSecurityDirty)" force-render>
+        <a-tabs v-model:activeKey="scanSubTab" type="card" class="dict-sub-tabs" style="margin-bottom: 16px;">
+          <a-tab-pane key="performance" tab="任务队列并发" force-render>
+            <div style="max-width: 1000px; padding-bottom: 40px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <span style="color: var(--arl-text-color); opacity: 0.45;">
+                  控制任务队列的 Worker 进程数，决定「同时能跑几个任务」。
+                </span>
+                <div>
+                  <a-button @click="fetchPerformanceConfig" :loading="performanceLoading" style="margin-right: 8px;">
+                    刷新状态
+                  </a-button>
+                  <a-button
+                    type="primary"
+                    @click="savePerformanceConfig"
+                    :loading="performanceSaveLoading"
+                    :disabled="!isPerformanceDirty"
+                  >
+                    {{ isPerformanceDirty ? '保存性能配置' : '性能配置无改动' }}
+                  </a-button>
+                </div>
+              </div>
+              <a-spin :spinning="performanceLoading">
+                <a-form layout="vertical">
+                  <!-- 语义分区说明：本页是「进程级队列并发」，与「高级扫描与环境」页的
+                       「单任务内爆破线程数」是两套不同量级的指标，避免用户混淆调错 -->
+                  <a-alert type="info" show-icon style="margin-bottom: 16px; border-radius: 6px;">
+                    <template #message>
+                      <div style="font-size: 13px; line-height: 1.8;">
+                        <strong>进程级队列并发</strong>：这里配的是 Celery Worker <strong>进程数</strong>，
+                        决定同时能处理几个任务，每个进程内存上限约 {{ capacityInfo.per_worker_memory_mb || 488 }}MB，受本机可用内存约束（通常 1~128）。
+                        <br />
+                        <strong style="color: #d46b08;">内存较小的机器（如 4GB 及以下）请保持 1</strong>：
+                        单个任务在峰值时可增长到进程上限，叠加 MongoDB / Web / Puppeteer 等常驻服务后，
+                        并发加到 2 即可能触发 OOM Killer。推荐值已按实测可用内存扣除常驻开销与突发余量。
+                        <br />
+                        若需调整<strong>单个任务内部</strong>的爆破线程数 / DNS 发包并发度（通常在数百到上千），
+                        请前往
+                        <a @click="goToBruteConcurrent">「扫描与并发 · 高级扫描与环境」</a>。
                       </div>
-                    </a-form-item>
-                  </a-card>
-                </a-col>
-                <a-col :span="12">
-                  <a-card title="⚡ 轻任务 (Light Task) 调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #52c41a;">
-                    <a-form-item>
-                      <template #label>
-                        <span>轻任务并发数</span>
-                        <a-tag v-if="runtimePerformance.runtime_light_concurrency !== null" color="green" style="margin-left: 8px; font-size: 12px;">
-                          实时运行: {{ runtimePerformance.runtime_light_concurrency }} 进程
-                        </a-tag>
-                        <a-tag v-else color="default" style="margin-left: 8px; font-size: 12px;">Worker 离线</a-tag>
-                        <a-popover placement="right">
-                          <template #content>
-                            <div style="max-width: 320px;">
-                              <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 非阻塞单点 API 任务：</div>
-                              <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
-                                <li>空间测绘查询 (FOFA 等)</li>
-                                <li>更新单个站点信息 (截图/指纹)</li>
-                                <li>Web 目录敏感信息单点提取 (WIH)</li>
-                                <li>手动添加站点</li>
-                                <li>任务数据强制同步重置</li>
-                              </ul>
-                            </div>
-                          </template>
-                          <InfoCircleOutlined style="margin-left: 4px; color: #888; cursor: pointer;" />
-                        </a-popover>
-                      </template>
-                      <a-input-number v-model:value="performanceForm.celery_light_concurrency" :min="1" :max="256" style="width: 100%" />
-                      <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
-                        走专用独立通道，不受重任务排队阻塞影响。可以根据带宽资源按需放大 (默认 1)。
-                      </div>
-                    </a-form-item>
-                  </a-card>
-                </a-col>
-              </a-row>
-              <a-row :gutter="24">
-                <a-col :span="12">
-                  <a-card title="🌍 外网情报侦察任务调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #1890ff;">
-                    <a-form-item>
-                      <template #label>
-                        OSINT 任务并发数
-                        <a-popover placement="right">
-                          <template #content>
-                            <div style="max-width: 320px;">
-                              <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 外网情报侦察任务：</div>
-                              <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
-                                <li>ICP 备案查询 (网站/APP/小程序)</li>
-                                <li>天眼查 (TYC) 股权穿透与资产收集</li>
-                              </ul>
-                            </div>
-                          </template>
-                          <InfoCircleOutlined style="margin-left: 4px; color: #888; cursor: pointer;" />
-                        </a-popover>
-                      </template>
-                      <a-input-number v-model:value="performanceForm.osint_concurrency" :min="1" :max="128" style="width: 100%" />
-                      <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
-                        控制 OSINT 模块对外部目标（如天眼查、工信部备案等）的并发请求数。建议保持默认值 1，避免因外网请求过快导致接口熔断或 IP 被封禁。修改后将在 10 秒内由后台看门狗自动热更新生效。
-                      </div>
-                    </a-form-item>
-                  </a-card>
-                </a-col>
-              </a-row>
-
-            </a-form>
-          </a-spin>
-        </div>
-      </a-tab-pane>
-
-      <!-- 三方 API 配置 Tab -->
-      <a-tab-pane key="api_config" tab="三方 API 配置" force-render>
-        <div style="max-width: 1000px; padding-bottom: 40px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <span style="color: var(--arl-text-color); opacity: 0.45;">
-              此处的配置项用于三方情报或搜索接口的 API 凭证管理，配置保存后将动态应用至对应的域名/资产收集任务。
-            </span>
-            <a-button type="primary" @click="saveGeneralConfig" :loading="generalSaveLoading">
-              保存 API 配置
-            </a-button>
-          </div>
-          
-          <a-spin :spinning="generalLoading">
-            <a-form layout="vertical">
-              
-              <!-- 1. 空间测绘情报 -->
-              <a-card title="🌐 空间测绘情报 (FOFA)" size="small" style="margin-bottom: 16px; border-radius: 6px;">
-                <a-row :gutter="24">
-                  <a-col :span="12">
-                    <a-form-item label="FOFA URL" style="margin-bottom: 12px;">
-                      <a-input v-model:value="generalForm.fofa_url" placeholder="例如：https://fofa.info" />
-                    </a-form-item>
-                  </a-col>
-                  <a-col :span="12">
-                    <a-form-item label="FOFA KEY" style="margin-bottom: 12px;">
-                      <a-input-password v-model:value="generalForm.fofa_key" placeholder="请输入您的 FOFA API KEY" />
-                    </a-form-item>
-                  </a-col>
-                  <a-col :span="12">
-                    <a-form-item label="最大查询页数 (Max Page)" style="margin-bottom: 0;">
-                      <a-input-number v-model:value="generalForm.fofa_max_page" :min="1" style="width: 100%" />
-                    </a-form-item>
-                  </a-col>
-                  <a-col :span="12">
-                    <a-form-item label="每页条数 (Page Size)" style="margin-bottom: 0;">
-                      <a-input-number v-model:value="generalForm.fofa_page_size" :min="1" style="width: 100%" />
-                    </a-form-item>
-                  </a-col>
-                </a-row>
-              </a-card>
-
-              <a-row :gutter="16">
-                <!-- 2. 企业与代码监控 (左半边) -->
-                <a-col :span="12">
-                  <a-card title="🏢 企业全景测绘凭据 (天眼查 API)" size="small" style="margin-bottom: 16px; border-radius: 6px; min-height: 190px;">
-                    <template #extra>
-                      <a-tooltip title="选配项。配置后支持投资控股树深度穿透与工信部双轨校对；未配置时系统仍可通过工信部 ICP 备案数据进行资产归集。">
-                        <info-circle-outlined style="color: #bfbfbf;" />
-                      </a-tooltip>
                     </template>
-                    <a-form-item label="天眼查 ID (X-Tycid)" style="margin-bottom: 12px;">
-                      <a-input v-model:value="generalForm.tyc_id" placeholder="请输入天眼查 ID" />
-                    </a-form-item>
-                    <a-form-item label="天眼查 Token (X-Auth-Token)" style="margin-bottom: 0;">
-                      <a-input-password v-model:value="generalForm.tyc_token" placeholder="请输入 JWT Token" />
-                    </a-form-item>
-                  </a-card>
-                </a-col>
-
-                <!-- 3. 代码与搜索引擎 (右半边) -->
-                <a-col :span="12">
-                  <a-card title="🔍 搜索引擎 & 开源情报" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 190px;">
-                    <a-form-item label="GitHub Token (监控任务调用)" style="margin-bottom: 12px;">
-                      <a-input-password v-model:value="generalForm.github_token" placeholder="请输入您的 GitHub PAT" />
-                    </a-form-item>
-                    <a-form-item label="360搜索 Cookie (反爬绕过)" style="margin-bottom: 0;">
-                      <a-input-password v-model:value="generalForm.so_search_cookie" placeholder="so_search_cookie" />
-                    </a-form-item>
-                  </a-card>
-                </a-col>
-              </a-row>
-
-              <!-- 单独一行放必应，如果上面放不下 -->
-              <a-card size="small" style="margin-bottom: 16px; border-radius: 6px;">
-                 <a-form-item label="必应搜索 Cookie (bing_search_cookie)" style="margin-bottom: 0;">
-                   <a-input-password v-model:value="generalForm.bing_search_cookie" placeholder="请输入必应搜索 Cookie" />
-                 </a-form-item>
-              </a-card>
-
-              <!-- 4. 插件配置 -->
-              <a-card title="🧩 域名收集扩展插件配置 (QUERY_PLUGIN)" size="small" style="border-radius: 6px;">
-                <div style="background: var(--arl-bg-light); border-radius: 4px; padding: 12px;">
-                  <a-row :gutter="[12, 12]">
-                    <a-col :span="8" v-for="(conf, pluginName) in generalForm.query_plugin_config" :key="pluginName">
-                      <div style="border: 1px solid var(--arl-border-color); background: var(--arl-bg-white); padding: 12px; border-radius: 4px; min-height: 110px; position: relative;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                          <a style="font-weight: 600; text-transform: uppercase; ">{{ pluginName }}</a>
-                          <a-switch v-model:checked="conf.enable" size="small" />
-                        </div>
-                        
-                        <a-input 
-                          v-if="conf.hasOwnProperty('api_key')" 
-                          v-model:value="conf.api_key" 
-                          placeholder="API Key" 
-                          size="small" 
-                        />
-                        <div v-if="pluginName === 'hunter_qax'" style="margin-top: 8px; display: flex; gap: 8px;">
-                          <a-input-number v-model:value="conf.max_page" placeholder="Max Page" size="small" style="flex: 1;" />
-                          <a-input-number v-model:value="conf.page_size" placeholder="Page Size" size="small" style="flex: 1;" />
-                        </div>
-                        <div v-if="pluginName === 'certspotter'" style="margin-top: 8px;">
-                          <a-input-number v-model:value="conf.max_page" placeholder="Max Page" size="small" style="width: 100%;" />
-                        </div>
-                        <a-input 
-                          v-if="conf.hasOwnProperty('quake_token')" 
-                          v-model:value="conf.quake_token" 
-                          placeholder="Quake Token" 
-                          size="small"
-                          style="margin-top: 8px;"
-                        />
-                        <div v-if="pluginName === 'passivetotal'" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
-                          <a-input v-model:value="conf.auth_email" placeholder="Auth Email" size="small" />
-                          <a-input v-model:value="conf.auth_key" placeholder="Auth Key" size="small" />
-                        </div>
-                      </div>
+                  </a-alert>
+                  <a-row :gutter="24">
+                    <a-col :span="12">
+                      <a-card data-setting-anchor="performance" title="⚙️ 重任务 (Heavy Task) 调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #ff4d4f;">
+                        <a-form-item>
+                          <template #label>
+                            <span>重任务并发数</span>
+                            <a-tag v-if="runtimePerformance.runtime_heavy_concurrency !== null" color="blue" style="margin-left: 8px; font-size: 12px;">
+                              实时运行: {{ runtimePerformance.runtime_heavy_concurrency }} 进程
+                            </a-tag>
+                            <a-tag v-else color="default" style="margin-left: 8px; font-size: 12px;">Worker 离线</a-tag>
+                            <a-popover placement="right">
+                              <template #content>
+                                <div style="max-width: 320px;">
+                                  <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 阻塞式长线任务：</div>
+                                  <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
+                                    <li>常规域名 / IP 扫描任务</li>
+                                    <li>风险巡航任务 (批量漏洞检测)</li>
+                                    <li>定时域名 / IP 监控任务</li>
+                                  </ul>
+                                </div>
+                              </template>
+                              <InfoCircleOutlined style="margin-left: 4px; color: #888; cursor: pointer;" />
+                            </a-popover>
+                          </template>
+                          <a-input-number v-model:value="performanceForm.celery_heavy_concurrency" :min="1" :max="128" style="width: 100%" />
+                          <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
+                            控制常规扫描、风险巡航等长线任务的并发数，每个并发进程对应一个独立 Worker 进程。
+                          </div>
+                          <div v-if="capacityInfo.heavy_recommended" class="arl-recommend-row">
+                            <span>
+                              <span class="arl-recommend-label">推荐值</span>
+                              <strong>{{ capacityInfo.heavy_recommended }}</strong>
+                              <span class="arl-recommend-basis">
+                                （可用内存 {{ capacityInfo.available_memory_mb }} MB，扣除常驻服务与突发余量后预算 {{ capacityInfo.headroom_mb }} MB）
+                              </span>
+                            </span>
+                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'heavy')">回填</a-button>
+                          </div>
+                          <div class="arl-recommend-basis" style="margin-top: 4px;">{{ capacityInfo.basis }}</div>
+                        </a-form-item>
+                      </a-card>
+                    </a-col>
+                    <a-col :span="12">
+                      <a-card title="⚡ 轻任务 (Light Task) 调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #52c41a;">
+                        <a-form-item>
+                          <template #label>
+                            <span>轻任务并发数</span>
+                            <a-tag v-if="runtimePerformance.runtime_light_concurrency !== null" color="green" style="margin-left: 8px; font-size: 12px;">
+                              实时运行: {{ runtimePerformance.runtime_light_concurrency }} 进程
+                            </a-tag>
+                            <a-tag v-else color="default" style="margin-left: 8px; font-size: 12px;">Worker 离线</a-tag>
+                            <a-popover placement="right">
+                              <template #content>
+                                <div style="max-width: 320px;">
+                                  <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 非阻塞单点 API 任务：</div>
+                                  <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
+                                    <li>空间测绘查询 (FOFA 等)</li>
+                                    <li>更新单个站点信息 (截图/指纹)</li>
+                                    <li>Web 目录敏感信息单点提取 (WIH)</li>
+                                    <li>手动添加站点</li>
+                                    <li>任务数据强制同步重置</li>
+                                  </ul>
+                                </div>
+                              </template>
+                              <InfoCircleOutlined style="margin-left: 4px; color: #888; cursor: pointer;" />
+                            </a-popover>
+                          </template>
+                          <a-input-number v-model:value="performanceForm.celery_light_concurrency" :min="1" :max="256" style="width: 100%" />
+                          <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
+                            走专用独立通道，不受重任务排队阻塞影响。轻任务是外网单点 API 调用，按带宽资源调整即可。
+                          </div>
+                          <div v-if="capacityInfo.light_recommended" class="arl-recommend-row">
+                            <span>
+                              <span class="arl-recommend-label">推荐值</span>
+                              <strong>{{ capacityInfo.light_recommended }}</strong>
+                              <span class="arl-recommend-basis">（与重任务共享同一份内存预算，按 3 : 7 分配）</span>
+                            </span>
+                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'light')">回填</a-button>
+                          </div>
+                        </a-form-item>
+                      </a-card>
                     </a-col>
                   </a-row>
-                </div>
-              </a-card>
+                  <a-row :gutter="24">
+                    <a-col :span="12">
+                      <a-card title="🌍 外网情报侦察任务调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #1890ff;">
+                        <a-form-item>
+                          <template #label>
+                            OSINT 任务并发数
+                            <a-popover placement="right">
+                              <template #content>
+                                <div style="max-width: 320px;">
+                                  <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 外网情报侦察任务：</div>
+                                  <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
+                                    <li>ICP 备案查询 (网站/APP/小程序)</li>
+                                    <li>天眼查 (TYC) 股权穿透与资产收集</li>
+                                  </ul>
+                                </div>
+                              </template>
+                              <InfoCircleOutlined style="margin-left: 4px; color: #888; cursor: pointer;" />
+                            </a-popover>
+                          </template>
+                          <a-input-number v-model:value="performanceForm.osint_concurrency" :min="1" :max="128" style="width: 100%" />
+                          <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
+                            控制 OSINT 模块对外部目标（如天眼查、工信部备案等）的并发请求数。受外网反爬策略约束，调高易触发接口熔断或 IP 封禁。修改后将在 10 秒内由后台看门狗自动热更新生效。
+                          </div>
+                          <div v-if="capacityInfo.osint_recommended" class="arl-recommend-row">
+                            <span>
+                              <span class="arl-recommend-label">推荐值</span>
+                              <strong>{{ capacityInfo.osint_recommended }}</strong>
+                              <span class="arl-recommend-basis">（保持默认，避免触发外网反爬）</span>
+                            </span>
+                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'osint')">回填</a-button>
+                          </div>
+                        </a-form-item>
+                      </a-card>
+                    </a-col>
+                  </a-row>
 
-            </a-form>
-          </a-spin>
-        </div>
+                </a-form>
+              </a-spin>
+            </div>
+          </a-tab-pane>
+          <a-tab-pane key="security" tab="安全策略 (IP / 域名禁扫)" force-render>
+            <div style="max-width: 1000px; padding-bottom: 40px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <span style="color: var(--arl-text-color); opacity: 0.45;">
+                  此处的配置项用于全局的安全限制，防止系统对指定范围的 IP 或域名发起扫描。保存后立即生效，无需重启。
+                </span>
+                <a-button
+                  type="primary"
+                  @click="saveSecurityPolicy"
+                  :loading="securitySaveLoading"
+                  :disabled="!isSecurityDirty"
+                >
+                  {{ isSecurityDirty ? '保存安全策略' : '安全策略无改动' }}
+                </a-button>
+              </div>
+              <a-spin :spinning="securityLoading">
+                <a-form layout="vertical">
+                  <a-form-item data-setting-anchor="security" label="IP 黑名单 (支持 CIDR，如 127.0.0.0/8, 192.168.0.0/16，每行一个)">
+                    <a-textarea v-model:value="securityForm.blackIpsText" :rows="8" placeholder="例如：\n127.0.0.0/8\n10.0.0.0/8" />
+                  </a-form-item>
+              
+                  <a-form-item label="禁止扫描域名 (支持后缀匹配，如 gov.cn, edu.cn，每行一个)">
+                    <a-textarea v-model:value="securityForm.forbiddenDomainsText" :rows="8" placeholder="例如：\ngov.cn\nedu.cn" />
+                  </a-form-item>
+                </a-form>
+              </a-spin>
+            </div>
+          </a-tab-pane>
+          <a-tab-pane key="system_general" tab="高级扫描与环境" force-render>
+            <div style="max-width: 1000px; padding-bottom: 40px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <span style="color: var(--arl-text-color); opacity: 0.45;">
+                  配置单个任务内部的执行参数：代理出口、默认端口列表与 DNS 爆破并发度。底部只读展示系统底层关键连接。
+                </span>
+                <a-button
+                  type="primary"
+                  :class="{ 'arl-dirty-btn': Object.keys(pendingByGroup.system_general).length > 0 }"
+                  @click="saveGeneralConfig('system_general', '高级配置已保存')"
+                  :loading="generalSaveLoading"
+                >
+                  保存高级配置
+                  <a-badge
+                    v-if="Object.keys(pendingByGroup.system_general).length > 0"
+                    :count="Object.keys(pendingByGroup.system_general).length"
+                    :offset="[8, -8]"
+                    color="#faad14"
+                  />
+                </a-button>
+              </div>
+              <a-spin :spinning="generalLoading">
+                <a-form layout="vertical">
+                  <!-- 语义分区说明：本页的爆破并发度属于「单任务内」，与「任务队列并发」页的
+                       进程数不是同一指标，避免用户跨页误填同量级数值 -->
+                  <a-alert type="info" show-icon style="margin-bottom: 16px; border-radius: 6px;">
+                    <template #message>
+                      <div style="font-size: 13px; line-height: 1.8;">
+                        下方的<strong>爆破并发度</strong>作用于<strong>单个任务内部</strong>的 DNS 查询并发，
+                        常见取值为数百至上千，与
+                        <a @click="goToQueueConcurrency">「扫描与并发 · 任务队列并发」</a>
+                        的 Worker <strong>进程数</strong>（通常 1~128）不是同一指标，请勿按同一量级填写。
+                      </div>
+                    </template>
+                  </a-alert>
+                  <a-row :gutter="24">
+                    <a-col :span="12">
+                      <a-form-item data-setting-anchor="proxy" label="系统代理地址 (PROXY HTTP_URL)">
+                        <a-input v-model:value="generalForm.proxy_url" placeholder="例如：http://127.0.0.1:8080" />
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                      <a-form-item data-setting-anchor="port_top_10" label="端口扫描前端测试选项 Top 10 WEB 端口串">
+                        <a-input v-model:value="generalForm.port_top_10" placeholder="以英文逗号分隔" />
+                      </a-form-item>
+                    </a-col>
+                  </a-row>
+
+                  <a-row :gutter="24">
+                    <a-col :span="12">
+                      <a-form-item data-setting-anchor="brute_concurrent" label="常规域名爆破 DNS 发包并发度">
+                        <a-input-number v-model:value="generalForm.domain_brute_concurrent" :min="1" style="width: 100%" />
+                        <div class="arl-field-hint">
+                          单任务内的 DNS 查询并发度（对应 massdns <code>-s</code> 参数），非进程/线程数。调高会加重上游 DNS 与本地网络设备负担，常见区间 100~500。
+                        </div>
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                      <a-form-item label="DNS 智能生成 DNS 发包并发度">
+                        <a-input-number v-model:value="generalForm.alt_dns_concurrent" :min="1" style="width: 100%" />
+                        <div class="arl-field-hint">
+                          同上，用于 DNS 智能生成（altDNS）阶段。因其在内存中组合生成候选域名后集中查询，默认值高于常规爆破。
+                        </div>
+                      </a-form-item>
+                    </a-col>
+                  </a-row>
+
+
+                  <a-row :gutter="24">
+                    <a-col :span="12">
+                      <a-form-item data-setting-anchor="auth" label="API 安全认证机制">
+                        <a-switch v-model:checked="generalForm.auth" checked-children="开启" un-checked-children="关闭" />
+                      </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                      <a-form-item label="API Token (Swagger API Key)">
+                        <a-input-password v-model:value="generalForm.api_key" placeholder="API KEY (不带 API 认证时无须配置)" />
+                      </a-form-item>
+                    </a-col>
+                  </a-row>
+
+                  <a-form-item data-setting-anchor="infra" label="底层系统基础设施服务连接信息 (只读)">
+                    <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 16px;">
+                      <a-descriptions bordered size="small" :column="1">
+                        <a-descriptions-item label="Celery 消息队列 (Broker URL)">
+                          <code style="word-break: break-all;">{{ generalForm.celery_broker_url }}</code>
+                        </a-descriptions-item>
+                        <a-descriptions-item label="MongoDB 数据库 (URI)">
+                          <code style="word-break: break-all;">{{ generalForm.mongo_url }}</code>
+                        </a-descriptions-item>
+                        <a-descriptions-item label="MongoDB 默认数据库名 (DB)">
+                          <code>{{ generalForm.mongo_db }}</code>
+                        </a-descriptions-item>
+                        <a-descriptions-item label="GeoIP 城市位置库绝对路径">
+                          <code style="word-break: break-all;">{{ generalForm.geoip_city }}</code>
+                        </a-descriptions-item>
+                        <a-descriptions-item label="GeoIP ASN数据绝对路径">
+                          <code style="word-break: break-all;">{{ generalForm.geoip_asn }}</code>
+                        </a-descriptions-item>
+                        <a-descriptions-item label="ip2region 离线高精库绝对路径">
+                          <code style="word-break: break-all;">{{ generalForm.geoip_ip2region || '-' }}</code>
+                        </a-descriptions-item>
+                      </a-descriptions>
+                    </div>
+                  </a-form-item>
+                </a-form>
+              </a-spin>
+            </div>
+          </a-tab-pane>
+        </a-tabs>
       </a-tab-pane>
-
-      <!-- 消息推送与回调 Tab -->
-      <a-tab-pane key="message_push" tab="消息推送与回调" force-render>
+      <a-tab-pane key="message_push" :tab="tabTitle('通知与回调', Object.keys(pendingByGroup.message_push).length > 0)" force-render>
         <div style="max-width: 1100px; padding-bottom: 40px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <span style="color: var(--arl-text-color); opacity: 0.45;">
               此处的配置项用于监控任务结束后的结果推送以及自动化 Webhook 接口回调。
             </span>
-            <a-button type="primary" @click="saveGeneralConfig" :loading="generalSaveLoading">
+            <a-button
+              type="primary"
+              :class="{ 'arl-dirty-btn': Object.keys(pendingByGroup.message_push).length > 0 }"
+              @click="saveGeneralConfig('message_push', '推送配置已保存')"
+              :loading="generalSaveLoading"
+            >
               保存推送配置
+              <a-badge
+                v-if="Object.keys(pendingByGroup.message_push).length > 0"
+                :count="Object.keys(pendingByGroup.message_push).length"
+                :offset="[8, -8]"
+                color="#faad14"
+              />
             </a-button>
           </div>
 
@@ -800,7 +1067,7 @@ admin123
             <a-form layout="vertical">
               
               <!-- 1. 订阅消息类型 -->
-              <a-card title="🔔 订阅消息类型" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid var(--arl-theme-color);">
+              <a-card data-setting-anchor="push_options" title="🔔 订阅消息类型" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid var(--arl-theme-color);">
                 <a-checkbox-group v-model:value="generalForm.push_options" style="width: 100%;">
                   <a-row>
                     <a-col :span="6" style="margin-bottom: 8px;"><a-checkbox value="task_complete">资产侦察任务完成</a-checkbox></a-col>
@@ -817,7 +1084,7 @@ admin123
               <a-row :gutter="16">
                 <!-- 钉钉 -->
                 <a-col :span="12">
-                  <a-card title="💬 钉钉机器人" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 180px;">
+                  <a-card data-setting-anchor="im" title="💬 钉钉机器人" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 180px;">
                     <template #extra>
                       <a-button type="link" size="small" @click="handleTestPush('dingding')" :loading="testPushLoading.dingding">测试发送</a-button>
                     </template>
@@ -889,7 +1156,7 @@ admin123
               <a-row :gutter="16">
                 <!-- 全局 Webhook -->
                 <a-col :span="12">
-                  <a-card title="🔗 系统全局 Webhook 回调" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 260px;">
+                  <a-card data-setting-anchor="webhook" title="🔗 系统全局 Webhook 回调" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 260px;">
                     <template #extra>
                       <a-button type="link" size="small" @click="handleTestPush('webhook')" :loading="testPushLoading.webhook">测试发送</a-button>
                     </template>
@@ -910,7 +1177,7 @@ admin123
                     </template>
                     <a-row :gutter="12">
                       <a-col :span="16">
-                        <a-form-item label="SMTP 主机" style="margin-bottom: 8px;">
+                        <a-form-item data-setting-anchor="email" label="SMTP 主机" style="margin-bottom: 8px;">
                           <a-input v-model:value="generalForm.email.host" placeholder="smtp.qq.com" size="small" />
                         </a-form-item>
                       </a-col>
@@ -943,91 +1210,9 @@ admin123
           </a-spin>
         </div>
       </a-tab-pane>
-
-      <!-- 高级扫描与环境配置 Tab -->
-      <a-tab-pane key="system_general" tab="高级扫描与环境配置" force-render>
-        <div style="max-width: 1000px; padding-bottom: 40px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <span style="color: var(--arl-text-color); opacity: 0.45;">
-              此处的配置项用于代理、全局端口字典及扫描线程的调优。底部只读展示系统底层关键连接。
-            </span>
-            <a-button type="primary" @click="saveGeneralConfig" :loading="generalSaveLoading">
-              保存高级配置
-            </a-button>
-          </div>
-          <a-spin :spinning="generalLoading">
-            <a-form layout="vertical">
-              <a-row :gutter="24">
-                <a-col :span="12">
-                  <a-form-item label="系统代理地址 (PROXY HTTP_URL)">
-                    <a-input v-model:value="generalForm.proxy_url" placeholder="例如：http://127.0.0.1:8080" />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="端口扫描前端测试选项 Top 10 WEB 端口串">
-                    <a-input v-model:value="generalForm.port_top_10" placeholder="以英文逗号分隔" />
-                  </a-form-item>
-                </a-col>
-              </a-row>
-
-              <a-row :gutter="24">
-                <a-col :span="12">
-                  <a-form-item label="常规域名爆破并行线程数">
-                    <a-input-number v-model:value="generalForm.domain_brute_concurrent" :min="1" style="width: 100%" />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="DNS智能生成并发并行线程数">
-                    <a-input-number v-model:value="generalForm.alt_dns_concurrent" :min="1" style="width: 100%" />
-                  </a-form-item>
-                </a-col>
-              </a-row>
-
-
-              <a-row :gutter="24">
-                <a-col :span="12">
-                  <a-form-item label="API 安全认证机制">
-                    <a-switch v-model:checked="generalForm.auth" checked-children="开启" un-checked-children="关闭" />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="API Token (Swagger API Key)">
-                    <a-input-password v-model:value="generalForm.api_key" placeholder="API KEY (不带 API 认证时无须配置)" />
-                  </a-form-item>
-                </a-col>
-              </a-row>
-
-              <a-form-item label="底层系统基础设施服务连接信息 (只读)">
-                <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 16px;">
-                  <a-descriptions bordered size="small" :column="1">
-                    <a-descriptions-item label="Celery 消息队列 (Broker URL)">
-                      <code style="word-break: break-all;">{{ generalForm.celery_broker_url }}</code>
-                    </a-descriptions-item>
-                    <a-descriptions-item label="MongoDB 数据库 (URI)">
-                      <code style="word-break: break-all;">{{ generalForm.mongo_url }}</code>
-                    </a-descriptions-item>
-                    <a-descriptions-item label="MongoDB 默认数据库名 (DB)">
-                      <code>{{ generalForm.mongo_db }}</code>
-                    </a-descriptions-item>
-                    <a-descriptions-item label="GeoIP 城市位置库绝对路径">
-                      <code style="word-break: break-all;">{{ generalForm.geoip_city }}</code>
-                    </a-descriptions-item>
-                    <a-descriptions-item label="GeoIP ASN数据绝对路径">
-                      <code style="word-break: break-all;">{{ generalForm.geoip_asn }}</code>
-                    </a-descriptions-item>
-                    <a-descriptions-item label="ip2region 离线高精库绝对路径">
-                      <code style="word-break: break-all;">{{ generalForm.geoip_ip2region || '-' }}</code>
-                    </a-descriptions-item>
-                  </a-descriptions>
-                </div>
-              </a-form-item>
-            </a-form>
-          </a-spin>
-        </div>
-      </a-tab-pane>
-      <a-tab-pane key="system_update" tab="系统版本与更新" force-render>
+      <a-tab-pane key="system_update" :tab="tabTitle('系统版本与更新', false)" force-render>
         <div class="tab-content" style="padding: 20px;">
-          <a-card title="系统更新管理" :bordered="false" style="max-width: 800px;">
+          <a-card data-setting-anchor="update" title="系统更新管理" :bordered="false" style="max-width: 800px;">
             <a-descriptions bordered :column="1">
               <a-descriptions-item label="当前本地版本">
                 <a-tag color="blue">{{ localVersion || '获取中...' }}</a-tag>
@@ -1130,7 +1315,7 @@ import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTic
 import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
 import { copyText } from '@/utils/clipboard';
-import { useRoute } from 'vue-router';
+import { useRoute, onBeforeRouteLeave } from 'vue-router';
 
 const reloadPage = () => {
   window.location.reload();
@@ -1139,6 +1324,7 @@ const reloadPage = () => {
 const route = useRoute();
 const activeKey = ref('dictionary');
 const dictSubTab = ref('dict');
+const scanSubTab = ref('performance');
 const loading = ref(false);
 const searchLoading = ref(false);
 const submitLoading = ref(false);
@@ -1503,6 +1689,346 @@ const handleTestPush = async (type) => {
   }
 };
 
+// ======================= 全局配置脏状态追踪 (P0) =======================
+// 每个一级 Tab 对应一个配置分组。用户只提交"当前分组内发生变更的字段"，
+// 避免在 A 页改完未保存、切到 B 页点保存时用 B 页旧值覆盖 A 页修改。
+const GENERAL_FIELD_GROUPS = {
+  api_config: ['fofa_key', 'fofa_url', 'fofa_max_page', 'fofa_page_size', 'github_token',
+               'tyc_id', 'tyc_token', 'so_search_cookie', 'bing_search_cookie', 'query_plugin_config'],
+  message_push: ['push_options', 'dingding', 'feishu', 'wxwork', 'telegram', 'email',
+                 'webhook_url', 'webhook_token'],
+  system_general: ['proxy_url', 'port_top_10', 'domain_brute_concurrent', 'alt_dns_concurrent',
+                   'auth', 'api_key'],
+};
+
+// 打开页面时保存的基线快照，用于 diff 出真正变更的字段
+const generalBaseline = ref({});
+
+const cloneDeep = (val) => (val === undefined ? undefined : JSON.parse(JSON.stringify(val)));
+
+// 生效值视图：仅含可编辑且非敏感字段，用于回显"当前系统实际生效值"
+const mergedConfig = ref({});
+const credentialStatus = ref({});
+const capacityInfo = ref({});
+
+const captureBaseline = () => {
+  generalBaseline.value = cloneDeep(generalForm.value);
+};
+
+// 以基线为准逐字段比较，得出所有变更字段（跨分组）
+const changedFields = computed(() => {
+  const base = generalBaseline.value;
+  const cur = generalForm.value;
+  const changed = {};
+  const collect = (groupKeys) => {
+    groupKeys.forEach((key) => {
+      if (JSON.stringify(cur[key]) !== JSON.stringify(base[key])) {
+        changed[key] = cur[key];
+      }
+    });
+  };
+  Object.values(GENERAL_FIELD_GROUPS).forEach(collect);
+  return changed;
+});
+
+// 按分组切出各自待提交的字段
+const pendingByGroup = computed(() => {
+  const out = {};
+  const changed = changedFields.value;
+  Object.entries(GENERAL_FIELD_GROUPS).forEach(([group, keys]) => {
+    const subset = {};
+    keys.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(changed, key)) subset[key] = changed[key];
+    });
+    out[group] = subset;
+  });
+  return out;
+});
+
+// 安全策略与性能配置走独立接口，各自维护基线
+const securityBaseline = ref({ blackIpsText: '', forbiddenDomainsText: '' });
+const performanceBaseline = ref({});
+
+const isSecurityDirty = computed(() =>
+  securityForm.value.blackIpsText !== securityBaseline.value.blackIpsText
+  || securityForm.value.forbiddenDomainsText !== securityBaseline.value.forbiddenDomainsText);
+
+const isPerformanceDirty = computed(() => (
+  performanceForm.value.celery_heavy_concurrency !== performanceBaseline.value.celery_heavy_concurrency
+  || performanceForm.value.celery_light_concurrency !== performanceBaseline.value.celery_light_concurrency
+  || performanceForm.value.osint_concurrency !== performanceBaseline.value.osint_concurrency));
+
+// 全局是否存在未保存改动（含安全策略与性能配置两个独立接口）
+const hasUnsavedChanges = computed(() => (
+  Object.keys(changedFields.value).length > 0
+  || isSecurityDirty.value
+  || isPerformanceDirty.value
+));
+
+// 未保存改动总数，用于页头常驻提示
+const unsavedCount = computed(() => {
+  const detail = Object.keys(changedFields.value).length;
+  return detail
+    + (isSecurityDirty.value ? 1 : 0)
+    + (isPerformanceDirty.value ? 1 : 0);
+});
+
+// ======================= 设置项索引与搜索 (P2) =======================
+// 每条索引把「用户会搜的词」映射到「Tab + 锚点」，keywords 覆盖中英文与别名，
+// 让用户不必记住设置项藏在哪个 Tab（这是 L1 定位成本的主要来源）。
+const SETTINGS_INDEX = [
+  // 全局凭据总览（不在任何 Tab 内，锚点指向页面顶部的折叠条）
+  { tab: 'api_config', tabLabel: '全站总览', label: '凭据配置状态总览', anchor: 'credential_status',
+    desc: '一屏查看全部 12 项凭据的配置状态（跨多个 Tab）',
+    keywords: ['凭据', '配置状态', '已配置', '未配置', 'credential', 'token', '密钥', '总览'] },
+  // 资产测绘与情报
+  { tab: 'api_config', tabLabel: '资产测绘与情报', label: 'FOFA 空间测绘凭据', anchor: 'fofa',
+    desc: 'FOFA URL / KEY 与查询页数', keywords: ['fofa', '空间测绘', 'api key', '情报'] },
+  { tab: 'api_config', tabLabel: '资产测绘与情报', label: '天眼查企业测绘凭据', anchor: 'tyc',
+    desc: 'X-Tycid / X-Auth-Token，未配置时降级为工信部 ICP', keywords: ['天眼查', 'tyc', '股权穿透', '企业'] },
+  { tab: 'api_config', tabLabel: '资产测绘与情报', label: 'GitHub Token', anchor: 'github_token',
+    desc: '代码泄露监控与 CVE 追踪的硬依赖', keywords: ['github', 'token', 'pat', '监控', '泄露', 'cve'] },
+  { tab: 'api_config', tabLabel: '资产测绘与情报', label: '搜索引擎 Cookie', anchor: 'search_cookie',
+    desc: '360 搜索与必应搜索的反爬 Cookie', keywords: ['cookie', '360', '必应', 'bing', '搜索', '反爬'] },
+  { tab: 'api_config', tabLabel: '资产测绘与情报', label: '域名收集扩展插件', anchor: 'query_plugin',
+    desc: 'QUERY_PLUGIN 各数据源开关与凭据', keywords: ['插件', 'plugin', 'quake', 'hunter', 'virustotal', '扩展'] },
+  // 字典与规则库
+  { tab: 'dictionary', tabLabel: '字典与规则库', label: '通用文本字典', anchor: 'dict',
+    desc: '子域名 / 端口 / 目录 / 弱口令字典管理', keywords: ['字典', 'dict', '弱口令', '爆破', '子域名', '端口', '目录'] },
+  { tab: 'dictionary', tabLabel: '字典与规则库', label: 'CDN 特征与规则', anchor: 'cdn',
+    desc: 'CNAME 与 IP CIDR 特征库，用于 CDN 识别', keywords: ['cdn', 'cname', 'cidr', '特征', '规则'] },
+  // 扫描与并发
+  { tab: 'performance', tabLabel: '扫描与并发 · 队列并发', label: '任务队列并发（Worker 进程数）', anchor: 'performance',
+    desc: '重任务 / 轻任务 / OSINT 的 Worker 进程数，受内存约束',
+    keywords: ['并发', '线程', '性能', '队列', 'celery', 'worker', '进程', '扩容', '缩容'] },
+  { tab: 'security', tabLabel: '扫描与并发 · 安全策略', label: '安全策略：IP 黑名单', anchor: 'security',
+    desc: '禁止扫描的 IP 段（含系统默认值）', keywords: ['黑名单', 'blacklist', 'ip', 'cidr', '禁止', '安全策略'] },
+  { tab: 'security', tabLabel: '扫描与并发 · 安全策略', label: '安全策略：禁止扫描域名', anchor: 'security',
+    desc: '按后缀匹配的禁扫域名（如 gov.cn）', keywords: ['禁止域名', '域名', '禁扫', '安全策略', 'gov.cn'] },
+  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: '系统代理地址', anchor: 'proxy',
+    desc: 'PROXY_URL，扫描流量出口代理', keywords: ['代理', 'proxy', '出口', 'http_url'] },
+  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: 'DNS 发包并发度（单任务内）', anchor: 'brute_concurrent',
+    desc: '常规爆破与 DNS 智能生成的 massdns 发包并发度，非进程数',
+    keywords: ['线程', '爆破', '并发', '并发度', 'dns', '域名', 'altdns', 'massdns', '发包'] },
+  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: '端口扫描 Top 10 端口串', anchor: 'port_top_10',
+    desc: '前端测试选项使用的默认端口列表', keywords: ['端口', 'port', 'top10', '扫描'] },
+  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: '基础服务连接信息', anchor: 'infra',
+    desc: '只读展示 Broker / MongoDB / GeoIP 路径', keywords: ['mongodb', 'broker', 'celery', 'geoip', '数据库', '基础设施'] },
+  // 通知与系统
+  { tab: 'message_push', tabLabel: '通知与回调', label: '订阅消息类型', anchor: 'push_options',
+    desc: '选择哪些事件触发推送', keywords: ['订阅', '推送', '通知', '告警', '消息类型'] },
+  { tab: 'message_push', tabLabel: '通知与回调', label: '钉钉 / 飞书 / 企微 / Telegram 机器人', anchor: 'im',
+    desc: '即时通讯告警通道与测试发送', keywords: ['钉钉', 'dingding', '飞书', 'feishu', '企业微信', 'wxwork', 'telegram', '机器人', 'webhook'] },
+  { tab: 'message_push', tabLabel: '通知与回调', label: '系统全局 Webhook 回调', anchor: 'webhook',
+    desc: '任务完成后向外部接口 POST JSON', keywords: ['webhook', '回调', 'callback', 'post', '接口'] },
+  { tab: 'message_push', tabLabel: '通知与回调', label: 'SMTP 邮件推送', anchor: 'email',
+    desc: '邮件服务器、发件人与收件人配置', keywords: ['邮件', 'email', 'smtp', '推送'] },
+  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: 'API 安全认证机制', anchor: 'auth',
+    desc: 'Swagger API 认证开关与 API Token', keywords: ['api', '认证', 'auth', 'token', 'swagger', '安全'] },
+  { tab: 'system_update', tabLabel: '系统版本与更新', label: '系统版本与更新', anchor: 'update',
+    desc: '版本比对、更新日志与一键更新', keywords: ['版本', '更新', '升级', 'update', 'version', 'changelog'] },
+];
+
+const settingsKeyword = ref('');
+const highlightedAnchor = ref('');
+
+const settingsSearchResults = computed(() => {
+  const kw = settingsKeyword.value.trim().toLowerCase();
+  if (!kw) return [];
+  return SETTINGS_INDEX.filter((item) => {
+    const haystack = [item.label, item.desc, item.tabLabel, ...(item.keywords || [])]
+      .join(' ').toLowerCase();
+    return haystack.includes(kw);
+  });
+});
+
+// 点击搜索结果：切到目标 Tab（含嵌套子 Tab），并把锚点元素滚动进视野 + 短暂高亮
+const jumpToSetting = (item) => {
+  // 三组 Tab 均使用嵌套子结构：需同时切换外层 activeKey 与内层子 Tab
+  if (item.tab === 'dictionary') {
+    activeKey.value = 'dictionary';
+    dictSubTab.value = item.anchor === 'cdn' ? 'cdn' : 'dict';
+  } else if (item.tab === 'security' || item.tab === 'system_general') {
+    activeKey.value = 'performance';
+    scanSubTab.value = item.tab;
+  } else if (item.tab === 'performance') {
+    activeKey.value = 'performance';
+    scanSubTab.value = 'performance';
+  } else {
+    activeKey.value = item.tab;
+  }
+  settingsKeyword.value = '';
+  highlightedAnchor.value = item.anchor;
+  // 全局凭据总览位于 Tab 之外且默认折叠：需先展开再滚动
+  if (item.anchor === 'credential_status') {
+    credExpanded.value = true;
+  }
+  nextTick(() => {
+    // cdn / dict 指向子 Tab 本身，高亮容器；其余锚点高亮对应设置项
+    const isSubTab = item.anchor === 'cdn' || item.anchor === 'dict';
+    let selector;
+    if (isSubTab) {
+      selector = '.dict-sub-tabs';
+    } else if (item.anchor === 'credential_status') {
+      selector = '.arl-global-cred';
+    } else {
+      selector = `[data-setting-anchor="${item.anchor}"]`;
+    }
+    const el = document.querySelector(selector);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('arl-anchor-flash');
+      setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
+    }
+  });
+};
+
+// 两套并发指标互相指引，避免用户在同一页找不到对应字段
+const goToBruteConcurrent = () => {
+  activeKey.value = 'performance';
+  scanSubTab.value = 'system_general';
+  nextTick(() => {
+    const el = document.querySelector('[data-setting-anchor="brute_concurrent"]');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('arl-anchor-flash');
+      setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
+    }
+  });
+};
+
+const goToQueueConcurrency = () => {
+  activeKey.value = 'performance';
+  scanSubTab.value = 'performance';
+  nextTick(() => {
+    const el = document.querySelector('[data-setting-anchor="performance"]');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('arl-anchor-flash');
+      setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
+    }
+  });
+};
+
+// 定位第一个存在未保存改动的 Tab，供提示条一键跳转
+const firstDirtyTabKey = computed(() => {
+  if (isSecurityDirty.value) return 'security';
+  if (isPerformanceDirty.value) return 'performance';
+  const order = ['api_config', 'message_push', 'system_general'];
+  for (const group of order) {
+    if (Object.keys(pendingByGroup.value[group] || {}).length > 0) return group;
+  }
+  return 'api_config';
+});
+
+// 关闭/刷新浏览器窗口时兜底拦截（系统级，无法自定义文案）
+const handleBeforeUnload = (e) => {
+  if (!hasUnsavedChanges.value) return;
+  e.preventDefault();
+  e.returnValue = '';
+};
+
+// Tab 标题挂角标，让"未保存"成为常驻可见状态而非点保存才发现
+const tabTitle = (base, dirty) => (dirty ? `${base} ·` : base);
+
+// 分组保存：只提交本组变更字段
+const saveGeneralGroup = async (group, loadingRef, successText) => {
+  const payload = pendingByGroup.value[group] || {};
+  if (Object.keys(payload).length === 0) {
+    message.info('当前分组没有需要保存的改动');
+    return false;
+  }
+  loadingRef.value = true;
+  try {
+    const res = await request.post('/api/system_config/general', payload);
+    if (res.code === 200) {
+      message.success(successText || `已保存 ${Object.keys(payload).length} 项变更`);
+      // 仅把本组已提交的字段写回基线，其他分组的未保存改动继续保持脏状态
+      Object.keys(payload).forEach((key) => {
+        generalBaseline.value[key] = cloneDeep(payload[key]);
+      });
+      return true;
+    }
+    message.error(res.message || '保存失败');
+    return false;
+  } catch (error) {
+    message.error('请求保存配置出错');
+    console.error(error);
+    return false;
+  } finally {
+    loadingRef.value = false;
+  }
+};
+
+// 凭据状态展示模型：label 为面向用户的业务名称，required 标记"不配就没法用"的硬依赖
+const CREDENTIAL_LABELS = [
+  { key: 'github_token', label: 'GitHub Token', required: true },
+  { key: 'fofa_key', label: 'FOFA KEY', required: false },
+  { key: 'tyc_id', label: '天眼查 ID', required: false },
+  { key: 'tyc_token', label: '天眼查 Token', required: false },
+  { key: 'so_search_cookie', label: '360 搜索 Cookie', required: false },
+  { key: 'bing_search_cookie', label: '必应搜索 Cookie', required: false },
+  { key: 'dingding_access_token', label: '钉钉机器人', required: false },
+  { key: 'feishu_webhook', label: '飞书机器人', required: false },
+  { key: 'wx_work_webhook', label: '企业微信机器人', required: false },
+  { key: 'tg_bot_token', label: 'Telegram 机器人', required: false },
+  { key: 'email_username', label: 'SMTP 邮件', required: false },
+  { key: 'api_key', label: 'API Token', required: false },
+];
+
+const credentialOverview = computed(() => CREDENTIAL_LABELS.map((meta) => ({
+  ...meta,
+  configured: Boolean((credentialStatus.value[meta.key] || {}).configured),
+})));
+
+// 全局凭据条默认折叠：12 项明细常驻首屏会挤占视觉空间
+const credExpanded = ref(false);
+
+const configuredCredentialCount = computed(() =>
+  credentialOverview.value.filter((c) => c.configured).length);
+
+// 仅"必需但未配置"的项才值得红色告警；可选项缺失属正常状态
+const missingRequiredCredentials = computed(() =>
+  credentialOverview.value.filter((c) => c.required && !c.configured));
+
+const fetchMergedConfig = async () => {
+  try {
+    const res = await request.get('/api/system_config/merged_general');
+    if (res.code === 200 && res.data) {
+      mergedConfig.value = res.data;
+      credentialStatus.value = res.data.credentials || {};
+      // 只读字段以生效值为准回显（如 FOFA URL、线程数），让用户看到真实生效状态
+      ['fofa_url', 'fofa_max_page', 'fofa_page_size', 'proxy_url', 'port_top_10',
+       'domain_brute_concurrent', 'alt_dns_concurrent', 'auth'].forEach((key) => {
+        if (res.data[key] !== undefined && res.data[key] !== null && res.data[key] !== '') {
+          generalForm.value[key] = res.data[key];
+          generalBaseline.value[key] = cloneDeep(res.data[key]);
+        }
+      });
+    }
+  } catch (e) {
+    console.error('获取生效值失败', e);
+  }
+};
+
+const fetchCapacityProbe = async () => {
+  try {
+    const res = await request.get('/api/system_config/capacity_probe');
+    if (res.code === 200 && res.data) capacityInfo.value = res.data;
+  } catch (e) {
+    console.error('获取容量推荐值失败', e);
+  }
+};
+
+// 从「生效值」一键回填，降低"该填什么"的决策成本
+const applyRecommended = (formRef, key) => {
+  const rec = capacityInfo.value[`${key}_recommended`];
+  if (rec) {
+    formRef.value[key] = rec;
+    message.success(`已回填推荐值 ${rec}`);
+  }
+};
+
 const generalForm = ref({
   celery_broker_url: '',
   mongo_url: '',
@@ -1558,6 +2084,9 @@ const fetchGeneralConfig = async () => {
         telegram: { ...generalForm.value.telegram, ...(res.data.telegram || {}) },
         email: { ...generalForm.value.email, ...(res.data.email || {}) }
       };
+      // 先拉生效值回填只读项，再确立基线：否则回填本身会被误判为"用户改动"
+      await fetchMergedConfig();
+      captureBaseline();
     } else {
       message.error(res.message || '获取常规全局配置失败');
     }
@@ -1569,22 +2098,9 @@ const fetchGeneralConfig = async () => {
   }
 };
 
-const saveGeneralConfig = async () => {
-  generalSaveLoading.value = true;
-  try {
-    const res = await request.post('/api/system_config/general', generalForm.value);
-    if (res.code === 200) {
-      message.success('系统全局配置保存成功！');
-    } else {
-      message.error(res.message || '保存常规全局配置失败');
-    }
-  } catch (error) {
-    message.error('请求保存全局配置出错');
-    console.error(error);
-  } finally {
-    generalSaveLoading.value = false;
-  }
-};
+// 三个 Tab 共用同一个提交入口，但只提交各自分组内的变更字段
+const saveGeneralConfig = async (group = 'api_config', successText = '') =>
+  saveGeneralGroup(group, generalSaveLoading, successText);
 
 const dictList = ref([]);
 const selectedDict = ref(null);
@@ -2308,6 +2824,7 @@ const fetchSecurityPolicy = async () => {
     if (res.code === 200) {
       securityForm.value.blackIpsText = (res.data.black_ips || []).join('\n');
       securityForm.value.forbiddenDomainsText = (res.data.forbidden_domains || []).join('\n');
+      securityBaseline.value = cloneDeep(securityForm.value);
     } else {
       message.error(res.message || '获取安全策略失败');
     }
@@ -2360,6 +2877,7 @@ const fetchPerformanceConfig = async () => {
       performanceForm.value.osint_concurrency = res.data.osint_concurrency || 1;
       runtimePerformance.value.runtime_heavy_concurrency = res.data.runtime_heavy_concurrency ?? null;
       runtimePerformance.value.runtime_light_concurrency = res.data.runtime_light_concurrency ?? null;
+      performanceBaseline.value = cloneDeep(performanceForm.value);
     } else {
       message.error(res.message || '获取性能配置失败');
     }
@@ -2700,11 +3218,34 @@ onMounted(() => {
     if (route.query.tab === 'cdn') {
       activeKey.value = 'dictionary';
       dictSubTab.value = 'cdn';
+    } else if (route.query.tab === 'security' || route.query.tab === 'system_general') {
+      // security / system_general 已收敛为「扫描与并发」的子 Tab，深链需同时切换内外两层
+      activeKey.value = 'performance';
+      scanSubTab.value = route.query.tab;
     } else {
       activeKey.value = route.query.tab;
     }
   }
+  // 支持 ?focus=<anchor> 深链：业务页可直接把用户送到具体设置项并高亮
+  if (route.query.focus) {
+    const target = SETTINGS_INDEX.find((i) => i.anchor === route.query.focus);
+    nextTick(() => {
+      if (target) {
+        jumpToSetting({ ...target, tab: route.query.tab || target.tab });
+      } else {
+        // 索引中无此锚点时退化为纯 DOM 定位，保证业务页深链不失效
+        const el = document.querySelector(`[data-setting-anchor="${route.query.focus}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('arl-anchor-flash');
+          setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
+        }
+      }
+    });
+  }
+  window.addEventListener('beforeunload', handleBeforeUnload);
   checkVersion();
+  fetchCapacityProbe();
   fetchDictList();
   fetchBruteDictList();
   fetchCdnList();
@@ -2714,6 +3255,10 @@ onMounted(() => {
 });
 
 onDeactivated(() => {
+  // 组件被 keep-alive 缓存，切走时改动仍在内存中，这里只做显式提醒不做阻断
+  if (hasUnsavedChanges.value) {
+    message.warning(`本页有 ${unsavedCount.value} 项配置改动尚未保存，请返回保存后再离开。`, 5);
+  }
   createDictDrawerVisible.value = false;
   appendDrawerVisible.value = false;
   searchDrawerVisible.value = false;
@@ -2723,12 +3268,253 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload);
   stopUpdateTimers();
   clearAllDictPollTimers();
+});
+
+// 路由级离开拦截：组件被 keep-alive 缓存时 onDeactivated 只提示不阻断，
+// 真正的拦停放在路由守卫，避免用户携带未保存改动跳转到其他页面。
+onBeforeRouteLeave(() => {
+  if (!hasUnsavedChanges.value) return true;
+  return new Promise((resolve) => {
+    Modal.confirm({
+      title: '存在未保存的配置改动',
+      icon: createVNode(ExclamationCircleOutlined),
+      content: `当前有 ${unsavedCount.value} 项配置尚未保存，离开本页后这些改动将丢失。`,
+      okText: '放弃改动并离开',
+      okType: 'danger',
+      cancelText: '留在本页',
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
+    });
+  });
 });
 </script>
 
 <style scoped>
+/* ================== 设置项搜索样式 (P2) ================== */
+.arl-settings-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.arl-search-count {
+  font-size: 12px;
+  color: var(--arl-text-color);
+  opacity: 0.55;
+}
+
+.arl-search-panel {
+  max-width: 760px;
+  margin-bottom: 16px;
+  border: 1px solid var(--arl-border-color);
+  border-radius: 8px;
+  background: var(--arl-bg-white);
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.arl-search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--arl-border-color);
+  transition: background 0.2s;
+}
+
+.arl-search-item:last-child {
+  border-bottom: none;
+}
+
+.arl-search-item:hover {
+  background: var(--arl-bg-light);
+}
+
+.arl-search-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.arl-search-item-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+}
+
+.arl-search-item-desc {
+  font-size: 12px;
+  color: var(--arl-text-color);
+  opacity: 0.5;
+}
+
+.arl-search-empty {
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--arl-text-color);
+  opacity: 0.55;
+}
+
+/* 全局凭据状态条（跨 Tab 总览，默认折叠） */
+.arl-global-cred {
+  margin-bottom: 12px;
+  border: 1px solid var(--arl-border-color);
+  border-radius: 8px;
+  background: var(--arl-bg-white);
+  overflow: hidden;
+}
+
+.arl-cred-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.arl-cred-summary:hover {
+  background: var(--arl-bg-light);
+}
+
+.arl-cred-chevron {
+  font-size: 12px;
+  color: var(--arl-text-color);
+  opacity: 0.5;
+  width: 12px;
+}
+
+.arl-cred-summary-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+}
+
+.arl-cred-alert {
+  font-size: 12px;
+  color: #cf1322;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arl-cred-ok {
+  font-size: 12px;
+  color: var(--arl-text-color);
+  opacity: 0.5;
+  flex: 1;
+}
+
+.arl-cred-toggle {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.arl-cred-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--arl-border-color);
+}
+
+/* 字段级说明（区分并发语义等易混指标） */
+.arl-field-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--arl-text-color);
+  opacity: 0.5;
+}
+
+.arl-field-hint code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* 跳转后短暂高亮目标设置项 */
+.arl-anchor-flash {
+  animation: arl-anchor-flash 2.2s ease-out;
+}
+
+@keyframes arl-anchor-flash {
+  0% { box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.45); }
+  60% { box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.25); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 119, 255, 0); }
+}
+
+/* ================== 未保存改动与推荐值提示样式 ================== */
+/* 有脏字段的保存按钮：呼吸边框，与 CDN Tab 已有的 breathing-btn 范式保持一致 */
+.arl-dirty-btn {
+  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.35);
+}
+
+.arl-recommend-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--arl-theme-color) 6%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--arl-theme-color) 30%, transparent);
+  font-size: 13px;
+}
+
+.arl-recommend-label {
+  color: var(--arl-text-color);
+  opacity: 0.6;
+  margin-right: 6px;
+}
+
+.arl-recommend-basis {
+  color: var(--arl-text-color);
+  opacity: 0.5;
+  font-size: 12px;
+}
+
+.arl-cred-hint {
+  color: var(--arl-text-color);
+  opacity: 0.55;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.arl-cred-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--arl-border-color);
+  background: var(--arl-bg-white);
+}
+
+.arl-cred-item.is-ok {
+  border-left: 3px solid #52c41a;
+}
+
+.arl-cred-item.is-missing {
+  border-left: 3px solid #d9d9d9;
+}
+
+.arl-cred-name {
+  font-size: 13px;
+  color: var(--arl-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* 可以在此处添加自定义样式 */
 
 .cdn-textarea {

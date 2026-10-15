@@ -16,7 +16,10 @@
         </span>
       </template>
       <template #description v-if="tokenStatus.status !== 'valid'">
-        <div style="margin-top: 4px;">当前模块（包含代码泄露监控、CVE、武器库追踪等）强依赖 GitHub Token，请前往【系统设置】配置有效 Token，否则可能会被封禁 IP 或无法正常抓取。</div>
+        <div style="margin-top: 4px;">
+          当前模块（包含代码泄露监控、CVE、武器库追踪等）强依赖 GitHub Token，未配置或失效时可能被 GitHub 限流甚至封禁 IP。
+          <a @click="goToGithubTokenConfig" style="margin-left: 4px;">前往配置 →</a>
+        </div>
       </template>
     </a-alert>
 
@@ -714,6 +717,11 @@ import { SearchOutlined, InboxOutlined, SyncOutlined, LinkOutlined, ClockCircleO
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 
 const router = useRouter();
+
+// 深链到系统设置的 GitHub Token 字段并高亮，避免用户自己在设置页翻找
+const goToGithubTokenConfig = () => {
+  router.push({ path: '/systemSettings', query: { tab: 'api_config', focus: 'github_token' } });
+};
 const route = useRoute();
 const globalPageSize = useGlobalPageSize(10);
 const mainTab = ref('ti');

@@ -24,7 +24,8 @@
             已就绪：支持<b>天眼查股权穿透</b>与<b>工信部官方 ICP</b> 双轨测绘。输入天眼查链接、ID 或企业全称即可发起。
           </span>
           <span v-else style="color: var(--arl-text-color); line-height: 1.5;">
-            未配置天眼查 API：系统将自动通过<b>工信部 ICP 备案数据</b>归集资产；若需投资穿透可至 <a @click="goToApiConfig">系统设置</a> 完善凭据。
+            未配置天眼查 API：系统将自动通过<b>工信部 ICP 备案数据</b>归集资产；若需投资穿透，请先完善凭据
+            <a @click="goToApiConfig" style="margin-left: 4px;">前往配置 →</a>
           </span>
         </template>
       </a-alert>
@@ -250,7 +251,8 @@ let pendingDraft = null;
 const goToApiConfig = () => {
   pendingDraft = { rawTarget: formState.rawTarget, name: formState.name };
   emit('update:open', false);
-  router.push({ path: '/systemSettings', query: { tab: 'api_config' } });
+  // focus 参数让系统设置页直接定位并高亮天眼查凭据卡片
+  router.push({ path: '/systemSettings', query: { tab: 'api_config', focus: 'tyc' } });
 };
 
 watch(() => props.open, (val) => {
