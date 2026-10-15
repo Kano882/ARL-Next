@@ -113,67 +113,53 @@ class Performance(ARLResource):
             new_osint = 1
 
         old_config = get_performance_config()
-        old_heavy = old_config.get("celery_heavy_concurrency") or 1
-        old_light = old_config.get("celery_light_concurrency") or 1
         old_osint = old_config.get("osint_concurrency") or 1
         
-        diff_heavy = new_heavy - old_heavy
-        diff_light = new_light - old_light
         diff_osint = new_osint - old_osint
 
         update_performance_config(new_heavy, new_light, new_osint)
 
         feedback_messages = ["性能配置已保存。"]
 
-        # 热扩缩容 Celery 重/轻任务
-        if diff_heavy != 0 or diff_light != 0:
-            try:
-                from app.celerytask import celery as celery_app
-                active_nodes = celery_app.control.inspect(timeout=1.5).ping()
-                if active_nodes:
-                    heavy_nodes = [node for node in active_nodes.keys() if 'arltask_heavy' in node]
-                    light_nodes = [node for node in active_nodes.keys() if 'arltask_light' in node]
-
-                    def dispatch_pool_adjust(target_nodes, diff, label):
-                        if not target_nodes or diff == 0:
-                            return ""
+        # 每次提交都读取运行状态，相同目标值可以重试此前失败的调整。
+        try:
+            from app.celerytask import celery as celery_app
+            stats = celery_app.control.inspect(timeout=1.5).stats()
+            if stats:
+                for key, desired, label in (
+                    ("arltask_heavy", new_heavy, "重任务"),
+                    ("arltask_light", new_light, "轻任务"),
+                ):
+                    nodes = [node for node in stats if key in node]
+                    if not nodes:
+                        feedback_messages.append(f"未检测到在线的{label} Worker 节点，将在下次重启生效；")
+                    for node in nodes:
+                        node_stats = stats[node]
+                        pool = node_stats.get('pool', {}) if isinstance(node_stats, dict) else {}
+                        processes = pool.get('processes')
+                        # max-concurrency 可能仍是启动时的配置，使用当前进程列表计算。
+                        if not isinstance(processes, list):
+                            feedback_messages.append(f"{label}节点 {node} 未返回运行进程数，请稍后重试；")
+                            continue
+                        diff = desired - len(processes)
+                        if diff == 0:
+                            continue
                         try:
-                            if diff > 0:
-                                celery_app.control.pool_grow(n=diff, destination=target_nodes, reply=True, timeout=1.5)
-                                return f"{label}已下发扩容 {diff} 个并发进程；"
+                            adjust = celery_app.control.pool_grow if diff > 0 else celery_app.control.pool_shrink
+                            replies = adjust(n=abs(diff), destination=[node], reply=True, timeout=1.5)
+                            result = next((item[node] for item in (replies or []) if isinstance(item, dict) and node in item), None)
+                            if not isinstance(result, dict) or 'ok' not in result or 'error' in result:
+                                error = result.get('error', '未收到节点确认') if isinstance(result, dict) else '未收到节点确认'
+                                feedback_messages.append(f"{label}节点 {node} 调整未确认 ({error})，请稍后重新提交以重试；")
                             else:
-                                shrink_n = abs(diff)
-                                res = celery_app.control.pool_shrink(n=shrink_n, destination=target_nodes, reply=True, timeout=1.5)
-                                is_busy = False
-                                if res and isinstance(res, list):
-                                    for item in res:
-                                        for _, r in item.items():
-                                            if isinstance(r, dict) and ('busy' in str(r.get('error', '')).lower() or 'busy' in str(r).lower()):
-                                                is_busy = True
-                                if is_busy:
-                                    return f"{label}当前有任务正在执行，空闲进程已优先缩容，其余将在当前任务完成后自动释放；"
-                                else:
-                                    return f"{label}已下发缩容 {shrink_n} 个并发进程；"
+                                action = "扩容" if diff > 0 else "缩容"
+                                feedback_messages.append(f"{label}节点 {node} 已确认{action} {abs(diff)} 个并发进程；")
                         except Exception as e:
-                            return f"{label}热扩缩容执行异常({str(e)})；"
-
-                    if heavy_nodes and diff_heavy != 0:
-                        msg_heavy = dispatch_pool_adjust(heavy_nodes, diff_heavy, "重任务")
-                        if msg_heavy:
-                            feedback_messages.append(msg_heavy)
-                    elif diff_heavy != 0:
-                        feedback_messages.append("未检测到在线的重任务 Worker 节点，将在下次重启生效；")
-
-                    if light_nodes and diff_light != 0:
-                        msg_light = dispatch_pool_adjust(light_nodes, diff_light, "轻任务")
-                        if msg_light:
-                            feedback_messages.append(msg_light)
-                    elif diff_light != 0:
-                        feedback_messages.append("未检测到在线的轻任务 Worker 节点，将在下次重启生效；")
-                else:
-                    feedback_messages.append("Celery 服务未响应，并发改变将在下次重启生效。")
-            except Exception as e:
-                feedback_messages.append(f"热扩缩容通信异常({str(e)})，请稍后重试或重启容器。")
+                            feedback_messages.append(f"{label}节点 {node} 热扩缩容执行异常 ({e})，请稍后重新提交以重试；")
+            else:
+                feedback_messages.append("Celery 服务未响应，请稍后重新提交以重试；配置也将在重启时生效。")
+        except Exception as e:
+            feedback_messages.append(f"热扩缩容通信异常 ({e})，请稍后重新提交以重试或重启容器。")
 
         if diff_osint != 0:
             feedback_messages.append("OSINT 任务并发将在 10 秒内由后台看门狗自动更新。")
