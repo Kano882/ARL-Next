@@ -67,7 +67,7 @@
 
 ### <span id="core-features"></span>✨ Core Feature Matrix
 
-* 🤖 **Native MCP Protocol Integration**: Standalone standard library-based MCP client protocol enabling AI agents to inspect multi-dimensional target asset profiles via standard interfaces (task dispatch and policy scheduling capabilities are still being integrated). (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
+* 🤖 **Native MCP Protocol Integration**: Standalone standard library-based MCP Server exposing a single `get_asset_profile` tool, enabling AI agents to inspect multi-dimensional target asset profiles via standard interfaces (task dispatch and policy scheduling capabilities are still being integrated). (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
 * ⚙️ **Asynchronous Decoupled Scheduling**: Microservice isolation with dedicated queues and bulk MongoDB operations ensures stable execution under high-throughput scanning workloads.
 * 🌐 **Hierarchical Asset Group Management**: Integrated corporate asset discovery supporting multi-tier organizational structures, multi-category ICP association (Web / APP / Mini-program / Quick App), and unified attack surface mapping.
 * 🔍 **Modern Reconnaissance Baseline**: Standardized on Nmap 7.95 Stable; native Python streaming engine for sensitive information and credential discovery.
@@ -90,7 +90,7 @@
 
 <br/>
 
-* **Hierarchical Asset Groups & Panoramic Asset Profile**: Enterprise asset reconnaissance integrated into a unified grouping architecture. Supports multi-tier organizational hierarchy, corporate OSINT asset correlation, attack surface management (ASM), and 13-dimensional asset profile drill-downs.
+* **Hierarchical Asset Groups & Panoramic Asset Profile**: Enterprise asset reconnaissance integrated into a unified grouping architecture. Supports multi-tier organizational hierarchy, corporate OSINT asset correlation, attack surface management (ASM), and asset profile drill-downs (the profile drawer aggregates 13 dimensions, whereas the Asset Search page exposes 12 tab dimensions, excluding Nuclei results).
   
   <p align="center">
     <img src="./img/asset-group-overview.png" alt="Hierarchical Asset Groups and Coverage" width="850">
@@ -108,7 +108,7 @@
     <img src="./img/asset-group-profile.png" alt="13-Dimensional Asset Profile Drawer" width="850">
   </p>
 
-* **Task Dispatch & Policy Scheduling**: Integrates Nuclei orchestration, 100+ dedicated vulnerability PoC plugins, and an 8,800+ Web technology fingerprint repository with end-to-end task lifecycle tracking.
+* **Task Dispatch & Policy Scheduling**: Integrates Nuclei orchestration, a pure-Python multi-category plugin pool (PoC verification, credential brute-forcing, service identification), and an 8,800+ entry Web technology fingerprint repository with end-to-end task lifecycle tracking.
   
   <p align="center">
     <img src="./img/task-new.png" alt="Task Creation & Policy Selection" width="800">
@@ -149,13 +149,13 @@ graph TD
     MCP -->|"HTTPS / API Token Reverse Proxy (5173)"| Nginx
 
     %% 3. Dispatch & Task Routing (Dual-Track Decoupling)
-    Backend -->|"1. Async Direct Dispatch (16181)"| OSINT["🧩 OSINT Microservice"]
+    Backend -->|"1. Synchronous HTTP Call (16181)"| OSINT["🧩 OSINT Microservice"]
     Backend -->|"2. Produce Scan Tasks"| MQ(("⚡ RabbitMQ 3 (Light/Heavy/Threat Queues)"))
 
     %% 4. Celery Worker Scan Cluster
     subgraph WorkerCluster ["⚙️ Celery Worker Scan & Scheduling Cluster"]
         MQ -->|"Light Queue arltask_light"| W_Light["⚡ Light Worker (Space Recon / Single Asset / WIH / Sync)"]
-        MQ -->|"Heavy Queue arltask_heavy"| W_Heavy["🔥 Heavy Worker (Full Scan / Risk Cruise / Nuclei / PoC)"]
+        MQ -->|"Heavy Queue arltask, arltask_heavy"| W_Heavy["🔥 Heavy Worker (Full Scan / Risk Cruise / Nuclei / PoC)"]
         MQ -->|"Threat Queue arlgithub"| W_Git["🛡️ Threat Intel Worker (CVE / Code Leaks)"]
         
         Scheduler["⏰ Scheduling Engine (Scheduler & Beat)"] -.->|"Periodic Triggers"| MQ
@@ -187,7 +187,7 @@ graph TD
 
 1. 🖥️ **Presentation & Gateway (Frontend / Nginx)**: Built with **Vue 3.5 + Nginx**, featuring core table sticky headers and floating action toolbars; provides **frontline Basic Auth gateway protection** (disabled by default, toggleable from the top navigation bar).
 2. ⚙️ **Core API & Protocol Integration (Backend / MCP)**: Powered by **Python 3.13 + Gunicorn**; provides **native Python MCP** protocol adaptation supporting standard interfaces and multi-dimensional asset profile queries.
-3. 🧩 **Dedicated OSINT Microservice**: Dedicated asynchronous engine for corporate asset discovery and ICP lookup; directly invoked by the backend via coroutines to **prevent long-running OSINT tasks from stalling scan queues**.
+3. 🧩 **Dedicated OSINT Microservice**: Dedicated engine for corporate asset discovery and ICP lookup; invoked synchronously by the backend over HTTP (5s timeout guard) and **isolated from Celery scan queues to prevent long-running tasks from stalling them**.
 4. ⚡ **Multi-Queue Worker Cluster**: Segregated into **lightweight**, **heavyweight**, and **threat intelligence** task queues; controls worker memory growth through subprocess lifecycle recycling; standardizes on **Nmap 7.95 Stable**.
 5. 🛡️ **Microservices & Autoheal Watchdog (Puppeteer / Autoheal)**: Containerized headless browser isolation with request-count recycling; **Autoheal watchdog periodically checks scan workers and automatically restarts unresponsive containers**; pure Python engine for streaming sensitive data discovery.
 6. 🗄️ **High-Throughput Persistence (MongoDB 7.0)**: High-throughput asset ingestion utilizes `bulk_write` and `safe_insert_asset_many` batch interfaces; compound unique indexes across core collections backed by a 1GB memory buffer pool to maintain scanning throughput and database stability.
@@ -199,7 +199,7 @@ graph TD
 ### Production Deployment (Recommended)
 
 **Target Environments**: Public Cloud VMs (Ubuntu / Debian / CentOS / RHEL / Rocky Linux, etc.) or Enterprise Internal Servers.  
-**Estimated Time**: ~**1–2 minutes** with existing Docker environment; ~**3–5 minutes** on a fresh bare-metal host.
+**Estimated Time**: Typically completes within minutes on a host with Docker already installed; on bare metal, Docker installation and Swap configuration add further time depending on host and network conditions.
 
 **Key Operational Advantages**:
 * ⚡ **Mainland China Mirror Acceleration**: Pulls directly from the Alibaba Cloud ACR private mirror repository, avoiding cross-border network timeouts and pull interruptions.
@@ -458,7 +458,7 @@ For detailed version history, feature additions, performance enhancements, and b
 ARL-Next stands on the shoulders of giants. Special thanks to the following projects and teams:
 
 * **Core Architecture**: Re-engineered from the open-source project [ARL (Asset Reconnaissance Lighthouse)](https://github.com/TophantTechnology/ARL), with architectural references from [Aabyss-Team/ARL](https://github.com/Aabyss-Team/ARL) and [adysec/ARL](https://github.com/adysec/ARL).
-* **Fingerprint Data**: Special appreciation to the **Weiling Security Team** (<img src="./img/weiling.jpg" width="18" height="18" align="absmiddle" /> WeChat Official Account) for providing comprehensive Web technology fingerprint datasets.
+* **Fingerprint Data**: Special appreciation to the **Weiling Security Team** (<img src="./img/weiling.jpg" width="18" height="18" align="absmiddle" /> WeChat Official Account) for providing the high-quality Web technology fingerprint repository.
 * **Functional Inspirations**: Corporate OSINT modules reference [ICP_Query](https://github.com/HG-ha/ICP_Query); threat intelligence tracking incorporates designs from [github-cve-monitor](https://github.com/yhy0/github-cve-monitor).
 
 ARL-Next remains dedicated to open-source collaboration, providing reliable tooling for offensive reconnaissance and defensive asset management.

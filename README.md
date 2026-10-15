@@ -67,7 +67,7 @@
 
 ### <span id="core-features"></span>✨ 核心特性矩阵
 
-* 🤖 **MCP 标准协议集成**：提供基于 Python 标准库的原生 MCP 协议客户端，支持外部 Agent 对接检索单标的多维资产画像（任务下发与策略调度能力持续接入中）。（👉 [MCP 配置指南](./mcp-server/README.md)）
+* 🤖 **MCP 标准协议集成**：提供基于 Python 标准库的原生 MCP Server，仅注册单一工具 `get_asset_profile`，支持外部 Agent 通过标准协议检索单标的多维资产画像（任务下发与策略调度能力持续接入中）。（👉 [MCP 配置指南](./mcp-server/README.md)）
 * ⚙️ **异步解耦并发调度**：微服务拆分与独立任务队列分流，结合批量数据落库优化，保障高吞吐扫描平稳运行。
 * 🌐 **多级资产分组与深度融合**：企业资产查询深度融入资产分组管理架构，支持集团多级架构管理、多类型 ICP（网站 / APP / 小程序 / 快应用）与生态资产自动化关联及网络暴露面统一测绘。
 * 🔍 **现代资产测绘基准**：基于 Nmap 7.95 稳定版；内置原生 Python 敏感凭据与信息流式提取引擎。
@@ -90,7 +90,7 @@
 
 <br/>
 
-* **多级资产分组与全景资产画像**：原企业资产查询现已深度整合至资产分组统一架构。支持集团多级组织架构管理、企业生态资产关联分析 (OSINT)、网络暴露面测绘 (ASM) 与 13 维全景资产画像下钻。
+* **多级资产分组与全景资产画像**：原企业资产查询现已深度整合至资产分组统一架构。支持集团多级组织架构管理、企业生态资产关联分析 (OSINT)、网络暴露面测绘 (ASM) 与全景资产画像下钻（画像抽屉聚合 13 个维度；「资产搜索」页则为 12 个页签维度，不含 Nuclei 结果）。
   
   <p align="center">
     <img src="./img/asset-group-overview.png" alt="集团多级资产分组与覆盖度" width="850">
@@ -108,7 +108,7 @@
     <img src="./img/asset-group-profile.png" alt="13 维全景资产画像抽屉" width="850">
   </p>
 
-* **任务下发与策略调度**：深度联动 Nuclei、100+ 专属漏洞 PoC 插件池及近万级 Web 指纹库 (8800+)，支持任务下发、状态轮转与全流程追踪。
+* **任务下发与策略调度**：深度联动 Nuclei、基于 Python 原生引擎的多类型插件池（PoC 验证 / 弱口令爆破 / 服务识别等）及 8800+ 条 Web 指纹库，支持任务下发、状态轮转与全流程追踪。
   
   <p align="center">
     <img src="./img/task-new.png" alt="任务新建与策略选择" width="800">
@@ -149,13 +149,13 @@ graph TD
     MCP -->|"HTTPS / API Token (5173 反代)"| Nginx
 
     %% 3. 调度与任务分流 (双轨解耦)
-    Backend -->|"1. 异步直调 (16181)"| OSINT["🧩 OSINT 微服务"]
+    Backend -->|"1. 同步 HTTP 直调 (16181)"| OSINT["🧩 OSINT 微服务"]
     Backend -->|"2. 生产扫描任务"| MQ(("⚡ RabbitMQ 3 (轻重/GitHub 多队列)"))
 
     %% 4. Celery Worker 扫描计算集群
     subgraph WorkerCluster ["⚙️ Celery Worker 扫描与调度集群"]
         MQ -->|"轻量队列 arltask_light"| W_Light["⚡ 轻任务 Worker (空间测绘/单点更新/WIH/同步)"]
-        MQ -->|"重载队列 arltask_heavy"| W_Heavy["🔥 重任务 Worker (常规扫描/风险巡航/Nuclei/PoC)"]
+        MQ -->|"重载队列 arltask, arltask_heavy"| W_Heavy["🔥 重任务 Worker (常规扫描/风险巡航/Nuclei/PoC)"]
         MQ -->|"威胁队列 arlgithub"| W_Git["🛡️ 威胁情报 Worker (CVE/代码泄露)"]
         
         Scheduler["⏰ 监控调度引擎 (Scheduler & Beat)"] -.->|"周期触发"| MQ
@@ -187,7 +187,7 @@ graph TD
 
 1. 🖥️ **展示与网关 (Frontend / Nginx)**：基于 **Vue 3.5 + Nginx**，支持核心数据表格与操作栏 **Sticky 悬浮吸附**；提供 **Basic Auth 前置网关防护**（默认关闭，可在顶部导航栏开启）。
 2. ⚙️ **业务与协议接入 (Backend / MCP)**：基于 **Python 3.13 + Gunicorn**；提供 **原生 Python MCP** 协议适配，支持标准协议接口与多维资产画像查询能力。
-3. 🧩 **OSINT 独立微服务**：专职企业资产与 ICP 异步情报采集，由 Backend 直调协程池，**独立于 Celery 扫描队列以规避长耗时任务阻塞**。
+3. 🧩 **OSINT 独立微服务**：专职企业资产与 ICP 情报采集，由 Backend 通过 HTTP 直接调用（含 5s 超时保护），**独立于 Celery 扫描队列以规避长耗时任务阻塞**。
 4. ⚡ **多队列 Worker 集群**：划分**轻量/重载/威胁情报**独立队列；通过 Worker 子进程生命周期轮转机制控制内存增长；**测绘执行引擎统一至 Nmap 7.95 稳定版**。
 5. 🛡️ **微服务与守护探针 (Puppeteer / Autoheal)**：无头截图容器化隔离并支持请求计数轮转；**Autoheal 守护进程定时探活扫描 Worker 并自动重启异常容器**；纯 Python 引擎高效提取敏感信息。
 6. 🗄️ **高吞吐持久层与并发优化 (MongoDB 7.0)**：高频数据写入采用 `bulk_write` / `safe_insert_asset_many` 批量接口，核心集合覆盖联合唯一索引并设 1GB 内存池保护；解除不合理的内存硬限制，保障高吞吐扫描平稳性。
@@ -199,7 +199,7 @@ graph TD
 ### 生产部署 (推荐)
 
 **适用环境**：公网云服务器 (Ubuntu / Debian / CentOS / 统信等)、企业内网服务器。  
-**预估耗时**：自带 Docker 环境约需 **1~2 分钟**；全新裸机从零安装约 **3~5 分钟**。
+**预估耗时**：自带 Docker 环境通常在数分钟内完成；裸机需额外安装 Docker 与配置 Swap，耗时视宿主机与网络状况而定。
 
 **核心机制与优势**：
 * ⚡ **国内镜像加速**：直连阿里云国内镜像私库，规避跨国网络超时与拉取阻断。
@@ -458,7 +458,7 @@ docker compose -f docker-compose.prod.yml restart
 本项目站在巨人的肩膀上，特此鸣谢以下项目与团队：
 
 * **核心架构**：基于经典开源项目 [ARL 资产侦察灯塔](https://github.com/TophantTechnology/ARL) 深度重构，并参考了 [Aabyss-Team/ARL](https://github.com/Aabyss-Team/ARL) 与 [adysec/ARL](https://github.com/adysec/ARL) 等优秀实践。
-* **指纹数据**：特别鸣谢 **威零安全团队** (<img src="./img/weiling.jpg" width="18" height="18" align="absmiddle" /> 公众号) 提供的万级高质量 Web 指纹库支撑。
+* **指纹数据**：特别鸣谢 **威零安全团队** (<img src="./img/weiling.jpg" width="18" height="18" align="absmiddle" /> 公众号) 提供的高质量 Web 指纹库支撑。
 * **功能灵感**：OSINT 企业查询深度借鉴了 [ICP_Query](https://github.com/HG-ha/ICP_Query)，威胁监控模块汲取了 [github-cve-monitor](https://github.com/yhy0/github-cve-monitor) 的优雅设计。
 
 ARL-Next 秉持开源互助的黑客初心，持续为网络安全攻防与企业防御建设贡献力量！
