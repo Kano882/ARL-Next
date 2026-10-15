@@ -365,6 +365,19 @@ ARL-Next 提供标准化 RESTful API，支持外部自动化运维、CI/CD 流�
 * 📖 **交互式文档与在线调试**：部署完成后可在浏览器中访问 `https://<你的服务器IP>:5173/api/doc` 查阅完整 OpenAPI / Swagger 规范并进行接口在线调用测试。
 * 📘 **调用规范与避坑指南**：关于 Token 鉴权机制、状态流转约束、任务停止/删除等关键 HTTP 特殊约定及数据命名空间隔离规范，请参阅 ➔ [**API 调用与二次开发约定指南 (API_GUIDE.md)**](./docs/API_GUIDE.md)。
 
+### HTTP 状态码多选
+
+全局资产搜索、任务详情和资产组详情中的站点、URL、文件泄露列表支持状态码多选，选择或清除后立即筛选。同一字段的多个状态码按 OR 匹配，与其他条件及 `task_id` / `scope_id` 按 AND 组合；列表、现有导出接口和站点结果集共用筛选条件。
+
+- 站点接口 `/api/site/`、`/api/asset_site/` 使用 `status__in=200,301,403`。
+- URL 和文件泄露接口 `/api/url/`、`/api/asset_url/`、`/api/fileleak/`、`/api/asset_fileleak/` 使用 `status_code__in=200,403`。
+- 多选参数为一个逗号分隔字符串，只接受 100 到 599 的整数，最多 500 项；空字符串、无效值或重复参数返回 HTTP 400。清除筛选时省略该参数。
+- 旧单值参数 `status=200`、`status_code=200` 继续可用；同时传入单值和多选参数时取交集。任务运行状态查询保持原有格式。
+
+例如 `GET /api/site/?task_id=<task_id>&status__in=200,403` 查询该任务中状态码为 200 或 403 的站点；相同参数也适用于 `/api/site/export/` 和 `/api/site/save_result_set/`。资产组查询使用 `scope_id`，以及对应的 `/api/asset_site/` 接口。
+
+这是 Issue #51 中 HTTP 状态码多选建议的实现，尚未提供自由输入表达式、括号或任意字段之间的 OR 运算。前端和后端需要一起更新。
+
 ---
 
 ## ❓ 常见问题与运维排错 (FAQ)

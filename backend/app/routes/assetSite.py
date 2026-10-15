@@ -2,6 +2,7 @@ from bson import ObjectId
 from flask_restx import fields, Namespace, reqparse
 from app.utils import get_logger, auth
 from . import base_query_fields, ARLResource, get_arl_parser
+from .http_status import HttpStatusCodes, HttpStatusResource
 from app.modules import ErrorMsg, TaskTag
 from app import utils, services
 from app.helpers import (
@@ -25,6 +26,7 @@ base_search_fields = {
     'finger': fields.String(description="指纹"),
     'finger__eq': fields.String(description="指纹精确匹配"),
     'status': fields.Integer(description="状态码"),
+    'status__in': HttpStatusCodes(description="状态码多选，逗号分隔，例如 200,301,403"),
     'favicon.hash': fields.Integer(description="favicon hash"),
     'task_id': fields.String(description="任务 ID"),
     'scope_id': fields.String(description="范围 ID"),
@@ -45,7 +47,7 @@ add_site_fields = ns.model('addAssetSite',  {
 
 
 @ns.route('/')
-class ARLAssetSite(ARLResource):
+class ARLAssetSite(HttpStatusResource):
     parser = get_arl_parser(base_search_fields, location='args')
 
     @auth
@@ -111,7 +113,7 @@ class ARLAssetSite(ARLResource):
 
 
 @ns.route('/export/')
-class ARLSiteExport(ARLResource):
+class ARLSiteExport(HttpStatusResource):
     parser = get_arl_parser(base_search_fields, location='args')
 
     @auth
@@ -174,7 +176,7 @@ class DeleteARLAssetSite(ARLResource):
 
 
 @ns.route('/save_result_set/')
-class ARLSaveResultSet(ARLResource):
+class ARLSaveResultSet(HttpStatusResource):
     parser = get_arl_parser(site_search_fields, location='args')
 
     @auth

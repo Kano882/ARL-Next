@@ -191,8 +191,13 @@
                     <span class="filter-field-label" :title="field.label">{{ field.label }}</span>
                     <div class="filter-field-widget">
                       <!-- 下拉选择 -->
+                      <HttpStatusFilter
+                        v-if="field.type === 'httpStatus'"
+                        v-model:value="searchForm[field.key]"
+                        @change="onSearch"
+                      />
                       <a-select
-                        v-if="field.type === 'select'"
+                        v-else-if="field.type === 'select'"
                         v-model:value="searchForm[field.key]"
                         :placeholder="`请选择${field.label}`"
                         style="width: 100%;"
@@ -953,6 +958,8 @@ onUnmounted(() => {
 
 import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
+import HttpStatusFilter from '../components/HttpStatusFilter.vue';
+import { buildAssetFilterParams } from '../utils/assetFilters';
 import { formatGeo } from '../utils/formatGeo';
 import { message, Modal } from 'ant-design-vue';
 import * as echarts from 'echarts';
@@ -1589,7 +1596,7 @@ const tabConfig = reactive({
       { label: '站点', key: 'site', operator: '=' },
       { label: '标题', key: 'title', operator: '=' },
       { label: 'Web Server', key: 'http_server', operator: '=' },
-      { label: '状态码', key: 'status', operator: '=' },
+      { label: '状态码', key: 'status', type: 'httpStatus' },
       // 🚨 补充丢失的 4 个字段
       { label: '标头', key: 'headers', operator: '=' },
       { label: '指纹', key: 'finger', operator: '=' },
@@ -1727,7 +1734,7 @@ const tabConfig = reactive({
     searchFields: [
       { label: 'URL', key: 'url', operator: '=' },
       { label: '标题', key: 'title', operator: '=' },
-      { label: '状态码', key: 'status_code', operator: '=' },
+      { label: '状态码', key: 'status_code', type: 'httpStatus' },
       { label: 'body 长度', key: 'content_length', operator: '=' },
       { label: '更新时间', key: 'update_date', type: 'dateRange' }
     ],
@@ -1747,7 +1754,7 @@ const tabConfig = reactive({
     searchFields: [
       { label: 'URL', key: 'url', operator: '=' },
       { label: '标题', key: 'title', operator: '=' },
-      { label: '状态码', key: 'status_code', operator: '=' },
+      { label: '状态码', key: 'status_code', type: 'httpStatus' },
       { label: 'body 长度', key: 'content_length', operator: '=' },
       { label: '来源', key: 'source', operator: '=' },
       { label: '更新时间', key: 'update_date', type: 'dateRange' }
@@ -1875,30 +1882,7 @@ const fetchData = async () => {
     // 🚨 修复 2：获取 computed 响应式对象的最新值
     const params = { page: pagination.current, size: pagination.pageSize, scope_id: scope_id.value };
 
-    for (const key in searchForm.value) {
-      if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
-        const fieldConfig = config.searchFields?.find(f => f.key === key);
-        // 🚨 防御幽灵过滤：若该字段不在当前 Tab 的契约中，直接丢弃
-        if (config.searchFields && !fieldConfig) continue;
-
-        // 如果是时间范围数组，则特殊处理给后端
-        if (key === 'update_date' && Array.isArray(searchForm.value[key])) {
-          // 🚨 核心对齐：精准替换为 ARL 专属的 __dgt 和 __dlt 参数名，并格式化为全时分秒
-          params.update_date__dgt = searchForm.value[key][0].format('YYYY-MM-DD HH:mm:ss');
-          params.update_date__dlt = searchForm.value[key][1].format('YYYY-MM-DD HH:mm:ss');
-        } else {
-          let paramKey = key;
-          if (fieldConfig && fieldConfig.hasOperatorSelect) {
-            if (fieldConfig.operator === '大于') paramKey += '__gt';
-            else if (fieldConfig.operator === '小于') paramKey += '__lt';
-            else if (fieldConfig.operator === '不等于') paramKey += '__neq';
-            else if (fieldConfig.operator === '不包含') paramKey += '__not';
-            else if (fieldConfig.operator === '精确匹配') paramKey += '__eq';
-          }
-          params[paramKey] = searchForm.value[key];
-        }
-      }
-    }
+    Object.assign(params, buildAssetFilterParams(searchForm.value, config.searchFields));
     const res = await request.get(config.url, { params });
     // 竞态防御：若响应到达时 Tab 已切换，丢弃过期响应
     if (effectiveTab.value !== currentReqTab) return;
@@ -2121,28 +2105,7 @@ const handleExport = async () => {
     };
 
     // 🚨 补全缺失的搜索参数：确保用户过滤后导出的数据也是精准的！
-    for (const key in searchForm.value) {
-      if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
-        const fieldConfig = config.searchFields?.find(f => f.key === key);
-        // 🚨 防御幽灵过滤：若该字段不在当前 Tab 的契约中，直接丢弃
-        if (config.searchFields && !fieldConfig) continue;
-
-        if (key === 'update_date' && Array.isArray(searchForm.value[key])) {
-          params.update_date__dgt = searchForm.value[key][0].format('YYYY-MM-DD HH:mm:ss');
-          params.update_date__dlt = searchForm.value[key][1].format('YYYY-MM-DD HH:mm:ss');
-        } else {
-          let paramKey = key;
-          if (fieldConfig && fieldConfig.hasOperatorSelect) {
-            if (fieldConfig.operator === '大于') paramKey += '__gt';
-            else if (fieldConfig.operator === '小于') paramKey += '__lt';
-            else if (fieldConfig.operator === '不等于') paramKey += '__neq';
-            else if (fieldConfig.operator === '不包含') paramKey += '__not';
-            else if (fieldConfig.operator === '精确匹配') paramKey += '__eq';
-          }
-          params[paramKey] = searchForm.value[key];
-        }
-      }
-    }
+    Object.assign(params, buildAssetFilterParams(searchForm.value, config.searchFields));
 
     const res = await request.get(config.exportUrl, { params, responseType: 'blob' });
 
@@ -2200,16 +2163,7 @@ const handleIPExport = async (type) => {
       tabIndex: 2
     };
 
-    for (const key in searchForm.value) {
-      if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
-        if (key === 'update_date' && Array.isArray(searchForm.value[key])) {
-          params.update_date__dgt = searchForm.value[key][0].format('YYYY-MM-DD HH:mm:ss');
-          params.update_date__dlt = searchForm.value[key][1].format('YYYY-MM-DD HH:mm:ss');
-        } else {
-          params[key] = searchForm.value[key];
-        }
-      }
-    }
+    Object.assign(params, buildAssetFilterParams(searchForm.value, tabConfig[effectiveTab.value].searchFields));
 
     // 发起 Blob 下载请求
     const res = await request.get(exportUrl, { params, responseType: 'blob' });
@@ -2333,16 +2287,7 @@ const openRiskModal = async () => {
       // 🎯 未勾选：根据当前搜索与资产组条件打包全量结果集
       selectedRiskTargets.value = [];
       const params = { scope_id: scope_id.value };
-      for (const key in searchForm.value) {
-        if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
-          if (key === 'update_date' && Array.isArray(searchForm.value[key])) {
-            params.update_date__dgt = searchForm.value[key][0].format('YYYY-MM-DD HH:mm:ss');
-            params.update_date__dlt = searchForm.value[key][1].format('YYYY-MM-DD HH:mm:ss');
-          } else {
-            params[key] = searchForm.value[key];
-          }
-        }
-      }
+      Object.assign(params, buildAssetFilterParams(searchForm.value, tabConfig[effectiveTab.value].searchFields));
 
       // 发起结果集保存请求
       const setRes = await request.get('/asset_site/save_result_set/', { params });

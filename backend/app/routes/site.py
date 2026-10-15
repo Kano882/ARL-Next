@@ -5,6 +5,7 @@ from app.utils import get_logger, auth
 from app.modules import ErrorMsg
 from app import utils
 from . import base_query_fields, ARLResource, get_arl_parser
+from .http_status import HttpStatusCodes, HttpStatusResource
 
 
 ns = Namespace('site', description="站点信息")
@@ -21,6 +22,7 @@ base_search_fields = {
     'finger': fields.String(description="指纹"),
     'finger__eq': fields.String(description="指纹精确匹配"),
     'status': fields.Integer(description="状态码"),
+    'status__in': HttpStatusCodes(description="状态码多选，逗号分隔，例如 200,301,403"),
     'favicon.hash': fields.Integer(description="favicon hash"),
     'task_id': fields.String(description="任务 ID"),
     'tag': fields.String(description="标签列表")
@@ -32,7 +34,7 @@ base_search_fields.update(base_query_fields)
 
 
 @ns.route('/')
-class ARLSite(ARLResource):
+class ARLSite(HttpStatusResource):
     parser = get_arl_parser(base_search_fields, location='args')
 
     @auth
@@ -48,7 +50,7 @@ class ARLSite(ARLResource):
 
 
 @ns.route('/export/')
-class ARLSiteExport(ARLResource):
+class ARLSiteExport(HttpStatusResource):
     parser = get_arl_parser(base_search_fields, location='args')
 
     @auth
@@ -64,7 +66,7 @@ class ARLSiteExport(ARLResource):
 
 
 @ns.route('/save_result_set/')
-class ARLSaveResultSet(ARLResource):
+class ARLSaveResultSet(HttpStatusResource):
     parser = get_arl_parser(site_search_fields, location='args')
 
     @auth

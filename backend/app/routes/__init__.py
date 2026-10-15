@@ -522,6 +522,8 @@ class ARLResource(Resource):
             "asset_ip": "ip",
             "asset_wih": "content",
             "url": "url",
+            "asset_url": "url",
+            "asset_fileleak": "url",
             "cip": "cidr_ip",
             "wih": "content",
             "npoc_service": "target",

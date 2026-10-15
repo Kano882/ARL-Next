@@ -32,8 +32,14 @@
       <div v-if="tabConfig[effectiveTab]?.searchFields" style="margin-bottom: 8px;">
         <a-form :model="searchForm" layout="inline" style="row-gap: 10px;">
           <a-form-item v-for="field in tabConfig[effectiveTab].searchFields" :key="field.key" :label="field.label + '：'">
+            <HttpStatusFilter
+              v-if="field.type === 'httpStatus'"
+              v-model:value="searchForm[field.key]"
+              size="small"
+              @change="onSearch"
+            />
             <a-select
-              v-if="field.type === 'select'"
+              v-else-if="field.type === 'select'"
               v-model:value="searchForm[field.key]"
               :placeholder="`请选择${field.label}`"
               style="width: 180px;"
@@ -486,6 +492,8 @@ const actionBarRef = ref(null);
 const { stickyConfig, actionBarHeight } = useSticky(actionBarRef);
 import { useRoute } from 'vue-router';
 import request from '../utils/request';
+import HttpStatusFilter from '../components/HttpStatusFilter.vue';
+import { buildAssetFilterParams } from '../utils/assetFilters';
 import { message } from 'ant-design-vue';
 import { SearchOutlined, UndoOutlined, DownloadOutlined, ThunderboltOutlined } from '@ant-design/icons-vue';
 import CidrDetailModal from '../components/CidrDetailModal.vue';
@@ -619,7 +627,7 @@ const tabConfig = reactive({
       { label: '站点', key: 'site', operator: '=' },
       { label: '标题', key: 'title', operator: '=' },
       { label: 'Web Server', key: 'http_server', operator: '=' },
-      { label: '状态码', key: 'status', operator: '=' },
+      { label: '状态码', key: 'status', type: 'httpStatus' },
       { label: '标头', key: 'headers', operator: '=' },
       { 
         label: '指纹', 
@@ -744,7 +752,7 @@ const tabConfig = reactive({
     searchFields: [
       { label: 'URL', key: 'url', operator: '=' },
       { label: '标题', key: 'title', operator: '=' },
-      { label: '状态码', key: 'status_code', operator: '=' },
+      { label: '状态码', key: 'status_code', type: 'httpStatus' },
       { label: 'body 长度', key: 'content_length', operator: '=' }
     ],
     cols: [
@@ -764,7 +772,7 @@ const tabConfig = reactive({
     searchFields: [
       { label: 'URL', key: 'url', operator: '=' },
       { label: '标题', key: 'title', operator: '=' },
-      { label: '状态码', key: 'status_code', operator: '=' },
+      { label: '状态码', key: 'status_code', type: 'httpStatus' },
       { 
         label: 'body 长度', 
         key: 'content_length', 
@@ -980,20 +988,7 @@ const fetchData = async () => {
   loading.value = true;
   try {
     const params = { page: pagination.current, size: pagination.pageSize };
-    for (const key in searchForm.value) {
-      if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
-        let paramKey = key;
-        const fieldConfig = config.searchFields.find(f => f.key === key);
-        if (fieldConfig && fieldConfig.hasOperatorSelect) {
-          if (fieldConfig.operator === '大于') paramKey += '__gt';
-          else if (fieldConfig.operator === '小于') paramKey += '__lt';
-          else if (fieldConfig.operator === '不等于') paramKey += '__neq';
-          else if (fieldConfig.operator === '不包含') paramKey += '__not';
-          else if (fieldConfig.operator === '精确匹配') paramKey += '__eq';
-        }
-        params[paramKey] = searchForm.value[key];
-      }
-    }
+    Object.assign(params, buildAssetFilterParams(searchForm.value, config.searchFields));
     const res = await request.get(config.url, { params });
     // 竞态防御：若响应到达时 Tab 已切换，丢弃过期响应
     if (effectiveTab.value !== currentReqTab) return;
@@ -1025,20 +1020,7 @@ const handleExport = async () => {
   try {
     message.loading({ content: `正在生成${config.exportName}导出文件...`, key: 'export_data' });
     const params = { page: 1, size: 100000 };
-    for (const key in searchForm.value) {
-      if (searchForm.value[key] !== '' && searchForm.value[key] != null) {
-        let paramKey = key;
-        const fieldConfig = config.searchFields.find(f => f.key === key);
-        if (fieldConfig && fieldConfig.hasOperatorSelect) {
-          if (fieldConfig.operator === '大于') paramKey += '__gt';
-          else if (fieldConfig.operator === '小于') paramKey += '__lt';
-          else if (fieldConfig.operator === '不等于') paramKey += '__neq';
-          else if (fieldConfig.operator === '不包含') paramKey += '__not';
-          else if (fieldConfig.operator === '精确匹配') paramKey += '__eq';
-        }
-        params[paramKey] = searchForm.value[key];
-      }
-    }
+    Object.assign(params, buildAssetFilterParams(searchForm.value, config.searchFields));
     const res = await request.get(config.exportUrl, { params, responseType: 'blob' });
     const isCert = currentTab === 'cert';
     const mimeType = isCert ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8';
@@ -1224,7 +1206,7 @@ const openRiskModal = async () => {
 
   try {
     const policyPromise = request.get('/policy/', { params: { size: 1000 } });
-    const setParams = { ...searchForm.value }; // 全局模式直接传搜索参数
+    const setParams = buildAssetFilterParams(searchForm.value, tabConfig[effectiveTab.value].searchFields);
     const resultSetPromise = request.get('/site/save_result_set/', { params: setParams });
     const [policyRes, resultSetRes] = await Promise.all([policyPromise, resultSetPromise]);
 

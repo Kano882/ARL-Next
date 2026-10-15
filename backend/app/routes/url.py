@@ -1,6 +1,7 @@
 from flask_restx import fields, Namespace
 from app.utils import get_logger, auth
 from . import base_query_fields, ARLResource, get_arl_parser
+from .http_status import HttpStatusCodes, HttpStatusResource
 
 ns = Namespace('url', description="URL信息")
 
@@ -14,6 +15,7 @@ base_search_fields = {
     'content_length__gt': fields.Integer(description="body 长度大于"),
     'content_length__lt': fields.Integer(description="body 长度小于"),
     'status_code': fields.Integer(description="状态码"),
+    'status_code__in': HttpStatusCodes(description="状态码多选，逗号分隔，例如 200,301,403"),
     'title': fields.String(description="标题"),
     'source': fields.String(description="来源"),
     "task_id": fields.String(description="任务ID")
@@ -23,7 +25,7 @@ base_search_fields.update(base_query_fields)
 
 
 @ns.route('/')
-class ARLUrl(ARLResource):
+class ARLUrl(HttpStatusResource):
     parser = get_arl_parser(base_search_fields, location='args')
 
     @auth
@@ -39,7 +41,7 @@ class ARLUrl(ARLResource):
 
 
 @ns.route('/export/')
-class ARLUrlExport(ARLResource):
+class ARLUrlExport(HttpStatusResource):
     parser = get_arl_parser(base_search_fields, location='args')
 
     @auth
