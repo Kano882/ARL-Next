@@ -16,7 +16,9 @@ performance_model = ns.model('Performance', {
     # 语义限定：以下三项均为 Celery Worker 进程数（-c 参数），非单任务内的线程/发包并发度
     'celery_heavy_concurrency': fields.Integer(required=True, description='重任务队列 Worker 进程数（受内存约束）'),
     'celery_light_concurrency': fields.Integer(required=True, description='轻任务队列 Worker 进程数（走独立通道）'),
-    'osint_concurrency': fields.Integer(required=True, description='OSINT 任务并发进程数（受外网反爬约束）')
+    'osint_concurrency': fields.Integer(required=True, description='OSINT 任务并发进程数（受外网反爬约束）'),
+    # 非必填：旧版前端不传该字段时应保持库中现值，而非重置
+    'github_concurrency': fields.Integer(required=False, description='GitHub 监控队列 Worker 进程数（原先硬编码为 2）')
 })
 
 @ns.route('/security_policy')
@@ -106,6 +108,7 @@ class Performance(ARLResource):
         config = get_performance_config()
         runtime_heavy = None
         runtime_light = None
+        runtime_github = None
 
         try:
             from app.celerytask import celery as celery_app
@@ -119,6 +122,8 @@ class Performance(ARLResource):
                         runtime_heavy = (runtime_heavy or 0) + concurrency
                     elif 'arltask_light' in node:
                         runtime_light = (runtime_light or 0) + concurrency
+                    elif 'arlgithub' in node:
+                        runtime_github = (runtime_github or 0) + concurrency
         except Exception:
             pass
 
@@ -129,8 +134,10 @@ class Performance(ARLResource):
                 "celery_heavy_concurrency": config.get("celery_heavy_concurrency", 1),
                 "celery_light_concurrency": config.get("celery_light_concurrency", 1),
                 "osint_concurrency": config.get("osint_concurrency", 1),
+                "github_concurrency": config.get("github_concurrency", 1),
                 "runtime_heavy_concurrency": runtime_heavy,
-                "runtime_light_concurrency": runtime_light
+                "runtime_light_concurrency": runtime_light,
+                "runtime_github_concurrency": runtime_github
             }
         }
 
@@ -144,6 +151,10 @@ class Performance(ARLResource):
         new_heavy = args.get('celery_heavy_concurrency') or 1
         new_light = args.get('celery_light_concurrency') or 1
         new_osint = args.get('osint_concurrency') or 1
+        # 未传 github_concurrency（如旧版前端）时为 None，交由 update_performance_config
+        # 保留库中现值，避免一次保存把它意外重置为默认值。
+        raw_github = args.get('github_concurrency')
+        new_github = None
 
         if new_heavy < 1:
             new_heavy = 1
@@ -151,13 +162,17 @@ class Performance(ARLResource):
             new_light = 1
         if new_osint < 1:
             new_osint = 1
+        if raw_github is not None:
+            new_github = int(raw_github)
+            if new_github < 1:
+                new_github = 1
 
         old_config = get_performance_config()
         old_osint = old_config.get("osint_concurrency") or 1
         
         diff_osint = new_osint - old_osint
 
-        update_performance_config(new_heavy, new_light, new_osint)
+        update_performance_config(new_heavy, new_light, new_osint, new_github)
 
         feedback_messages = ["性能配置已保存。"]
 
@@ -170,10 +185,16 @@ class Performance(ARLResource):
             inspector = celery_app.control.inspect(timeout=1.5)
             stats = inspector.stats()
             if stats:
-                for key, desired, label in (
+                # github 队列仅在显式指定时参与热调整：未传该字段表示保留现值，
+                # 此时不应把它拖进比对与扩缩容流程。
+                queue_targets = [
                     ("arltask_heavy", new_heavy, "重任务"),
                     ("arltask_light", new_light, "轻任务"),
-                ):
+                ]
+                if new_github is not None:
+                    queue_targets.append(("arlgithub", new_github, "GitHub 监控"))
+
+                for key, desired, label in queue_targets:
                     nodes = [node for node in stats if key in node]
                     if not nodes:
                         feedback_messages.append(f"未检测到在线的{label} Worker 节点，将在下次重启生效；")
@@ -331,11 +352,20 @@ class CapacityProbe(ARLResource):
     原本用户需要自己完成"读说明得知单 Worker 内存上限 → 查机器内存 → 扣除常驻
     占用 → 心算进程数"四步推导。此接口把该推导前置到后端。
 
-    ⚠️ 关键约束：推荐值必须扣除**实测常驻占用**，而非拍一个固定预留值。
-    "总内存 - 1G" 这类估算在本项目典型的小内存多容器部署上会显著高估：
-    实测 MongoDB(≈1G) + Web(≈0.7G) + Puppeteer(≈0.26G) + RabbitMQ + OSINT
-    等常驻服务合计可达 2G 以上，此时若仍按 (总内存-1G)/488MB 计算，
-    会给出远超真实承载力的推荐值并把用户推向 OOM。
+    推荐值须同时满足两个约束，缺一都会给出危险建议：
+
+    【约束 A · 稳态】以 MemAvailable 为基准。它已扣除内核、常驻容器与可回收
+    缓存，是"不触发换页还能分配多少"的直接度量。早期实现按 (总内存 - 固定预留)
+    估算，在小内存多容器部署上会显著高估——实测 MongoDB(≈1G) + Web(≈0.7G) +
+    Puppeteer(≈0.26G) 等常驻合计可达 2G 以上，固定预留 1G 远远不够。
+
+    【约束 B · 峰值】更关键的一条：各队列的 --max-memory-per-child 是**熔断上限**
+    而非典型占用，多个队列可能同时逼近各自上限。故预算必须按
+    Σ(队列并发 × 该队列单进程上限) 校验最坏情形，否则"稳态看起来够用、
+    峰值必然 OOM"（本项目 2 核 3.8G 机器上实测 1/1 稳定、2/2 必 OOM 即此原因）。
+
+    注意三个队列的上限并不相同（heavy 488MB / light 292MB / github 292MB），
+    按同一个数值估算会同时错在两个方向。
     """
     @auth
     def get(self):
@@ -343,35 +373,38 @@ class CapacityProbe(ARLResource):
         total_mem_mb = mem.get("total_memory_mb")
         available_mb = mem.get("available_memory_mb")
 
-        # 单 Worker 进程内存上限，取自 start_worker_prod.sh 的
-        # --max-memory-per-child=500000（KB）；调大该值时此处需同步。
-        per_worker_mb = 500000 // 1024
-
         heavy_recommended = None
         light_recommended = None
+        github_recommended = None
         osint_recommended = 1
         basis = "未能读取内存信息，请以实际运行情况为准"
         headroom_mb = None
+        steady_ok = None
+        peak_used_mb = None
 
         if total_mem_mb and available_mb is not None:
-            # 以 MemAvailable 为基准：它已扣除内核、常驻容器与缓存可回收部分，
-            # 是"在不触发换页的前提下还能分配多少"的直接度量。
-            # 再保留 15% 或 256MB（取大者）作为突发余量，避免把预算顶满导致 OOM Killer。
+            # 预算 = 可用内存 - 突发余量。余量取 15% 或 256MB 的较大者，
+            # 避免把预算顶满后任何一次内存抖动都触发 OOM Killer。
             reserve_mb = max(256, int(available_mb * 0.15))
             headroom_mb = max(0, available_mb - reserve_mb)
 
-            # 重/轻任务各自独立队列，二者共享同一份内存预算；
-            # 按 7:3 切分（重任务进程上限更高、数量通常更少）。
-            heavy_budget = int(headroom_mb * 0.7)
-            light_budget = headroom_mb - heavy_budget
+            # 按峰值模型分配：三个队列共享同一份预算，且各自单进程上限不同。
+            # 权重反映典型负载下愿意分给该队列的比例（重任务最重，故占比最高）。
+            alloc = _allocate_concurrency(headroom_mb)
+            heavy_recommended = alloc["heavy"]
+            light_recommended = alloc["light"]
+            github_recommended = alloc["github"]
+            peak_used_mb = alloc["peak_used_mb"]
+            steady_ok = alloc["steady_ok"]
 
-            heavy_recommended = max(1, min(128, heavy_budget // per_worker_mb))
-            light_recommended = max(1, min(256, light_budget // per_worker_mb))
-
+            caps = QUEUE_MEMORY_CAPS_MB
             basis = (
-                f"可用内存 {available_mb}MB - 突发余量 {reserve_mb}MB = 预算 {headroom_mb}MB；"
-                f"按重任务 7 : 轻任务 3 分配，单进程上限 {per_worker_mb}MB "
-                f"（对应 --max-memory-per-child=500000KB）"
+                f"可用内存 {available_mb}MB - 突发余量 {reserve_mb}MB = 预算 {headroom_mb}MB。"
+                f"按峰值模型分配（各队列单进程上限：重 {caps['heavy']}MB / "
+                f"轻 {caps['light']}MB / GitHub {caps['github']}MB），"
+                f"推荐 重{heavy_recommended} 轻{light_recommended} GitHub{github_recommended}，"
+                f"最坏情形峰值合计 {peak_used_mb}MB"
+                + ("" if steady_ok else "，已超出预算，故收敛至最小可用值")
             )
 
         return {
@@ -383,12 +416,73 @@ class CapacityProbe(ARLResource):
                 "headroom_mb": headroom_mb,
                 "heavy_recommended": heavy_recommended,
                 "light_recommended": light_recommended,
+                "github_recommended": github_recommended,
                 # OSINT 受外网反爬约束，与内存无关，恒为 1
                 "osint_recommended": osint_recommended,
-                "per_worker_memory_mb": per_worker_mb,
+                "per_worker_memory_mb": QUEUE_MEMORY_CAPS_MB["heavy"],
+                "queue_memory_caps_mb": dict(QUEUE_MEMORY_CAPS_MB),
+                "peak_used_mb": peak_used_mb,
+                # 预算不足以支撑"各队列各 1 进程"的最小配置时为 False，
+                # 前端据此提示用户扩容而非假装推荐值安全
+                "steady_ok": steady_ok,
                 "basis": basis,
             }
         }
+
+
+# 各队列单进程内存上限（MB），取自 start_worker_prod.sh 的 --max-memory-per-child。
+# 该值是 celery 的**熔断上限**而非典型占用：进程逼近上限时会被回收，
+# 但多个队列可能同时逼近各自上限，故按峰值叠加校验预算。
+# 调整启动脚本中的 --max-memory-per-child 时必须同步此处，否则推荐值失真。
+QUEUE_MEMORY_CAPS_MB = {
+    "heavy": 500000 // 1024,   # arltask,arltask_heavy
+    "light": 300000 // 1024,   # arltask_light
+    "github": 300000 // 1024,  # arlgithub
+}
+
+# 预算在三个队列间的分配权重。重任务单任务耗时最长、进程上限最高，
+# 给最多份额；轻任务走独立通道但单点请求为主；GitHub 队列任务量通常最小。
+_QUEUE_WEIGHTS = {"heavy": 0.5, "light": 0.3, "github": 0.2}
+
+# 各队列并发的硬上限，与 CONCURRENCY_BOUNDS 保持一致
+_QUEUE_MAX = {"heavy": 128, "light": 256, "github": 64}
+
+
+def _allocate_concurrency(headroom_mb):
+    """在给定内存预算下按峰值模型分配各队列并发数。
+
+    返回 {"heavy", "light", "github", "peak_used_mb", "steady_ok"}。
+
+    算法：先按权重算出各队列的预算份额，各自除以本队列单进程上限得到候选并发；
+    再校验 Σ(并发 × 上限) 是否落在 headroom 内——权重分配在数学上已保证这一点，
+    此校验用于防御权重或上限被改动后引入的不一致，并在超预算时按队列优先级
+    依次收敛（先削 GitHub，再削轻任务，最后削重任务），保证重任务优先。
+
+    每个队列至少保留 1：全部置 0 等同于停用能力，不应由"内存紧张"自动触发，
+    该决策须由用户显式做出。
+    """
+    caps = QUEUE_MEMORY_CAPS_MB
+    # 只装并发数，不含派生的统计字段，避免峰值计算把统计值也当作队列
+    alloc = {}
+    for q, weight in _QUEUE_WEIGHTS.items():
+        budget = int(headroom_mb * weight)
+        alloc[q] = max(1, min(_QUEUE_MAX[q], budget // caps[q]))
+
+    def peak_of(a):
+        return sum(a[q] * caps[q] for q in _QUEUE_WEIGHTS)
+
+    # 收敛顺序：先牺牲权重最低的队列，保证重任务优先级
+    for q in ("github", "light", "heavy"):
+        while peak_of(alloc) > headroom_mb and alloc[q] > 1:
+            alloc[q] -= 1
+
+    return {
+        **alloc,
+        "peak_used_mb": peak_of(alloc),
+        # 预算低于最小可行峰值（三队列各 1）时必然超出，需如实上报，
+        # 由前端提示用户"当前内存不足以支撑最小配置"，而非假装推荐值安全。
+        "steady_ok": peak_of(alloc) <= headroom_mb,
+    }
 
 
 def _read_memory_report():

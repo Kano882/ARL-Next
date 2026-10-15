@@ -28,11 +28,18 @@ class CapacityProbeTests(unittest.TestCase):
         node = copy.deepcopy(next(n for n in cls.body
                                   if isinstance(n, ast.FunctionDef) and n.name == 'get'))
         node.decorator_list = []
-        # get() 依赖模块级内存读取函数，一并注入
-        helper = copy.deepcopy(next(n for n in tree.body
-                                    if isinstance(n, ast.FunctionDef)
-                                    and n.name == '_read_memory_report'))
-        mod = ast.Module(body=[helper, node], type_ignores=[])
+        # get() 依赖模块级内存读取函数与并发分配函数，连同其常量一并注入。
+        # 分配算法本身的正确性由 test_capacity_peak_model.py 覆盖，
+        # 本文件只关注端点契约（字段、降级、边界）。
+        helpers = [copy.deepcopy(n) for n in tree.body
+                   if isinstance(n, ast.FunctionDef)
+                   and n.name in {'_read_memory_report', '_allocate_concurrency'}]
+        consts = [copy.deepcopy(n) for n in tree.body
+                  if isinstance(n, ast.Assign) and any(
+                      getattr(t, 'id', '').startswith('QUEUE_MEMORY')
+                      or getattr(t, 'id', '').startswith('_QUEUE_')
+                      for t in n.targets)]
+        mod = ast.Module(body=consts + helpers + [node], type_ignores=[])
         self.env = {}
         exec(compile(ast.fix_missing_locations(mod), 'CapacityProbe.get', 'exec'), self.env)
 
@@ -108,6 +115,7 @@ class CapacityProbeTests(unittest.TestCase):
         data = self.probe(total_mb=4194304, available_mb=4194304)
         self.assertLessEqual(data['heavy_recommended'], 128)
         self.assertLessEqual(data['light_recommended'], 256)
+        self.assertLessEqual(data['github_recommended'], 64)
 
     def test_osint_is_always_one(self):
         """OSINT 受外网反爬约束，与内存无关，恒为 1。"""
@@ -119,17 +127,34 @@ class CapacityProbeTests(unittest.TestCase):
     # ---------- 守恒性 ----------
 
     def test_budgets_share_the_same_headroom(self):
-        """重轻任务共享同一份可用预算，两者之和不应超过 headroom。"""
+        """三队列共享同一份可用预算：最坏峰值合计不应超过 headroom。
+
+        注意须按**各队列各自的上限**核算（heavy 488 / light 292 / github 292），
+        不能统一乘一个数——那正是早期实现的错误所在。
+        """
         data = self.probe(total_mb=65536, available_mb=63488)
-        heavy_budget = data['heavy_recommended'] * PER_WORKER_MB
-        light_budget = data['light_recommended'] * PER_WORKER_MB
-        self.assertLessEqual(heavy_budget + light_budget, data['headroom_mb'])
+        caps = data['queue_memory_caps_mb']
+        peak = (data['heavy_recommended'] * caps['heavy']
+                + data['light_recommended'] * caps['light']
+                + data['github_recommended'] * caps['github'])
+        self.assertLessEqual(peak, data['headroom_mb'])
+        self.assertEqual(peak, data['peak_used_mb'])
 
     def test_basis_mentions_measured_numbers(self):
         """依据文案必须包含可复核的实测数字，便于用户自行验证。"""
         data = self.probe(total_mb=3911, available_mb=1017)
         self.assertIn('1017', data['basis'])
         self.assertIn(str(PER_WORKER_MB), data['basis'])
+        # 峰值合计需在依据中可见，便于用户自行核对最坏情形
+        self.assertIn(str(data['peak_used_mb']), data['basis'])
+
+    def test_exposes_github_and_peak_fields(self):
+        """端点须向新前端暴露 github 推荐值与峰值/可行性指标。"""
+        data = self.probe(total_mb=3911, available_mb=1017)
+        self.assertIn('github_recommended', data)
+        self.assertIn('peak_used_mb', data)
+        self.assertIn('steady_ok', data)
+        self.assertIn('queue_memory_caps_mb', data)
 
 
 class MemoryReportTests(unittest.TestCase):

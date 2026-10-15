@@ -10,6 +10,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 HEAVY = 'arltask_heavy@fixture'
 LIGHT = 'arltask_light@fixture'
+GITHUB = 'arlgithub@fixture'
 
 
 class Control:
@@ -66,8 +67,11 @@ class Control:
 class PerformanceTests(unittest.TestCase):
     def setUp(self):
         self.saved = {'celery_heavy_concurrency': 1, 'celery_light_concurrency': 1, 'osint_concurrency': 1}
-        self.control = Control({HEAVY: 1, LIGHT: 1})
-        def save(h, l, o):
+        self.control = Control({HEAVY: 1, LIGHT: 1, GITHUB: 2})
+        def save(h, l, o, g=None):
+            # github_concurrency 为 None 表示调用方未指定，按"保留现值"处理
+            if g is not None:
+                self.saved['github_concurrency'] = g
             self.saved.update(celery_heavy_concurrency=h, celery_light_concurrency=l, osint_concurrency=o)
         self.env = {'get_performance_config': lambda: dict(self.saved), 'update_performance_config': save,
                     'performance_model': None}
@@ -84,8 +88,10 @@ class PerformanceTests(unittest.TestCase):
         mod = ast.Module(body=helpers + [node], type_ignores=[])
         exec(compile(ast.fix_missing_locations(mod), 'Performance.post', 'exec'), self.env)
 
-    def submit(self, heavy=4, light=1):
+    def submit(self, heavy=4, light=1, github=None):
         args = dict(self.saved, celery_heavy_concurrency=heavy, celery_light_concurrency=light)
+        if github is not None:
+            args['github_concurrency'] = github
         instance = types.SimpleNamespace(get_parser=lambda _: types.SimpleNamespace(parse_args=lambda: args))
         module = types.ModuleType('app.celerytask')
         module.celery = types.SimpleNamespace(control=self.control)
@@ -180,6 +186,35 @@ class PerformanceTests(unittest.TestCase):
         self.control.missing_processes = True
         self.assertIn('未返回运行进程数', self.submit()['message'])
         self.assertEqual(self.control.calls, [])
+
+
+    def test_github_queue_is_skipped_when_not_specified(self):
+        """未传 github_concurrency 时不得触碰 github 队列（保留现值、不做扩缩容）。"""
+        self.control.sizes[GITHUB] = 2
+        self.saved['github_concurrency'] = 2
+        self.submit(heavy=1, light=1)  # 不传 github
+        self.assertEqual([c for c in self.control.calls if c[2] == GITHUB], [])
+        self.assertEqual(self.control.sizes[GITHUB], 2)
+
+    def test_github_queue_grows_when_specified(self):
+        """显式指定时 github 队列参与热扩容。"""
+        self.control.sizes[GITHUB] = 1
+        self.saved['github_concurrency'] = 1
+        msg = self.submit(heavy=1, light=1, github=3)['message']
+        self.assertIn('GitHub', msg)
+        self.assertEqual(self.control.sizes[GITHUB], 3)
+
+    def test_github_shrink_when_specified(self):
+        """显式指定较小时 github 队列参与热缩容。"""
+        self.control.sizes[GITHUB] = 4
+        self.saved['github_concurrency'] = 4
+        self.submit(heavy=1, light=1, github=1)
+        self.assertEqual(self.control.sizes[GITHUB], 1)
+
+    def test_github_target_is_persisted(self):
+        """github 目标值需落库，供启动脚本读取。"""
+        self.submit(heavy=1, light=1, github=2)
+        self.assertEqual(self.saved.get('github_concurrency'), 2)
 
 
 if __name__ == '__main__':

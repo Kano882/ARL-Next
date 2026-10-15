@@ -1019,6 +1019,40 @@ def migrate_asset_group_sort_order():
         logging.getLogger().error(f"migrate_asset_group_sort_order failed: {e}")
 
 
+def migrate_performance_config_schema():
+    """
+    ⚙️【并发配置结构平滑演进】
+
+    存量 performance 文档在新增 github_concurrency 之前写入，缺该字段。
+    读取侧已用默认值兜底（get_performance_config），此处仅做持久化补齐，
+    使前端能读到明确值、且运维在库中可直接看到完整配置。
+
+    注意：只补缺失字段，绝不覆盖用户已保存的并发值——原 github 队列在
+    start_worker_prod.sh 中硬编码为 2，升级后默认值为 1，若直接覆盖会
+    静默改变线上行为。历史值无法从库中还原（从未持久化），故按新默认值
+    补齐，并由系统设置页显式呈现供用户按需回调。
+    """
+    try:
+        from app.utils.performance_config import DEFAULT_CONCURRENCY
+        db = conn_db('system_config')
+        doc = db.find_one({"_id": "performance"})
+        if not doc:
+            # 从未配置过的全新部署：留空即可，读取侧会回退到默认值，
+            # 避免在启动阶段写入可能过时的快照。
+            return
+
+        missing = {k: v for k, v in DEFAULT_CONCURRENCY.items() if k not in doc}
+        if missing:
+            db.update_one({"_id": "performance"}, {"$set": missing})
+            import logging
+            logging.getLogger().info(
+                f"migrate_performance_config_schema backfilled: {sorted(missing)}"
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger().error(f"migrate_performance_config_schema failed: {e}")
+
+
 def normalize_threat_radar_configs():
     """
     🛡️【威胁情报雷达配置平滑兼容与初始化】
@@ -1233,6 +1267,7 @@ def arl_update():
         _run_step("heal_polluted_site_fingers", heal_polluted_site_fingers)
         _run_step("backfill_icp_task_synced_scopes", backfill_icp_task_synced_scopes)
         _run_step("migrate_asset_group_sort_order", migrate_asset_group_sort_order)
+        _run_step("migrate_performance_config_schema", migrate_performance_config_schema)
         _run_step("normalize_threat_radar_configs", normalize_threat_radar_configs)
         _run_step("update_policy_schema", update_policy_schema)
         _run_step("heal_stale_updating_icp_tasks", heal_stale_updating_icp_tasks)
