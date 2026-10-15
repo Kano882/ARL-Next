@@ -145,6 +145,19 @@ Example response:
 > - Each dimension's counting rule matches its corresponding list endpoint — for example `cip` counts distinct C-blocks and `stat_finger` counts distinct fingerprint names, rather than raw document counts;
 > - A dimension whose count fails is returned as `null`. Clients should treat it as "unknown" and avoid rendering it as `0`.
 
+### Multiple HTTP Status Code Filtering for Asset Lists
+
+The site, URL, and file leak lists in Global Asset Search, Task Details, and Asset Group Details support multiple status selection, taking effect immediately upon selection or clearance. Status codes within the same field are matched with OR; other filters and `task_id` / `scope_id` are combined with AND. List queries, export endpoints, and site result sets share the same filter conversion:
+
+- **Site Endpoints** (`/api/site/`, `/api/asset_site/`): Use `status__in=200,301,403`.
+- **URL & File Leak Endpoints** (`/api/url/`, `/api/asset_url/`, `/api/fileleak/`, `/api/asset_fileleak/`): Use `status_code__in=200,403`.
+- **Parameter Format & Validation**: Send a single comma-separated parameter containing integer codes from 100 to 599, with at most 500 entries. Empty strings, invalid values, and repeated parameters return HTTP 400. Omit the parameter to clear the filter.
+- **Backward Compatibility**: Existing scalar parameters (`status=200`, `status_code=200`) remain supported; if both scalar and multiselect parameters are provided, their intersection is applied. Task execution status filters retain their existing format.
+
+> [!NOTE]
+> - Example: `GET /api/site/?task_id=<task_id>&status__in=200,403` selects sites from that task with status 200 or 403. The same parameters apply to `/api/site/export/` and `/api/site/save_result_set/`. For asset group queries, replace the parameter with `scope_id` and query `/api/asset_site/`.
+> - Current support is restricted to status code field enumeration and field-level AND combinations; arbitrary boolean expressions or cross-field OR logic are not supported.
+
 ---
 
 ## 5. Error Code Conventions & Client Branching
