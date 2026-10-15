@@ -10,6 +10,7 @@ from openpyxl.writer.excel import save_virtual_workbook
 from openpyxl.styles import Font
 from app.utils import get_logger, auth
 from app import utils
+from app.utils.excel_export import append_literal_row, set_literal_cell
 from urllib.parse import quote
 
 ns = Namespace('export', description="任务报告导出接口")
@@ -165,7 +166,7 @@ class SaveTask(object):
         ws.column_dimensions['D'].width = 40.0
 
         column_tilte = ["IP", "端口","服务", "产品", "版本"]
-        ws.append(column_tilte)
+        append_literal_row(ws, column_tilte)
         for item in get_ip_data(self.task_id):
             for port_info in item["port_info"]:
                 row = []
@@ -174,7 +175,7 @@ class SaveTask(object):
                 row.append(port_info["service_name"])
                 row.append(port_info.get("product", ""))
                 row.append(port_info.get("version", ""))
-                ws.append(row)
+                append_literal_row(ws, row)
 
         self.set_style(ws)
 
@@ -188,7 +189,7 @@ class SaveTask(object):
         if self.is_ip_task:
             ws.column_dimensions['F'].width = 55.0
             column_tilte = ["IP", "端口信息", "开放端口数目", "geo", "as 编号", "操作系统"]
-            ws.append(column_tilte)
+            append_literal_row(ws, column_tilte)
             for item in get_ip_data(self.task_id):
                 row = []
                 row.append(item["ip"])
@@ -210,7 +211,7 @@ class SaveTask(object):
                 if item.get("os_info"):
                     osname = item["os_info"]["name"]
                 row.append(osname)
-                ws.append(row)
+                append_literal_row(ws, row)
         else:
             ws.column_dimensions['F'].width = 60.0
             ws.column_dimensions['G'].width = 40.0
@@ -221,7 +222,7 @@ class SaveTask(object):
             column_tilte.append("操作系统")
             column_tilte.append("CDN")
             column_tilte.append("类别")
-            ws.append(column_tilte)
+            append_literal_row(ws, column_tilte)
             for item in get_ip_data(self.task_id):
                 row = []
                 row.append(item["ip"])
@@ -248,7 +249,7 @@ class SaveTask(object):
                 row.append(osname)
                 row.append(item.get("cdn_name", ""))
                 row.append(item.get("ip_type", ""))
-                ws.append(row)
+                append_literal_row(ws, row)
 
         self.set_style(ws)
 
@@ -266,7 +267,7 @@ class SaveTask(object):
         ws.column_dimensions['E'].width = 30.0
         ws.title = "站点"
         column_tilte = ["site", "title", "指纹", "状态码", "favicon hash"]
-        ws.append(column_tilte)
+        append_literal_row(ws, column_tilte)
         for item in get_site_data(self.task_id):
             row = []
             row.append(self.ignore_illegal(item["site"]))
@@ -274,7 +275,7 @@ class SaveTask(object):
             row.append(" \r\n".join([self.ignore_illegal(x["name"]) for x in item["finger"]]))
             row.append(item["status"])
             row.append(item["favicon"].get("hash", ""))
-            ws.append(row)
+            append_literal_row(ws, row)
 
         self.set_style(ws)
 
@@ -287,14 +288,14 @@ class SaveTask(object):
 
         column_tilte = ["域名", "解析类型", "记录值","关联ip"]
 
-        ws.append(column_tilte)
+        append_literal_row(ws, column_tilte)
         for item in get_domain_data(self.task_id):
             row = []
             row.append(item["domain"])
             row.append(item["type"])
             row.append(" \r\n".join(item["record"]))
             row.append(" \r\n".join(item["ips"]))
-            ws.append(row)
+            append_literal_row(ws, row)
 
         self.set_style(ws)
 
@@ -321,7 +322,7 @@ class SaveTask(object):
             for col in range(1, 4):
                 if cnt >= len(ports):
                     continue
-                ws.cell(column=col, row=row, value=ports[cnt])
+                set_literal_cell(ws, column=col, row=row, value=ports[cnt])
                 cnt += 1
 
         ws["A27"] = "端口开放总数"
@@ -340,7 +341,7 @@ class SaveTask(object):
                 for col in range(6, 9):
                     if cnt >= len(services):
                         continue
-                    ws.cell(column=col, row=row, value=services[cnt])
+                    set_literal_cell(ws, column=col, row=row, value=services[cnt])
                     cnt += 1
             ws["F27"] = "系统服务类别总数"
             ws["F28"] = service_total
@@ -358,7 +359,7 @@ class SaveTask(object):
                 for col in range(11, 14):
                     if cnt >= len(product):
                         continue
-                    ws.cell(column=col, row=row, value=product[cnt])
+                    set_literal_cell(ws, column=col, row=row, value=product[cnt])
                     cnt += 1
             ws["K27"] = "产品类别总数"
             ws["K28"] = product_total

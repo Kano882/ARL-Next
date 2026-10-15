@@ -2,6 +2,7 @@ from flask_restx import Namespace, fields
 from app.utils import get_logger, auth, build_ret, curr_date, conn_db
 from app.modules import TaskStatus, ErrorMsg
 from app.utils.task_statistics import get_task_statistics, attach_task_statistics
+from app.utils.excel_export import append_literal_row
 from . import ARLResource, get_arl_parser, base_query_fields
 import bson
 
@@ -1111,7 +1112,7 @@ def _build_excel_response(assets, filename="export.xlsx", target_query_type=None
             h_keys = ['name']
 
         ws = wb.create_sheet(title=qt)
-        ws.append(h_labels)
+        append_literal_row(ws, h_labels)
         for item in items:
             row = []
             for k in h_keys:
@@ -1129,11 +1130,11 @@ def _build_excel_response(assets, filename="export.xlsx", target_query_type=None
                 else:
                     val = item.get(k, '')
                 row.append(str(val if val is not None else ''))
-            ws.append(row)
+            append_literal_row(ws, row)
 
     if len(wb.sheetnames) == 0:
         ws = wb.create_sheet(title='Empty')
-        ws.append(['无数据'])
+        append_literal_row(ws, ['无数据'])
 
     output = BytesIO()
     wb.save(output)
