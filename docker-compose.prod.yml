@@ -124,6 +124,13 @@ services:
     restart: always
     mem_reservation: 512m
     oom_score_adj: -500
+    # MongoDB 启动时会校验 fd 上限，默认软限制 1024 会触发官方警告
+    # （recommendedMinimum 为 64000）。ARL 的资产/服务集合较多，
+    # 并发查询与索引扫描会同时持有大量文件描述符，故与 web/worker 对齐为 65535。
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     command: ["--wiredTigerCacheSizeGB", "1"]
     environment:
       - MONGO_INITDB_DATABASE=arl
