@@ -12,7 +12,9 @@ env:
 
 jobs:
   push-official-images:
-    if: github.repository == 'owl234/ARL-Next'
+    # 默认关闭：仅在仓库变量 ENABLE_ACR_BUILD 显式设为 true 时才构建推送，
+    # 规避历史 tag 重建等非发布场景误触发镜像覆盖。
+    if: github.repository == 'owl234/ARL-Next' && vars.ENABLE_ACR_BUILD == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Login to Aliyun Container Registry
