@@ -902,7 +902,7 @@
 
         <a-form-item label="资产范围" name="scope">
           <!-- 提前告知剔除范围的级联后果，避免用户仅在点击保存后才被动获知 -->
-          <div style="background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 12px; color: #ad6800; line-height: 1.5;">
+          <div style="background: rgba(250, 173, 20, 0.12); border: 1px solid rgba(250, 173, 20, 0.3); border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 12px; color: #faad14; line-height: 1.5;">
             ⚠️ 移除资产范围将同时级联清理该范围内已发现的子域名、IP、站点与 WIH 资产，且不可恢复；保存前会再次确认。
           </div>
           <!-- 模式切换与统计栏 -->
@@ -2604,7 +2604,7 @@ const handleEditGroupSubmit = async () => {
         icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
         content: createVNode('div', null, [
           createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, `检测到您从资产组【${editGroupForm.name}】中移除了以下 ${removed.length} 个资产范围：`),
-          createVNode('div', { style: 'max-height: 100px; overflow-y: auto; background: #fff1f0; padding: 6px 8px; border-radius: 4px; margin-bottom: 10px; font-family: monospace; font-size: 12px; color: #cf1322;' }, removed.join(', ')),
+          createVNode('div', { style: 'max-height: 100px; overflow-y: auto; background: rgba(255, 77, 79, 0.12); border: 1px solid rgba(255, 77, 79, 0.25); padding: 6px 8px; border-radius: 4px; margin-bottom: 10px; font-family: monospace; font-size: 12px; color: #ff4d4f;' }, removed.join(', ')),
           createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, '警告：移除上述主干目标后，系统将自动物理级联清理该组下所有归属于这些目标的已发现子域名、IP、站点和 WIH 沉淀资产，此操作不可逆！是否确认更新？')
         ]),
         okText: '确认更新并清理',
@@ -2658,7 +2658,7 @@ const handleRemoveSingleScope = (record, scopeItem) => {
     icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
     content: createVNode('div', null, [
       createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, `检测到您正准备从资产组【${record.name}】中移除资产范围：`),
-      createVNode('div', { style: 'background: #fff1f0; padding: 6px 8px; border-radius: 4px; margin-bottom: 10px; font-family: monospace; font-size: 13px; font-weight: bold; color: #cf1322;' }, scopeItem),
+      createVNode('div', { style: 'background: rgba(255, 77, 79, 0.12); border: 1px solid rgba(255, 77, 79, 0.25); padding: 6px 8px; border-radius: 4px; margin-bottom: 10px; font-family: monospace; font-size: 13px; font-weight: bold; color: #ff4d4f;' }, scopeItem),
       createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, '警告：移除该主干目标后，系统将自动物理级联清理该组下所有归属于该目标的已发现子域名、IP、站点和 WIH 沉淀资产，此操作不可逆！是否确认移除？')
     ]),
     okText: '确认移除并清理',
@@ -3184,8 +3184,8 @@ onUnmounted(() => {
 
 .arl-scope-edit-item-tag:hover {
   border-color: #ff4d4f !important;
-  background: #fff1f0 !important;
-  color: #cf1322 !important;
+  background: rgba(255, 77, 79, 0.12) !important;
+  color: #ff4d4f !important;
 }
 
 .arl-scope-empty-hint {

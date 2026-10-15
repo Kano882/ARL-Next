@@ -2813,7 +2813,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8fafc;
+  background: var(--arl-bg-white, #f8fafc);
   overflow: hidden;
 }
 .health-dashboard-bg {
@@ -2822,7 +2822,7 @@ onUnmounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 50% -20%, rgba(24, 144, 255, 0.08), transparent 60%),
+  background: radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--arl-theme-color) 12%, transparent), transparent 60%),
               radial-gradient(circle at -20% 80%, rgba(114, 46, 209, 0.05), transparent 50%);
   pointer-events: none;
 }
@@ -2847,7 +2847,7 @@ onUnmounted(() => {
 .health-title {
   font-size: 24px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--arl-text-color, #1e293b);
   margin: 0;
   letter-spacing: 0.5px;
 }
@@ -2857,19 +2857,20 @@ onUnmounted(() => {
   margin-top: 16px;
 }
 .health-stat-card {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--arl-bg-subcard, rgba(255, 255, 255, 0.6));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--arl-border-color, rgba(255, 255, 255, 0.8));
   border-radius: 16px;
   padding: 24px 40px;
   min-width: 180px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 }
 .health-stat-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,1);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+  border-color: color-mix(in srgb, var(--arl-theme-color) 35%, var(--arl-border-color));
 }
 .stat-value {
   font-size: 36px;
@@ -2880,14 +2881,14 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 .primary-stat .stat-value {
-  background-image: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
+  background-image: linear-gradient(135deg, var(--arl-theme-color, #1890ff) 0%, #36cfc9 100%);
 }
 .warning-stat .stat-value {
   background-image: linear-gradient(135deg, #fa8c16 0%, #ffc53d 100%);
 }
 .stat-label {
   font-size: 14px;
-  color: #64748b;
+  color: var(--arl-text-secondary, #64748b);
   margin-top: 8px;
   font-weight: 500;
 }
@@ -2896,12 +2897,12 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   margin-top: 32px;
-  color: #94a3b8;
+  color: var(--arl-text-secondary, #94a3b8);
   font-size: 13px;
-  background: rgba(255,255,255,0.5);
+  background: var(--arl-bg-subcard, rgba(255,255,255,0.5));
   padding: 8px 16px;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.6);
+  border: 1px solid var(--arl-border-color, rgba(255,255,255,0.6));
 }
 .pulse-dot {
   width: 8px;

@@ -320,7 +320,7 @@
             </div>
             <a-row :gutter="[12, 12]" class="plugin-checkbox-grid">
               <a-col :span="12" v-for="(item, index) in filteredPocList" :key="item.plugin_name">
-                <div class="plugin-item-checkbox">
+                <div class="plugin-item-checkbox" :class="{ 'is-checked': item.enable }">
                   <a-checkbox v-model:checked="item.enable">
                     <span class="index-num">{{ index + 1 }}.</span>
                     <span class="plugin-name-text">{{ item.vul_name || item.plugin_name }}</span>
@@ -348,7 +348,7 @@
             </div>
             <a-row :gutter="[12, 12]" class="plugin-checkbox-grid">
               <a-col :span="12" v-for="(item, index) in filteredBruteList" :key="item.plugin_name">
-                <div class="plugin-item-checkbox">
+                <div class="plugin-item-checkbox" :class="{ 'is-checked': item.enable }">
                   <a-checkbox v-model:checked="item.enable">
                     <span class="index-num">{{ index + 1 }}.</span>
                     <span class="plugin-name-text">{{ item.vul_name || item.plugin_name }}</span>
@@ -745,6 +745,7 @@ const submitPolicy = async () => {
   background-color: var(--arl-bg-layout);
   padding: 24px;
   min-height: calc(100vh - 64px);
+  position: relative;
 }
 
 .policy-detail-header {
@@ -759,6 +760,7 @@ const submitPolicy = async () => {
   padding: 0;
   margin-right: 16px;
   font-size: 14px;
+  color: var(--arl-theme-color);
 }
 
 .page-title {
@@ -778,6 +780,7 @@ const submitPolicy = async () => {
   border-radius: 8px;
   margin-bottom: 20px;
   border: 1px solid var(--arl-border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .section-card-title {
@@ -793,14 +796,14 @@ const submitPolicy = async () => {
   display: inline-block;
   width: 4px;
   height: 16px;
-  background-color: var(--arl-primary-color, #1890ff);
+  background-color: var(--arl-theme-color, #1890ff);
   border-radius: 2px;
   margin-right: 8px;
 }
 
 .policy-collapse-box {
   background: transparent;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 
 :deep(.ant-collapse-item) {
@@ -809,13 +812,36 @@ const submitPolicy = async () => {
   margin-bottom: 16px;
   border: 1px solid var(--arl-border-color) !important;
   overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+:deep(.ant-collapse-item.ant-collapse-item-active) {
+  border-color: color-mix(in srgb, var(--arl-theme-color) 45%, var(--arl-border-color)) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 :deep(.ant-collapse-header) {
   font-weight: 600;
   font-size: 15px;
-  background-color: var(--arl-bg-card, #ffffff);
+  background-color: var(--arl-bg-card, #ffffff) !important;
   padding: 14px 20px !important;
+  color: var(--arl-text-color) !important;
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+:deep(.ant-collapse-item.ant-collapse-item-active > .ant-collapse-header) {
+  border-bottom: 1px solid var(--arl-border-color);
+}
+
+:deep(.ant-collapse-content) {
+  background-color: var(--arl-bg-card, #ffffff) !important;
+  color: var(--arl-text-color) !important;
+  border-top: none !important;
+}
+
+:deep(.ant-collapse-content-box) {
+  padding: 16px 20px !important;
 }
 
 .panel-action-bar {
@@ -862,12 +888,13 @@ const submitPolicy = async () => {
 }
 
 .sub-config-box {
-  background-color: var(--arl-bg-layout, #f8f9fa);
-  border: 1px dashed var(--arl-border-color);
+  background-color: var(--arl-bg-subcard, #f8f9fa);
+  border: 1px solid var(--arl-border-color);
   border-radius: 6px;
   padding: 14px 18px;
   margin-top: 10px;
   margin-left: 24px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .inline-form-item {
@@ -882,7 +909,7 @@ const submitPolicy = async () => {
 .advanced-params-grid {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px dashed var(--arl-border-color);
+  border-top: 1px solid var(--arl-border-color);
 }
 
 .plugin-sub-section {
@@ -907,12 +934,13 @@ const submitPolicy = async () => {
 
 .count-tag {
   font-size: 12px;
-  font-weight: normal;
-  padding: 1px 8px;
-  background: var(--arl-bg-layout, #f0f2f5);
-  border-radius: 10px;
-  color: var(--arl-text-color);
-  opacity: 0.7;
+  font-weight: 500;
+  padding: 2px 10px;
+  background: color-mix(in srgb, var(--arl-theme-color) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--arl-theme-color) 32%, transparent);
+  border-radius: 12px;
+  color: var(--arl-theme-color);
+  letter-spacing: 0.3px;
 }
 
 .sub-section-actions {
@@ -929,12 +957,27 @@ const submitPolicy = async () => {
 
 .plugin-item-checkbox {
   padding: 6px 10px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
 }
 
 .plugin-item-checkbox:hover {
-  background-color: var(--arl-bg-layout, #f5f5f5);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+:not(body.dark-mode) .plugin-item-checkbox:hover {
+  background-color: rgba(0, 0, 0, 0.035);
+}
+
+.plugin-item-checkbox.is-checked {
+  background-color: color-mix(in srgb, var(--arl-theme-color) 8%, transparent);
+  border-color: color-mix(in srgb, var(--arl-theme-color) 22%, transparent);
+}
+
+.plugin-item-checkbox.is-checked .plugin-name-text {
+  color: var(--arl-text-color);
+  font-weight: 500;
 }
 
 .index-num {
@@ -948,22 +991,36 @@ const submitPolicy = async () => {
 }
 
 .policy-footer-actions {
-  text-align: center;
-  margin: 32px 0 48px;
+  position: sticky;
+  bottom: 16px;
+  z-index: 99;
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 16px;
+  padding: 10px 24px;
+  margin: 32px auto 16px auto;
+  width: fit-content;
+  background: color-mix(in srgb, var(--arl-bg-card, #141414) 85%, transparent);
+  border: 1px solid var(--arl-border-color);
+  border-radius: 28px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .submit-btn {
   width: 140px;
-  height: 40px;
-  font-size: 15px;
+  height: 38px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 20px;
 }
 
 .cancel-btn {
-  width: 110px;
-  height: 40px;
-  font-size: 15px;
+  width: 100px;
+  height: 38px;
+  font-size: 14px;
+  border-radius: 20px;
 }
 </style>
