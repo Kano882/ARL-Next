@@ -20,11 +20,44 @@ import subprocess
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_URL = os.environ.get("ARL_HOST", "https://192.0.2.10:5173")
-TOKEN = os.environ.get("ARL_TOKEN", "<ARL_API_TOKEN>")
+TOKEN = os.environ.get("ARL_TOKEN", "")
 
 HEADERS = {
     "Token": TOKEN
 }
+
+# 远端核验所需连接参数一律由环境变量提供，仓库内不内置生产主机、端口、用户名与私钥路径。
+# 未配置时相关核验步骤会如实报告失败，不静默跳过。
+SSH_HOST = os.environ.get("ARL_SSH_HOST", "192.0.2.10")
+SSH_PORT = os.environ.get("ARL_SSH_PORT", "22")
+SSH_KEY = os.environ.get("ARL_SSH_KEY", "~/.ssh/id_ed25519")
+SSH_USER = os.environ.get("ARL_SSH_USER", "root")
+WEB_CONTAINER = os.environ.get("ARL_WEB_CONTAINER", "arl-web-prod")
+
+
+def ssh_docker_exec(inner_cmd, timeout=10):
+    """在远端宿主上以 docker exec 方式执行容器内命令。"""
+    cmd = (
+        f"ssh -p {SSH_PORT} -i {SSH_KEY} -o StrictHostKeyChecking=no "
+        f"{SSH_USER}@{SSH_HOST} 'docker exec {WEB_CONTAINER} {inner_cmd}'"
+    )
+    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, timeout=timeout)
+
+
+def ssh_docker_exec_py(script_b64, timeout=15):
+    """在远端容器 /code/backend 目录下以项目运行时解释器执行 base64 编码的 Python 脚本。"""
+    inner = (
+        f"/code/backend/.venv-docker/bin/python3 -c "
+        f"\"import base64; exec(base64.b64decode('{script_b64}').decode())\""
+    )
+    cmd = (
+        f"ssh -p {SSH_PORT} -i {SSH_KEY} -o StrictHostKeyChecking=no "
+        f"{SSH_USER}@{SSH_HOST} \"docker exec -w /code/backend {WEB_CONTAINER} {inner}\""
+    )
+    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, timeout=timeout)
+
 
 results = {
     "passed": [],
@@ -193,8 +226,7 @@ except Exception as e:
 
 # 2.6 服务器物理磁盘落地核验 (通过 SSH / Docker Exec 核验实际物理文件)
 try:
-    ssh_cmd = f"ssh -p 2222 -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@192.0.2.10 'docker exec arl-web-prod test -f /root/nuclei-templates/{offline_subpath} && echo EXISTS'"
-    res = subprocess.run(ssh_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+    res = ssh_docker_exec(f"test -f /root/nuclei-templates/{offline_subpath} && echo EXISTS")
     if "EXISTS" in res.stdout:
         log_pass("容器底层物理磁盘落地核验", f"(文件在 /root/nuclei-templates/{offline_subpath} 物理存在)")
     else:
@@ -204,8 +236,7 @@ except Exception as e:
 
 # 2.7 物理磁盘清理与环境无痕收尾 (遵守 Agent 环境安全准则)
 try:
-    clean_cmd = f"ssh -p 2222 -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@192.0.2.10 'docker exec arl-web-prod rm -f /root/nuclei-templates/{offline_subpath}'"
-    subprocess.run(clean_cmd, shell=True, timeout=10)
+    ssh_docker_exec(f"rm -f /root/nuclei-templates/{offline_subpath}")
     # 重新触发刷新索引
     requests.get(f"{BASE_URL}/api/nuclei/stats/", headers=HEADERS, verify=False, timeout=10)
     log_pass("测试模板安全物理清理与索引无痕收尾")

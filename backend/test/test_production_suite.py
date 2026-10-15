@@ -20,8 +20,8 @@ import requests
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_URL = os.environ.get("ARL_HOST", "https://192.0.2.10:5173")
-TOKEN = os.environ.get("ARL_TOKEN", "<ARL_API_TOKEN>")
-BASIC_AUTH = (os.environ.get("BASIC_USER", "admin"), os.environ.get("BASIC_PASS", "arl_next"))
+TOKEN = os.environ.get("ARL_TOKEN", "")
+BASIC_AUTH = (os.environ.get("BASIC_USER", ""), os.environ.get("BASIC_PASS", ""))
 
 HEADERS = {
     "Token": TOKEN,

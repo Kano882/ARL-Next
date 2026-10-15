@@ -26,8 +26,31 @@ import subprocess
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_URL = os.environ.get("ARL_HOST", "https://192.0.2.10:5173")
-TOKEN = os.environ.get("ARL_TOKEN", "<ARL_API_TOKEN>")
+TOKEN = os.environ.get("ARL_TOKEN", "")
 HEADERS = {"Token": TOKEN}
+
+# 远端核验所需连接参数一律由环境变量提供，仓库内不内置生产主机、端口、用户名与私钥路径。
+# 未配置时相关核验步骤会如实报告失败，不静默跳过。
+SSH_HOST = os.environ.get("ARL_SSH_HOST", "192.0.2.10")
+SSH_PORT = os.environ.get("ARL_SSH_PORT", "22")
+SSH_KEY = os.environ.get("ARL_SSH_KEY", "~/.ssh/id_ed25519")
+SSH_USER = os.environ.get("ARL_SSH_USER", "root")
+WEB_CONTAINER = os.environ.get("ARL_WEB_CONTAINER", "arl-web-prod")
+
+
+def ssh_docker_exec_py(script_b64, timeout=15):
+    """在远端容器 /code/backend 目录下以项目运行时解释器执行 base64 编码的 Python 脚本。"""
+    inner = (
+        f"/code/backend/.venv-docker/bin/python3 -c "
+        f"\"import base64; exec(base64.b64decode('{script_b64}').decode())\""
+    )
+    cmd = (
+        f"ssh -p {SSH_PORT} -i {SSH_KEY} -o StrictHostKeyChecking=no "
+        f"{SSH_USER}@{SSH_HOST} \"docker exec -w /code/backend {WEB_CONTAINER} {inner}\""
+    )
+    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, timeout=timeout)
+
 
 audit_log = []
 
@@ -186,8 +209,7 @@ print("REAL_SCAN_WORKER_AUDIT_SUCCESS")
 """
     import base64
     b64_worker = base64.b64encode(worker_audit_py.encode()).decode()
-    audit_cmd = f"ssh -p 2222 -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no root@192.0.2.10 \"docker exec -w /code/backend arl-web-prod /code/backend/.venv-docker/bin/python3 -c \\\"import base64; exec(base64.b64decode('{b64_worker}').decode())\\\"\""
-    p_audit = subprocess.run(audit_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
+    p_audit = ssh_docker_exec_py(b64_worker, timeout=15)
     
     if "REAL_SCAN_WORKER_AUDIT_SUCCESS" in p_audit.stdout:
         record("5. Worker 运行时物化与 -eid 排除审计", "PASS", "自建模板物化落盘、黑名单 -eid 自动排除生成、策略额外追加合并、以及扫描后物理安全回收全部严密闭环！")
