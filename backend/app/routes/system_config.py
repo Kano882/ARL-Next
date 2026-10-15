@@ -13,9 +13,10 @@ security_policy_model = ns.model('SecurityPolicy', {
 })
 
 performance_model = ns.model('Performance', {
-    'celery_heavy_concurrency': fields.Integer(required=True, description='重任务Celery并发数'),
-    'celery_light_concurrency': fields.Integer(required=True, description='轻任务Celery并发数'),
-    'osint_concurrency': fields.Integer(required=True, description='OSINT任务并发数')
+    # 语义限定：以下三项均为 Celery Worker 进程数（-c 参数），非单任务内的线程/发包并发度
+    'celery_heavy_concurrency': fields.Integer(required=True, description='重任务队列 Worker 进程数（受内存约束）'),
+    'celery_light_concurrency': fields.Integer(required=True, description='轻任务队列 Worker 进程数（走独立通道）'),
+    'osint_concurrency': fields.Integer(required=True, description='OSINT 任务并发进程数（受外网反爬约束）')
 })
 
 @ns.route('/security_policy')
@@ -222,6 +223,235 @@ class Performance(ARLResource):
         }
 
 
+@ns.route('/merged_general')
+class MergedGeneralConfig(ARLResource):
+    """
+    获取用于前端"已生效值"对比的合并视图。
+
+    /general 返回的是按后端 config 键名组织、且已应用数据库覆盖后的生效值，
+    但它既包含只读的基础设施字段，也包含不能回显给前端的凭据（API Key、
+    各类 Token / 密码）。本接口只暴露可编辑且非敏感的字段，供前端回显
+    "当前系统实际生效值"，让用户能分辨空输入框是"未配置"还是"已配置"。
+    """
+    @auth
+    def get(self):
+        from app.config import Config
+
+        return {
+            "code": 200,
+            "message": "success",
+            "data": {
+                "fofa_url": Config.FOFA_URL,
+                "fofa_max_page": Config.FOFA_MAX_PAGE,
+                "fofa_page_size": Config.FOFA_PAGE_SIZE,
+                "proxy_url": Config.PROXY_URL,
+                "port_top_10": Config.TOP_10,
+                "domain_brute_concurrent": Config.DOMAIN_BRUTE_CONCURRENT,
+                "alt_dns_concurrent": Config.ALT_DNS_CONCURRENT,
+                "auth": Config.AUTH,
+                "push_options": Config.PUSH_OPTIONS,
+                "query_plugin_config": Config.QUERY_PLUGIN_CONFIG,
+                # 仅回显"是否已配置"的布尔值，绝不返回凭据明文或掩码片段
+                "credentials": _credential_presence(),
+                "security_policy_source": _security_policy_source(),
+            }
+        }
+
+
+def _credential_presence():
+    """列出各三方凭据的配置状态，供前端渲染状态徽章。
+
+    只返回布尔值与"是否来自 config.yaml 默认"标记，避免凭据经 GET 泄漏。
+    """
+    from app.config import Config
+    from app.utils.conn import conn_db
+
+    doc = conn_db('system_config').find_one({"_id": "general_config"}) or {}
+
+    # key: (Config 属性名, 数据库中对应的存储键)
+    fields = {
+        "fofa_key": ("FOFA_KEY", "fofa_key"),
+        "github_token": ("GITHUB_TOKEN", "github_token"),
+        "tyc_id": ("TYC_ID", "tyc_id"),
+        "tyc_token": ("TYC_TOKEN", "tyc_token"),
+        "so_search_cookie": ("SO_SEARCH_COOKIE", "so_search_cookie"),
+        "bing_search_cookie": ("BING_SEARCH_COOKIE", "bing_search_cookie"),
+        "api_key": ("API_KEY", "api_key"),
+        "webhook_token": ("WEB_HOOK_TOKEN", "webhook_token"),
+        "dingding_access_token": ("DINGDING_ACCESS_TOKEN", "dingding_access_token"),
+        "feishu_webhook": ("FEISHU_WEBHOOK", "feishu_webhook"),
+        "wx_work_webhook": ("WX_WORK_WEBHOOK", "wx_work_webhook"),
+        "tg_bot_token": ("TG_BOT_TOKEN", "tg_bot_token"),
+        "email_username": ("EMAIL_USERNAME", "email_username"),
+    }
+
+    result = {}
+    for label, (attr_name, db_key) in fields.items():
+        try:
+            value = getattr(Config, attr_name, "") or ""
+        except Exception:
+            value = ""
+        configured = bool(str(value).strip())
+        result[label] = {
+            "configured": configured,
+            # 数据库中存在该键即视为用户显式保存过，用于区分"系统默认"与"人工配置"
+            "from_db": db_key in doc,
+        }
+    return result
+
+
+def _security_policy_source():
+    """返回安全策略当前生效值及其来源，供前端回显。
+
+    用户此前面对两个空 textarea，无从判断系统已内置哪些默认拦截项。
+    这里显式区分 database / config_yaml 两种来源。
+    """
+    from app.config import Config
+    from app.utils.conn import conn_db
+
+    doc = conn_db('system_config').find_one({"_id": "security_policy"})
+    if doc:
+        return {
+            "source": "database",
+            "black_ips": doc.get("black_ips", []),
+            "forbidden_domains": doc.get("forbidden_domains", []),
+        }
+    return {
+        "source": "config_yaml",
+        "black_ips": list(getattr(Config, "BLACK_IPS", []) or []),
+        "forbidden_domains": list(getattr(Config, "FORBIDDEN_DOMAINS", []) or []),
+    }
+
+
+@ns.route('/capacity_probe')
+class CapacityProbe(ARLResource):
+    """
+    返回可用内存预算与各并发项的推荐值。
+
+    原本用户需要自己完成"读说明得知单 Worker 内存上限 → 查机器内存 → 扣除常驻
+    占用 → 心算进程数"四步推导。此接口把该推导前置到后端。
+
+    ⚠️ 关键约束：推荐值必须扣除**实测常驻占用**，而非拍一个固定预留值。
+    "总内存 - 1G" 这类估算在本项目典型的小内存多容器部署上会显著高估：
+    实测 MongoDB(≈1G) + Web(≈0.7G) + Puppeteer(≈0.26G) + RabbitMQ + OSINT
+    等常驻服务合计可达 2G 以上，此时若仍按 (总内存-1G)/488MB 计算，
+    会给出远超真实承载力的推荐值并把用户推向 OOM。
+    """
+    @auth
+    def get(self):
+        mem = _read_memory_report()
+        total_mem_mb = mem.get("total_memory_mb")
+        available_mb = mem.get("available_memory_mb")
+
+        # 单 Worker 进程内存上限，取自 start_worker_prod.sh 的
+        # --max-memory-per-child=500000（KB）；调大该值时此处需同步。
+        per_worker_mb = 500000 // 1024
+
+        heavy_recommended = None
+        light_recommended = None
+        osint_recommended = 1
+        basis = "未能读取内存信息，请以实际运行情况为准"
+        headroom_mb = None
+
+        if total_mem_mb and available_mb is not None:
+            # 以 MemAvailable 为基准：它已扣除内核、常驻容器与缓存可回收部分，
+            # 是"在不触发换页的前提下还能分配多少"的直接度量。
+            # 再保留 15% 或 256MB（取大者）作为突发余量，避免把预算顶满导致 OOM Killer。
+            reserve_mb = max(256, int(available_mb * 0.15))
+            headroom_mb = max(0, available_mb - reserve_mb)
+
+            # 重/轻任务各自独立队列，二者共享同一份内存预算；
+            # 按 7:3 切分（重任务进程上限更高、数量通常更少）。
+            heavy_budget = int(headroom_mb * 0.7)
+            light_budget = headroom_mb - heavy_budget
+
+            heavy_recommended = max(1, min(128, heavy_budget // per_worker_mb))
+            light_recommended = max(1, min(256, light_budget // per_worker_mb))
+
+            basis = (
+                f"可用内存 {available_mb}MB - 突发余量 {reserve_mb}MB = 预算 {headroom_mb}MB；"
+                f"按重任务 7 : 轻任务 3 分配，单进程上限 {per_worker_mb}MB "
+                f"（对应 --max-memory-per-child=500000KB）"
+            )
+
+        return {
+            "code": 200,
+            "message": "success",
+            "data": {
+                "total_memory_mb": total_mem_mb,
+                "available_memory_mb": available_mb,
+                "headroom_mb": headroom_mb,
+                "heavy_recommended": heavy_recommended,
+                "light_recommended": light_recommended,
+                # OSINT 受外网反爬约束，与内存无关，恒为 1
+                "osint_recommended": osint_recommended,
+                "per_worker_memory_mb": per_worker_mb,
+                "basis": basis,
+            }
+        }
+
+
+def _read_memory_report():
+    """读取内存报告（MB）。
+
+    返回 {"total_memory_mb", "available_memory_mb"}，任一字段读不到即为 None，
+    由调用方降级为不展示推荐值。
+
+    优先使用 MemAvailable：它是内核给出的"无需换页即可分配"的估算，
+    已计入可回收缓存与 slab，比 MemFree 更贴近真实可分配量（MemFree 会把
+    大量 buff/cache 误判为不可用，导致保守到不可用）。
+    """
+    report = {"total_memory_mb": None, "available_memory_mb": None}
+
+    total_kb = None
+    available_kb = None
+    try:
+        with open('/proc/meminfo', 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('MemTotal:'):
+                    total_kb = int(line.split()[1])
+                elif line.startswith('MemAvailable:'):
+                    available_kb = int(line.split()[1])
+                if total_kb is not None and available_kb is not None:
+                    break
+    except Exception:
+        pass
+
+    # 容器可能被设置了内存限额：此时容器视角的 MemTotal 是宿主机值，
+    # 需要与 cgroup 限额取小，避免按宿主机整机内存推荐而撑爆容器限额。
+    limit_mb = None
+    for path in ('/sys/fs/cgroup/memory.max',
+                 '/sys/fs/cgroup/memory/memory.limit_in_bytes'):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                raw = f.read().strip()
+            if raw and raw != 'max':
+                val = int(raw)
+                # 未设限额时 cgroup 给出极大值，视为无效
+                if 0 < val < (1 << 62):
+                    limit_mb = val // (1024 * 1024)
+                    break
+        except Exception:
+            continue
+
+    if total_kb is not None:
+        total_mb = total_kb // 1024
+        if limit_mb:
+            total_mb = min(total_mb, limit_mb)
+        report["total_memory_mb"] = total_mb
+
+    if available_kb is not None:
+        available_mb = available_kb // 1024
+        if limit_mb:
+            available_mb = min(available_mb, limit_mb)
+        report["available_memory_mb"] = available_mb
+    elif limit_mb:
+        # 读不到 MemAvailable 但有限额时，退化为按限额估算
+        report["available_memory_mb"] = limit_mb
+
+    return report
+
+
 @ns.route('/general')
 class GeneralConfig(ARLResource):
     @auth
@@ -299,11 +529,15 @@ class GeneralConfig(ARLResource):
     @auth
     def post(self):
         """
-        保存常规全局配置
+        保存常规全局配置（支持部分字段提交）
+
+        前端按 Tab 分组维护脏字段，仅提交发生变更的字段，避免"在 A 页改完未保存、
+        切到 B 页点保存"时用 B 页的旧值覆盖 A 页的修改。未出现在请求体中的字段
+        保持数据库原值不变。
         """
         from flask import request
         from app.utils.conn import conn_db
-        from app.config import clear_system_config_cache
+        from app.config import clear_system_config_cache, bump_system_config_version
 
         req_data = request.json
         if not req_data:
@@ -362,18 +596,28 @@ class GeneralConfig(ARLResource):
         if "query_plugin_config" in req_data: doc["query_plugin_config"] = req_data["query_plugin_config"]
         if "push_options" in req_data: doc["push_options"] = req_data["push_options"]
 
+        # 空提交直接短路：既避免无意义的 upsert，也让前端"无改动点保存"有明确反馈。
+        if not doc:
+            return {
+                "code": 200,
+                "message": "未检测到变更字段，配置未改动"
+            }
+
         conn_db('system_config').update_one(
             {"_id": "general_config"},
             {"$set": doc},
             upsert=True
         )
 
-        # 清除缓存
+        # 清除本进程缓存，并递增跨进程版本号让其他 gunicorn worker 的缓存同步作废，
+        # 否则用户保存后立即刷新可能仍看到旧值（多 worker 各自持有进程内缓存）。
         clear_system_config_cache()
+        bump_system_config_version()
 
         return {
             "code": 200,
-            "message": "全局配置更新成功"
+            "message": "全局配置更新成功",
+            "data": {"updated_keys": sorted(doc.keys())}
         }
 
 @ns.route('/test_push')

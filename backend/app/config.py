@@ -8,14 +8,30 @@ import time
 
 _config_cache = {
     "data": None,
-    "last_update": 0
+    "last_update": 0,
+    # 写入方递增的跨进程版本号，用于让其他 gunicorn worker 的本地缓存失效
+    "version": None
 }
 CACHE_TTL = 30  # 30 seconds cache
 
 def get_system_config_value(key, default):
     try:
         now = time.time()
-        if _config_cache["last_update"] > 0 and now - _config_cache["last_update"] < CACHE_TTL:
+        cache_fresh = (_config_cache["last_update"] > 0
+                       and now - _config_cache["last_update"] < CACHE_TTL)
+        if cache_fresh:
+            # 版本比对：其他 worker 保存过配置时，本地缓存必须作废，否则会
+            # 在 TTL 窗口内对外返回旧值（表现为"保存成功但刷新没变化"）。
+            #
+            # seen is None 表示本地缓存是在版本机制生效前填充的（如进程刚启动、
+            # 版本文档尚未创建）。此时不能按"无法判定"放过——否则这些 worker 会
+            # 一直返回旧值直到 TTL 到期。只要当前能读到版本号，就一律作废重取。
+            seen = _config_cache.get("version")
+            current = _read_config_version()
+            if current is not None and seen != current:
+                cache_fresh = False
+
+        if cache_fresh:
             config_data = _config_cache["data"]
         else:
             from app.utils.conn import conn_db
@@ -24,15 +40,54 @@ def get_system_config_value(key, default):
                 config_data = doc
                 _config_cache["data"] = doc
                 _config_cache["last_update"] = now
+                _config_cache["version"] = _read_config_version()
             else:
                 config_data = {}
-        
+
         return config_data.get(key, default)
     except Exception:
         return default
 
 def clear_system_config_cache():
+    """使本进程的配置缓存立即失效。
+
+    ⚠️ 局限性：gunicorn 以多 worker 进程运行，每个进程持有独立的 _config_cache。
+    本函数只能清空**当前进程**的缓存，其他 worker 仍会在 CACHE_TTL 内返回旧值，
+    导致"保存后立即刷新仍是旧值"的观感。因此 TTL 被压到较短区间，
+    且调用方可配合 bump_system_config_version() 做跨进程失效。
+    """
     _config_cache["last_update"] = 0
+
+
+# 跨进程失效标记：写入方递增版本号，读取方发现版本变化即丢弃本地缓存。
+# 依据是 MongoDB 是唯一事实源，而各 gunicorn worker 的进程内缓存无法互相通知。
+_CONFIG_VERSION_COLLECTION = 'system_config'
+_CONFIG_VERSION_DOC = '_config_cache_version'
+
+
+def bump_system_config_version():
+    """递增配置版本号，使所有 worker 进程的下一次读取都回源数据库。"""
+    try:
+        from app.utils.conn import conn_db
+        conn_db(_CONFIG_VERSION_COLLECTION).update_one(
+            {"_id": _CONFIG_VERSION_DOC},
+            {"$inc": {"version": 1}},
+            upsert=True
+        )
+    except Exception:
+        pass
+
+
+def _read_config_version():
+    """读取当前配置版本号；读取失败返回 None（视为无法判定，不误触发失效）。"""
+    try:
+        from app.utils.conn import conn_db
+        doc = conn_db(_CONFIG_VERSION_COLLECTION).find_one({"_id": _CONFIG_VERSION_DOC})
+        if doc:
+            return doc.get("version")
+    except Exception:
+        pass
+    return None
 
 DYNAMIC_PROPERTIES = {
     "FOFA_KEY", "FOFA_URL", "FOFA_MAX_PAGE", "FOFA_PAGE_SIZE",
@@ -151,9 +206,9 @@ class Config(object, metaclass=ConfigMeta):
     _GITHUB_TOKEN = ""
     GITHUB_HASH_FILE = os.path.join(TMP_PATH, 'github.hash')
 
-    # 域名爆破并发数
+    # 域名爆破 DNS 发包并发度（massdns -s，非进程/线程数）
     _DOMAIN_BRUTE_CONCURRENT = 300
-    # 组合生成的域名爆破并发数
+    # 组合生成的域名爆破 DNS 发包并发度（massdns -s）
     _ALT_DNS_CONCURRENT = 1500
 
     # 代理地址
@@ -277,13 +332,13 @@ try:
         if y["GITHUB"].get("TOKEN"):
             Config._GITHUB_TOKEN = y["GITHUB"]["TOKEN"]
 
-    # *** 域名爆破并发数 ***
+    # *** 域名爆破 DNS 发包并发度 ***
     domain_concurrent = y["ARL"].get("DOMAIN_BRUTE_CONCURRENT")
     if domain_concurrent:
         int(domain_concurrent)
         Config._DOMAIN_BRUTE_CONCURRENT = domain_concurrent
 
-    # *** 组合生成的域名爆破并发数 ***
+    # *** 组合生成的域名爆破 DNS 发包并发度 ***
     alt_dns_concurrent = y["ARL"].get("ALT_DNS_CONCURRENT")
     if alt_dns_concurrent:
         int(alt_dns_concurrent)
