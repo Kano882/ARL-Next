@@ -38,7 +38,7 @@ jobs:
           docker push ${{ env.ALIYUN_REGISTRY }}/${{ env.ALIYUN_NAMESPACE }}/autoheal:latest
 
   build-frontend:
-    if: github.repository == 'owl234/ARL-Next'
+    if: github.repository == 'owl234/ARL-Next' && vars.ENABLE_ACR_BUILD == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -67,7 +67,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-web-worker:
-    if: github.repository == 'owl234/ARL-Next'
+    if: github.repository == 'owl234/ARL-Next' && vars.ENABLE_ACR_BUILD == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -106,7 +106,7 @@ jobs:
             NUCLEI_CACHEBUST=${{ github.run_id }}
 
   build-puppeteer:
-    if: github.repository == 'owl234/ARL-Next'
+    if: github.repository == 'owl234/ARL-Next' && vars.ENABLE_ACR_BUILD == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -135,7 +135,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-osint:
-    if: github.repository == 'owl234/ARL-Next'
+    if: github.repository == 'owl234/ARL-Next' && vars.ENABLE_ACR_BUILD == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
