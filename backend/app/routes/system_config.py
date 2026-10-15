@@ -56,6 +56,45 @@ class SecurityPolicy(ARLResource):
             "message": "安全策略更新成功"
         }
 
+_POOL_SETTLE_TIMEOUT = 12.0
+_POOL_SETTLE_INTERVAL = 0.5
+
+
+def _runtime_pool_size(node_stats):
+    """从 stats 结果中取节点当前运行进程数；无法判定时返回 None。
+
+    只依赖 pool.processes（存活子进程 PID 列表）。pool.max-concurrency 是池构造时的
+    启动值，pool_grow/pool_shrink 不会更新它，不能当作当前并发数。
+    """
+    if not isinstance(node_stats, dict):
+        return None
+    pool = node_stats.get('pool')
+    if not isinstance(pool, dict):
+        return None
+    processes = pool.get('processes')
+    if not isinstance(processes, list):
+        return None
+    return len(processes)
+
+
+def _wait_pool_size(inspector, node, target, timeout=_POOL_SETTLE_TIMEOUT):
+    """轮询等待节点运行进程数达到 target，返回 (最终进程数, 是否达到)。
+
+    池的伸缩由 billiard 的 Supervisor 线程异步补齐（约 0.8s 一轮），命令返回后
+    进程数不会立刻变化，需要等待收敛才能判定结果。
+    """
+    import time
+    deadline = time.monotonic() + timeout
+    size = None
+    while True:
+        size = _runtime_pool_size((inspector.stats() or {}).get(node))
+        if size == target:
+            return size, True
+        if time.monotonic() >= deadline:
+            return size, False
+        time.sleep(_POOL_SETTLE_INTERVAL)
+
+
 @ns.route('/performance')
 class Performance(ARLResource):
     @auth
@@ -122,9 +161,13 @@ class Performance(ARLResource):
         feedback_messages = ["性能配置已保存。"]
 
         # 每次提交都读取运行状态，相同目标值可以重试此前失败的调整。
+        # 说明：pool_grow/pool_shrink 的 ok 回复仅代表命令被接收，不代表并发数已变化
+        # （billiard 的 _processes 记账值不经 inspect 暴露，shrink 在进程忙时会静默不生效）。
+        # 因此调整后重新读取运行进程数，只回报实际观察到的变化。
         try:
             from app.celerytask import celery as celery_app
-            stats = celery_app.control.inspect(timeout=1.5).stats()
+            inspector = celery_app.control.inspect(timeout=1.5)
+            stats = inspector.stats()
             if stats:
                 for key, desired, label in (
                     ("arltask_heavy", new_heavy, "重任务"),
@@ -134,16 +177,14 @@ class Performance(ARLResource):
                     if not nodes:
                         feedback_messages.append(f"未检测到在线的{label} Worker 节点，将在下次重启生效；")
                     for node in nodes:
-                        node_stats = stats[node]
-                        pool = node_stats.get('pool', {}) if isinstance(node_stats, dict) else {}
-                        processes = pool.get('processes')
-                        # max-concurrency 可能仍是启动时的配置，使用当前进程列表计算。
-                        if not isinstance(processes, list):
+                        before = _runtime_pool_size(stats.get(node))
+                        if before is None:
                             feedback_messages.append(f"{label}节点 {node} 未返回运行进程数，请稍后重试；")
                             continue
-                        diff = desired - len(processes)
+                        diff = desired - before
                         if diff == 0:
                             continue
+                        action = "扩容" if diff > 0 else "缩容"
                         try:
                             adjust = celery_app.control.pool_grow if diff > 0 else celery_app.control.pool_shrink
                             replies = adjust(n=abs(diff), destination=[node], reply=True, timeout=1.5)
@@ -151,11 +192,22 @@ class Performance(ARLResource):
                             if not isinstance(result, dict) or 'ok' not in result or 'error' in result:
                                 error = result.get('error', '未收到节点确认') if isinstance(result, dict) else '未收到节点确认'
                                 feedback_messages.append(f"{label}节点 {node} 调整未确认 ({error})，请稍后重新提交以重试；")
-                            else:
-                                action = "扩容" if diff > 0 else "缩容"
-                                feedback_messages.append(f"{label}节点 {node} 已确认{action} {abs(diff)} 个并发进程；")
+                                continue
                         except Exception as e:
                             feedback_messages.append(f"{label}节点 {node} 热扩缩容执行异常 ({e})，请稍后重新提交以重试；")
+                            continue
+                        # 池伸缩是异步补齐，命令返回后进程数不会立即变化，需等待收敛再判定。
+                        after, reached = _wait_pool_size(inspector, node, desired)
+                        if reached:
+                            feedback_messages.append(f"{label}节点 {node} 已{action}至 {after} 个并发进程；")
+                        elif after is None:
+                            feedback_messages.append(f"{label}节点 {node} 已接收{action}指令，但未回读运行进程数，请稍后重新提交以核实；")
+                        else:
+                            # 命令被接收但进程数未达目标（如进程仍被任务占用导致缩容暂缓）。
+                            feedback_messages.append(
+                                f"{label}节点 {node} 已接收{action}指令，运行进程数仍为 {after}，"
+                                f"请稍后重新提交以重试；"
+                            )
             else:
                 feedback_messages.append("Celery 服务未响应，请稍后重新提交以重试；配置也将在重启时生效。")
         except Exception as e:
