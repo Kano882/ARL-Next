@@ -703,6 +703,18 @@
               <a class="task-title-link" @click="viewTask(record)">{{ record.name }}</a>
             </template>
 
+            <template v-else-if="column.key === 'asset_group'">
+              <template v-if="getTaskAssetGroupState(record)">
+                <a-tooltip :title="getTaskAssetGroupState(record).error || getTaskAssetGroupState(record).label">
+                  <a-tag :color="getTaskAssetGroupState(record).color">
+                    {{ getTaskAssetGroupState(record).text }}
+                  </a-tag>
+                </a-tooltip>
+                <div style="font-size: 12px;">{{ getTaskAssetGroupState(record).label }}</div>
+              </template>
+              <span v-else>-</span>
+            </template>
+
             <template v-else-if="column.key === 'target'">
               <a-tooltip placement="topLeft">
                 <template #title>
@@ -905,6 +917,12 @@
               </a-form-item>
             </a-col>
             <a-col :span="24">
+              <a-form-item label="关联资产组（可选）" name="related_scope_id"
+                extra="选择后，扫描完成会自动同步到该组；全部目标必须属于该组的范围。">
+                <AssetScopeSelect v-model:value="formState.related_scope_id" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="24">
               <a-form-item label="探测目标" name="target" :rules="[{ required: true, message: '请输入目标' }]">
                 <a-textarea
                   v-model:value="formState.target"
@@ -1019,18 +1037,7 @@
       </div>
       <a-form :model="syncFormState" layout="vertical">
         <a-form-item label="目标资产组" name="scope_id" :rules="[{ required: true, message: '请选择资产组' }]">
-          <a-select
-            v-model:value="syncFormState.scope_id"
-            placeholder="请选择资产组"
-            :options="syncOptions"
-            allowClear
-          >
-            <template #notFoundContent>
-              <div style="text-align: center; padding: 20px 0;">
-                <p style="color: var(--arl-text-secondary); margin-top: 8px;">未找到匹配的目标资产组</p>
-              </div>
-            </template>
-          </a-select>
+          <AssetScopeSelect v-model:value="syncFormState.scope_id" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -1112,6 +1119,8 @@ import {
 } from '../constants/taskStatus';
 import TycTaskModal from '../components/TycTaskModal.vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
+import AssetScopeSelect from '../components/AssetScopeSelect.vue';
+import { getTaskAssetGroupState } from '../utils/taskAssetGroups';
 
 // --- 吸顶配置 ---
 const actionBarRef = ref(null);
@@ -1673,6 +1682,7 @@ const columns = [
   { title: '任务名', dataIndex: 'name', key: 'name', width: 200, sorter: true, ellipsis: true },
   { title: '目标', dataIndex: 'target', key: 'target', width: 220, sorter: true, ellipsis: true },
   { title: '资产统计', dataIndex: 'statistic', key: 'statistic', width: 210 },
+  { title: '资产组', key: 'asset_group', width: 180 },
   { title: '策略配置', dataIndex: 'options', key: 'options', width: 140 },
   { title: '状态', dataIndex: 'status', key: 'status', width: 150 },
   { title: '开始时间', dataIndex: 'start_time', key: 'start_time', width: 160 },
@@ -2090,30 +2100,13 @@ const exportTask = async (record) => {
 // 同步任务至资产组
 const syncVisible = ref(false);
 const syncLoading = ref(false);
-const syncOptions = ref([]);
 const currentSyncRecord = ref(null);
 const syncFormState = reactive({ scope_id: undefined });
 
-const syncTask = async (record) => {
+const syncTask = (record) => {
   currentSyncRecord.value = record;
-  syncFormState.scope_id = undefined;
-  syncOptions.value = [];
+  syncFormState.scope_id = record.sync_scope_id || record.options?.related_scope_id || record.synced_scope_id || undefined;
   syncVisible.value = true;
-
-  try {
-    const res = await request.get('/task/sync_scope/', {
-      params: { target: record.target }
-    });
-
-    if (res.code === 200) {
-      syncOptions.value = (res.items || []).map(item => ({
-        value: item._id,
-        label: item.name
-      }));
-    }
-  } catch (error) {
-    console.error('获取资产选项失败:', error);
-  }
 };
 
 const handleSyncOk = async () => {
@@ -2134,7 +2127,7 @@ const handleSyncOk = async () => {
       syncVisible.value = false;
       fetchTasks(pagination.current, pagination.pageSize);
     } else {
-      message.error('同步失败: ' + (res.message || '未知错误'));
+      message.error('同步失败: ' + (res.data?.error || res.message || '未知错误'));
     }
   } catch (error) {
     message.error('网络异常，请稍后再试');
@@ -2202,6 +2195,7 @@ const defaultPlugins = {
 const defaultFormState = {
   name: "",
   target: "",
+  related_scope_id: undefined,
   domain_brute_type: undefined,
   port_scan_type: undefined,
   alt_dns_dict: undefined,
@@ -2303,9 +2297,10 @@ const doSubmitTask = async () => {
       const createdCount = Array.isArray(res.items) ? res.items.length : 0;
       message.success(createdCount > 1 ? `任务下发成功，共创建 ${createdCount} 个任务！` : '任务下发成功！');
       visible.value = false;
+      formState.related_scope_id = undefined;
       fetchTasks(1, pagination.pageSize);
     } else {
-      message.error('下发失败: ' + (res.message || '未知错误'));
+      message.error('下发失败: ' + (res.data?.error || res.message || '未知错误'));
     }
   } catch (error) {
     if (!error.errorFields) message.error('网络异常');

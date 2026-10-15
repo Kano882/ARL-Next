@@ -84,6 +84,7 @@ add_task_fields = ns.model('AddTask', { # 创建添加任务命名空间。
     # 新建任务时，名字和目标是必须填写的 (required=True)
     'name': fields.String(required=True, example="task name", description="任务名"),
     'target': fields.String(required=True, example="www.freebuf.com", description="目标"),
+    "related_scope_id": fields.String(description="可选资产组 ID，扫描完成后自动同步"),
 
     # 下面全是各种扫描策略的开关选项，example 代表在接口文档里显示的默认测试值
     "domain_brute": fields.Boolean(example=True),
@@ -446,6 +447,8 @@ class SyncTask(ARLResource):
         task_id = args.pop('task_id')
         scope_id = args.pop('scope_id')
 
+        if not ObjectId.is_valid(task_id):
+            return utils.build_ret(ErrorMsg.NotFoundTask, {"error": "任务 ID 格式无效"})
         query = {'_id': ObjectId(task_id)}
         task_data = utils.conn_db('task').find_one(query)
 
@@ -453,44 +456,43 @@ class SyncTask(ARLResource):
         if not task_data:
             return utils.build_ret(ErrorMsg.NotFoundTask, {"task_id": task_id})
 
-        asset_scope_data = utils.conn_db('asset_scope').find_one({'_id': ObjectId(scope_id)})
-        if not asset_scope_data:
-            return utils.build_ret(ErrorMsg.NotFoundScopeID, {"task_id": task_id})
-
-        # 目前系统逻辑限制：只允许 domain (域名) 类型的任务进行同步
-        if task_data.get("type") != "domain":
-            return utils.build_ret(ErrorMsg.TaskTypeIsNotDomain, {"task_id": task_id})
-
-        # 核心校验：这个任务扫的目标，真的属于这个资产组(公司)的授权范围吗？
-        if not utils.is_in_scopes(task_data["target"], asset_scope_data["scope_array"]):
-            return utils.build_ret(ErrorMsg.TaskTargetNotInScope, {"task_id": task_id})
+        from app.helpers.scope import validate_task_scope
+        if task_data.get("type") not in ("domain", "ip"):
+            return utils.build_ret("仅支持域名和 IP 扫描任务同步", {})
+        try:
+            asset_scope_data = validate_task_scope(task_data["target"], scope_id)
+            scope_id = str(asset_scope_data["_id"])
+        except ValueError as e:
+            return utils.build_ret(ErrorMsg.Error, {"error": str(e)})
+        except Exception as e:
+            return utils.build_ret(ErrorMsg.TaskTargetNotInScope, {"error": str(e)})
 
         if task_data["status"] not in done_status:
             return utils.build_ret(ErrorMsg.TaskIsRunning, {"task_id": task_id})
 
-        # 获取任务当前的同步状态，如果查不到，默认是 DEFAULT (从未同步过)
-        task_sync_status = task_data.get("sync_status", TaskSyncStatus.DEFAULT)
-
-        # 如果它已经在同步中 (WAITING/DOING) 或者同步完成 (DONE)，拒绝重复点击
-        if task_sync_status not in [TaskSyncStatus.DEFAULT, TaskSyncStatus.ERROR]:
+        # 在派发前原子认领，避免快速 Worker 的完成状态被请求线程覆盖。
+        claim_query = dict(query, status={"$in": done_status},
+                           sync_status={"$in": [None, TaskSyncStatus.DEFAULT, TaskSyncStatus.ERROR]})
+        claimed = conn('task').find_one_and_update(claim_query, {"$set": {
+            "sync_status": TaskSyncStatus.WAITING,
+            "sync_scope_id": scope_id,
+            "sync_scope_name": asset_scope_data.get("name", "")
+        }, "$unset": {"sync_error": ""}})
+        if not claimed:
             return utils.build_ret(ErrorMsg.TaskSyncDealing, {"task_id": task_id})
 
-        # 2. 校验全通过！先把状态改成“等待同步中”
-        task_data["sync_status"] = TaskSyncStatus.WAITING
-
-        # 3. 组装给工人的指令包
         options = {
             "celery_action": CeleryAction.DOMAIN_TASK_SYNC_TASK,
-            "data": {
-                "task_id": task_id,
-                "scope_id": scope_id
-            }
+            "data": {"task_id": task_id, "scope_id": scope_id}
         }
-        # 4. 【异步下发】：用 apply_async 派给 Celery 轻任务队列
-        celerytask.arl_task.apply_async(kwargs={'options': options}, queue=CeleryRoutingKey.ASSET_TASK_LIGHT)
-
-        # 5. 更新数据库里这条任务的状态（保存刚刚改的 WAITING）
-        conn('task').find_one_and_replace(query, task_data)
+        try:
+            celerytask.arl_task.apply_async(kwargs={'options': options}, queue=CeleryRoutingKey.ASSET_TASK_LIGHT)
+        except Exception as e:
+            conn('task').update_one(dict(query, sync_status=TaskSyncStatus.WAITING), {"$set": {
+                "sync_status": TaskSyncStatus.ERROR, "sync_error": str(e)
+            }})
+            logger.exception(e)
+            return utils.build_ret(ErrorMsg.Error, {"error": str(e)})
 
         # 6. 立刻给前端返回成功，不用等工人干完
         return utils.build_ret(ErrorMsg.Success, {"task_id": task_id})
