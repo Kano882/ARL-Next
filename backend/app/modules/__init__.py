@@ -220,6 +220,19 @@ class TaskSyncStatus:
     DEFAULT = "default"
 
 
+class ScopeValidationError(Exception):
+    """范围校验类失败（资产组不存在 / 目标越界 / 目标为空）。
+
+    与框架级异常（超时、WorkerLost、软超时）显式区分，供同步链路单独捕获并
+    如实上报，避免把可控的校验失败误报为执行异常。
+    """
+
+    def __init__(self, message, reason="invalid"):
+        super().__init__(message)
+        # reason: invalid(资产组不存在或 ID 非法) / out_of_scope(目标越界) / empty(目标为空)
+        self.reason = reason
+
+
 class SchedulerStatus:
     RUNNING = "running"
     STOP = "stop"

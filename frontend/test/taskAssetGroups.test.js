@@ -115,7 +115,10 @@ function taskPage(response = { code: 200 }) {
     request: { post: async (url, payload) => { calls.push({ url, payload: plain(payload) }); return response; } },
     message: Object.fromEntries(['error', 'success', 'warning'].map(name => [name, value => messages.push({ name, value })])),
     fetchTasks() {}, fetchTaskMetricCounts() {}, syncFormState: { scope_id: undefined },
-    currentSyncRecord: { value: null }, syncVisible: { value: false }, syncLoading: { value: false }
+    currentSyncRecord: { value: null }, syncVisible: { value: false }, syncLoading: { value: false },
+    // handleOk 现由「表单校验 + 多任务二次确认」与 doSubmitTask 两部分组成，这里补齐其依赖
+    fanoutHint: { value: { taskCount: 1, text: '' } }, Modal: { confirm: () => {} },
+    createVNode: () => ({}), ExclamationCircleOutlined: {}
   });
   return { calls, messages, context, descriptor, invoke: name => vm.runInContext(`(${result[name]})()`, context),
     sync: record => vm.runInContext(`(${result.syncTask})(${JSON.stringify(record)})`, context) };
@@ -123,7 +126,7 @@ function taskPage(response = { code: 200 }) {
 
 test('original task submission sends selected group and preserves scanning options, then clears group after success', async () => {
   const fixture = taskPage();
-  await fixture.invoke('handleOk');
+  await fixture.invoke('doSubmitTask');
   assert.equal(fixture.calls[0].url, '/task/');
   assert.equal(fixture.calls[0].payload.related_scope_id, 'group-a');
   assert.equal(fixture.calls[0].payload.port_scan, true);
@@ -135,7 +138,7 @@ test('original task submission sends selected group and preserves scanning optio
 
 test('original task submission displays out-of-scope detail and keeps selection on failure', async () => {
   const fixture = taskPage({ code: 500, message: 'generic', data: { error: 'outside.org 不在范围中' } });
-  await fixture.invoke('handleOk');
+  await fixture.invoke('doSubmitTask');
   assert.equal(fixture.context.formState.related_scope_id, 'group-a');
   assert.equal(fixture.context.visible.value, true);
   assert.ok(fixture.messages.some(message => message.value.includes('outside.org')));
@@ -144,7 +147,7 @@ test('original task submission displays out-of-scope detail and keeps selection 
 test('cleared group retains unassociated submission', async () => {
   const fixture = taskPage();
   fixture.context.formState.related_scope_id = undefined;
-  await fixture.invoke('handleOk');
+  await fixture.invoke('doSubmitTask');
   assert.ok(!('related_scope_id' in fixture.calls[0].payload));
 });
 

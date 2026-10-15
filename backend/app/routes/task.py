@@ -457,15 +457,20 @@ class SyncTask(ARLResource):
             return utils.build_ret(ErrorMsg.NotFoundTask, {"task_id": task_id})
 
         from app.helpers.scope import validate_task_scope
+        from app.modules import ScopeValidationError
         if task_data.get("type") not in ("domain", "ip"):
             return utils.build_ret("仅支持域名和 IP 扫描任务同步", {})
         try:
             asset_scope_data = validate_task_scope(task_data["target"], scope_id)
             scope_id = str(asset_scope_data["_id"])
-        except ValueError as e:
-            return utils.build_ret(ErrorMsg.Error, {"error": str(e)})
-        except Exception as e:
+        except ScopeValidationError as e:
+            # 按失败原因返回既有语义的错误码，避免一律退化为 500「系统异常」。
+            if e.reason == "invalid":
+                return utils.build_ret(ErrorMsg.NotFoundScopeID, {"error": str(e)})
             return utils.build_ret(ErrorMsg.TaskTargetNotInScope, {"error": str(e)})
+        except Exception as e:
+            logger.exception(e)
+            return utils.build_ret(ErrorMsg.Error, {"error": str(e)})
 
         if task_data["status"] not in done_status:
             return utils.build_ret(ErrorMsg.TaskIsRunning, {"task_id": task_id})

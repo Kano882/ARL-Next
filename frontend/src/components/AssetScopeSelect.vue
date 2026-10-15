@@ -13,7 +13,7 @@
     @popupScroll="onScroll"
   >
     <template #notFoundContent>
-      <span>{{ state.loading ? '正在加载资产组...' : '未找到资产组' }}</span>
+      <span class="asset-scope-empty">{{ state.loading ? '正在加载资产组...' : '未找到资产组' }}</span>
     </template>
   </a-select>
 </template>
@@ -66,3 +66,9 @@ watch(() => props.value, async value => {
 }, { immediate: true });
 onUnmounted(() => { clearTimeout(searchTimer); loader.dispose(); });
 </script>
+
+<style scoped>
+.asset-scope-empty {
+  color: var(--arl-text-secondary);
+}
+</style>

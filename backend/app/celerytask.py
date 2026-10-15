@@ -5,7 +5,7 @@ from app.config import Config
 from celery import Celery, platforms, current_task
 from app import utils
 from app import tasks as wrap_tasks
-from app.modules import CeleryAction, TaskSyncStatus, TaskStatus, CeleryRoutingKey
+from app.modules import CeleryAction, TaskStatus, CeleryRoutingKey
 
 logger = utils.get_logger()
 

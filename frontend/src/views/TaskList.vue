@@ -710,7 +710,7 @@
                     {{ getTaskAssetGroupState(record).text }}
                   </a-tag>
                 </a-tooltip>
-                <div style="font-size: 12px;">{{ getTaskAssetGroupState(record).label }}</div>
+                <div class="task-asset-group-name">{{ getTaskAssetGroupState(record).label }}</div>
               </template>
               <span v-else>-</span>
             </template>
@@ -2541,6 +2541,14 @@ onUnmounted(() => {
   background-color: var(--arl-bg-layout);
   padding: 16px 20px;
   min-height: calc(100vh - 64px);
+}
+
+/* 任务列表「资产组」列：组名需弱化显示，与标签层级区分 */
+.task-asset-group-name {
+  font-size: 12px;
+  color: var(--arl-text-secondary);
+  line-height: 1.5;
+  word-break: break-all;
 }
 
 .arl-task-hero-card {

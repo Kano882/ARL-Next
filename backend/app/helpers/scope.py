@@ -1,5 +1,6 @@
 import bson
 from app import utils
+from app.modules import ScopeValidationError
 from app.utils.ip import ip_in_scope
 from app.utils.domain import is_in_scopes
 
@@ -20,25 +21,29 @@ def check_target_in_scope(target, scope_data):
 
     for ip in ip_list:
         if not ip_in_scope(ip, ip_array):
-            raise Exception("{}不在范围{}中".format(ip, ",".join(ip_array)))
+            raise ScopeValidationError("{}不在范围{}中".format(ip, ",".join(ip_array)), reason="out_of_scope")
 
     for domain in domain_list:
         if not is_in_scopes(domain, domain_array):
-            raise Exception("{}不在范围{}中".format(domain, ",".join(domain_array)))
+            raise ScopeValidationError("{}不在范围{}中".format(domain, ",".join(domain_array)), reason="out_of_scope")
 
     return ip_list, domain_list
 
 
 def validate_task_scope(target, scope_id):
-    """校验普通扫描的关联组及全部目标，不修改任务或资产组。"""
+    """校验普通扫描的关联组及全部目标，不修改任务或资产组。
+
+    失败一律抛出 ScopeValidationError，携带 reason 供上层区分
+    「资产组不存在/ID 非法」与「目标越界」，避免与框架级异常混为一谈。
+    """
     if not isinstance(scope_id, str) or not bson.ObjectId.is_valid(scope_id):
-        raise ValueError("资产组 ID 格式无效")
+        raise ScopeValidationError("资产组 ID 格式无效", reason="invalid")
     scope = get_scope_by_scope_id(scope_id)
     if not scope:
-        raise ValueError("所选资产组已不存在，请重新选择")
+        raise ScopeValidationError("所选资产组已不存在，请重新选择", reason="invalid")
     ips, domains = check_target_in_scope(target, scope)
     if not ips and not domains:
-        raise ValueError("任务目标为空")
+        raise ScopeValidationError("任务目标为空", reason="empty")
     return scope
 
 

@@ -101,13 +101,16 @@ class ScopeFixture(unittest.TestCase):
         self.utils.is_vaild_ip_target = ip_env['is_vaild_ip_target']
         self.utils.not_in_black_ips = ip_env['not_in_black_ips']
         constants = modules['app.modules'].__dict__
-        load_nodes('app/modules/__init__.py', constants, ['TaskStatus', 'TaskTag', 'TaskType', 'SchedulerStatus', 'TaskSyncStatus', 'CeleryAction', 'CeleryRoutingKey'])
+        load_nodes('app/modules/__init__.py', constants, ['TaskStatus', 'TaskTag', 'TaskType', 'SchedulerStatus', 'TaskSyncStatus', 'ScopeValidationError', 'CeleryAction', 'CeleryRoutingKey'])
         constants = {key: value for key, value in constants.items() if not key.startswith('__')}
+        # fixture 通过 AST 独立加载 app.modules，异常类对象与模块级 import 不同源；
+        # 统一挂到实例上供断言取用，确保 assertRaises 捕获的是同源类型。
+        self.ScopeValidationError = constants['ScopeValidationError']
         task_env = modules['app.helpers.task'].__dict__
         task_env.update(constants, utils=self.utils, bson=bson, re=re, logger=self.logger)
         load_nodes('app/helpers/task.py', task_env, ['target2list', 'get_ip_domain_list', 'build_task_data', 'submit_task', 'submit_task_task', 'get_task_data', 'restart_task'])
         scope_env = modules['app.helpers.scope'].__dict__
-        scope_env.update(bson=bson, utils=self.utils, ip_in_scope=ip_env['ip_in_scope'], is_in_scopes=domain_env['is_in_scopes'])
+        scope_env.update(constants, bson=bson, utils=self.utils, ip_in_scope=ip_env['ip_in_scope'], is_in_scopes=domain_env['is_in_scopes'])
         load_nodes('app/helpers/scope.py', scope_env, ['check_target_in_scope', 'validate_task_scope', 'get_scope_by_scope_id', 'update_scope_domain_status'])
         helpers = modules['app.helpers']
         helpers.get_ip_domain_list = task_env['get_ip_domain_list']
@@ -173,16 +176,18 @@ class ScopeSubmissionTests(ScopeFixture):
 
     def test_scope_id_missing_or_malformed_rejects_without_creating(self):
         for scope_id in ('bad', str(ObjectId()), ' '):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(self.ScopeValidationError) as ctx:
                 self.submit('www.example.com', 'fixture', {'related_scope_id': scope_id})
+            self.assertEqual(ctx.exception.reason, 'invalid')
         self.assertEqual(self.db.task.count_documents({}), 0)
         self.assertEqual(self.queue.calls, [])
 
     def test_single_ip_and_subnet_must_be_fully_contained(self):
         self.validate('192.0.2.1 192.0.2.128/25', str(self.scope_id))
         for target in ('192.0.2.0/23', '192.0.3.1'):
-            with self.assertRaises(Exception):
+            with self.assertRaises(self.ScopeValidationError) as ctx:
                 self.validate(target, str(self.scope_id))
+            self.assertEqual(ctx.exception.reason, 'out_of_scope')
 
     def test_legacy_domain_and_ip_scope_formats(self):
         for st, scopes, target in [('domain', ['example.com'], 'www.example.com'), ('ip', ['192.0.2.0/24'], '192.0.2.1')]:
@@ -200,8 +205,9 @@ class ScopeSubmissionTests(ScopeFixture):
         self.assertEqual(self.queue.calls, [])
 
     def test_empty_target_and_uppercase_id_handling(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(self.ScopeValidationError) as ctx:
             self.validate('   ', str(self.scope_id))
+        self.assertEqual(ctx.exception.reason, 'empty')
         item = self.submit('www.example.com', 'fixture', {'related_scope_id': str(self.scope_id).upper()})[0]
         self.assertEqual(item['options']['related_scope_id'], str(self.scope_id))
 
@@ -230,8 +236,9 @@ class ScopeSubmissionTests(ScopeFixture):
         with self.assertRaises(Exception):
             self.restart(item['task_id'])
         self.db.asset_scope.delete_one({'_id': self.scope_id})
-        with self.assertRaises(ValueError):
+        with self.assertRaises(self.ScopeValidationError) as ctx:
             self.restart(item['task_id'])
+        self.assertEqual(ctx.exception.reason, 'invalid')
         self.assertEqual(self.db.task.count_documents({}), 1)
         self.assertEqual(len(self.queue.calls), 1)
 
@@ -289,6 +296,34 @@ class ScopeSyncTests(ScopeFixture):
         self.assertNotIn('sync_status', self.stored(item))
         self.assertEqual(self.db.asset_site.count_documents({}), 0)
 
+    def test_scope_validation_failure_is_reported_without_exception_stack(self):
+        """范围校验失败属可控失败：如实记录原因，且不升级为框架级异常上报。"""
+        item = self.create()[0]
+        self.add_results(item['task_id'])
+        self.db.task.update_one({'_id': ObjectId(item['task_id'])}, {'$set': {'status': 'done'}})
+        self.db.asset_scope.delete_one({'_id': self.scope_id})
+        with patch.object(self.logger, 'exception') as logged_exception, \
+                patch.object(self.logger, 'warning') as logged_warning:
+            self.assertFalse(self.sync(item['task_id'], str(self.scope_id)))
+            logged_exception.assert_not_called()
+            logged_warning.assert_called()
+        task = self.stored(item)
+        self.assertEqual(task['sync_status'], 'error')
+        self.assertIn('不存在', task['sync_error'])
+        self.assertEqual(self.db.asset_site.count_documents({}), 0)
+
+    def test_out_of_scope_sync_failure_keeps_distinct_reason(self):
+        """越界与「资产组不存在」须留下可区分的失败原因，便于用户判断处置方式。"""
+        item = self.create()[0]
+        self.add_results(item['task_id'])
+        self.db.task.update_one({'_id': ObjectId(item['task_id'])}, {'$set': {'status': 'done'}})
+        self.db.asset_scope.update_one({'_id': self.scope_id}, {'$set': {'domain_array': ['other.org']}})
+        self.assertFalse(self.sync(item['task_id'], str(self.scope_id)))
+        task = self.stored(item)
+        self.assertEqual(task['sync_status'], 'error')
+        self.assertIn('不在范围', task['sync_error'])
+        self.assertNotIn('不存在', task['sync_error'])
+
     def test_group_deleted_before_sync_preserves_scan_results_and_status(self):
         item = self.create()[0]
         self.add_results(item['task_id'])
@@ -334,7 +369,8 @@ class HTTPTests(ScopeFixture):
         auth_env = dict(functools=functools, Config=types.SimpleNamespace(AUTH=True), user_login_header=lambda: request.headers.get('Token') == 'fixture-token')
         load_nodes('app/utils/user.py', auth_env, ['auth'])
         errors = types.SimpleNamespace(**{name: {'code': code} for code, name in enumerate([
-            'Success', 'Error', 'TaskTargetIsEmpty', 'NotFoundTask', 'TaskTargetNotInScope', 'TaskIsRunning', 'TaskSyncDealing'], 200)})
+            'Success', 'Error', 'TaskTargetIsEmpty', 'NotFoundTask', 'TaskTargetNotInScope', 'TaskIsRunning', 'TaskSyncDealing',
+            'NotFoundScopeID'], 200)})
         errors.Success = {'code': 200}
         env.update(ns=Namespace('task'), auth=auth_env['auth'], utils=self.utils, ObjectId=ObjectId,
                    conn=self.db.__getitem__, celerytask=types.SimpleNamespace(arl_task=self.queue), logger=self.logger,
