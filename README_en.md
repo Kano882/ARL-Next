@@ -425,8 +425,10 @@ This implements the HTTP status multiselect suggestion in Issue #51. Free-form e
 <br/>
 
 **A:** ARL-Next supports **dynamic live concurrency tuning** without restarting containers:
-- Log in to the web console ➔ Navigate to **"System Settings"**;
-- Adjust **Light Task Concurrency** (Space reconnaissance, single asset updates, WIH leak extraction, data synchronization), **Heavy Task Concurrency** (Domain/IP port scanning, risk cruising, Nuclei / PoC pipelines), and **OSINT Concurrency**; save changes for instant application.
+- Log in to the web console ➔ **"System Settings"** ➔ **"Scanning & Concurrency"** ➔ **"Task Queue Concurrency"** tab;
+- Adjust **Heavy Task Queue Concurrency** (Domain/IP port scanning, risk cruising, Nuclei / PoC pipelines), **Light Task Queue Concurrency** (Space reconnaissance, single asset updates, WIH leak extraction, data synchronization) and **OSINT Concurrency**; save changes for instant application;
+- All three values are **Worker process counts** (typically 1–128) bounded by host memory. The UI derives a recommendation from detected memory and offers one-click fill.
+- ⚠️ To tune the **intra-task DNS brute-force send concurrency** (typically hundreds to thousands), go to **"Scanning & Concurrency"** ➔ **"Advanced Scanning & Environment"**. The two are different metrics — do not use the same magnitude for both.
 </details>
 
 <details>
