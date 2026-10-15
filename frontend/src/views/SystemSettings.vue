@@ -767,7 +767,9 @@ admin123
                     <template #message>
                       <div style="font-size: 13px; line-height: 1.8;">
                         <strong>进程级队列并发</strong>：这里配的是 Celery Worker <strong>进程数</strong>，
-                        决定同时能处理几个任务，每个进程内存上限约 {{ capacityInfo.per_worker_memory_mb || 488 }}MB，受本机可用内存约束（通常 1~128）。
+                        决定同时能处理几个任务。各队列单进程内存上限不同（重任务约 {{ (capacityInfo.queue_memory_caps_mb || {}).heavy || 488 }}MB，
+                        轻任务与 GitHub 约 {{ (capacityInfo.queue_memory_caps_mb || {}).light || 292 }}MB），
+                        推荐值按<strong>最坏情形峰值</strong>校验：即各队列同时逼近各自上限时的合计占用。
                         <br />
                         <strong style="color: #d46b08;">内存较小的机器（如 4GB 及以下）请保持 1</strong>：
                         单个任务在峰值时可增长到进程上限，叠加 MongoDB / Web / Puppeteer 等常驻服务后，
@@ -812,12 +814,26 @@ admin123
                               <span class="arl-recommend-label">推荐值</span>
                               <strong>{{ capacityInfo.heavy_recommended }}</strong>
                               <span class="arl-recommend-basis">
-                                （可用内存 {{ capacityInfo.available_memory_mb }} MB，扣除常驻服务与突发余量后预算 {{ capacityInfo.headroom_mb }} MB）
+                                （可用 {{ capacityInfo.available_memory_mb }} MB，扣除突发余量后预算 {{ capacityInfo.headroom_mb }} MB）
                               </span>
                             </span>
                             <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'heavy')">回填</a-button>
                           </div>
                           <div class="arl-recommend-basis" style="margin-top: 4px;">{{ capacityInfo.basis }}</div>
+                          <a-alert
+                            v-if="capacityInfo.steady_ok === false"
+                            type="error"
+                            show-icon
+                            style="margin-top: 8px; border-radius: 6px;"
+                          >
+                            <template #message>
+                              <span style="font-size: 12px;">
+                                当前可用内存不足以支撑最小配置（各队列各 1 个进程，最坏峰值约
+                                {{ capacityInfo.peak_used_mb }} MB，超出预算 {{ capacityInfo.headroom_mb }} MB）。
+                                系统仍会以最小配置运行，但内存紧张时进程可能被内核回收，建议扩容内存或减少常驻服务。
+                              </span>
+                            </template>
+                          </a-alert>
                         </a-form-item>
                       </a-card>
                     </a-col>
@@ -854,7 +870,7 @@ admin123
                             <span>
                               <span class="arl-recommend-label">推荐值</span>
                               <strong>{{ capacityInfo.light_recommended }}</strong>
-                              <span class="arl-recommend-basis">（与重任务共享同一份内存预算，按 3 : 7 分配）</span>
+                              <span class="arl-recommend-basis">（按峰值模型分配；轻任务单进程上限低于重任务，故可承载更多进程）</span>
                             </span>
                             <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'light')">回填</a-button>
                           </div>
@@ -892,6 +908,44 @@ admin123
                               <span class="arl-recommend-basis">（保持默认，避免触发外网反爬）</span>
                             </span>
                             <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'osint')">回填</a-button>
+                          </div>
+                        </a-form-item>
+                      </a-card>
+                    </a-col>
+                    <a-col :span="12">
+                      <a-card title="🐙 GitHub 监控任务调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #722ed1;">
+                        <a-form-item>
+                          <template #label>
+                            <span>GitHub 监控并发数</span>
+                            <a-tag v-if="runtimePerformance.runtime_github_concurrency !== null" color="purple" style="margin-left: 8px; font-size: 12px;">
+                              实时运行: {{ runtimePerformance.runtime_github_concurrency }} 进程
+                            </a-tag>
+                            <a-tag v-else color="default" style="margin-left: 8px; font-size: 12px;">Worker 离线</a-tag>
+                            <a-popover placement="right">
+                              <template #content>
+                                <div style="max-width: 320px;">
+                                  <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] GitHub 监控任务：</div>
+                                  <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
+                                    <li>代码泄露关键字监控</li>
+                                    <li>CVE / 武器库更新追踪</li>
+                                    <li>黑客动态监控</li>
+                                  </ul>
+                                </div>
+                              </template>
+                              <InfoCircleOutlined style="margin-left: 4px; color: #888; cursor: pointer;" />
+                            </a-popover>
+                          </template>
+                          <a-input-number v-model:value="performanceForm.github_concurrency" :min="1" :max="64" style="width: 100%" />
+                          <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
+                            本队列走独立的 arlgithub 通道，与扫描任务互不阻塞。受 GitHub API 速率限制约束；该队列原先固定为 2 个进程且不随本页配置变化，现已纳入统一治理。
+                          </div>
+                          <div v-if="capacityInfo.github_recommended" class="arl-recommend-row">
+                            <span>
+                              <span class="arl-recommend-label">推荐值</span>
+                              <strong>{{ capacityInfo.github_recommended }}</strong>
+                              <span class="arl-recommend-basis">（按峰值模型分配，单进程上限 {{ (capacityInfo.queue_memory_caps_mb || {}).github || 292 }}MB）</span>
+                            </span>
+                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'github')">回填</a-button>
                           </div>
                         </a-form-item>
                       </a-card>
@@ -1756,7 +1810,8 @@ const isSecurityDirty = computed(() =>
 const isPerformanceDirty = computed(() => (
   performanceForm.value.celery_heavy_concurrency !== performanceBaseline.value.celery_heavy_concurrency
   || performanceForm.value.celery_light_concurrency !== performanceBaseline.value.celery_light_concurrency
-  || performanceForm.value.osint_concurrency !== performanceBaseline.value.osint_concurrency));
+  || performanceForm.value.osint_concurrency !== performanceBaseline.value.osint_concurrency
+  || performanceForm.value.github_concurrency !== performanceBaseline.value.github_concurrency));
 
 // 全局是否存在未保存改动（含安全策略与性能配置两个独立接口）
 const hasUnsavedChanges = computed(() => (
@@ -2875,8 +2930,10 @@ const fetchPerformanceConfig = async () => {
       performanceForm.value.celery_heavy_concurrency = res.data.celery_heavy_concurrency || 1;
       performanceForm.value.celery_light_concurrency = res.data.celery_light_concurrency || 1;
       performanceForm.value.osint_concurrency = res.data.osint_concurrency || 1;
+      performanceForm.value.github_concurrency = res.data.github_concurrency || 1;
       runtimePerformance.value.runtime_heavy_concurrency = res.data.runtime_heavy_concurrency ?? null;
       runtimePerformance.value.runtime_light_concurrency = res.data.runtime_light_concurrency ?? null;
+      runtimePerformance.value.runtime_github_concurrency = res.data.runtime_github_concurrency ?? null;
       performanceBaseline.value = cloneDeep(performanceForm.value);
     } else {
       message.error(res.message || '获取性能配置失败');
@@ -2895,7 +2952,8 @@ const savePerformanceConfig = async () => {
     const res = await request.post('/api/system_config/performance', {
       celery_heavy_concurrency: performanceForm.value.celery_heavy_concurrency,
       celery_light_concurrency: performanceForm.value.celery_light_concurrency,
-      osint_concurrency: performanceForm.value.osint_concurrency
+      osint_concurrency: performanceForm.value.osint_concurrency,
+      github_concurrency: performanceForm.value.github_concurrency
     });
     
     if (res.code === 200) {
