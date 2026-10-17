@@ -235,6 +235,11 @@ try:
         _parent_path = os.path.join(os.path.dirname(basedir), 'config.yaml')
         if os.path.isfile(_parent_path):
             _config_path = _parent_path
+    if not os.path.isfile(_config_path):
+        # 兜底入库模板：本地未放运行时 config.yaml 时仍可启动（仅默认口令/空 KEY）
+        _example_path = os.path.join(os.path.dirname(basedir), 'config.yaml.example')
+        if os.path.isfile(_example_path):
+            _config_path = _example_path
     with open(_config_path) as f:
         y = yaml.load(f, Loader=yaml.SafeLoader)
 

@@ -6,6 +6,8 @@
 .env
 
 # 忽略后端实际生效的配置文件
+# backend/config.yaml 为运行时实效配置（本地可含真实凭据），模板见 config.yaml.example
+backend/config.yaml
 backend/config-docker.yaml
 backend/app/config.yaml
 

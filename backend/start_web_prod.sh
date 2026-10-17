@@ -13,7 +13,12 @@ source /code/backend/.venv-docker/bin/activate
 # (可选) 在启动前用 sed 临时将 config.yaml 中的 127.0.0.1 替换为容器内部的网络别名
 # 这样你原本的代码完全不用改！
 # 确保应用读到正确的配置文件
-cp /code/backend/config.yaml /tmp/config.yaml.tmp
+# 配置源优先级：运行时 config.yaml > 入库模板 config.yaml.example
+CONFIG_SRC=/code/backend/config.yaml
+if [ ! -f "$CONFIG_SRC" ]; then
+    CONFIG_SRC=/code/backend/config.yaml.example
+fi
+cp "$CONFIG_SRC" /tmp/config.yaml.tmp
 sed -i 's/127.0.0.1:27018/mongodb:27017/g' /tmp/config.yaml.tmp
 sed -i 's/127.0.0.1:5673/rabbitmq:5672/g' /tmp/config.yaml.tmp
 cp -f /tmp/config.yaml.tmp /code/backend/app/config.yaml
