@@ -74,7 +74,7 @@ The task list distinguishes synchronization after completion, queued synchroniza
 
 `POST /api/task/sync/` supports finished domain and IP tasks with `task_id` and `scope_id`. Full scope validation still applies. The request records a queued state before dispatch and records dispatch errors. Both automatic and manual synchronization record `synced_scope_id` / `synced_scope_name` on success or `sync_error` on failure, without automatic retries.
 
-This implements the task asset-group selection request in Issue #50. Nuclei YAML/ZIP import already exists in the main branch's PoC management page. Update the frontend, API, and Worker together.
+Task creation supports scoping by asset group; Nuclei YAML/ZIP import is provided by the PoC management page and is not duplicated here.
 
 ### Best Practices for Task Deletion
 

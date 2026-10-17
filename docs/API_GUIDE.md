@@ -74,7 +74,7 @@
 
 `POST /api/task/sync/` 支持已结束的域名和 IP 任务，参数为 `task_id`、`scope_id`；仍需完整范围校验。同步任务派发前记录等待状态，派发失败记录原因。自动同步和手动同步成功后记录 `synced_scope_id` / `synced_scope_name`，失败时记录 `sync_error`，不自动重试。
 
-此改动实现 Issue #50 的任务选择资产组需求。Nuclei YAML/ZIP 导入已由主线的 PoC 管理页面提供，本改动不重复实现。前端、API 和 Worker 需一起更新。
+任务创建支持按资产组圈定范围；Nuclei YAML/ZIP 导入由 PoC 管理页提供，此处不再重复实现。
 
 ### 任务生命周期与删除最佳实践
 
