@@ -52,6 +52,11 @@ fingerprint_new/
 server.txt
 lab/
 apikey.txt
+# GeoIP 数据库不入库（约 88MB）：部署时由 tools/fetch_geoip.py 按需获取并校验后装入命名卷 arl_geoip
+# 版本声明 GEOIP_VERSIONS.json 保持入库；无 MAXMIND_LICENSE_KEY 时 GeoLite2 跳过，服务降级运行
+backend/GeoLite2/*.mmdb
+backend/GeoLite2/*.xdb
+!backend/GeoLite2/GEOIP_VERSIONS.json
 backend/ARL-NPoC/build/
 backend/ARL-NPoC/xing.egg-info/
 /tmp.txt
