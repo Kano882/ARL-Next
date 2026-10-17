@@ -8,9 +8,7 @@
   # ARL-Next
   **Modern Attack Surface Reconnaissance & Vulnerability Monitoring Platform**
 
-  *Modern Attack Surface Reconnaissance & Asset Intelligence Platform*
-
-  <p><b>Enterprise Asset Correlation · Asynchronous Decoupled Scheduling · Native MCP Protocol Integration · Containerized Out-of-the-Box Deployment</b></p>
+  <p><b>Enterprise Asset Correlation · Async Decoupled Scheduling · Native MCP Support · Docker-Ready Deployment</b></p>
 
   <p>
     <a href="https://github.com/owl234/ARL-Next/releases"><img src="https://img.shields.io/github/v/release/owl234/ARL-Next?style=flat-square&color=blue" alt="Release"></a>
@@ -35,6 +33,7 @@
     <a href="./docs/API_GUIDE_en.md"><b>🔌 API Guide</b></a> •
     <a href="./mcp-server/README_en.md"><b>🤖 MCP Guide</b></a> •
     <a href="./CHANGELOG.md"><b>📜 Changelog</b></a> •
+    <a href="https://github.com/owl234/ARL-Next/discussions"><b>💬 Discussions</b></a> •
     <a href="./LICENSE"><b>📄 License</b></a>
   </p>
 </div>
@@ -45,8 +44,8 @@
 
 ## 💡 What is ARL-Next?
 
-> **ARL-Next** is an asset reconnaissance and attack surface management platform re-engineered and continuously evolved from the classic open-source project ARL (Asset Reconnaissance Lighthouse).
-> Addressing engineering bottlenecks in large-scale scanning scenarios—such as task queue congestion, continuous memory accumulation during prolonged execution, and legacy dependency debt—the system implements microservice decoupling and asynchronous task isolation. It aligns with modern runtime environments and mapping toolchains while integrating the standard **Model Context Protocol (MCP)** to facilitate automated asset profiling and collaborative AI security workflows.
+> **ARL-Next** is an asset mapping platform re-engineered from the classic open-source project ARL (Asset Reconnaissance Lighthouse).
+> Addressing task-queue congestion in large-scale scans, memory growth during prolonged runs, and outdated dependencies, it uses microservice decoupling with async task isolation, upgraded runtimes and mapping toolchains, and a native **Model Context Protocol (MCP)** server for automated asset profiling and AI-assisted analysis.
 
 ---
 

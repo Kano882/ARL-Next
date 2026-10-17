@@ -1,0 +1,37 @@
+name: 问题反馈
+description: 报告运行异常、扫描故障或界面问题
+labels: [bug]
+body:
+  - type: textarea
+    id: env
+    attributes:
+      label: 运行环境
+      description: 版本号见 version.txt，部署方式二选一
+      placeholder: |
+        版本：v1.4.1
+        部署：docker-compose / 源码部署
+        浏览器（如为前端问题）：Chrome 126
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      description: 给出可重复的最简操作路径
+      placeholder: |
+        1. 进入【任务管理】新建域名任务，目标 example.com
+        2. 下发后任务状态长期停留在排队中
+        3. Worker 日志见下
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 关键日志
+      description: 贴 scheduler / worker 相关片段，注意脱敏（Token、IP、域名用占位符替换）
+      render: shell
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+      placeholder: 任务正常进入进行中并产出资产

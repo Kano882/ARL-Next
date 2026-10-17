@@ -1,0 +1,28 @@
+name: 功能建议
+description: 提出新功能、协议集成或体验优化建议
+labels: [enhancement]
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+      description: 你在什么业务动作下遇到缺口
+      placeholder: 需要把资产画像同步到内部 CMDB，当前只能手动导出
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望方案
+      placeholder: 新增 /api/asset_scope/export 接口，支持按 scope_id 批量导出
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 涉及范围
+      options:
+        - 前端
+        - 后端接口
+        - 调度/Worker
+        - MCP 协议
+        - 部署/文档
+      default: 0
