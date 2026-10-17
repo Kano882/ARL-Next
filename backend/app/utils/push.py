@@ -415,7 +415,8 @@ def dingding_send(msg, access_token, secret, msgtype="text", title="灯塔消息
             "text": msg
         }
     }
-    conn = http_req(ding_url, method='post', json=send_json)
+    # 钉钉请求携带 access_token 与加签 secret，必须校验服务端证书。
+    conn = http_req(ding_url, method='post', json=send_json, verify=True)
     return conn.json()
 
 
@@ -496,7 +497,8 @@ def feishu_send(msg, webhook_url, secret, title="灯塔消息推送"):
             }
         }
     }
-    conn = http_req(webhook_url, method='post', json=send_data)
+    # 飞书请求携带 webhook 签名密钥，必须校验服务端证书。
+    conn = http_req(webhook_url, method='post', json=send_data, verify=True)
     return conn.json()
 
 
@@ -507,7 +509,8 @@ def wx_work_send(msg, webhook_url):
             "content": msg
         }
     }
-    conn = http_req(webhook_url, method='post', json=send_data)
+    # 企业微信 webhook 携带敏感凭据，必须校验服务端证书。
+    conn = http_req(webhook_url, method='post', json=send_data, verify=True)
     return conn.json()
 
 

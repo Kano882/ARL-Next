@@ -1,8 +1,11 @@
-"""使用本地 HTTPS 服务验证 Telegram 凭据发送前的证书检查。
+"""使用本地 HTTPS 服务验证凭据发送前的证书检查。
 
 仅依赖 requests、标准库和 openssl；不连接 Telegram、MongoDB 或消息队列。
 """
 import ast
+import base64
+import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -12,6 +15,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import urllib.parse
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -110,10 +114,17 @@ class TelegramTLSTests(unittest.TestCase):
         def local_request(url, method='get', **kwargs):
             return self.http_req(self.endpoint, method=method, **kwargs)
 
-        sender = load_definitions('app/utils/push.py', {'telegram_send'}, {
+        sender = load_definitions('app/utils/push.py', {
+            'dingding_send', 'feishu_send', 'wx_work_send', 'telegram_send',
+        }, {
             'http_req': local_request, 'logger': Mock(),
+            'time': time, 'hmac': hmac, 'hashlib': hashlib,
+            'base64': base64, 'urllib': urllib,
         })
         self.telegram_send = sender['telegram_send']
+        self.dingding_send = sender['dingding_send']
+        self.feishu_send = sender['feishu_send']
+        self.wx_work_send = sender['wx_work_send']
 
     def test_untrusted_certificate_blocks_notification(self):
         result = self.telegram_send('test message', 'test-token', 'test-chat')
@@ -137,6 +148,28 @@ class TelegramTLSTests(unittest.TestCase):
         result = self.http_req(self.endpoint, method='post', json={'scan': 'fixture'})
         self.assertEqual(result.json(), {'ok': True})
         self.assertEqual(self.received, [{'scan': 'fixture'}])
+
+    def test_dingding_untrusted_certificate_blocks_notification(self):
+        with self.assertRaises(Exception):
+            self.dingding_send('test message', 'test-token', 'test-secret')
+        self.assertEqual(self.received, [])
+
+    def test_feishu_untrusted_certificate_blocks_notification(self):
+        with self.assertRaises(Exception):
+            self.feishu_send('test message', 'https://localhost/webhook', 'test-secret')
+        self.assertEqual(self.received, [])
+
+    def test_wx_work_untrusted_certificate_blocks_notification(self):
+        with self.assertRaises(Exception):
+            self.wx_work_send('test message', 'https://localhost/webhook')
+        self.assertEqual(self.received, [])
+
+    def test_trusted_certificate_delivers_domestic_notifications(self):
+        with patch.dict(os.environ, {'REQUESTS_CA_BUNDLE': self.cert}):
+            self.dingding_send('test message', 'test-token', 'test-secret')
+            self.feishu_send('test message', 'https://localhost/webhook', 'test-secret')
+            self.wx_work_send('test message', 'https://localhost/webhook')
+        self.assertEqual(len(self.received), 3)
 
 
 if __name__ == '__main__':
