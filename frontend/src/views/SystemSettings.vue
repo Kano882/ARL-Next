@@ -1295,6 +1295,16 @@ admin123
                 <a-checkbox v-model:checked="forceUpdateMode">强制显示更新按钮</a-checkbox>
               </div>
             </div>
+
+            <!-- 开源仓库入口：纯文本外链，不嵌外部 badge/iframe，保证离线内网环境无破图 -->
+            <a-divider style="margin: 20px 0 12px;" />
+            <div style="text-align: center; font-size: 12px; color: var(--arl-text-color); opacity: 0.55;">
+              <GithubOutlined style="margin-right: 4px;" />
+              <span>开源仓库：</span>
+              <a href="https://github.com/owl234/ARL-Next" target="_blank" rel="noopener noreferrer">github.com/owl234/ARL-Next</a>
+              <a-divider type="vertical" />
+              <a href="https://github.com/owl234/ARL-Next/releases" target="_blank" rel="noopener noreferrer">版本发布动态</a>
+            </div>
           </a-card>
         </div>
       </a-tab-pane>
@@ -1364,7 +1374,7 @@ admin123
 
 <script setup>
 defineOptions({ name: 'SystemSettings' });
-import { InfoCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue';
+import { InfoCircleOutlined, ExclamationCircleOutlined, GithubOutlined } from '@ant-design/icons-vue';
 import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, watch, createVNode } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
