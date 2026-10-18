@@ -136,7 +136,7 @@
     <a-table
         :sticky="stickyConfig"
         v-show="activeTab !== 'syslog'"
-        :row-selection="canDeleteAssets ? { selectedRowKeys: selectedRowKeys, onChange: onSelectChange } : null"
+        :row-selection="canSelectAssets ? { selectedRowKeys: selectedRowKeys, onChange: onSelectChange } : null"
         :loading="loading"
         :dataSource="dataSource"
         :columns="columns"
@@ -1097,7 +1097,9 @@ const tabConfig = reactive({
     ]
   },
   url: {
+    // 任务视图查询任务结果集合；全局查看与同页其他页签一致，使用资产组集合。
     url: '/url/',
+    globalUrl: '/asset_url/',
     deleteUrl: '/url/delete/',
     exportUrl: '/url/export/',
     exportName: 'URL信息',
@@ -1180,6 +1182,7 @@ const tabConfig = reactive({
   },
   cip: {
     url: '/cip/',
+    globalUrl: '/asset_cip/',
     deleteUrl: '/cip/delete/',
     exportUrl: '/cip/export/',
     exportName: 'C段',
@@ -1217,6 +1220,7 @@ const tabConfig = reactive({
   },
   stat_finger: {
     url: '/stat_finger/',
+    globalUrl: '/asset_stat_finger/',
     searchFields: [
       { 
         label: 'finger', 
@@ -1265,10 +1269,13 @@ const tabConfig = reactive({
   }
 });
 
-// 指纹统计及全局 C 段均为聚合视图，没有可用于删除的记录 ID。
-const canDeleteAssets = computed(() => !!tabConfig[effectiveTab.value]?.deleteUrl && !(
-  effectiveTab.value === 'cip' && !taskId.value
-));
+// 任务视图查询任务结果集合；全局查看与同页其他页签一致，使用资产组集合。
+const resolveAssetEndpoint = (config) => (taskId.value ? config?.url : config?.globalUrl || config?.url);
+
+// 任务集合中的记录可按 ID 删除；指纹统计为聚合结果，全局视图为资产组集合。
+const canDeleteAssets = computed(() => !!taskId.value && !!tabConfig[effectiveTab.value]?.deleteUrl);
+const canSelectAssets = computed(() => canDeleteAssets.value ||
+  (!!taskId.value && effectiveTab.value === 'stat_finger'));
 const getAssetRowKey = (record) => record._id || record.id || (
   effectiveTab.value === 'stat_finger' ? record.name : undefined
 );
@@ -1306,7 +1313,7 @@ const fetchData = async (isPolling = false) => {
 
     Object.assign(params, buildAssetFilterParams(searchForm.value, config.searchFields));
 
-    const res = await request.get(config.url, { params });
+    const res = await request.get(resolveAssetEndpoint(config), { params });
     // 竞态防御：若响应到达时 Tab 已切换，丢弃过期响应
     if (effectiveTab.value !== currentReqTab) return;
 

@@ -41,7 +41,7 @@ function fixture(tab, task = 'task-a') {
     Blob, console, window: { URL: { createObjectURL: () => 'fixture', revokeObjectURL() {} } },
     document: { createElement: () => ({ click() {} }), body: { appendChild() {}, removeChild() {} } }
   });
-  for (const name of ['tabConfig', 'effectiveTab', 'canDeleteAssets', 'getAssetRowKey', 'fetchData', 'handleExport', 'handleBatchDelete']) {
+  for (const name of ['tabConfig', 'resolveAssetEndpoint', 'effectiveTab', 'canDeleteAssets', 'canSelectAssets', 'getAssetRowKey', 'fetchData', 'handleExport', 'handleBatchDelete']) {
     vm.runInContext(`var ${name} = ${bindings[name]};`, context);
   }
   return { context, descriptor, calls, confirmations, notices,
@@ -85,19 +85,28 @@ test('URL export preserves the list status and title filters', async () => {
   }
 });
 
-test('global URL and C-segment views keep task-result endpoints and omit task ID', async () => {
-  for (const tab of ['url', 'cip']) {
+test('global URL, C-segment and fingerprint views read asset-group collections without task scope', async () => {
+  const expected = { url: '/asset_url/', cip: '/asset_cip/', stat_finger: '/asset_stat_finger/' };
+  for (const [tab, endpoint] of Object.entries(expected)) {
     const page = fixture(tab, '');
     await page.invoke('fetchData');
-    await page.invoke('handleExport');
-    assert.deepEqual(page.calls.map(call => call.url), [`/${tab}/`, `/${tab}/export/`]);
-    assert.ok(page.calls.every(call => !('task_id' in call.params)));
+    assert.equal(page.calls[0].url, endpoint);
+    assert.ok(!('task_id' in page.calls[0].params));
+    assert.equal(page.context.canDeleteAssets.value, false);
+    assert.equal(page.context.canSelectAssets.value, false);
+    page.invoke('handleBatchDelete');
+    assert.equal(page.confirmations.length, 0);
+    assert.equal(page.calls.length, 1);
   }
+  const exportPage = fixture('url', '');
+  await exportPage.invoke('handleExport');
+  assert.equal(exportPage.calls[0].url, '/url/export/');
 });
 
 test('aggregated fingerprint statistics have stable keys and cannot dispatch deletion', () => {
   const page = fixture('stat_finger');
   assert.equal(page.context.canDeleteAssets.value, false);
+  assert.equal(page.context.canSelectAssets.value, true);
   assert.equal(page.context.getAssetRowKey({ name: 'nginx', cnt: 3 }), 'nginx');
   assert.equal(page.context.getAssetRowKey({ _id: 'real-id', name: 'nginx' }), 'real-id');
   page.invoke('handleBatchDelete');
@@ -105,7 +114,7 @@ test('aggregated fingerprint statistics have stable keys and cannot dispatch del
   assert.equal(page.calls.length, 0);
   assert.ok(page.notices.some(notice => notice.key === 'warning'));
   assert.ok(page.descriptor.template.content.includes('v-if="canDeleteAssets"'));
-  assert.ok(page.descriptor.template.content.includes(':row-selection="canDeleteAssets ?'));
+  assert.ok(page.descriptor.template.content.includes(':row-selection="canSelectAssets ?'));
 });
 
 test('switching back to a deletable tab restores selection and deletion capability', () => {

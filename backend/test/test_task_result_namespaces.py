@@ -113,7 +113,8 @@ class TaskResultTests(unittest.TestCase):
             for ids in ([], [first, 'invalid'], [first, ''], ['invalid', first]):
                 with self.subTest(collection=collection, ids=ids):
                     response = self.delete(collection, ids).get_json()
-                    self.assertEqual(response['code'], 999)
+                    self.assertEqual(response['code'], 400)
+                    self.assertEqual(response['data'], {'count': len(ids)})
                     self.assertEqual(self.db[collection].count_documents({}), 2)
 
     def test_delete_requires_authentication_and_id_list(self):

@@ -187,8 +187,9 @@ class DeleteARLCIP(ARLResource):
         id_list = args.get('_id') or []
         # 先校验整批，避免无效 ID 导致前面的记录已被删除。
         if not id_list or any(not ObjectId.is_valid(value) for value in id_list):
+            # build_ret 的报错消息会拼接非字符串字段，列表 ID 直接放进消息，data 中仅返回数量。
             return utils.build_ret(
-                {"code": 999, "message": "请提供有效的记录 ID 列表"}, {'_id': id_list}
+                {"code": 400, "message": "请提供有效的记录 ID 列表"}, {'count': len(id_list)}
             )
         result = utils.conn_db('cip').delete_many({'_id': {'$in': [ObjectId(value) for value in id_list]}})
         return utils.build_ret(ErrorMsg.Success, {'_id': id_list, 'deleted_count': result.deleted_count})
