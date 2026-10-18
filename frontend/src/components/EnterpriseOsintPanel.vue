@@ -8,13 +8,13 @@
           <a-tag v-if="taskTarget && taskTarget.startsWith('TYC_')" color="cyan">{{ taskTarget }}</a-tag>
           <a-tag v-if="taskTypeLabel" color="blue">{{ taskTypeLabel }}</a-tag>
           <a-tag v-if="taskStatusLabel" :color="taskStatusColor">{{ taskStatusLabel }}</a-tag>
-          <a-badge v-if="hasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+          <a-badge v-if="hasIncrement" :count="assetText('tasks.newAssets')" class="asset-increment-badge" />
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <a-tooltip :title="isUpdating ? '主体资产正在后台更新测绘中...' : '重新抓取企业最新备案、APP与投资数据，比对发现增量资产'">
+          <a-tooltip :title="isUpdating ? assetText('assets.organizationAssetsAreBeingUpdatedInTheBackground') : assetText('assets.fetchTheLatestIcpRecordsAppsAndInvestment')">
             <a-button type="primary" size="small" :loading="refreshLoading || isUpdating" :disabled="isUpdating" @click="handleRefreshTask">
               <template #icon><sync-outlined :spin="refreshLoading || isUpdating" /></template>
-              {{ isUpdating ? '正在更新主体...' : '更新主体资产' }}
+              {{ isUpdating ? assetText('assets.updatingOrganization') : assetText('assets.updateOrganizationAssets') }}
             </a-button>
           </a-tooltip>
         </div>
@@ -33,10 +33,10 @@
         <div class="updating-banner-content">
           <sync-outlined :spin="true" class="updating-spin-icon" />
           <span class="updating-banner-text">
-            <b>主体资产测绘更新中</b>：后台正在抓取企业最新工商、备案与生态资产<span v-if="updateElapsed > 0">（已执行 {{ updateElapsed }} 秒）</span>，当前视图完整保留历史快照。测绘完成后将自动切换并比对增量资产。
+            <b>{{ assetText('assets.updatingOrganizationAssetDiscovery') }}</b>{{ assetText('assets.retrievingTheLatestCompanyRecordsIcpRecordsAnd') }}<span v-if="updateElapsed > 0">{{ assetText('assets.elapsed') }} {{ updateElapsed }} {{ assetText('assets.seconds') }}</span>{{ assetText('assets.theExistingSnapshotRemainsAvailableTheViewWill') }}
           </span>
         </div>
-        <a-tag color="processing" class="updating-banner-tag">正在比对增量</a-tag>
+        <a-tag color="processing" class="updating-banner-tag">{{ assetText('assets.comparingNewAssets') }}</a-tag>
       </div>
 
       <!-- 维度 Tabs 导航 (微徽标胶囊风格) -->
@@ -54,7 +54,7 @@
         <a-tab-pane key="log">
           <template #tab>
             <span class="log-tab-pill">
-              <code-outlined /> 测绘日志
+              <code-outlined /> {{ assetText('assets.discoveryLogs') }}
               <span v-if="taskRecord.status === 'running'" class="log-pulse-dot"></span>
             </span>
           </template>
@@ -66,12 +66,12 @@
         <!-- 业务操作行 -->
         <div class="toolbar-row">
           <div class="toolbar-left">
-            <span class="toolbar-title-text">{{ currentTabLabel }}维度</span>
+            <span class="toolbar-title-text">{{ assetText('assets.categoryHeading', { category: currentTabLabel }) }}</span>
             <span class="toolbar-meta-count">
-              共 <b class="font-mono">{{ activeTab === 'log' ? syslogList.length : (queryCounts[activeTab] || pagination.total || 0) }}</b> 条记录
+              {{ assetText('assets.recordCount', { count: activeTab === 'log' ? syslogList.length : (queryCounts[activeTab] || pagination.total || 0) }) }}
             </span>
             <a-tag v-if="hasIncrement && activeTab !== 'log'" color="success" class="osint-mini-tag">
-              发现增量
+              {{ assetText('assets.newAssetsFound') }}
             </a-tag>
           </div>
 
@@ -80,32 +80,32 @@
               <!-- 扩充本组按钮 (仅在 Web 备案维度且存在未纳管域名时呈现) -->
               <a-popconfirm
                 v-if="props.scopeId && activeTab === 'web' && untrackedWebDomains.length > 0"
-                :title="`确认将发现的 ${untrackedWebDomains.length} 个未纳管域名扩充至当前资产组？`"
-                ok-text="确认扩充"
-                cancel-text="取消"
+                :title="assetText('assets.addAllDiscoveredUnmanagedDomainsCountToThis', { count: untrackedWebDomains.length })"
+                :ok-text="assetText('assets.addDomains')"
+                :cancel-text="assetText('tasks.cancel')"
                 @confirm="handleOneClickExpandScope"
               >
                 <a-button type="primary" size="small" :loading="expandingScopeLoading" style="background: #52c41a; border-color: #52c41a;">
                   <template #icon><plus-circle-outlined /></template>
-                  扩充本组 (+{{ untrackedWebDomains.length }})
+                  {{ assetText('assets.addNewDomainCount', { count: untrackedWebDomains.length }) }}
                 </a-button>
               </a-popconfirm>
 
-              <a-tooltip :title="isUpdating ? '主体资产正在后台更新测绘中...' : '重新抓取企业最新备案、APP与投资数据，比对发现增量资产'">
+              <a-tooltip :title="isUpdating ? assetText('assets.organizationAssetsAreBeingUpdatedInTheBackground') : assetText('assets.fetchTheLatestIcpRecordsAppsAndInvestment')">
                 <a-button type="primary" size="small" :loading="refreshLoading || isUpdating" :disabled="isUpdating" @click="handleRefreshTask">
                   <template #icon><sync-outlined :spin="refreshLoading || isUpdating" /></template>
-                  {{ isUpdating ? '正在更新主体...' : '更新主体资产' }}
+                  {{ isUpdating ? assetText('assets.updatingOrganization') : assetText('assets.updateOrganizationAssets') }}
                 </a-button>
               </a-tooltip>
-              <a-tooltip title="更换当前资产组绑定的企业主体并重新拉取全域资产">
+              <a-tooltip :title="assetText('assets.changeTheOrganizationLinkedToThisGroupAnd')">
                 <a-button size="small" @click="emit('openBind')">
                   <template #icon><link-outlined /></template>
-                  重新绑定
+                  {{ assetText('assets.changeOrganization') }}
                 </a-button>
               </a-tooltip>
               <a-button size="small" :loading="exportLoading" @click="handleExport">
                 <template #icon><download-outlined /></template>
-                导出当前维度
+                {{ assetText('assets.exportCurrentCategory') }}
               </a-button>
 
               <!-- 高级筛选折叠展开切换按钮 -->
@@ -117,7 +117,7 @@
                 @click="isAdvancedFilterOpen = !isAdvancedFilterOpen"
               >
                 <template #icon><filter-outlined /></template>
-                {{ isAdvancedFilterOpen ? '收起筛选' : '高级筛选' }}
+                {{ isAdvancedFilterOpen ? assetText('tasks.hideFilters') : assetText('tasks.advancedFilters') }}
                 <a-badge
                   v-if="activeFilterCount > 0"
                   :count="activeFilterCount"
@@ -129,10 +129,10 @@
             </template>
             <template v-else>
               <a-tag :color="taskStatusColor">{{ taskStatusLabel }}</a-tag>
-              <span v-if="taskRecord.status === 'running'" class="log-polling-hint">(3秒轮询中)</span>
+              <span v-if="taskRecord.status === 'running'" class="log-polling-hint">{{ assetText('assets.pollingEvery3Seconds') }}</span>
               <a-button size="small" :loading="logLoading" @click="() => fetchLogs(true)">
                 <template #icon><sync-outlined :spin="logLoading" /></template>
-                刷新日志
+                {{ assetText('assets.refreshLogs') }}
               </a-button>
             </template>
           </div>
@@ -141,21 +141,21 @@
         <!-- 直接平铺的紧凑栅格筛选卡片 (可折叠) -->
         <transition name="fade-slide">
           <div v-show="isAdvancedFilterOpen" v-if="activeTab !== 'log' && currentSearchFields.length" class="osint-filter-card">
-          <a-form :model="searchForm" class="filter-grid-form">
+          <a-form :label-wrap="true" :model="searchForm" class="filter-grid-form">
             <a-row :gutter="[12, 6]">
               <a-col
                 v-for="field in currentSearchFields"
                 :key="field.key"
-                :xs="24" :sm="12" :md="8" :lg="6"
+                :xs="24" :sm="12" :md="assetLocale === 'en-US' ? 12 : 8" :lg="assetLocale === 'en-US' ? 8 : 6"
               >
                 <div class="filter-field-cell">
-                  <span class="filter-field-label" :title="field.label">{{ field.label }}</span>
+                  <span class="filter-field-label" :class="{ 'filter-field-label-en': assetLocale === 'en-US' }" :title="field.label">{{ field.label }}</span>
                   <div class="filter-field-widget">
                     <!-- 下拉选择 -->
                     <a-select
                       v-if="field.type === 'select'"
                       v-model:value="searchForm[field.key]"
-                      :placeholder="`请选择${field.label}`"
+                      :placeholder="assetText('tasks.selectField', { field: field.label })"
                       style="width: 100%;"
                       size="small"
                       allowClear
@@ -171,7 +171,7 @@
                     >
                       <a-input
                         v-model:value="searchForm[field.key]"
-                        :placeholder="`请输入${field.label}`"
+                        :placeholder="assetText('tasks.enterField', { field: field.label })"
                         :bordered="false"
                         size="small"
                         class="operator-text-input"
@@ -198,7 +198,7 @@
                     <a-input
                       v-else
                       v-model:value="searchForm[field.key]"
-                      :placeholder="`请输入${field.label}`"
+                      :placeholder="assetText('tasks.enterField', { field: field.label })"
                       style="width: 100%;"
                       size="small"
                       allowClear
@@ -218,18 +218,18 @@
               <div class="filter-badge-status">
                 <template v-if="activeFilterCount > 0">
                   <span class="active-indicator-dot"></span>
-                  <span>已应用 <b class="font-mono" style="color: var(--arl-theme-color);">{{ activeFilterCount }}</b> 项筛选条件</span>
+                  <span>{{ assetText('assets.filtersApplied', { count: activeFilterCount }) }}</span>
                 </template>
-                <span v-else class="filter-idle-text">支持回车或点击放大镜图标快速检索</span>
+                <span v-else class="filter-idle-text">{{ assetText('assets.pressEnterOrClickTheSearchIconTo') }}</span>
               </div>
               <div class="filter-action-btns">
                 <a-button size="small" @click="resetSearch">
                   <template #icon><redo-outlined /></template>
-                  重 置
+                  {{ assetText('tasks.reset') }}
                 </a-button>
                 <a-button type="primary" size="small" @click="onSearch">
                   <template #icon><search-outlined /></template>
-                  查 询
+                  {{ assetText('tasks.search') }}
                 </a-button>
               </div>
             </div>
@@ -272,7 +272,7 @@
                 {{ record.domain || record.ym }} <export-outlined style="font-size: 11px;" />
               </a>
               <span v-else>-</span>
-              <a-tooltip title="复制域名" v-if="record.domain || record.ym">
+              <a-tooltip :title="assetText('assets.copyDomain')" v-if="record.domain || record.ym">
                 <a-button type="text" size="small" style="padding: 0 4px; height: 22px;" @click.stop="handleCopyText(record.domain || record.ym)">
                   <copy-outlined style="font-size: 12px; opacity: 0.65;" />
                 </a-button>
@@ -282,12 +282,12 @@
 
           <!-- 纳管状态 -->
           <template v-else-if="column.key === 'managedStatus'">
-            <a-tag v-if="!props.scopeId" color="default" style="font-size: 11px;">未关联组</a-tag>
+            <a-tag v-if="!props.scopeId" color="default" class="asset-small-label">{{ assetText('assets.noGroupLinked') }}</a-tag>
             <a-tag v-else-if="isDomainManaged(record)" color="success" style="font-size: 11px;">
-              <check-circle-outlined /> 已纳管
+              <check-circle-outlined /> {{ assetText('tasks.managed') }}
             </a-tag>
             <a-tag v-else color="orange" style="font-size: 11px;">
-              <plus-circle-outlined /> 未纳管
+              <plus-circle-outlined /> {{ assetText('assets.unmanaged') }}
             </a-tag>
           </template>
 
@@ -298,7 +298,7 @@
                 {{ getAssetHomeUrl(record) }} <export-outlined style="font-size: 11px;" />
               </a>
               <span v-else>-</span>
-              <a-tooltip title="复制网址" v-if="getAssetHomeUrl(record)">
+              <a-tooltip :title="assetText('assets.copyUrl')" v-if="getAssetHomeUrl(record)">
                 <a-button type="text" size="small" style="padding: 0 4px; height: 22px;" @click.stop="handleCopyText(getAssetHomeUrl(record))">
                   <copy-outlined style="font-size: 12px; opacity: 0.65;" />
                 </a-button>
@@ -309,7 +309,7 @@
           <!-- 微博主页外链 -->
           <template v-else-if="column.key === 'href'">
             <a v-if="record.href" :href="record.href" target="_blank" rel="noopener noreferrer" style="color: var(--arl-theme-color);">
-              访问微博 <export-outlined style="font-size: 11px;" />
+              {{ assetText('assets.openWeibo') }} <export-outlined class="asset-small-label" />
             </a>
             <span v-else>-</span>
           </template>
@@ -320,10 +320,10 @@
               <template #content>
                 <div style="text-align: center; padding: 4px;">
                   <img :src="record.codeImg" style="width: 150px; height: 150px; display: block;" />
-                  <span style="font-size: 12px; color: #8c8c8c; margin-top: 4px; display: block;">微信扫码关注</span>
+                  <span class="asset-action-hint">{{ assetText('assets.scanWithWechatToFollow') }}</span>
                 </div>
               </template>
-              <a-tag color="blue" style="cursor: pointer;"><qrcode-outlined /> 查看二维码</a-tag>
+              <a-tag color="blue" class="asset-clickable"><qrcode-outlined /> {{ assetText('assets.viewQrCode') }}</a-tag>
             </a-popover>
             <span v-else style="color: #bfbfbf;">-</span>
           </template>
@@ -401,7 +401,7 @@
 
           <!-- 原始 JSON 抽屉 -->
           <template v-else-if="column.key === 'raw'">
-            <a-tooltip title="查看原始 JSON 数据" placement="top">
+            <a-tooltip :title="assetText('assets.viewRawJsonData')" placement="top">
               <a-button type="text" size="small" class="json-icon-btn" @click="openRawDrawer(record)">
                 <code-outlined />
               </a-button>
@@ -416,14 +416,14 @@
         <!-- 标准表格空状态 -->
         <template #emptyText>
           <div class="empty-default-box">
-            <a-empty description="暂无生态数据" />
+            <a-empty :description="assetText('assets.noEnterpriseAssetData')" />
           </div>
         </template>
       </a-table>
 
       <!-- 分页栏 -->
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 12px; margin-top: 10px;">
-        <div style="color: var(--arl-text-color); opacity: 0.65; font-size: 12px;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+        <div class="asset-summary-caption">{{ assetText('tasks.paginationSummary', { pages: Math.ceil(pagination.total / pagination.pageSize) || 1, total: pagination.total }) }}</div>
         <a-pagination
           :pageSizeOptions="['10', '20', '50', '100']"
           v-model:current="pagination.current"
@@ -441,23 +441,23 @@
         <div v-if="activeTab === 'web' && selectedWebRowKeys.length > 0" class="arl-floating-action-bar">
           <div class="floating-info">
             <check-circle-filled style="color: var(--arl-theme-color); font-size: 16px;" />
-            <span>已选中 <b style="color: var(--arl-theme-color); margin: 0 4px;">{{ selectedWebRowKeys.length }}</b> 项备案域名</span>
+            <span>{{ assetText('tasks.selected') }} <b class="asset-selection-number">{{ selectedWebRowKeys.length }}</b> {{ assetText('assets.registeredDomains') }}</span>
           </div>
           <div class="floating-actions">
             <!-- 若在资产组内，优先提供直达扩充当前组，免弹窗！ -->
             <a-button v-if="props.scopeId" type="primary" size="middle" :loading="expandingScopeLoading" @click="handleExpandSelectedToScope">
               <template #icon><plus-circle-outlined /></template>
-              扩充至当前资产组 ({{ selectedWebRowKeys.length }})
+              {{ assetText('assets.addDomainCount', { count: selectedWebRowKeys.length }) }}
             </a-button>
             <a-button size="middle" @click="openSyncModalWithSelected">
               <template #icon><cloud-sync-outlined /></template>
-              {{ props.scopeId ? '同步至其他资产组...' : `同步至资产组 (${selectedWebRowKeys.length})` }}
+              {{ props.scopeId ? assetText('assets.syncToAnotherAssetGroup') : assetText('assets.syncToAssetGroupCount', { count: selectedWebRowKeys.length }) }}
             </a-button>
             <a-button size="middle" @click="handleBatchCopyDomains">
               <template #icon><copy-outlined /></template>
-              复制域名
+              {{ assetText('assets.copyDomain') }}
             </a-button>
-            <a-button size="middle" @click="clearWebSelection">取消选择</a-button>
+            <a-button size="middle" @click="clearWebSelection">{{ assetText('tasks.clearSelection') }}</a-button>
           </div>
         </div>
       </transition>
@@ -468,15 +468,15 @@
       <div class="log-terminal-card">
         <div class="log-terminal-header">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-weight: 600; font-size: 13px;">任务执行过程日志</span>
+            <span class="asset-toolbar-heading">{{ assetText('assets.taskExecutionLogs') }}</span>
             <a-tag :color="formatTaskStatusColor(taskRecord.status)">
               {{ formatTaskStatus(taskRecord.status) }}
             </a-tag>
-            <span style="color: var(--arl-text-secondary); font-size: 12px;" v-if="taskRecord.status === 'running'">(每 3 秒自动轮询增量)</span>
+            <span class="asset-secondary-caption" v-if="taskRecord.status === 'running'">{{ assetText('assets.automaticallyPollingForNewLogsEvery3Seconds') }}</span>
           </div>
           <a-button size="small" :loading="logLoading" @click="() => fetchLogs(true)">
             <template #icon><sync-outlined :spin="logLoading" /></template>
-            刷新日志
+            {{ assetText('assets.refreshLogs') }}
           </a-button>
         </div>
         <div ref="terminalContainer" class="log-terminal-body">
@@ -486,7 +486,7 @@
             <span class="log-title">[{{ log.title }}]</span>
             <span class="log-msg">{{ log.message }}</span>
           </div>
-          <div v-if="syslogList.length === 0" class="log-empty">[System] 暂无日志记录（任务未产生日志，或日志仍在生成中）</div>
+          <div v-if="syslogList.length === 0" class="log-empty">{{ assetText('tasks.systemNoLogsYetTheTaskHasNot') }}</div>
         </div>
       </div>
     </div>
@@ -508,6 +508,7 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { message, notification } from 'ant-design-vue';
 import {
@@ -533,6 +534,8 @@ import { copyText } from '../utils/clipboard';
 import { formatTaskStatus, formatTaskStatusColor } from '../constants/taskStatus';
 import SyncToScopeModal from './SyncToScopeModal.vue';
 import RawDataDrawer from './RawDataDrawer.vue';
+
+const { t: assetText, locale: assetLocale } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
   taskId: {
@@ -600,8 +603,8 @@ const startUpdatePolling = (targetUpdatingId) => {
           isUpdating.value = false;
           activeUpdatingTaskId.value = '';
           notification.success({
-            message: '主体资产更新完成',
-            description: `企业生态资产画像已更新至最新版本，共检索到 ${task.statistic?.asset_cnt || 0} 项资产记录。`,
+            message: assetText('assets.organizationAssetsUpdated'),
+            description: assetText('assets.theEnterpriseAssetProfileIsUpToDate', { count: task.statistic?.asset_cnt || 0 }),
             duration: 4
           });
           emit('update:taskId', targetUpdatingId);
@@ -613,8 +616,8 @@ const startUpdatePolling = (targetUpdatingId) => {
           isUpdating.value = false;
           activeUpdatingTaskId.value = '';
           notification.error({
-            message: '主体资产更新未完成',
-            description: task.error_msg || '后台测绘任务执行异常，已为您保留当前存量资产。',
+            message: assetText('assets.organizationAssetUpdateDidNotComplete'),
+            description: task.error_msg || assetText('assets.backgroundDiscoveryFailedExistingAssetsHaveBeenPreserved'),
             duration: 5
           });
           fetchTaskDetail();
@@ -691,7 +694,7 @@ const openRawDrawer = (record) => {
 
 const handleCopyText = async (text) => {
   const ok = await copyText(text);
-  if (ok) message.success('已复制: ' + text);
+  if (ok) message.success(assetText('assets.copiedLabel') + text);
 };
 
 const activeTab = ref('web');
@@ -718,13 +721,13 @@ const queryCounts = reactive({
 });
 
 const displayName = computed(() => {
-  return props.enterpriseName || (taskName.value && !taskName.value.includes('TYC_') ? taskName.value : '') || (taskTarget.value && !taskTarget.value.startsWith('TYC_') ? taskTarget.value : '') || taskName.value || '企业资产画像';
+  return props.enterpriseName || (taskName.value && !taskName.value.includes('TYC_') ? taskName.value : '') || (taskTarget.value && !taskTarget.value.startsWith('TYC_') ? taskTarget.value : '') || taskName.value || assetText('assets.enterpriseAssetProfile');
 });
 
 const taskTypeLabel = computed(() => {
-  if (taskType.value === 'tyc') return '全景双轨';
-  if (taskType.value === 'icp') return '官方备案';
-  return '企业测绘';
+  if (taskType.value === 'tyc') return assetText('tasks.combinedSources');
+  if (taskType.value === 'icp') return assetText('tasks.officialIcpRecordsLabel');
+  return assetText('tasks.enterpriseOsint');
 });
 
 const taskStatusLabel = computed(() => {
@@ -811,7 +814,7 @@ const handleBatchCopyDomains = async () => {
   if (!selectedWebDomains.value.length) return;
   const text = selectedWebDomains.value.join('\n');
   const ok = await copyText(text);
-  if (ok) message.success(`已复制 ${selectedWebDomains.value.length} 个域名至剪贴板`);
+  if (ok) message.success(assetText('assets.domainsCopiedToClipboardCount', { count: selectedWebDomains.value.length }));
 };
 
 const openSyncModalWithSelected = () => {
@@ -828,7 +831,7 @@ const handleSyncSuccess = async (res) => {
 const handleOneClickExpandScope = async () => {
   if (!props.scopeId || !props.taskId) return;
   if (untrackedWebDomains.value.length === 0) {
-    message.info('当前主体所有备案域名已全部纳管在组内');
+    message.info(assetText('assets.allRegisteredDomainsForThisOrganizationAreAlready'));
     return;
   }
   expandingScopeLoading.value = true;
@@ -844,19 +847,19 @@ const handleOneClickExpandScope = async () => {
       // 以后端实际入库数为准；缺失该字段时如实说明，不将提交数当作成功数展示
       const inserted = res.data?.insert_count;
       if (Number.isInteger(inserted)) {
-        message.success(`成功扩充 ${inserted} 个新域名至当前资产组`);
+        message.success(assetText('assets.newDomainsAddedToThisAssetGroupCount', { count: inserted }));
       } else {
-        message.success(`已提交 ${untrackedWebDomains.value.length} 个域名扩充请求，实际入库数量请以列表刷新结果为准`);
+        message.success(assetText('assets.domainAdditionsRequestedCountRefreshTheListTo', { count: untrackedWebDomains.value.length }));
       }
       await fetchManagedDomains();
       await fetchAllTaskWebDomains();
       emit('synced', res);
     } else {
-      message.error(res?.message || '扩充资产组失败');
+      message.error(res?.message || assetText('assets.failedToAddDomainsToAssetGroup'));
     }
   } catch (err) {
     console.error('扩充资产组失败', err);
-    message.error('请求网络错误');
+    message.error(assetText('assets.networkRequestFailed'));
   } finally {
     expandingScopeLoading.value = false;
   }
@@ -865,7 +868,7 @@ const handleOneClickExpandScope = async () => {
 const handleExpandSelectedToScope = async () => {
   if (!props.scopeId || !props.taskId) return;
   if (selectedWebDomains.value.length === 0) {
-    message.warning('请至少选择一个域名');
+    message.warning(assetText('assets.selectAtLeastOneDomain'));
     return;
   }
   expandingScopeLoading.value = true;
@@ -878,17 +881,17 @@ const handleExpandSelectedToScope = async () => {
     };
     const res = await request.post(`/icp/sync/${props.taskId}`, payload);
     if (res && res.code === 200) {
-      message.success(`成功将所选域名扩充至当前资产组`);
+      message.success(assetText('assets.selectedDomainsAddedToThisAssetGroup'));
       clearWebSelection();
       await fetchManagedDomains();
       await fetchAllTaskWebDomains();
       emit('synced', res);
     } else {
-      message.error(res?.message || '扩充资产组失败');
+      message.error(res?.message || assetText('assets.failedToAddDomainsToAssetGroup'));
     }
   } catch (err) {
     console.error('扩充资产组失败', err);
-    message.error('请求网络错误');
+    message.error(assetText('assets.networkRequestFailed'));
   } finally {
     expandingScopeLoading.value = false;
   }
@@ -900,16 +903,16 @@ const handleRefreshTask = async () => {
   try {
     const res = await request.get(`/icp/restart/${props.taskId}`);
     if (res.code === 200) {
-      message.success('已触发主体资产更新任务，正在后台测绘与比对');
+      message.success(assetText('assets.organizationAssetUpdateStartedDiscoveryAndComparisonAre'));
       const newTaskId = res.data?.task_id || res.data?.updating_task_id;
       if (newTaskId) {
         startUpdatePolling(newTaskId);
       }
     } else {
-      message.error(res.message || '触发失败');
+      message.error(res.message || assetText('assets.failedToStartUpdate'));
     }
   } catch (err) {
-    message.error('网络请求失败');
+    message.error(assetText('assets.networkRequestFailed'));
   } finally {
     refreshLoading.value = false;
   }
@@ -917,75 +920,75 @@ const handleRefreshTask = async () => {
 
 /* ================= 维度列表与精选筛选项配置 (osintTabConfig) ================= */
 const osintTabList = [
-  { key: 'web', label: '网站备案' },
-  { key: 'app', label: '移动 APP' },
-  { key: 'mapp', label: '微信小程序' },
-  { key: 'wechat', label: '微信公众号' },
-  { key: 'weibo', label: '企业微博' },
-  { key: 'kapp', label: '快应用' },
-  { key: 'invest', label: '对外投资' }
+  { key: 'web', get label() { return assetText('tasks.websiteIcpRecords'); } },
+  { key: 'app', get label() { return assetText('assets.mobileApps'); } },
+  { key: 'mapp', get label() { return assetText('tasks.wechatMiniPrograms'); } },
+  { key: 'wechat', get label() { return assetText('tasks.wechatOfficialAccounts'); } },
+  { key: 'weibo', get label() { return assetText('tasks.corporateWeiboAccounts'); } },
+  { key: 'kapp', get label() { return assetText('tasks.quickApps'); } },
+  { key: 'invest', get label() { return assetText('tasks.investments'); } }
 ];
 
 const osintTabConfig = reactive({
   web: {
-    label: '网站备案',
+    get label() { return assetText('tasks.websiteIcpRecords'); },
     searchFields: [
-      { label: '域名', key: 'domain' },
-      { label: '网站名称', key: 'serviceName' },
-      { label: '主办单位', key: 'unitName' },
-      { label: '备案号', key: 'serviceLicence' },
-      { label: '单位性质', key: 'companyType' }
+      { get label() { return assetText('tasks.domains'); }, key: 'domain' },
+      { get label() { return assetText('tasks.websiteName'); }, key: 'serviceName' },
+      { get label() { return assetText('assets.organization'); }, key: 'unitName' },
+      { get label() { return assetText('tasks.icpNumber'); }, key: 'serviceLicence' },
+      { get label() { return assetText('tasks.organizationType'); }, key: 'companyType' }
     ]
   },
   app: {
-    label: '移动 APP',
+    get label() { return assetText('assets.mobileApps'); },
     searchFields: [
-      { label: 'APP名称', key: 'name' },
-      { label: '主办单位', key: 'unitName' },
-      { label: '备案号', key: 'serviceLicence' },
-      { label: '分类', key: 'category' }
+      { get label() { return assetText('tasks.appName'); }, key: 'name' },
+      { get label() { return assetText('assets.organization'); }, key: 'unitName' },
+      { get label() { return assetText('tasks.icpNumber'); }, key: 'serviceLicence' },
+      { get label() { return assetText('assets.category'); }, key: 'category' }
     ]
   },
   mapp: {
-    label: '微信小程序',
+    get label() { return assetText('tasks.wechatMiniPrograms'); },
     searchFields: [
-      { label: '小程序名', key: 'name' },
-      { label: '主办单位', key: 'unitName' },
-      { label: '备案号', key: 'serviceLicence' },
-      { label: '分类', key: 'category' }
+      { get label() { return assetText('assets.miniProgramName'); }, key: 'name' },
+      { get label() { return assetText('assets.organization'); }, key: 'unitName' },
+      { get label() { return assetText('tasks.icpNumber'); }, key: 'serviceLicence' },
+      { get label() { return assetText('assets.category'); }, key: 'category' }
     ]
   },
   wechat: {
-    label: '微信公众号',
+    get label() { return assetText('tasks.wechatOfficialAccounts'); },
     searchFields: [
-      { label: '公众号名', key: 'name' },
-      { label: '微信号', key: 'wechatId' },
-      { label: '认证主体', key: 'unitName' }
+      { get label() { return assetText('assets.officialAccountName'); }, key: 'name' },
+      { get label() { return assetText('tasks.wechatId'); }, key: 'wechatId' },
+      { get label() { return assetText('assets.verifiedOrganization'); }, key: 'unitName' }
     ]
   },
   weibo: {
-    label: '企业微博',
+    get label() { return assetText('tasks.corporateWeiboAccounts'); },
     searchFields: [
-      { label: '微博昵称', key: 'name' },
-      { label: '认证简介', key: 'brief' }
+      { get label() { return assetText('assets.weiboName'); }, key: 'name' },
+      { get label() { return assetText('assets.verifiedProfile'); }, key: 'brief' }
     ]
   },
   kapp: {
-    label: '快应用',
+    get label() { return assetText('tasks.quickApps'); },
     searchFields: [
-      { label: '快应用名', key: 'name' },
-      { label: '主办单位', key: 'unitName' },
-      { label: '备案号', key: 'serviceLicence' }
+      { get label() { return assetText('assets.quickAppName'); }, key: 'name' },
+      { get label() { return assetText('assets.organization'); }, key: 'unitName' },
+      { get label() { return assetText('tasks.icpNumber'); }, key: 'serviceLicence' }
     ]
   },
   invest: {
-    label: '对外投资',
+    get label() { return assetText('tasks.investments'); },
     searchFields: [
-      { label: '企业名称', key: 'name' },
-      { label: '法定代表人', key: 'legalPerson' },
-      { label: '企业状态', key: 'status' },
-      { label: '投资比例', key: 'percent', hasOperatorSelect: true, operator: 'eq', operators: ['eq', 'gt', 'lt'] },
-      { label: '投资数额', key: 'amount', hasOperatorSelect: true, operator: 'eq', operators: ['eq', 'gt', 'lt'] }
+      { get label() { return assetText('assets.companyName'); }, key: 'name' },
+      { get label() { return assetText('tasks.legalRepresentative'); }, key: 'legalPerson' },
+      { get label() { return assetText('assets.companyStatus'); }, key: 'status' },
+      { get label() { return assetText('tasks.ownershipShare'); }, key: 'percent', hasOperatorSelect: true, operator: 'eq', operators: ['eq', 'gt', 'lt'] },
+      { get label() { return assetText('assets.investmentAmount'); }, key: 'amount', hasOperatorSelect: true, operator: 'eq', operators: ['eq', 'gt', 'lt'] }
     ]
   }
 });
@@ -995,8 +998,8 @@ const currentSearchFields = computed(() => {
 });
 
 const currentTabLabel = computed(() => {
-  if (activeTab.value === 'log') return '测绘日志';
-  return osintTabConfig[activeTab.value]?.label || '资产';
+  if (activeTab.value === 'log') return assetText('assets.discoveryLogs');
+  return osintTabConfig[activeTab.value]?.label || assetText('tasks.assets');
 });
 
 const searchForm = reactive({});
@@ -1014,79 +1017,79 @@ const activeFilterCount = computed(() => {
 
 const columnConfigs = {
   web: [
-    { title: '序号', key: 'index', width: 55, align: 'center' },
-    { title: '域名', dataIndex: 'domain', key: 'domain', width: 170 },
-    { title: '纳管状态', key: 'managedStatus', width: 95, align: 'center' },
-    { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName', width: 160, ellipsis: true },
-    { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
-    { title: '单位性质', dataIndex: 'companyType', key: 'companyType', width: 90, align: 'center' },
-    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
-    { title: '首页网址', dataIndex: 'homeUrl', key: 'homeUrl', width: 170, ellipsis: true },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
-    { title: '原始', key: 'raw', width: 55, align: 'center' }
+    { get title() { return assetText('tasks.no'); }, key: 'index', width: 55, align: 'center' },
+    { get title() { return assetText('tasks.domains'); }, dataIndex: 'domain', key: 'domain', width: 170 },
+    { get title() { return assetText('assets.managementStatus'); }, key: 'managedStatus', width: 95, align: 'center' },
+    { get title() { return assetText('tasks.websiteName'); }, dataIndex: 'serviceName', key: 'serviceName', width: 160, ellipsis: true },
+    { get title() { return assetText('assets.organization'); }, dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { get title() { return assetText('tasks.organizationType'); }, dataIndex: 'companyType', key: 'companyType', width: 90, align: 'center' },
+    { get title() { return assetText('tasks.icpNumber'); }, dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
+    { get title() { return assetText('assets.homeUrl'); }, dataIndex: 'homeUrl', key: 'homeUrl', width: 170, ellipsis: true },
+    { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
+    { get title() { return assetText('assets.rawData'); }, key: 'raw', width: 55, align: 'center' }
   ],
   app: [
-    { title: '序号', key: 'index', width: 55, align: 'center' },
-    { title: '图标', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
-    { title: 'APP名称', dataIndex: 'name', key: 'name', width: 160 },
-    { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
-    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 160 },
-    { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
-    { title: '简介', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '版本', dataIndex: 'version', key: 'version', width: 90, align: 'center' },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
-    { title: '原始', key: 'raw', width: 55, align: 'center' }
+    { get title() { return assetText('tasks.no'); }, key: 'index', width: 55, align: 'center' },
+    { get title() { return assetText('tasks.icon'); }, dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
+    { get title() { return assetText('tasks.appName'); }, dataIndex: 'name', key: 'name', width: 160 },
+    { get title() { return assetText('assets.category'); }, dataIndex: 'category', key: 'category', width: 100 },
+    { get title() { return assetText('tasks.icpNumber'); }, dataIndex: 'serviceLicence', key: 'serviceLicence', width: 160 },
+    { get title() { return assetText('assets.organization'); }, dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { get title() { return assetText('tasks.description'); }, dataIndex: 'brief', key: 'brief', ellipsis: true },
+    { get title() { return assetText('assets.version'); }, dataIndex: 'version', key: 'version', width: 90, align: 'center' },
+    { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
+    { get title() { return assetText('assets.rawData'); }, key: 'raw', width: 55, align: 'center' }
   ],
   mapp: [
-    { title: '序号', key: 'index', width: 55, align: 'center' },
-    { title: '图标', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
-    { title: '小程序名称', dataIndex: 'name', key: 'name', width: 160 },
-    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
-    { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
-    { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
-    { title: '描述', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
-    { title: '原始', key: 'raw', width: 55, align: 'center' }
+    { get title() { return assetText('tasks.no'); }, key: 'index', width: 55, align: 'center' },
+    { get title() { return assetText('tasks.icon'); }, dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
+    { get title() { return assetText('tasks.miniProgramName'); }, dataIndex: 'name', key: 'name', width: 160 },
+    { get title() { return assetText('tasks.icpNumber'); }, dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
+    { get title() { return assetText('assets.organization'); }, dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { get title() { return assetText('assets.category'); }, dataIndex: 'category', key: 'category', width: 100 },
+    { get title() { return assetText('assets.description'); }, dataIndex: 'brief', key: 'brief', ellipsis: true },
+    { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
+    { get title() { return assetText('assets.rawData'); }, key: 'raw', width: 55, align: 'center' }
   ],
   wechat: [
-    { title: '序号', key: 'index', width: 55, align: 'center' },
-    { title: '头像', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
-    { title: '公众号名称', dataIndex: 'name', key: 'name', width: 160 },
-    { title: '微信号', dataIndex: 'wechatId', key: 'wechatId', width: 140 },
-    { title: '二维码', key: 'qrcode', width: 80, align: 'center' },
-    { title: '功能介绍', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '认证主体', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
-    { title: '原始', key: 'raw', width: 55, align: 'center' }
+    { get title() { return assetText('tasks.no'); }, key: 'index', width: 55, align: 'center' },
+    { get title() { return assetText('tasks.avatar'); }, dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
+    { get title() { return assetText('tasks.officialAccountName'); }, dataIndex: 'name', key: 'name', width: 160 },
+    { get title() { return assetText('tasks.wechatId'); }, dataIndex: 'wechatId', key: 'wechatId', width: 140 },
+    { get title() { return assetText('assets.qrCode'); }, key: 'qrcode', width: 80, align: 'center' },
+    { get title() { return assetText('assets.features'); }, dataIndex: 'brief', key: 'brief', ellipsis: true },
+    { get title() { return assetText('assets.verifiedOrganization'); }, dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { get title() { return assetText('assets.rawData'); }, key: 'raw', width: 55, align: 'center' }
   ],
   weibo: [
-    { title: '序号', key: 'index', width: 55, align: 'center' },
-    { title: '头像', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
-    { title: '微博昵称', dataIndex: 'name', key: 'name', width: 160 },
-    { title: '认证信息/简介', dataIndex: 'brief', key: 'brief', ellipsis: true },
-    { title: '微博主页', key: 'href', width: 160 },
-    { title: '粉丝数', dataIndex: 'fans', key: 'fans', width: 100, align: 'center' },
-    { title: '原始', key: 'raw', width: 55, align: 'center' }
+    { get title() { return assetText('tasks.no'); }, key: 'index', width: 55, align: 'center' },
+    { get title() { return assetText('tasks.avatar'); }, dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
+    { get title() { return assetText('assets.weiboName'); }, dataIndex: 'name', key: 'name', width: 160 },
+    { get title() { return assetText('assets.verificationDescription'); }, dataIndex: 'brief', key: 'brief', ellipsis: true },
+    { get title() { return assetText('assets.weiboProfile'); }, key: 'href', width: 160 },
+    { get title() { return assetText('assets.followers'); }, dataIndex: 'fans', key: 'fans', width: 100, align: 'center' },
+    { get title() { return assetText('assets.rawData'); }, key: 'raw', width: 55, align: 'center' }
   ],
   kapp: [
-    { title: '序号', key: 'index', width: 55, align: 'center' },
-    { title: '图标', dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
-    { title: '快应用名称', dataIndex: 'name', key: 'name', width: 160 },
-    { title: '备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
-    { title: '主办单位', dataIndex: 'unitName', key: 'unitName', ellipsis: true },
-    { title: '分类', dataIndex: 'category', key: 'category', width: 100 },
-    { title: '更新时间', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
-    { title: '原始', key: 'raw', width: 55, align: 'center' }
+    { get title() { return assetText('tasks.no'); }, key: 'index', width: 55, align: 'center' },
+    { get title() { return assetText('tasks.icon'); }, dataIndex: 'icon', key: 'icon', width: 65, align: 'center' },
+    { get title() { return assetText('assets.quickAppName'); }, dataIndex: 'name', key: 'name', width: 160 },
+    { get title() { return assetText('tasks.icpNumber'); }, dataIndex: 'serviceLicence', key: 'serviceLicence', width: 170 },
+    { get title() { return assetText('assets.organization'); }, dataIndex: 'unitName', key: 'unitName', ellipsis: true },
+    { get title() { return assetText('assets.category'); }, dataIndex: 'category', key: 'category', width: 100 },
+    { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 120, align: 'center' },
+    { get title() { return assetText('assets.rawData'); }, key: 'raw', width: 55, align: 'center' }
   ],
   invest: [
-    { title: '序号', key: 'index', width: 55, align: 'center' },
-    { title: '被投资企业', dataIndex: 'name', key: 'name', ellipsis: true },
-    { title: '法定代表人', dataIndex: 'legalPerson', key: 'legalPerson', width: 110 },
-    { title: '投资比例', dataIndex: 'percent', key: 'percent', width: 100, align: 'center' },
-    { title: '投资数额', dataIndex: 'amount', key: 'amount', width: 140 },
-    { title: '企业状态', dataIndex: 'status', key: 'status', width: 100, align: 'center' },
-    { title: '地区', key: 'region', width: 130 },
-    { title: '成立日期', key: 'estiblishTime', width: 120, align: 'center' },
-    { title: '原始', key: 'raw', width: 55, align: 'center' }
+    { get title() { return assetText('tasks.no'); }, key: 'index', width: 55, align: 'center' },
+    { get title() { return assetText('assets.investeeCompany'); }, dataIndex: 'name', key: 'name', ellipsis: true },
+    { get title() { return assetText('tasks.legalRepresentative'); }, dataIndex: 'legalPerson', key: 'legalPerson', width: 110 },
+    { get title() { return assetText('tasks.ownershipShare'); }, dataIndex: 'percent', key: 'percent', width: 100, align: 'center' },
+    { get title() { return assetText('assets.investmentAmount'); }, dataIndex: 'amount', key: 'amount', width: 140 },
+    { get title() { return assetText('assets.companyStatus'); }, dataIndex: 'status', key: 'status', width: 100, align: 'center' },
+    { get title() { return assetText('assets.region'); }, key: 'region', width: 130 },
+    { get title() { return assetText('assets.establishedOn'); }, key: 'estiblishTime', width: 120, align: 'center' },
+    { get title() { return assetText('assets.rawData'); }, key: 'raw', width: 55, align: 'center' }
   ]
 };
 
@@ -1324,9 +1327,9 @@ const handleExport = async () => {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    message.success('导出成功');
+    message.success(assetText('tasks.exportCompleted'));
   } catch (err) {
-    message.error('导出失败');
+    message.error(assetText('tasks.exportFailed'));
   } finally {
     exportLoading.value = false;
   }
@@ -1365,6 +1368,9 @@ defineExpose({
 </script>
 
 <style scoped>
+.filter-field-label.filter-field-label-en { width: 112px; white-space: normal; overflow: visible; text-overflow: clip; }
+.asset-increment-badge :deep(.ant-badge-count) { background-color: #52c41a; font-size: 10px; }
+
 /* ================= 测绘更新中顶部平滑提示条 ================= */
 .osint-updating-banner {
   display: flex;
@@ -1810,4 +1816,12 @@ defineExpose({
   color: rgba(255, 255, 255, 0.45);
   font-style: italic;
 }
+
+.asset-small-label { font-size: 11px; }
+.asset-action-hint { font-size: 12px; color: #8c8c8c; margin-top: 4px; display: block; }
+.asset-clickable { cursor: pointer; }
+.asset-summary-caption { color: var(--arl-text-color); opacity: 0.65; font-size: 12px; }
+.asset-selection-number { color: var(--arl-theme-color); margin: 0 4px; }
+.asset-toolbar-heading { font-weight: 600; font-size: 13px; }
+.asset-secondary-caption { color: var(--arl-text-secondary); font-size: 12px; }
 </style>

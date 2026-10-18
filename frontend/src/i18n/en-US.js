@@ -1,6 +1,8 @@
+import assets from './assets.en-US.js';
 import tasks from './tasks.en-US.js';
 
 export default {
+  assets,
   tasks,
   language: { select: 'Interface language' },
   common: { cancel: 'Cancel', unknownError: 'Unknown error' },
