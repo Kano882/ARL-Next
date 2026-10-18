@@ -53,6 +53,7 @@ function pageFixture(name, tab = 'site') {
     riskVisible: ref(false), selectedRiskTargets: ref([]), currentTargetCount: ref(0), riskModalVisible: ref(false)
   });
   vm.runInContext(`var tabConfig = ${bindings.tabConfig};`, context);
+  vm.runInContext(`var resolveAssetEndpoint = ${bindings.resolveAssetEndpoint};`, context);
   vm.runInContext(`var effectiveTab = ${bindings.effectiveTab};`, context);
   vm.runInContext(`var fetchData = ${bindings.fetchData};`, context);
   const invoke = async name => {
