@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { applyTaskStatistics, createTaskListClient } from '../src/utils/taskStatistics.js';
+import { i18n } from '../src/i18n/index.js';
 
 const counts = { total: 9, active: 3, done: 4, abnormal: 2 };
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -78,6 +79,7 @@ function hookSource(name) {
 function component(get) {
   const request = { get };
   const sandbox = {
+    taskText: (...args) => i18n.global.t(...args),
     request, taskListClient: createTaskListClient(request), applyTaskStatistics,
     taskRequestVersion: 0, enterpriseRequestVersion: 0, taskStatisticsReady: false, enterpriseStatisticsReady: false,
     taskMetricCounts: {}, enterpriseMetricCounts: {}, enterpriseRunningCount: { value: 0 },

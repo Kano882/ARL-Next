@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import { parse, compileScript } from 'vue/compiler-sfc';
 import { createAssetScopeLoader, getTaskAssetGroupState } from '../src/utils/taskAssetGroups.js';
+import { i18n } from '../src/i18n/index.js';
 
 const state = () => ({ search: '', page: 1, options: [], loading: false, hasMore: true });
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -110,6 +111,7 @@ function taskPage(response = { code: 200 }) {
   const { result, descriptor } = bindings('views/TaskList.vue');
   const calls = [], messages = [];
   const context = vm.createContext({
+    taskText: (...args) => i18n.global.t(...args),
     formRef: { value: { validate: async () => {} } }, formState: { name: 'fixture', target: 'example.com', related_scope_id: 'group-a', service_detection: true, port_scan: true },
     submitLoading: { value: false }, visible: { value: true }, pagination: { current: 2, pageSize: 20 },
     request: { post: async (url, payload) => { calls.push({ url, payload: plain(payload) }); return response; } },

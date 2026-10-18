@@ -1,3 +1,7 @@
+import { i18n } from '../i18n/index.js';
+
+const taskText = (key, params) => i18n.global.t(key, params);
+
 /**
  * 任务状态术语唯一事实源（全项目唯一口径）
  *
@@ -9,13 +13,13 @@
  *   - 后端插件名/阶段标识严禁直接当作任务状态展示，须经 formatTaskStatus 标注为「进行中 · <阶段名>」。
  */
 
-/** 任务状态 → 唯一中文文案 */
+/** 任务状态 → 展示文案 */
 export const TASK_STATUS_LABEL = {
-  running: '进行中',
-  waiting: '排队中',
-  done: '已完成',
-  stop: '已停止',
-  error: '异常失败'
+  get running() { return taskText('tasks.statusRunning'); },
+  get waiting() { return taskText('tasks.statusWaiting'); },
+  get done() { return taskText('tasks.statusDone'); },
+  get stop() { return taskText('tasks.statusStop'); },
+  get error() { return taskText('tasks.statusError'); }
 };
 
 /** 任务状态 → Ant Design Tag 配色 */
@@ -27,30 +31,30 @@ export const TASK_STATUS_COLOR = {
   error: 'error'
 };
 
-/** 插件名/阶段标识 → 中文名（与状态字典分表，严禁混用） */
+/** 插件名/阶段标识 → 展示名称（与状态字典分表，严禁混用） */
 export const PLUGIN_NAME_MAP = {
-  domain_brute: '域名爆破',
-  dns_query_plugin: '域名查询',
-  arl_search: '历史查询',
-  alt_dns: 'DNS智能生成',
-  recursive_domain_brute: '递归爆破',
-  port_scan: '端口扫描',
-  ssl_cert: 'SSL证书获取',
-  service_detection: '服务识别',
-  os_detection: '系统识别',
-  find_site: '站点发现',
-  site_identify: '指纹识别',
-  search_engines: '搜索引擎',
-  site_spider: '站点爬虫',
-  file_leak: '文件泄露',
-  find_vhost: 'Host碰撞',
-  findvhost: 'Host碰撞',
-  npoc_service_detection: 'Python服务识别',
-  poc_run: 'PoC验证',
-  nuclei_scan: 'Nuclei扫描',
-  weak_brute: '弱口令爆破',
-  wih_domain_update: 'WIH更新',
-  web_info_hunter: 'WIH探测'
+  get domain_brute() { return taskText('tasks.stageDomainBrute'); },
+  get dns_query_plugin() { return taskText('tasks.stageDnsQueryPlugin'); },
+  get arl_search() { return taskText('tasks.stageArlSearch'); },
+  get alt_dns() { return taskText('tasks.stageAltDns'); },
+  get recursive_domain_brute() { return taskText('tasks.stageRecursiveDomainBrute'); },
+  get port_scan() { return taskText('tasks.stagePortScan'); },
+  get ssl_cert() { return taskText('tasks.stageSslCert'); },
+  get service_detection() { return taskText('tasks.stageServiceDetection'); },
+  get os_detection() { return taskText('tasks.stageOsDetection'); },
+  get find_site() { return taskText('tasks.stageFindSite'); },
+  get site_identify() { return taskText('tasks.stageSiteIdentify'); },
+  get search_engines() { return taskText('tasks.stageSearchEngines'); },
+  get site_spider() { return taskText('tasks.stageSiteSpider'); },
+  get file_leak() { return taskText('tasks.stageFileLeak'); },
+  get find_vhost() { return taskText('tasks.stageFindVhost'); },
+  get findvhost() { return taskText('tasks.stageFindvhost'); },
+  get npoc_service_detection() { return taskText('tasks.stageNpocServiceDetection'); },
+  get poc_run() { return taskText('tasks.stagePocRun'); },
+  get nuclei_scan() { return taskText('tasks.stageNucleiScan'); },
+  get weak_brute() { return taskText('tasks.stageWeakBrute'); },
+  get wih_domain_update() { return taskText('tasks.stageWihDomainUpdate'); },
+  get web_info_hunter() { return taskText('tasks.stageWebInfoHunter'); }
 };
 
 /**
@@ -76,7 +80,7 @@ export const isStageStatus = (status) => !!status && !isKnownTaskStatus(status);
 export const formatTaskStatus = (status) => {
   if (TASK_STATUS_LABEL[status]) return TASK_STATUS_LABEL[status];
   const stageName = PLUGIN_NAME_MAP[status] || status;
-  return stageName ? `进行中 · ${stageName}` : '进行中';
+  return stageName ? taskText('tasks.statusWithStage', { stage: stageName }) : TASK_STATUS_LABEL.running;
 };
 
 /**

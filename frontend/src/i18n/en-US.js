@@ -1,4 +1,7 @@
+import tasks from './tasks.en-US.js';
+
 export default {
+  tasks,
   language: { select: 'Interface language' },
   common: { cancel: 'Cancel', unknownError: 'Unknown error' },
   login: {

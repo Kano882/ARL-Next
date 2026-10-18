@@ -2,8 +2,8 @@
   <div class="arl-page-container">
     <div ref="actionBarRef" class="arl-hero-card">
       <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" style="margin-bottom: 12px;" @change="onTabChange">
-        <a-tab-pane key="planning" tab="扫描计划任务"></a-tab-pane>
-        <a-tab-pane key="monitor" tab="资产持续监控"></a-tab-pane>
+        <a-tab-pane key="planning" :tab="taskText('tasks.scheduledScans')"></a-tab-pane>
+        <a-tab-pane key="monitor" :tab="taskText('tasks.continuousAssetMonitoring')"></a-tab-pane>
       </a-tabs>
 
       <!-- 扫描计划任务 操作栏 -->
@@ -12,43 +12,43 @@
           <!-- 左侧：紧凑搜索条件 -->
           <div class="arl-filter-group">
             <div class="arl-filter-item">
-              <span class="arl-filter-label">任务名称：</span>
-              <a-input v-model:value="searchForm.name" placeholder="请输入任务名称" style="width: 140px;" allowClear size="small" @pressEnter="onPlanSearch">
+              <span class="arl-filter-label">{{ taskText('tasks.taskNameLabel') }}</span>
+              <a-input v-model:value="searchForm.name" :placeholder="taskText('tasks.enterATaskName')" class="task-width-140" allowClear size="small" @pressEnter="onPlanSearch">
                 <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
               </a-input>
             </div>
             <div class="arl-filter-item">
-              <span class="arl-filter-label">目标：</span>
-              <a-input v-model:value="searchForm.target" placeholder="请输入目标" style="width: 140px;" allowClear size="small" @pressEnter="onPlanSearch">
+              <span class="arl-filter-label">{{ taskText('tasks.targetLabel') }}</span>
+              <a-input v-model:value="searchForm.target" :placeholder="taskText('tasks.enterTargets')" class="task-width-140" allowClear size="small" @pressEnter="onPlanSearch">
                 <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
               </a-input>
             </div>
             <div class="arl-filter-item">
-              <span class="arl-filter-label">策略：</span>
-              <a-input v-model:value="searchForm.policy_name" placeholder="请输入策略" style="width: 130px;" allowClear size="small" @pressEnter="onPlanSearch">
+              <span class="arl-filter-label">{{ taskText('tasks.policyLabel') }}</span>
+              <a-input v-model:value="searchForm.policy_name" :placeholder="taskText('tasks.enterAPolicy')" class="task-width-130" allowClear size="small" @pressEnter="onPlanSearch">
                 <template #suffix><search-outlined @click="onPlanSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
               </a-input>
             </div>
             <div class="arl-filter-item">
-              <span class="arl-filter-label">计划类型：</span>
-              <a-select v-model:value="searchForm.schedule_type" placeholder="全部类型" style="width: 110px;" allowClear size="small" @change="onPlanSearch">
-                <a-select-option value="future_scan">定时任务</a-select-option>
-                <a-select-option value="recurrent_scan">周期任务</a-select-option>
+              <span class="arl-filter-label">{{ taskText('tasks.scheduleTypeLabel') }}</span>
+              <a-select v-model:value="searchForm.schedule_type" :placeholder="taskText('tasks.allTypes')" class="task-width-110" allowClear size="small" @change="onPlanSearch">
+                <a-select-option value="future_scan">{{ taskText('tasks.oneTimeTask') }}</a-select-option>
+                <a-select-option value="recurrent_scan">{{ taskText('tasks.recurringTask') }}</a-select-option>
               </a-select>
             </div>
             <div class="arl-filter-item">
-              <span class="arl-filter-label">状态：</span>
-              <a-select v-model:value="searchForm.schedule_status" placeholder="全部状态" style="width: 110px;" allowClear size="small" @change="onPlanSearch">
-                <a-select-option value="done">done</a-select-option>
-                <a-select-option value="scheduled">scheduled</a-select-option>
-                <a-select-option value="stop">stop</a-select-option>
-                <a-select-option value="error">error</a-select-option>
+              <span class="arl-filter-label">{{ taskText('tasks.statusLabel') }}</span>
+              <a-select v-model:value="searchForm.schedule_status" :placeholder="taskText('tasks.allStatuses')" class="task-width-110" allowClear size="small" @change="onPlanSearch">
+                <a-select-option value="done">{{ taskText('tasks.statusDone') }}</a-select-option>
+                <a-select-option value="scheduled">{{ taskText('tasks.statusScheduled') }}</a-select-option>
+                <a-select-option value="stop">{{ taskText('tasks.statusStop') }}</a-select-option>
+                <a-select-option value="error">{{ taskText('tasks.statusError') }}</a-select-option>
               </a-select>
             </div>
 
             <a-button size="small" @click="resetPlanSearch">
               <template #icon><undo-outlined /></template>
-              重置
+              {{ taskText('tasks.reset') }}
             </a-button>
           </div>
 
@@ -56,19 +56,19 @@
           <div class="arl-actions-group">
             <a-button type="primary" size="small" @click="openAddModal">
               <template #icon><plus-outlined /></template>
-              添加计划任务
+              {{ taskText('tasks.addScheduledTask') }}
             </a-button>
 
-            <a-popconfirm title="确认停止所选计划任务吗？" ok-text="确认" cancel-text="取消" @confirm="handleBatchStop">
+            <a-popconfirm :title="taskText('tasks.stopTheSelectedScheduledTasks')" :ok-text="taskText('tasks.confirm')" :cancel-text="taskText('tasks.cancel')" @confirm="handleBatchStop">
               <a-button size="small" :disabled="!hasPlanSelected">
                 <template #icon><pause-circle-outlined /></template>
-                批量停止
+                {{ taskText('tasks.stopSelected') }}
               </a-button>
             </a-popconfirm>
 
             <a-button danger size="small" :disabled="!hasPlanSelected" @click="handleBatchDelete">
               <template #icon><delete-outlined /></template>
-              批量删除
+              {{ taskText('tasks.deleteSelected') }}
             </a-button>
           </div>
         </div>
@@ -80,27 +80,27 @@
           <!-- 左侧：检索条件 -->
           <div class="arl-filter-group">
             <div class="arl-filter-item">
-              <span class="arl-filter-label">名称：</span>
-              <a-input v-model:value="monitorSearchForm.name" placeholder="请输入名称" style="width: 160px;" allowClear size="small" @pressEnter="onMonitorSearch">
+              <span class="arl-filter-label">{{ taskText('tasks.nameLabel') }}</span>
+              <a-input v-model:value="monitorSearchForm.name" :placeholder="taskText('tasks.enterAName')" class="task-width-160" allowClear size="small" @pressEnter="onMonitorSearch">
                 <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
               </a-input>
             </div>
             <div class="arl-filter-item">
-              <span class="arl-filter-label">域名：</span>
-              <a-input v-model:value="monitorSearchForm.domain" placeholder="请输入域名" style="width: 160px;" allowClear size="small" @pressEnter="onMonitorSearch">
+              <span class="arl-filter-label">{{ taskText('tasks.domain') }}</span>
+              <a-input v-model:value="monitorSearchForm.domain" :placeholder="taskText('tasks.enterADomain')" class="task-width-160" allowClear size="small" @pressEnter="onMonitorSearch">
                 <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
               </a-input>
             </div>
             <div class="arl-filter-item">
-              <span class="arl-filter-label">资产范围ID：</span>
-              <a-input v-model:value="monitorSearchForm.scope_id" placeholder="请输入范围ID" style="width: 160px;" allowClear size="small" @pressEnter="onMonitorSearch">
+              <span class="arl-filter-label">{{ taskText('tasks.assetScopeIdLabel') }}</span>
+              <a-input v-model:value="monitorSearchForm.scope_id" :placeholder="taskText('tasks.enterAScopeId')" class="task-width-160" allowClear size="small" @pressEnter="onMonitorSearch">
                 <template #suffix><search-outlined @click="onMonitorSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" /></template>
               </a-input>
             </div>
 
             <a-button size="small" @click="resetMonitorSearch">
               <template #icon><undo-outlined /></template>
-              重置
+              {{ taskText('tasks.reset') }}
             </a-button>
           </div>
 
@@ -108,19 +108,19 @@
           <div class="arl-actions-group">
             <a-button size="small" :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('run')">
               <template #icon><send-outlined /></template>
-              批量下发
+              {{ taskText('tasks.runSelected') }}
             </a-button>
             <a-button size="small" :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('recover')">
               <template #icon><play-circle-outlined /></template>
-              批量恢复
+              {{ taskText('tasks.resumeSelected') }}
             </a-button>
             <a-button size="small" :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('stop')">
               <template #icon><pause-circle-outlined /></template>
-              批量停止
+              {{ taskText('tasks.stopSelected') }}
             </a-button>
             <a-button danger size="small" :disabled="!hasMonitorSelected" @click="handleMonitorBatchAction('delete')">
               <template #icon><delete-outlined /></template>
-              批量删除
+              {{ taskText('tasks.deleteSelected') }}
             </a-button>
           </div>
         </div>
@@ -142,13 +142,13 @@
         <template #emptyText>
           <div style="padding: 40px 0;">
             <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
-            <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无数据</div>
+            <div class="task-option-hint">{{ taskText('tasks.noData') }}</div>
           </div>
         </template>
 
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'schedule_type'">
-            {{ record.schedule_type === 'future_scan' ? '定时任务' : '周期任务' }}
+            {{ record.schedule_type === 'future_scan' ? taskText('tasks.oneTimeTask') : taskText('tasks.recurringTask') }}
           </template>
 
           <template v-else-if="column.key === 'status'">
@@ -160,7 +160,7 @@
                 'success'
               "
             >
-              {{ record.status }}
+              {{ record.status === 'scheduled' ? taskText('tasks.statusScheduled') : formatTaskStatus(record.status) }}
             </a-tag>
           </template>
 
@@ -174,24 +174,24 @@
                   size="small"
                   :disabled="record.status === 'stop'"
                   @click="handleSingleAction('stop', record._id)"
-              >停止</a-button>
+              >{{ taskText('tasks.stop') }}</a-button>
 
-              <a-popconfirm title="确认删除？" @confirm="handleSingleAction('delete', record._id)">
-                <a-button size="small" danger>删除</a-button>
+              <a-popconfirm :title="taskText('tasks.confirmDeletionLabel')" @confirm="handleSingleAction('delete', record._id)">
+                <a-button size="small" danger>{{ taskText('tasks.delete') }}</a-button>
               </a-popconfirm>
 
               <a-button
                   size="small"
                   :disabled="record.status === 'scheduled'"
                   @click="handleSingleAction('recover', record._id)"
-              >恢复</a-button>
+              >{{ taskText('tasks.resume') }}</a-button>
             </div>
           </template>
         </template>
       </a-table>
 
       <div class="arl-pagination-bar">
-        <div class="pagination-info">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+        <div class="pagination-info">{{ taskText('tasks.paginationSummary', { pages: Math.ceil(pagination.total / pagination.pageSize) || 1, total: pagination.total }) }}</div>
         <a-pagination
           :pageSizeOptions="$pageSizeOptions"
           v-model:current="pagination.current"
@@ -219,7 +219,7 @@
         <template #emptyText>
           <div style="padding: 40px 0;">
             <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
-            <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无数据</div>
+            <div class="task-option-hint">{{ taskText('tasks.noData') }}</div>
           </div>
         </template>
 
@@ -247,17 +247,17 @@
 
           <template v-else-if="column.key === 'action'">
             <div style="display: flex; gap: 6px;">
-              <a-button size="small" :disabled="record.status === 'stop'" @click="handleMonitorSingleAction('stop', record)">暂停</a-button>
-              <a-button size="small" :disabled="record.status !== 'stop'" @click="handleMonitorSingleAction('resume', record)">恢复</a-button>
-              <a-button size="small" @click="handleMonitorSingleAction('run', record)">立即下发任务</a-button>
-              <a-button size="small" danger @click="handleMonitorSingleAction('delete', record)">删除</a-button>
+              <a-button size="small" :disabled="record.status === 'stop'" @click="handleMonitorSingleAction('stop', record)">{{ taskText('tasks.pause') }}</a-button>
+              <a-button size="small" :disabled="record.status !== 'stop'" @click="handleMonitorSingleAction('resume', record)">{{ taskText('tasks.resume') }}</a-button>
+              <a-button size="small" @click="handleMonitorSingleAction('run', record)">{{ taskText('tasks.runTaskNow') }}</a-button>
+              <a-button size="small" danger @click="handleMonitorSingleAction('delete', record)">{{ taskText('tasks.delete') }}</a-button>
             </div>
           </template>
         </template>
       </a-table>
 
       <div class="arl-pagination-bar">
-        <div class="pagination-info">共 {{ Math.ceil(monitorPagination.total / monitorPagination.pageSize) || 1 }} 页 / {{ monitorPagination.total }} 条数据</div>
+        <div class="pagination-info">{{ taskText('tasks.paginationSummary', { pages: Math.ceil(monitorPagination.total / monitorPagination.pageSize) || 1, total: monitorPagination.total }) }}</div>
         <a-pagination
           :pageSizeOptions="$pageSizeOptions"
           v-model:current="monitorPagination.current"
@@ -273,44 +273,45 @@
 
     <a-modal
         v-model:open="addModalVisible"
-        title="添加计划任务"
+        :title="taskText('tasks.addScheduledTask')"
         @ok="submitAdd"
         :confirmLoading="addLoading"
         width="520px"
-        okText="确定"
-        cancelText="取消"
+        :okText="taskText('tasks.confirm')"
+        :cancelText="taskText('tasks.cancel')"
         destroyOnClose
     >
       <a-form
+        :label-wrap="true"
         ref="addFormRef"
         :model="addForm"
         :rules="addRules"
-        :label-col="{ span: 5 }"
-        :wrapper-col="{ span: 18 }"
+        :label-col="{ span: taskLocale === 'en-US' ? 7 : 5 }"
+        :wrapper-col="{ span: taskLocale === 'en-US' ? 16 : 18 }"
         style="margin-top: 20px;"
       >
-        <a-form-item label="名称" name="name">
-          <a-input v-model:value="addForm.name" placeholder="请输入名称" />
+        <a-form-item :label="taskText('tasks.name')" name="name">
+          <a-input v-model:value="addForm.name" :placeholder="taskText('tasks.enterAName')" />
         </a-form-item>
         <a-form-item
-          label="目标"
+          :label="taskText('tasks.target')"
           name="target"
-          extra="支持域名、IP 或 CIDR，多个目标请用逗号或换行分隔；按「任务类别」决定解析方式"
+          :extra="taskText('tasks.enterDomainsIpsOrCidrRangesSeparatedBy')"
         >
-          <a-textarea v-model:value="addForm.target" :rows="3" placeholder="请输入目标" />
+          <a-textarea v-model:value="addForm.target" :rows="3" :placeholder="taskText('tasks.enterTargets')" />
         </a-form-item>
 
-        <a-form-item label="计划类型" name="schedule_type">
+        <a-form-item :label="taskText('tasks.scheduleType')" name="schedule_type">
           <a-select v-model:value="addForm.schedule_type" @change="onScheduleTypeChange">
-            <a-select-option value="future_scan">定时任务</a-select-option>
-            <a-select-option value="recurrent_scan">周期任务</a-select-option>
+            <a-select-option value="future_scan">{{ taskText('tasks.oneTimeTask') }}</a-select-option>
+            <a-select-option value="recurrent_scan">{{ taskText('tasks.recurringTask') }}</a-select-option>
           </a-select>
         </a-form-item>
 
-        <a-form-item label="策略" name="policy_id">
+        <a-form-item :label="taskText('tasks.policy')" name="policy_id">
           <a-select
             v-model:value="addForm.policy_id"
-            placeholder="请选择策略"
+            :placeholder="taskText('tasks.selectAPolicy')"
             show-search
             option-filter-prop="label"
           >
@@ -320,14 +321,14 @@
           </a-select>
         </a-form-item>
 
-        <a-form-item v-if="addForm.schedule_type === 'future_scan'" label="开始时间" name="start_date">
+        <a-form-item v-if="addForm.schedule_type === 'future_scan'" :label="taskText('tasks.startTime')" name="start_date">
           <a-date-picker
               v-model:value="addForm.start_date"
               show-time
               :disabled-date="disablePastDate"
               valueFormat="YYYY-MM-DD HH:mm:ss"
               style="width: 100%"
-              placeholder="请选择开始日期"
+              :placeholder="taskText('tasks.selectAStartDate')"
           />
         </a-form-item>
 
@@ -335,19 +336,19 @@
           v-if="addForm.schedule_type === 'recurrent_scan'"
           label="Cron"
           name="cron"
-          extra="标准 5 段 Cron：分 时 日 月 周，例如 0 0 */1 * * 表示每小时整点执行；执行间隔不得小于 6 小时"
+          :extra="taskText('tasks.standardFiveFieldCronMinuteHourDayMonth')"
         >
-          <a-input v-model:value="addForm.cron" placeholder="请输入Cron，如 0 0 */1 * *" />
+          <a-input v-model:value="addForm.cron" :placeholder="taskText('tasks.enterCronEG001')" />
         </a-form-item>
 
         <a-form-item
-          label="任务类别"
+          :label="taskText('tasks.taskCategory')"
           name="task_tag"
-          extra="资产侦查任务：目标按域名与 IP 解析后执行资产发现；风险巡航任务：目标可为 URL，直接执行风险检测"
+          :extra="taskText('tasks.assetDiscoveryParsesDomainAndIpTargetsTo')"
         >
-          <a-select v-model:value="addForm.task_tag" placeholder="请选择任务类别">
-            <a-select-option value="task">资产侦查任务</a-select-option>
-            <a-select-option value="risk_cruising">风险巡航任务</a-select-option>
+          <a-select v-model:value="addForm.task_tag" :placeholder="taskText('tasks.selectATaskCategory')">
+            <a-select-option value="task">{{ taskText('tasks.assetDiscoveryTasks') }}</a-select-option>
+            <a-select-option value="risk_cruising">{{ taskText('tasks.riskScanningTask') }}</a-select-option>
           </a-select>
         </a-form-item>
       </a-form>
@@ -357,6 +358,9 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+import { formatTaskStatus } from '../constants/taskStatus';
+
 defineOptions({ name: 'PlanningTasks' });
 
 import { ref, reactive, onMounted, onDeactivated, computed, watch, createVNode } from 'vue';
@@ -367,6 +371,8 @@ import { message, Modal } from 'ant-design-vue';
 import { SearchOutlined, InboxOutlined, ExclamationCircleOutlined, PlusOutlined, DeleteOutlined, UndoOutlined, PauseCircleOutlined, PlayCircleOutlined, SendOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import dayjs from 'dayjs';
+
+const { t: taskText, locale: taskLocale } = useI18n({ useScope: 'global' });
 
 const route = useRoute();
 const router = useRouter();
@@ -418,16 +424,16 @@ const hasPlanSelected = computed(() => planSelectedRowKeys.value.length > 0);
 const onPlanSelectChange = (keys) => { planSelectedRowKeys.value = keys; };
 
 const columns = [
-  { title: '任务名', dataIndex: 'name', key: 'name', width: 150 },
-  { title: '目标', dataIndex: 'target', key: 'target', width: 150 },
-  { title: '类型', dataIndex: 'schedule_type', key: 'schedule_type', width: 100 },
-  { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
-  { title: '策略', dataIndex: 'policy_name', key: 'policy_name', width: 120 },
-  { title: '时间配置', key: 'time_config', width: 180 },
-  { title: '上次运行时间', dataIndex: 'last_run_date', key: 'last_run_date', width: 180 },
-  { title: '下次运行时间', dataIndex: 'next_run_date', key: 'next_run_date', width: 180 },
-  { title: '运行次数', dataIndex: 'run_number', key: 'run_number', width: 100 },
-  { title: '操作', key: 'action', width: 200 }
+  { get title() { return taskText('tasks.taskName'); }, dataIndex: 'name', key: 'name', width: 150 },
+  { get title() { return taskText('tasks.target'); }, dataIndex: 'target', key: 'target', width: 150 },
+  { get title() { return taskText('tasks.type'); }, dataIndex: 'schedule_type', key: 'schedule_type', width: 100 },
+  { get title() { return taskText('tasks.status'); }, dataIndex: 'status', key: 'status', width: 100 },
+  { get title() { return taskText('tasks.policy'); }, dataIndex: 'policy_name', key: 'policy_name', width: 120 },
+  { get title() { return taskText('tasks.schedule'); }, key: 'time_config', width: 180 },
+  { get title() { return taskText('tasks.lastRun'); }, dataIndex: 'last_run_date', key: 'last_run_date', width: 180 },
+  { get title() { return taskText('tasks.nextRun'); }, dataIndex: 'next_run_date', key: 'next_run_date', width: 180 },
+  { get title() { return taskText('tasks.runCount'); }, dataIndex: 'run_number', key: 'run_number', width: 100 },
+  { get title() { return taskText('tasks.actions'); }, key: 'action', width: 200 }
 ];
 
 const fetchPlanData = async () => {
@@ -447,7 +453,7 @@ const fetchPlanData = async () => {
       planSelectedRowKeys.value = [];
     }
   } catch (error) {
-    message.error('加载计划任务失败');
+    message.error(taskText('tasks.failedToLoadScheduledTasks'));
   } finally {
     loading.value = false;
   }
@@ -497,18 +503,18 @@ const isValidCron = (value) => {
 const disablePastDate = (current) => current && current < dayjs().startOf('day');
 
 const addRules = {
-  name: [{ required: true, message: '请输入名称' }],
-  target: [{ required: true, message: '请输入目标' }],
-  schedule_type: [{ required: true, message: '请选择计划类型' }],
-  policy_id: [{ required: true, message: '请选择策略' }],
-  task_tag: [{ required: true, message: '请选择任务类别' }],
-  start_date: [{ required: true, message: '请选择开始时间' }],
+  name: [{ required: true, get message() { return taskText('tasks.enterAName'); } }],
+  target: [{ required: true, get message() { return taskText('tasks.enterTargets'); } }],
+  schedule_type: [{ required: true, get message() { return taskText('tasks.selectAScheduleType'); } }],
+  policy_id: [{ required: true, get message() { return taskText('tasks.selectAPolicy'); } }],
+  task_tag: [{ required: true, get message() { return taskText('tasks.selectATaskCategory'); } }],
+  start_date: [{ required: true, get message() { return taskText('tasks.selectAStartTime'); } }],
   cron: [
-    { required: true, message: '请输入 Cron 表达式' },
+    { required: true, get message() { return taskText('tasks.enterACronExpression'); } },
     {
       validator: (_rule, value) => {
         if (!value || isValidCron(value)) return Promise.resolve();
-        return Promise.reject('Cron 格式不正确，需为标准 5 段表达式，如 0 0 */1 * *');
+        return Promise.reject(taskText('tasks.invalidCronUseFiveFieldsEG0'));
       }
     }
   ]
@@ -530,7 +536,7 @@ const onScheduleTypeChange = () => {
   // 清空后消除上一类型遗留的字段级校验态
   addFormRef.value?.clearValidate(['start_date', 'cron']);
   if (hadValue) {
-    message.info('已切换计划类型，请重新填写排期时间');
+    message.info(taskText('tasks.scheduleTypeChangedPleaseEnterTheScheduleAgain'));
   }
 };
 
@@ -560,14 +566,14 @@ const submitAdd = async () => {
   try {
     const res = await request.post('/task_schedule/', payload);
     if (res.code === 200) {
-      message.success('计划任务创建成功！');
+      message.success(taskText('tasks.scheduledTaskCreated'));
       addModalVisible.value = false;
       onPlanSearch();
     } else {
-      message.error(res.message || '创建失败');
+      message.error(res.message || taskText('tasks.failedToCreateTask'));
     }
   } catch (error) {
-    message.error('请求异常，创建失败');
+    message.error(taskText('tasks.requestFailedTaskWasNotCreated'));
   } finally {
     addLoading.value = false;
   }
@@ -578,13 +584,13 @@ const performPlanAction = async (actionType, idArray) => {
     const url = `/task_schedule/${actionType}/`;
     const res = await request.post(url, { _id: idArray });
     if (res.code === 200) {
-      message.success('操作成功！');
+      message.success(taskText('tasks.operationCompleted'));
       fetchPlanData();
     } else {
-      message.error(res.message || '操作失败');
+      message.error(res.message || taskText('tasks.operationFailedLabel'));
     }
   } catch (e) {
-    message.error('请求异常');
+    message.error(taskText('tasks.requestFailed'));
   }
 };
 
@@ -601,15 +607,15 @@ const handleBatchDelete = () => {
     .map(item => item.name || item._id);
 
   const preview = names.slice(0, 10).map(n => `· ${n}`).join('\n');
-  const more = names.length > 10 ? `\n… 另有 ${names.length - 10} 项` : '';
+  const more = names.length > 10 ? taskText('tasks.andCountMore', { count: names.length - 10 }) : '';
 
   Modal.confirm({
-    title: `确认删除所选 ${selectedIds.length} 个计划任务？`,
+    title: taskText('tasks.deleteSelectedScheduledTasksCount', { count: selectedIds.length }),
     icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
-    content: `以下计划任务及其调度配置将被永久移除，且不可恢复：\n\n${preview}${more}`,
-    okText: `确认删除 ${selectedIds.length} 项`,
+    content: taskText('tasks.theseScheduledTasksAndTheirSchedulingConfigurationWill', { names: preview, more: more }),
+    okText: taskText('tasks.confirmDeletionCount', { count: selectedIds.length }),
     okButtonProps: { danger: true },
-    cancelText: '取 消',
+    cancelText: taskText('tasks.cancel'),
     onOk: () => performPlanAction('delete', selectedIds)
   });
 };
@@ -628,15 +634,15 @@ const hasMonitorSelected = computed(() => monitorSelectedRowKeys.value.length > 
 const onMonitorSelectChange = (keys) => { monitorSelectedRowKeys.value = keys; };
 
 const monitorColumns = [
-  { title: '序号', key: 'index', width: 80, align: 'center' },
-  { title: '名称', dataIndex: 'name', key: 'name', width: 200 },
-  { title: '域名', dataIndex: 'domain', key: 'domain', width: 180 },
-  { title: '资产范围ID', key: 'scope_id', width: 220 },
-  { title: '运行间隔', key: 'interval', width: 120 },
-  { title: '上一次运行日期', dataIndex: 'last_run_date', key: 'last_run_date', width: 180 },
-  { title: '下一次运行日期', dataIndex: 'next_run_date', key: 'next_run_date', width: 180 },
-  { title: '运行次数', key: 'run_number', width: 100, align: 'center' },
-  { title: '操作', key: 'action', width: 260 }
+  { get title() { return taskText('tasks.no'); }, key: 'index', width: 80, align: 'center' },
+  { get title() { return taskText('tasks.name'); }, dataIndex: 'name', key: 'name', width: 200 },
+  { get title() { return taskText('tasks.domains'); }, dataIndex: 'domain', key: 'domain', width: 180 },
+  { get title() { return taskText('tasks.assetScopeId'); }, key: 'scope_id', width: 220 },
+  { get title() { return taskText('tasks.runInterval'); }, key: 'interval', width: 120 },
+  { get title() { return taskText('tasks.lastRunDate'); }, dataIndex: 'last_run_date', key: 'last_run_date', width: 180 },
+  { get title() { return taskText('tasks.nextRunDate'); }, dataIndex: 'next_run_date', key: 'next_run_date', width: 180 },
+  { get title() { return taskText('tasks.runCount'); }, key: 'run_number', width: 100, align: 'center' },
+  { get title() { return taskText('tasks.actions'); }, key: 'action', width: 260 }
 ];
 
 const goToAssetScope = (id) => {
@@ -649,9 +655,9 @@ const goToAssetScope = (id) => {
 
 const formatInterval = (seconds) => {
   if (!seconds) return '-';
-  if (seconds >= 3600 && seconds % 3600 === 0) return `${seconds / 3600} 小时`;
-  if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60} 分钟`;
-  return `${seconds} 秒`;
+  if (seconds >= 3600 && seconds % 3600 === 0) return taskText('tasks.countHours', { count: seconds / 3600 });
+  if (seconds >= 60 && seconds % 60 === 0) return taskText('tasks.countMinutes', { count: seconds / 60 });
+  return taskText('tasks.countSeconds', { count: seconds });
 };
 
 const fetchMonitorData = async () => {
@@ -668,7 +674,7 @@ const fetchMonitorData = async () => {
       monitorSelectedRowKeys.value = [];
     }
   } catch (error) {
-    message.error('加载资产监控数据失败');
+    message.error(taskText('tasks.failedToLoadAssetMonitors'));
   } finally {
     monitorLoading.value = false;
   }
@@ -703,28 +709,28 @@ const executeMonitorAction = async (actionType, ids) => {
     }
     const res = await request.post(url, payload);
     if (res.code === 200) {
-      message.success('操作成功！');
+      message.success(taskText('tasks.operationCompleted'));
       fetchMonitorData();
     } else {
-      message.error('操作失败: ' + res.message);
+      message.error(taskText('tasks.operationFailed') + res.message);
     }
   } catch (error) {
-    message.error('网络请求异常');
+    message.error(taskText('tasks.networkRequestFailed'));
   }
 };
 
 const handleMonitorSingleAction = (actionType, record) => {
-  const actionName = actionType === 'delete' ? '删除' : actionType === 'stop' ? '暂停' : actionType === 'resume' ? '恢复' : '下发';
+  const actionName = actionType === 'delete' ? taskText('tasks.delete') : actionType === 'stop' ? taskText('tasks.pause') : actionType === 'resume' ? taskText('tasks.resume') : taskText('tasks.run');
   if (actionType === 'delete' || actionType === 'run') {
     Modal.confirm({
-      title: actionType === 'delete' ? '删除监控任务确认' : '下发监控任务确认',
+      title: actionType === 'delete' ? taskText('tasks.deleteMonitoringTask') : taskText('tasks.runMonitoringTask'),
       icon: createVNode(ExclamationCircleOutlined, actionType === 'delete' ? { style: 'color: #ff4d4f;' } : undefined),
       content: actionType === 'delete'
-        ? `确认删除监控任务 [${record.name}] 吗？删除后该任务的调度配置将一并移除，不可恢复。`
-        : `确认立即下发监控任务 [${record.name}] 吗？任务将进入调度队列，由执行引擎按序取用。`,
-      okText: actionType === 'delete' ? '确认删除' : '确 定',
+        ? taskText('tasks.deleteMonitoringTaskNameItsSchedulingConfigurationWill', { name: record.name })
+        : taskText('tasks.runMonitoringTaskNameNowItWillBe', { name: record.name }),
+      okText: actionType === 'delete' ? taskText('tasks.confirmDeletion') : taskText('tasks.confirm'),
       okButtonProps: actionType === 'delete' ? { danger: true } : undefined,
-      cancelText: '取 消',
+      cancelText: taskText('tasks.cancel'),
       onOk: () => executeMonitorAction(actionType, [record._id])
     });
   } else {
@@ -734,22 +740,22 @@ const handleMonitorSingleAction = (actionType, record) => {
 
 const handleMonitorBatchAction = (action) => {
   const actionMap = {
-    delete:  { title: '批量删除', text: '删除', url: '/scheduler/delete/', type: 'danger' },
-    stop:    { title: '批量停止', text: '停止', url: '/scheduler/stop/batch', type: 'danger' },
-    recover: { title: '批量恢复', text: '恢复', url: '/scheduler/recover/batch', type: 'primary' },
-    run:     { title: '批量下发', text: '下发', url: '/scheduler/run/batch', type: 'primary' }
+    delete:  { title: taskText('tasks.deleteSelected'), text: taskText('tasks.delete'), url: '/scheduler/delete/', type: 'danger' },
+    stop:    { title: taskText('tasks.stopSelected'), text: taskText('tasks.stop'), url: '/scheduler/stop/batch', type: 'danger' },
+    recover: { title: taskText('tasks.resumeSelected'), text: taskText('tasks.resume'), url: '/scheduler/recover/batch', type: 'primary' },
+    run:     { title: taskText('tasks.runSelected'), text: taskText('tasks.run'), url: '/scheduler/run/batch', type: 'primary' }
   };
 
   const current = actionMap[action];
   if (!current) return;
 
   Modal.confirm({
-    title: `${current.title}确认`,
+    title: taskText('tasks.confirmAction', { action: current.title }),
     icon: createVNode(ExclamationCircleOutlined),
-    content: `确定要对选中的 ${monitorSelectedRowKeys.value.length} 个任务执行【${current.text}】操作吗？`,
-    okText: '确 定',
+    content: taskText('tasks.applyActionToTheSelectedTasksCount', { count: monitorSelectedRowKeys.value.length, action: current.text }),
+    okText: taskText('tasks.confirm'),
     okType: current.type,
-    cancelText: '取 消',
+    cancelText: taskText('tasks.cancel'),
     onOk: async () => {
       try {
         const res = await request.post(current.url, {
@@ -757,17 +763,17 @@ const handleMonitorBatchAction = (action) => {
         });
 
         if (res.code === 200) {
-          message.success(`批量${current.text}成功！`);
+          message.success(taskText('tasks.batchOperationCompletedAction', { action: current.text }));
           if (action === 'delete' && monitorDataSource.value.length === monitorSelectedRowKeys.value.length && monitorPagination.current > 1) {
             monitorPagination.current -= 1;
           }
           monitorSelectedRowKeys.value = [];
           fetchMonitorData();
         } else {
-          message.error(`${current.text}失败: ` + res.message);
+          message.error(taskText('tasks.actionFailed', { action: current.text }) + res.message);
         }
       } catch (error) {
-        message.error(`请求异常，${current.text}失败`);
+        message.error(taskText('tasks.requestFailedCouldNotAction', { action: current.text }));
       }
     }
   });
@@ -798,3 +804,10 @@ onDeactivated(() => {
   addModalVisible.value = false;
 });
 </script>
+<style scoped>
+.task-width-140 { width: 140px; }
+.task-width-130 { width: 130px; }
+.task-width-110 { width: 110px; }
+.task-width-160 { width: 160px; }
+.task-option-hint { color: var(--arl-text-color); opacity: 0.45; margin-top: 8px; }
+</style>
