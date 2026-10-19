@@ -2,6 +2,8 @@
 
 本文档记录 ARL-Next 项目的所有重大版本演进、新特性、性能优化与漏洞修复。
 
+> 英文版 English: [CHANGELOG_en.md](./CHANGELOG_en.md)
+
 ---
 
 ## [v1.4.2] - 2026-10-19

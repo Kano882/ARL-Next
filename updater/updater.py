@@ -715,6 +715,7 @@ class PollingHandler(BaseHTTPRequestHandler):
             cp /code/docker-compose.prod.yml /host/docker-compose.prod.yml 2>/dev/null || true
             cp /code/version.txt /host/version.txt 2>/dev/null || true
             cp /code/CHANGELOG.md /host/CHANGELOG.md 2>/dev/null || true
+            cp /code/CHANGELOG_en.md /host/CHANGELOG_en.md 2>/dev/null || true
             mkdir -p /host/frontend && cp /code/frontend/default.conf.prod /host/frontend/default.conf.prod 2>/dev/null || true
             """
         ]

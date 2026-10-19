@@ -1,7 +1,7 @@
 # ARL-Next Quickstart (5-Minute Baseline)
 
 > Goal: complete the minimal loop "log in → create group → launch first task → review results" in 5 minutes.
-> This page keeps only the minimal path; details live in `README_en.md`, `docs/API_GUIDE_en.md`, and `CHANGELOG.md`.
+> This page keeps only the minimal path; details live in `README_en.md`, `docs/API_GUIDE_en.md`, and `CHANGELOG_en.md`.
 
 <p align="center"><img src="../img/quickstart-login.jpeg" alt="Login" width="850"></p>
 
@@ -12,7 +12,7 @@
 - **Enterprise panorama recon → group**: "Asset Group → New Group" now offers "Enterprise panorama recon → group / Manual asset entry"; completed recon jobs are filed into groups automatically by the backend, no need to keep the page open.
 - **Tasks can link an asset group**: the new recon task form offers an optional "Related asset group"; results sync to that group on completion.
 - **Searchable system settings**: the "System Settings" page supports keyword search (e.g. `FOFA`, concurrency, Webhook); the concurrency page distinguishes Worker process counts from per-task blasting concurrency.
-- Full changes: [`CHANGELOG.md`](../CHANGELOG.md).
+- Full changes: [`CHANGELOG_en.md`](../CHANGELOG_en.md).
 
 ---
 
@@ -145,4 +145,4 @@ Open "Task Management" → click "资产侦查任务" to switch views → "New r
 
 ## Related links
 
-- [Deploy & Ops (README)](../README_en.md) · [API conventions](API_GUIDE_en.md) · [MCP setup](../mcp-server/README_en.md) · [Changelog](../CHANGELOG.md)
+- [Deploy & Ops (README)](../README_en.md) · [API conventions](API_GUIDE_en.md) · [MCP setup](../mcp-server/README_en.md) · [Changelog](../CHANGELOG_en.md)

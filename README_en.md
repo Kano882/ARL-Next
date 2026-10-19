@@ -33,7 +33,7 @@
     <a href="#core-features"><b>✨ Core Features</b></a> •
     <a href="./docs/API_GUIDE_en.md"><b>🔌 API Guide</b></a> •
     <a href="./mcp-server/README_en.md"><b>🤖 MCP Guide</b></a> •
-    <a href="./CHANGELOG.md"><b>📜 Changelog</b></a> •
+    <a href="./CHANGELOG_en.md"><b>📜 Changelog</b></a> •
     <a href="https://github.com/owl234/ARL-Next/discussions"><b>💬 Discussions</b></a> •
     <a href="./LICENSE"><b>📄 License</b></a>
   </p>
@@ -438,7 +438,7 @@ docker compose -f docker-compose.prod.yml restart
 
 ## 📜 Changelog
 
-For detailed version history, feature additions, performance enhancements, and bug fixes, refer to ➔ [**CHANGELOG.md**](./CHANGELOG.md)
+For detailed version history, feature additions, performance enhancements, and bug fixes, refer to ➔ [**CHANGELOG_en.md**](./CHANGELOG_en.md)
 
 ---
 
