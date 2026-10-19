@@ -27,6 +27,7 @@
   </p>
 
   <p>
+    <a href="./docs/QUICKSTART_en.md"><b>🚀 Quickstart (5-Min)</b></a> •
     <a href="#quick-deploy"><b>⚡ Quick Deployment</b></a> •
     <a href="#comparison"><b>💡 Architectural Comparison</b></a> •
     <a href="#core-features"><b>✨ Core Features</b></a> •
