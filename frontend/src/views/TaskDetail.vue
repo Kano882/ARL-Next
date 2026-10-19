@@ -127,7 +127,7 @@
 
     <div v-show="activeTab !== 'syslog'" style="margin-bottom: 16px;">
       <a-button style="margin-right: 16px;" @click="resetSearch">清空筛选条件</a-button>
-      <a-button :disabled="!hasSelected" style="margin-right: 16px;" @click="handleBatchDelete">批量删除</a-button>
+      <a-button v-if="canDeleteAssets" :disabled="!hasSelected" style="margin-right: 16px;" @click="handleBatchDelete">批量删除</a-button>
       <a-button v-if="tabConfig[effectiveTab]?.exportName" type="primary" style="margin-right: 16px;" @click="handleExport">导出{{ tabConfig[effectiveTab].exportName }}</a-button>
       <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">风险任务下发</a-button>
     </div>
@@ -136,7 +136,7 @@
     <a-table
         :sticky="stickyConfig"
         v-show="activeTab !== 'syslog'"
-        :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange }"
+        :row-selection="canSelectAssets ? { selectedRowKeys: selectedRowKeys, onChange: onSelectChange } : null"
         :loading="loading"
         :dataSource="dataSource"
         :columns="columns"
@@ -144,7 +144,7 @@
         :scroll="pagination.pageSize >= 100 ? { y: 'calc(100vh - 380px)', x: 'max-content' } : { x: 'max-content' }"
         :virtual="pagination.pageSize >= 100"
         size="middle"
-        :rowKey="(record) => record._id || record.id"
+        :rowKey="getAssetRowKey"
     >
       <template #bodyCell="{ column, record, index }">
 
@@ -1097,8 +1097,10 @@ const tabConfig = reactive({
     ]
   },
   url: {
-    url: '/asset_url/',
-    deleteUrl: '/asset_url/delete/',
+    // 任务视图查询任务结果集合；全局查看与同页其他页签一致，使用资产组集合。
+    url: '/url/',
+    globalUrl: '/asset_url/',
+    deleteUrl: '/url/delete/',
     exportUrl: '/url/export/',
     exportName: 'URL信息',
     searchFields: [
@@ -1179,8 +1181,9 @@ const tabConfig = reactive({
     ]
   },
   cip: {
-    url: '/asset_cip/',
-    deleteUrl: '/asset_cip/delete/',
+    url: '/cip/',
+    globalUrl: '/asset_cip/',
+    deleteUrl: '/cip/delete/',
     exportUrl: '/cip/export/',
     exportName: 'C段',
     searchFields: [
@@ -1216,8 +1219,8 @@ const tabConfig = reactive({
     ]
   },
   stat_finger: {
-    url: '/asset_stat_finger/',
-    deleteUrl: '/asset_stat_finger/delete/',
+    url: '/stat_finger/',
+    globalUrl: '/asset_stat_finger/',
     searchFields: [
       { 
         label: 'finger', 
@@ -1266,6 +1269,17 @@ const tabConfig = reactive({
   }
 });
 
+// 任务视图查询任务结果集合；全局查看与同页其他页签一致，使用资产组集合。
+const resolveAssetEndpoint = (config) => (taskId.value ? config?.url : config?.globalUrl || config?.url);
+
+// 任务集合中的记录可按 ID 删除；指纹统计为聚合结果，全局视图为资产组集合。
+const canDeleteAssets = computed(() => !!taskId.value && !!tabConfig[effectiveTab.value]?.deleteUrl);
+const canSelectAssets = computed(() => canDeleteAssets.value ||
+  (!!taskId.value && effectiveTab.value === 'stat_finger'));
+const getAssetRowKey = (record) => record._id || record.id || (
+  effectiveTab.value === 'stat_finger' ? record.name : undefined
+);
+
 const tabCache = createTabStateCache({
   getStorageKey: () => taskId.value ? `ARL_TASK_TAB_STATE_${taskId.value}` : 'ARL_TASK_TAB_STATE_GLOBAL',
   tabConfig,
@@ -1299,7 +1313,7 @@ const fetchData = async (isPolling = false) => {
 
     Object.assign(params, buildAssetFilterParams(searchForm.value, config.searchFields));
 
-    const res = await request.get(config.url, { params });
+    const res = await request.get(resolveAssetEndpoint(config), { params });
     // 竞态防御：若响应到达时 Tab 已切换，丢弃过期响应
     if (effectiveTab.value !== currentReqTab) return;
 
@@ -1383,7 +1397,7 @@ const handleBatchDelete = () => {
   }
 
   const config = tabConfig[effectiveTab.value];
-  if (!config || !config.deleteUrl) {
+  if (!config || !canDeleteAssets.value) {
     message.warning('当前资产类型暂不支持批量删除');
     return;
   }
