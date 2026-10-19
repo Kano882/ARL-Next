@@ -34,7 +34,3 @@ This document records all major version evolution, new features, performance opt
 - **MongoDB fd limit raised**: `docker-compose.prod.yml` sets `nofile` to 65535 to avoid official warnings under concurrent queries over many collections; new `arl_geoip` named volume; existing persistent volume names unchanged.
 - **Smooth DB evolution**: incremental migrations backfill missing concurrency fields (fill-missing-only), in-flight recon auto-group intents, and stale grouping-state healing; scope index gains `updating_icp_task_id`; every step isolated by single-step fault tolerance so one failure never blocks startup.
 - **Doc wording convergence**: API conventions moved to `docs/API_GUIDE.md` (bilingual), README keeps global capabilities and quick entries; capability claims not matching implementation removed; asset-group terminology unified with community templates added; cert/credential ignore rules completed and verified.
-
----
-
-> Earlier versions: see [CHANGELOG.md](./CHANGELOG.md) (Chinese).
