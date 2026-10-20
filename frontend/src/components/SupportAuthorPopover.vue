@@ -22,9 +22,9 @@
         <div class="support-card-header">
           <div class="support-card-title-row">
             <span class="support-sparkle">✨</span>
-            <span class="support-card-title">支持 ARL-Next 持续进化</span>
+            <span class="support-card-title">{{ pageText('pages.supportArlNextDevelopment') }}</span>
           </div>
-          <p class="support-card-desc">您的每一次关注、反馈与赞助，都是项目持续迭代的动力！</p>
+          <p class="support-card-desc">{{ pageText('pages.yourFollowsFeedbackAndSponsorshipHelpKeepTheProject') }}</p>
         </div>
 
         <!-- 紧凑切换胶囊 Tabs -->
@@ -65,7 +65,7 @@
             <div class="qrcode-wrapper">
               <img
                 :src="rewardQrcode"
-                alt="赞赏码"
+                :alt="pageText('pages.sponsorshipQrCode')"
                 class="qrcode-img"
               />
             </div>
@@ -84,13 +84,13 @@
             <div class="qrcode-wrapper">
               <img
                 :src="mpQrcode"
-                alt="公众号二维码"
+                :alt="pageText('pages.officialAccountQrCode')"
                 class="qrcode-img"
               />
             </div>
             <div class="support-panel-info">
               <div class="support-panel-title">
-                <span>公众号：</span>
+                <span>{{ pageText('pages.officialAccount') }}</span>
                 <span class="highlight-text">{{ SUPPORT_CONFIG.official.name }}</span>
               </div>
               <p class="support-panel-desc">{{ SUPPORT_CONFIG.official.desc }}</p>
@@ -106,19 +106,19 @@
             <div class="qrcode-wrapper">
               <img
                 :src="wechatQrcode"
-                alt="微信二维码"
+                :alt="pageText('pages.wechatQrCode')"
                 class="qrcode-img"
               />
             </div>
             <div class="support-panel-info">
               <div class="wechat-copy-box">
-                <span class="wechat-label">微信号：</span>
+                <span class="wechat-label">{{ pageText('pages.wechatId') }}</span>
                 <span class="wechat-id">{{ SUPPORT_CONFIG.wechat.wechatId }}</span>
-                <a-tooltip :title="copied ? '已复制！' : '点击复制微信号'">
+                <a-tooltip :title="copied ? pageText('pages.copied') : pageText('pages.clickToCopyWechatId')">
                   <button type="button" class="copy-wechat-btn" @click="handleCopyWechat">
                     <CheckOutlined v-if="copied" style="color: #52c41a; font-size: 13px;" />
                     <CopyOutlined v-else style="font-size: 13px;" />
-                    <span>{{ copied ? '已复制' : '复制' }}</span>
+                    <span>{{ copied ? pageText('pages.copiedLabel2') : pageText('tasks.copy') }}</span>
                   </button>
                 </a-tooltip>
               </div>
@@ -133,7 +133,7 @@
 
         <!-- 卡片底部寄语 -->
         <div class="support-card-footer">
-          <span>☕ 持续开源 · 用心维护 · 共同构建下一代资产测绘平台</span>
+          <span>{{ pageText('pages.openSourceOngoingMaintenanceBuildingTheNextAssetDiscovery') }}</span>
         </div>
       </div>
     </template>
@@ -141,6 +141,7 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ref, computed } from 'vue';
 import { message } from 'ant-design-vue';
 import { copyText } from '@/utils/clipboard';
@@ -155,6 +156,8 @@ import {
   UserAddOutlined
 } from '@ant-design/icons-vue';
 import { SUPPORT_CONFIG } from '@/config/support';
+
+const { t: pageText } = useI18n({ useScope: 'global' });
 
 const visible = ref(false);
 const activeTab = ref(SUPPORT_CONFIG.defaultTab || 'reward');
@@ -191,12 +194,12 @@ const handleCopyWechat = async () => {
   const ok = await copyText(text);
   if (ok) {
     copied.value = true;
-    message.success(`作者微信号「${text}」已复制到剪贴板！`);
+    message.success(pageText('pages.authorSWechatIdIdCopiedToClipboard', { id: text }));
     setTimeout(() => {
       copied.value = false;
     }, 2500);
   } else {
-    message.error('复制失败，请手动选择复制');
+    message.error(pageText('pages.copyFailedSelectAndCopyTheTextManually'));
   }
 };
 </script>

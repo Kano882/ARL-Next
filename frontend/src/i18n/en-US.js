@@ -1,7 +1,9 @@
+import pages from './pages.en-US.js';
 import assets from './assets.en-US.js';
 import tasks from './tasks.en-US.js';
 
 export default {
+  pages,
   assets,
   tasks,
   language: { select: 'Interface language' },

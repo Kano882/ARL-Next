@@ -1,17 +1,17 @@
 <template>
   <div class="arl-page-container">
     <a-tabs v-model:activeKey="mainTab" size="large" style="margin-bottom: 12px;">
-      <a-tab-pane key="arl" tab="ARL 插件 (Python)">
+      <a-tab-pane key="arl" :tab="pageText('pages.arlPluginsPython')">
         <!-- 吸顶 Hero 操作卡片 -->
         <div ref="actionBarRef" class="arl-hero-card">
           <div class="arl-toolbar-row">
             <!-- 左侧：紧凑搜索条件与重置 -->
             <div class="arl-filter-group">
               <div class="arl-filter-item">
-                <span class="arl-filter-label">漏洞名称：</span>
+                <span class="arl-filter-label">{{ pageText('pages.vulnerabilityName') }}</span>
                 <a-input
                   v-model:value="searchForm.vul_name"
-                  placeholder="请输入漏洞名称"
+                  :placeholder="pageText('pages.enterAVulnerabilityName')"
                   style="width: 160px;"
                   allowClear
                   size="small"
@@ -21,10 +21,10 @@
                 </a-input>
               </div>
               <div class="arl-filter-item">
-                <span class="arl-filter-label">应用：</span>
+                <span class="arl-filter-label">{{ pageText('pages.application') }}</span>
                 <a-input
                   v-model:value="searchForm.app_name"
-                  placeholder="请输入应用"
+                  :placeholder="pageText('pages.enterAnApplication')"
                   style="width: 140px;"
                   allowClear
                   size="small"
@@ -34,10 +34,10 @@
                 </a-input>
               </div>
               <div class="arl-filter-item">
-                <span class="arl-filter-label">类别：</span>
+                <span class="arl-filter-label">{{ pageText('pages.category') }}</span>
                 <a-input
                   v-model:value="searchForm.category"
-                  placeholder="请输入类别"
+                  :placeholder="pageText('pages.enterACategory')"
                   style="width: 130px;"
                   allowClear
                   size="small"
@@ -47,10 +47,10 @@
                 </a-input>
               </div>
               <div class="arl-filter-item">
-                <span class="arl-filter-label">协议：</span>
+                <span class="arl-filter-label">{{ pageText('pages.protocol') }}</span>
                 <a-input
                   v-model:value="searchForm.scheme"
-                  placeholder="请输入协议"
+                  :placeholder="pageText('pages.enterAProtocol')"
                   style="width: 120px;"
                   allowClear
                   size="small"
@@ -62,7 +62,7 @@
 
               <a-button size="small" @click="resetSearch">
                 <template #icon><undo-outlined /></template>
-                重置
+                {{ pageText('assets.reset') }}
               </a-button>
             </div>
 
@@ -70,36 +70,36 @@
             <div class="arl-actions-group">
               <a-button type="primary" size="small" @click="openCreateModal">
                 <template #icon><plus-outlined /></template>
-                新建 PoC
+                {{ pageText('pages.newPoc') }}
               </a-button>
 
               <a-button size="small" @click="isImportModalVisible = true">
                 <template #icon><upload-outlined /></template>
-                导入 PoC
+                {{ pageText('pages.importPocs') }}
               </a-button>
 
               <a-button size="small" @click="downloadTemplate">
                 <template #icon><download-outlined /></template>
-                下载模板
+                {{ pageText('pages.downloadTemplate') }}
               </a-button>
 
-              <a-tooltip title="扫描磁盘并同步 PoC 插件库至数据库">
+              <a-tooltip :title="pageText('pages.scanDiskAndSynchronizePocPluginsToTheDatabase')">
                 <a-button size="small" :loading="syncLoading" @click="handleSync">
                   <template #icon><sync-outlined /></template>
-                  同步插件
+                  {{ pageText('pages.syncPlugins') }}
                 </a-button>
               </a-tooltip>
 
               <a-popconfirm
-                title="确认批量删除选中的 PoC 吗？"
-                ok-text="确认"
-                cancel-text="取消"
+                :title="pageText('pages.deleteTheSelectedPocs')"
+                :ok-text="pageText('assets.confirm')"
+                :cancel-text="pageText('tasks.cancel')"
                 @confirm="handleBatchDelete"
                 :disabled="selectedRowKeys.length === 0"
               >
                 <a-button danger size="small" :disabled="selectedRowKeys.length === 0" :loading="deleteLoading">
                   <template #icon><delete-outlined /></template>
-                  批量删除
+                  {{ pageText('tasks.deleteSelected') }}
                 </a-button>
               </a-popconfirm>
             </div>
@@ -125,20 +125,20 @@
               <a @click="showPocDetail(record)" style="font-weight: 500;">{{ record.vul_name }}</a>
             </template>
             <template v-if="column.key === 'action'">
-              <a @click="editPocSource(record)">编辑源码</a>
+              <a @click="editPocSource(record)">{{ pageText('pages.editSource') }}</a>
             </template>
           </template>
           <template #emptyText>
             <div style="padding: 40px 0;">
               <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
-              <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无数据</div>
+              <div class="page-option-hint">{{ pageText('tasks.noData') }}</div>
             </div>
           </template>
         </a-table>
 
         <!-- 统一微型分页栏 -->
         <div class="arl-pagination-bar">
-          <div class="pagination-info">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+          <div class="pagination-info">{{ pageText('tasks.paginationSummary', { pages: Math.ceil(pagination.total / pagination.pageSize) || 1, total: pagination.total }) }}</div>
           <a-pagination
             :pageSizeOptions="$pageSizeOptions"
             v-model:current="pagination.current"
@@ -152,7 +152,7 @@
         </div>
 
     <!-- 导入 PoC 弹窗 -->
-    <a-modal v-model:open="isImportModalVisible" title="导入 PoC 文件" :footer="null">
+    <a-modal v-model:open="isImportModalVisible" :title="pageText('pages.importPocFiles')" :footer="null">
       <a-upload-dragger
         name="file"
         :multiple="true"
@@ -162,13 +162,13 @@
         @change="handleUploadChange"
       >
         <p class="ant-upload-drag-icon"><inbox-outlined /></p>
-        <p class="ant-upload-text">点击或将文件拖拽到这里上传</p>
-        <p class="ant-upload-hint">支持单文件或多文件批量上传，仅支持 .py 脚本格式</p>
+        <p class="ant-upload-text">{{ pageText('pages.clickOrDragFilesHereToUpload') }}</p>
+        <p class="ant-upload-hint">{{ pageText('pages.uploadOneOrMoreFilesOnlyPyScriptsAre') }}</p>
       </a-upload-dragger>
       <div style="margin-top: 12px; display: flex; justify-content: flex-end; align-items: center; font-size: 13px;">
-        <span style="color: var(--arl-text-color); opacity: 0.65;">还没有编写标准脚本？</span>
+        <span class="page-muted">{{ pageText('pages.needAStandardScriptExample') }}</span>
         <a @click="downloadTemplate" style="margin-left: 6px; font-weight: 500;">
-          <download-outlined /> 下载标准 PoC 模板
+          <download-outlined /> {{ pageText('pages.downloadStandardPocTemplate') }}
         </a>
       </div>
     </a-modal>
@@ -176,7 +176,7 @@
     <!-- 详情抽屉 -->
     <a-drawer
         v-model:open="isDetailDrawerVisible"
-        title="PoC 详情"
+        :title="pageText('pages.pocDetails')"
         placement="right"
         width="600"
     >
@@ -235,11 +235,11 @@
     </a-drawer>
 
     <!-- 源码编辑弹窗 -->
-    <a-modal v-model:open="isEditModalVisible" :title="`编辑源码 - ${currentEditPluginName}`" width="800px" @ok="savePocSource" :confirmLoading="saveLoading" ok-text="保存" cancel-text="取消">
+    <a-modal v-model:open="isEditModalVisible" :title="pageText('pages.editSourceName', { name: currentEditPluginName })" width="800px" @ok="savePocSource" :confirmLoading="saveLoading" :ok-text="pageText('pages.save')" :cancel-text="pageText('tasks.cancel')">
       <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; overflow: hidden; text-align: left;">
         <codemirror
           v-model="currentEditSourceCode"
-          placeholder="正在加载源码..."
+          :placeholder="pageText('pages.loadingSource')"
           :style="{ height: '500px', fontSize: '14px' }"
           :autofocus="true"
           :indent-with-tab="true"
@@ -250,22 +250,22 @@
     </a-modal>
 
     <!-- 新建 PoC 弹窗 -->
-    <a-modal v-model:open="isCreateModalVisible" title="新建 PoC" width="800px" @ok="createPocSource" :confirmLoading="createLoading" ok-text="保存" cancel-text="取消">
+    <a-modal v-model:open="isCreateModalVisible" :title="pageText('pages.newPoc')" width="800px" @ok="createPocSource" :confirmLoading="createLoading" :ok-text="pageText('pages.save')" :cancel-text="pageText('tasks.cancel')">
       <div style="margin-bottom: 16px; display: flex; gap: 16px; align-items: center;">
-        <a-input v-model:value="createForm.plugin_name" placeholder="插件文件名 (如: poc_test_vuln)" style="flex: 1;">
+        <a-input v-model:value="createForm.plugin_name" :placeholder="pageText('pages.pluginFilenameEGPocTestVuln')" class="page-fill-space">
           <template #addonAfter>
-            <a style="cursor: pointer; " @click="generateFilename">生成名称</a>
+            <a class="page-clickable-label" @click="generateFilename">{{ pageText('pages.generateName') }}</a>
           </template>
         </a-input>
         <a-select v-model:value="createForm.templateType" style="width: 180px;" @change="handleTemplateChange">
-          <a-select-option value="python_default">通用 Python PoC</a-select-option>
-          <a-select-option value="python_brute">Python 弱口令</a-select-option>
+          <a-select-option value="python_default">{{ pageText('pages.generalPythonPoc') }}</a-select-option>
+          <a-select-option value="python_brute">{{ pageText('pages.pythonCredentialCheck') }}</a-select-option>
         </a-select>
       </div>
       <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; overflow: hidden; text-align: left;">
         <codemirror
           v-model="createForm.content"
-          placeholder="在这里编写您的 PoC 代码..."
+          :placeholder="pageText('pages.writeYourPocCodeHere')"
           :style="{ height: '500px', fontSize: '14px' }"
           :autofocus="true"
           :indent-with-tab="true"
@@ -278,7 +278,7 @@
       </a-tab-pane>
 
       <!-- Nuclei 模板中心 -->
-      <a-tab-pane key="nuclei" tab="Nuclei 模板 (YAML)">
+      <a-tab-pane key="nuclei" :tab="pageText('pages.nucleiTemplatesYaml')">
         <NucleiManage />
       </a-tab-pane>
     </a-tabs>
@@ -286,6 +286,7 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 defineOptions({ name: 'PocList' });
 
 import { ref, reactive, onMounted, onDeactivated, watch } from 'vue';
@@ -311,6 +312,8 @@ import request from '../utils/request';
 import { message } from 'ant-design-vue';
 import { SearchOutlined, InboxOutlined, LinkOutlined, SyncOutlined, DownloadOutlined, PlusOutlined, UploadOutlined, DeleteOutlined, UndoOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
+
+const { t: pageText } = useI18n({ useScope: 'global' });
 
 const editExtensions = [python(), oneDark];
 
@@ -338,7 +341,7 @@ const saveLoading = ref(false);
 
 const editPocSource = async (record) => {
   currentEditPluginName.value = record.plugin_name;
-  currentEditSourceCode.value = '加载中...';
+  currentEditSourceCode.value = pageText('pages.loading');
   isEditModalVisible.value = true;
   
   try {
@@ -346,11 +349,11 @@ const editPocSource = async (record) => {
     if (res.code === 200) {
       currentEditSourceCode.value = res.data?.content || res.content || '';
     } else {
-      message.error('获取源码失败: ' + (res.message || res.error || '未知错误'));
+      message.error(pageText('pages.failedToLoadSource') + (res.message || res.error || pageText('tasks.unknownError')));
       isEditModalVisible.value = false;
     }
   } catch (error) {
-    message.error('请求异常');
+    message.error(pageText('tasks.requestFailed'));
     isEditModalVisible.value = false;
   }
 };
@@ -363,14 +366,14 @@ const savePocSource = async () => {
       content: currentEditSourceCode.value
     });
     if (res.code === 200) {
-      message.success('保存成功，已同步');
+      message.success(pageText('pages.savedAndSynchronized'));
       isEditModalVisible.value = false;
       onSearch(); // 刷新列表
     } else {
-      message.error('保存失败: ' + (res.message || res.error || '未知错误'));
+      message.error(pageText('pages.failedToSave') + (res.message || res.error || pageText('tasks.unknownError')));
     }
   } catch (error) {
-    message.error('请求异常，保存失败');
+    message.error(pageText('pages.requestFailedChangesWereNotSaved'));
   } finally {
     saveLoading.value = false;
   }
@@ -505,11 +508,11 @@ const openCreateModal = () => {
 
 const createPocSource = async () => {
   if (!createForm.plugin_name || !createForm.content) {
-    message.warning('插件名称和内容不能为空');
+    message.warning(pageText('pages.pluginNameAndContentCannotBeEmpty'));
     return;
   }
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_]*$/.test(createForm.plugin_name)) {
-    message.warning('插件名称只允许英文字母、数字和下划线，且首字符必须为英文字母或数字');
+    message.warning(pageText('pages.useOnlyLettersNumbersAndUnderscoresTheFirstCharacter'));
     return;
   }
   
@@ -522,7 +525,7 @@ const createPocSource = async () => {
       plugin_type: createForm.templateType === 'python_brute' ? 'brute' : 'poc'
     });
     if (res.code === 200) {
-      message.success('新建成功，已同步');
+      message.success(pageText('pages.createdAndSynchronized'));
       isCreateModalVisible.value = false;
       // 清除草稿
       localStorage.removeItem('poc_draft_name');
@@ -531,10 +534,10 @@ const createPocSource = async () => {
       localStorage.removeItem('poc_draft_content');
       onSearch(); // 刷新列表
     } else {
-      message.error('新建失败: ' + (res.message || res.error || '未知错误'));
+      message.error(pageText('pages.failedToCreatePluginPrefix') + (res.message || res.error || pageText('tasks.unknownError')));
     }
   } catch (error) {
-    message.error('请求异常，新建失败');
+    message.error(pageText('pages.requestFailedPluginWasNotCreated'));
   } finally {
     createLoading.value = false;
   }
@@ -557,19 +560,19 @@ const getSeverityColor = (sev) => {
 
 const formatKey = (key) => {
   const map = {
-    vul_name: '漏洞名称',
-    plugin_name: '插件名称',
-    app_name: '应用',
-    severity: '危险级别',
-    category: '类别',
-    scheme: '协议',
-    plugin_type: '插件类型',
-    author: '作者',
-    update_date: '更新时间',
-    desc: '描述',
-    description: '描述',
-    remediation: '修复建议',
-    references: '参考链接'
+    vul_name: pageText('tasks.vulnerabilityName'),
+    plugin_name: pageText('pages.pluginName'),
+    app_name: pageText('pages.applicationLabel2'),
+    severity: pageText('pages.severity'),
+    category: pageText('tasks.category'),
+    scheme: pageText('tasks.protocol'),
+    plugin_type: pageText('pages.pluginType'),
+    author: pageText('pages.author'),
+    update_date: pageText('assets.updatedAtLabel'),
+    desc: pageText('assets.description'),
+    description: pageText('assets.description'),
+    remediation: pageText('pages.remediation'),
+    references: pageText('pages.references')
   };
   return map[key] || key;
 };
@@ -631,17 +634,17 @@ const handleUploadChange = (info) => {
     if (res && res.code === 200) {
       if (res.data?.fail_count > 0) {
         const detail = res.data.fail_details?.[0];
-        const reason = detail?.reason || '校验未通过';
-        message.warning(`${info.file.name} 导入未通过：${reason}`, 6);
+        const reason = detail?.reason || pageText('pages.validationFailed');
+        message.warning(pageText('pages.nameFailedImportValidationReason', { name: info.file.name, reason: reason }), 6);
       } else {
-        message.success(`${info.file.name} 导入并同步成功`);
+        message.success(pageText('pages.nameImportedAndSynchronized', { name: info.file.name }));
       }
       onSearch();
     } else {
-      message.error(`${info.file.name} 导入失败: ${res?.error || res?.message || '未知错误'}`);
+      message.error(pageText('pages.failedToImportNameReason', { name: info.file.name, reason: res?.error || res?.message || pageText('tasks.unknownError') }));
     }
   } else if (status === 'error') {
-    message.error(`${info.file.name} 上传网络异常`);
+    message.error(pageText('pages.networkErrorUploadingName', { name: info.file.name }));
   }
 };
 
@@ -671,13 +674,13 @@ watch(globalPageSize, (newSize) => {
 });
 
 const columns = [
-  { title: '序号', key: 'index', width: 80, align: 'center' },
-  { title: '漏洞名称', dataIndex: 'vul_name', key: 'vul_name', width: 300 },
-  { title: '应用', dataIndex: 'app_name', key: 'app_name', width: 200 },
-  { title: '类别', dataIndex: 'category', key: 'category', width: 150 },
-  { title: '协议', dataIndex: 'scheme', key: 'scheme', width: 150 },
-  { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 200 },
-  { title: '操作', key: 'action', width: 100, align: 'center' }
+  { get title() { return pageText('tasks.no'); }, key: 'index', width: 80, align: 'center' },
+  { get title() { return pageText('tasks.vulnerabilityName'); }, dataIndex: 'vul_name', key: 'vul_name', width: 300 },
+  { get title() { return pageText('pages.applicationLabel2'); }, dataIndex: 'app_name', key: 'app_name', width: 200 },
+  { get title() { return pageText('tasks.category'); }, dataIndex: 'category', key: 'category', width: 150 },
+  { get title() { return pageText('tasks.protocol'); }, dataIndex: 'scheme', key: 'scheme', width: 150 },
+  { get title() { return pageText('assets.updatedAtLabel'); }, dataIndex: 'update_date', key: 'update_date', width: 200 },
+  { get title() { return pageText('tasks.actions'); }, key: 'action', width: 100, align: 'center' }
 ];
 
 // ================= 数据拉取 =================
@@ -702,7 +705,7 @@ const fetchData = async () => {
       pagination.total = res.total || 0;
     }
   } catch (error) {
-    message.error('加载 PoC 数据失败');
+    message.error(pageText('pages.failedToLoadPocs'));
   } finally {
     loading.value = false;
   }
@@ -724,13 +727,13 @@ const handleSync = async () => {
   try {
     const res = await request.get('/poc/sync/');
     if (res.code === 200) {
-      message.success(`同步成功！共载入 ${res.data?.plugin_cnt || 0} 个插件`);
+      message.success(pageText('pages.synchronizationCompletedPluginsLoadedCount', { count: res.data?.plugin_cnt || 0 }));
       onSearch(); // 刷新列表
     } else {
-      message.error('同步失败: ' + res.message);
+      message.error(pageText('tasks.syncFailed') + res.message);
     }
   } catch (error) {
-    message.error('请求异常，同步失败');
+    message.error(pageText('pages.requestFailedSynchronizationDidNotComplete'));
   } finally {
     syncLoading.value = false;
   }
@@ -743,15 +746,15 @@ const handleBatchDelete = async () => {
   try {
     const res = await request.post('/poc/delete/', { plugin_names: selectedPluginNames.value });
     if (res.code === 200) {
-      message.success(`批量删除成功，共删除 ${res.data?.delete_cnt || 0} 个插件`);
+      message.success(pageText('pages.pluginsDeletedCount', { count: res.data?.delete_cnt || 0 }));
       selectedRowKeys.value = [];
       selectedPluginNames.value = [];
       onSearch();
     } else {
-      message.error('删除失败: ' + res.message);
+      message.error(pageText('tasks.deletionFailed') + res.message);
     }
   } catch (error) {
-    message.error('请求异常，删除失败');
+    message.error(pageText('assets.requestFailedAssetGroupWasNotDeleted'));
   } finally {
     deleteLoading.value = false;
   }
@@ -765,3 +768,9 @@ onDeactivated(() => {
   isCreateModalVisible.value = false;
 });
 </script>
+<style scoped>
+.page-option-hint { color: var(--arl-text-color); opacity: 0.45; margin-top: 8px; }
+.page-muted { color: var(--arl-text-color); opacity: 0.65; }
+.page-fill-space { flex: 1; }
+.page-clickable-label { cursor: pointer;  }
+</style>
