@@ -52,10 +52,10 @@
         <a-tab-pane key="web" :tab="`网站备案 - ${queryCounts.web}`"></a-tab-pane>
         <a-tab-pane key="app" :tab="`APP - ${queryCounts.app}`"></a-tab-pane>
         <a-tab-pane key="mapp" :tab="`小程序 - ${queryCounts.mapp}`"></a-tab-pane>
-        <a-tab-pane key="wechat" :tab="`公众号 - ${queryCounts.wechat}`"></a-tab-pane>
-        <a-tab-pane key="weibo" :tab="`微博 - ${queryCounts.weibo}`"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="wechat" :tab="`公众号 - ${queryCounts.wechat}`"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="weibo" :tab="`微博 - ${queryCounts.weibo}`"></a-tab-pane>
         <a-tab-pane key="kapp" :tab="`快应用 - ${queryCounts.kapp}`"></a-tab-pane>
-        <a-tab-pane key="invest" :tab="`对外投资 - ${queryCounts.invest}`"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="invest" :tab="`对外投资 - ${queryCounts.invest}`"></a-tab-pane>
         <a-tab-pane key="log" tab="运行日志"></a-tab-pane>
       </a-tabs>
 
@@ -123,6 +123,18 @@
           </template>
           <template v-else-if="column.key === 'serviceName' || column.key === 'name'">
             {{ record.serviceName || record.name || '-' }}
+          </template>
+          <template v-else-if="column.key === 'serviceLicence' || column.key === 'serviceFilingNumber'">
+            {{ record.serviceLicence || record.serviceFilingNumber || record.liscense || '-' }}
+          </template>
+          <template v-else-if="column.key === 'unitName' || column.key === 'companyName'">
+            {{ record.unitName || record.companyName || '-' }}
+          </template>
+          <template v-else-if="column.key === 'mainLicence'">
+            {{ record.mainLicence || record.liscense || '-' }}
+          </template>
+          <template v-else-if="column.key === 'updateRecordTime' || column.key === 'examineDate'">
+            {{ record.updateRecordTime || record.examineDate || '-' }}
           </template>
           <template v-else-if="column.key === 'raw'">
             <a-popover title="原始数据" trigger="click" placement="left">
@@ -263,6 +275,13 @@ const taskStatusColor = computed(() => {
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
 
+const getAvailableTabs = (type = taskType.value) => {
+  if (type === 'icp') {
+    return ['web', 'app', 'mapp', 'kapp', 'log'];
+  }
+  return ['web', 'app', 'mapp', 'wechat', 'weibo', 'kapp', 'invest', 'log'];
+};
+
 const validTabs = ['web', 'app', 'mapp', 'kapp', 'invest', 'wechat', 'weibo', 'log'];
 const activeTab = ref(route.query?.tab && validTabs.includes(route.query.tab) ? route.query.tab : 'web');
 const queryCounts = reactive({
@@ -303,13 +322,16 @@ const sortState = reactive({
 });
 
 const getDefaultSortForTab = (tab) => {
+  if (tab === 'kapp') {
+    return { field: 'updateRecordTime', order: 'descend' };
+  }
   const isTyc = taskType.value === 'tyc';
   if (isTyc) {
     if (tab === 'web' || tab === 'mapp') {
       return { field: 'examineDate', order: 'descend' };
     }
   } else {
-    if (['web', 'app', 'mapp', 'kapp'].includes(tab)) {
+    if (['web', 'app', 'mapp'].includes(tab)) {
       return { field: 'updateRecordTime', order: 'descend' };
     }
   }
@@ -390,6 +412,16 @@ const mobileIcpColumns = [
   { title: '详情', key: 'raw', width: 80 }
 ];
 
+const kappColumns = [
+  { title: '快应用名称', dataIndex: 'serviceName', key: 'serviceName', width: 200 },
+  { title: '快应用备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 200 },
+  { title: '主办单位名称', dataIndex: 'unitName', key: 'unitName', width: 220 },
+  { title: '主备案号', dataIndex: 'mainLicence', key: 'mainLicence', width: 180 },
+  { title: '前置审批/类型', dataIndex: 'contentTypeName', key: 'contentTypeName', width: 150 },
+  { title: '审核日期', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 },
+  { title: '详情', key: 'raw', width: 80 }
+];
+
 const genericColumns = [
   { title: '名称', dataIndex: 'filterName', key: 'filterName', width: 200 },
   { title: '详情', key: 'raw', width: 80 }
@@ -401,6 +433,7 @@ const dynamicColumns = computed(() => {
   if (activeTab.value === 'invest') cols = investColumns;
   else if (activeTab.value === 'wechat') cols = wechatColumns;
   else if (activeTab.value === 'weibo') cols = weiboColumns;
+  else if (activeTab.value === 'kapp') cols = kappColumns;
   else if (isTyc) {
     if (activeTab.value === 'web') cols = webColumns;
     else if (activeTab.value === 'mapp') cols = mappColumns;
@@ -408,7 +441,7 @@ const dynamicColumns = computed(() => {
     else cols = genericColumns;
   } else {
     if (activeTab.value === 'web') cols = baseIcpColumns;
-    else if (['app', 'mapp', 'kapp'].includes(activeTab.value)) cols = mobileIcpColumns;
+    else if (['app', 'mapp'].includes(activeTab.value)) cols = mobileIcpColumns;
     else cols = genericColumns;
   }
 
@@ -679,6 +712,11 @@ const reloadEnterpriseTaskData = () => {
   assetList.value = [];
   syncEnterpriseQueryCounts(route.query);
 
+  const allowed = getAvailableTabs(taskType.value);
+  if (!allowed.includes(activeTab.value)) {
+    activeTab.value = 'web';
+  }
+
   if (taskId.value) {
     if (activeTab.value === 'log') {
       startSyslogTimer();
@@ -700,7 +738,8 @@ watch(taskId, () => {
 
 watch(() => route.query?.tab, (newTab) => {
   if (!route.path.startsWith('/taskList/taskDetail')) return;
-  if (newTab && validTabs.includes(newTab) && newTab !== activeTab.value) {
+  const allowed = getAvailableTabs(taskType.value);
+  if (newTab && allowed.includes(newTab) && newTab !== activeTab.value) {
     activeTab.value = newTab;
     onTabChange(newTab);
   }

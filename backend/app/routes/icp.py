@@ -638,21 +638,23 @@ class IcpAsset(ARLResource):
                 {'title': matched_name_val}
             ])
 
-        # 4. 备案号 (serviceLicence, liscense, serviceFilingNumber, mainLicence)
-        matched_lic_val = None
-        for k in ['serviceLicence', 'liscense', 'serviceFilingNumber', 'mainLicence']:
-            if k in query:
-                matched_lic_val = query.pop(k)
-                break
-        if matched_lic_val:
-            for k in ['serviceLicence', 'liscense', 'serviceFilingNumber', 'mainLicence']:
-                query.pop(k, None)
-            or_groups.append([
-                {'serviceLicence': matched_lic_val},
-                {'liscense': matched_lic_val},
-                {'serviceFilingNumber': matched_lic_val},
-                {'mainLicence': matched_lic_val}
-            ])
+        # 4. 主体备案号 (mainLicence vs liscense)
+        if 'mainLicence' in query:
+            val = query.pop('mainLicence')
+            query.pop('liscense', None)
+            or_groups.append([{'mainLicence': val}, {'liscense': val}])
+        elif 'liscense' in query:
+            val = query.pop('liscense')
+            or_groups.append([{'mainLicence': val}, {'liscense': val}])
+
+        # 5. 服务/应用备案号 (serviceLicence vs serviceFilingNumber)
+        if 'serviceLicence' in query:
+            val = query.pop('serviceLicence')
+            query.pop('serviceFilingNumber', None)
+            or_groups.append([{'serviceLicence': val}, {'serviceFilingNumber': val}])
+        elif 'serviceFilingNumber' in query:
+            val = query.pop('serviceFilingNumber')
+            or_groups.append([{'serviceLicence': val}, {'serviceFilingNumber': val}])
 
         # 5. 法定代表人 (legalPerson vs legalPersonName)
         if 'legalPerson' in query:
