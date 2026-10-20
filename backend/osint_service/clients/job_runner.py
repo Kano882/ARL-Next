@@ -575,7 +575,7 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
                     break
                 elif "无数据" in msg or "为空" in msg:
                     await insert_syslog("info", "工信部查重", f"主体【{company_name}】工信部 {label} 查重完成：官方暂无收录该主体资产")
-                elif any(kw in msg for kw in ["验证码", "频率", "拦截", "风控", "禁止访问", "403"]):
+                elif any(kw in msg for kw in ["验证码", "频率", "频次", "拦截", "风控", "禁止访问", "稍后再试", "访问频繁", "403"]):
                     await insert_syslog("warning", "工信部查重", f"主体【{company_name}】查询 {label} 触发工信部接口限制 ({msg})，跳过该主体后续工信部接口查询")
                     break
                 else:

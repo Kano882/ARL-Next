@@ -179,6 +179,16 @@ class beian:
                 f"{scene}触发创宇盾拦截，启动熔断降级：跳过后续详情请求，冷却 {self.waf_cooldown}s"
             )
 
+    # 业务层限流文案（非创宇盾 HTML 拦截页，而是 MIIT 接口返回的 JSON 业务码）：
+    # 命中同样开启 WAF 熔断，避免深穿透下换主体继续撞限流
+    RATE_LIMIT_HINTS = ("频次过高", "访问频繁", "稍后再试", "请求过快", "操作频繁")
+
+    def _is_rate_limited(self, text):
+        """判定响应是否为 MIIT 业务层限流"""
+        if not text or not isinstance(text, str):
+            return False
+        return any(h in text for h in self.RATE_LIMIT_HINTS)
+
     def _session_local_ip(self, session):
         """
         取回本次会话实际绑定的出口地址。
@@ -621,6 +631,15 @@ class beian:
             snippet = (res or "")[:120].replace("\n", " ")
             logger.warning(f"列表查询响应解析失败: {e}, 响应片段: {snippet}")
             return False, f"列表查询响应解析失败: {e}", None
+
+        # MIIT 业务层限流（如“您目前访问频次过高[访问ip:...]，请稍后再试”）：
+        # 与创宇盾拦截同等开启熔断，避免深穿透下换主体继续撞限流
+        _msg = ""
+        if isinstance(result, dict):
+            _msg = str(result.get("msg") or result.get("message") or "")
+        if self._is_rate_limited(_msg):
+            self._waf_trip("列表查询(业务限流)")
+            return False, f"MIIT业务限流：{_msg[:120]}", None
 
         detail_context = {
             "p_uuid": p_uuid,
