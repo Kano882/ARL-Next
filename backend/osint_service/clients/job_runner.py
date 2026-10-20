@@ -202,12 +202,12 @@ async def run_icp_job(options):
             
         if qt in handlers:
             try:
-                # WAF 熔断短路整个任务：冷却期内不再发起后续类型查询，直接收尾
-                _waf_check = getattr(myicp, "_waf_open", None)
+                # 检查全局 WAF 熔断状态（仅当单 IP 直连且处于封禁期时跳过，多代理模式不停机）
+                _waf_check = getattr(myicp, "_is_global_waf_blocked", None)
                 if callable(_waf_check) and _waf_check():
-                    error_msg.append(f"{qt}: 触发创宇盾风控熔断，跳过剩余类型查询")
-                    await insert_syslog("warning", f"{qt}查询", "检测到创宇盾风控熔断，跳过剩余类型查询，可稍后重跑本任务补全")
-                    break
+                    error_msg.append(f"{qt}: 出口网络被创宇盾封禁，跳过该维度查询")
+                    await insert_syslog("warning", f"{qt}查询", "检测到出口网络触发创宇盾封禁，跳过该维度查询，稍后可重跑补全")
+                    continue
                 await insert_syslog("info", f"{qt}查询", f"开始获取 {qt} 资产数据...")
                 res = await handlers[qt](target, "", "", proxy=None)
                 if not await _task_is_running(task_id):
@@ -530,13 +530,13 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
             logger.info(f"Task {task_id} manually stopped during ICP enrichment.")
             return
 
-        # WAF 熔断短路双轨补全：冷却期内不再发起后续类型查询，避免换类型继续撞封禁
-        _waf_check = getattr(myicp, "_waf_open", None)
+        # 检查全局 WAF 熔断状态（仅当单 IP 直连且处于封禁期时跳过，多代理模式不停机）
+        _waf_check = getattr(myicp, "_is_global_waf_blocked", None)
         if callable(_waf_check) and _waf_check():
-            await insert_syslog("warning", "工信部查重", f"主体【{company_name}】检测到创宇盾风控熔断，跳过剩余类型补全，可稍后重跑补全")
-            break
+            await insert_syslog("warning", "工信部查重", f"主体【{company_name}】检测到出口网络触发创宇盾熔断，跳过该类型补全")
+            continue
 
-        await asyncio.sleep(random.uniform(1.5, 3.0))
+        await asyncio.sleep(random.uniform(8.0, 15.0))
         try:
             res = await handler(company_name, "", "", proxy=None)
             if res.get("code") == 200 and res.get("params"):
@@ -571,13 +571,13 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
             elif res.get("code") != 200:
                 msg = str(res.get("message") or res.get("msg") or f"状态码 {res.get('code')}")
                 if "创宇盾" in msg or "黑客" in msg:
-                    await insert_syslog("warning", "工信部查重", f"主体【{company_name}】查询 {label} 触发创宇盾风控，跳过该主体后续工信部接口查询")
-                    break
+                    await insert_syslog("warning", "工信部查重", f"主体【{company_name}】查询 {label} 触发创宇盾风控，跳过该主体该类型查询")
+                    continue
                 elif "无数据" in msg or "为空" in msg:
                     await insert_syslog("info", "工信部查重", f"主体【{company_name}】工信部 {label} 查重完成：官方暂无收录该主体资产")
                 elif any(kw in msg for kw in ["验证码", "频率", "频次", "拦截", "风控", "禁止访问", "稍后再试", "访问频繁", "403"]):
-                    await insert_syslog("warning", "工信部查重", f"主体【{company_name}】查询 {label} 触发工信部接口限制 ({msg})，跳过该主体后续工信部接口查询")
-                    break
+                    await insert_syslog("warning", "工信部查重", f"主体【{company_name}】查询 {label} 触发工信部接口限制 ({msg})，跳过该主体该类型查询")
+                    continue
                 else:
                     logger.warning(f"ICP enrichment query for {company_name} {qt} returned: {msg}")
                     await insert_syslog("warning", "工信部查重", f"主体【{company_name}】工信部 {label} 查询响应: {msg}")
@@ -585,8 +585,8 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
             err_msg = str(err)
             logger.warning(f"ICP enrichment exception for {company_name} {qt}: {err}")
             if any(kw in err_msg for kw in ["创宇盾", "黑客", "403", "ClientConnectorError", "TimeoutError"]):
-                await insert_syslog("warning", "工信部查重", f"主体【{company_name}】工信部 {label} 网络/风控异常 ({err_msg})，跳过该主体后续工信部接口查询")
-                break
+                await insert_syslog("warning", "工信部查重", f"主体【{company_name}】工信部 {label} 网络/风控异常 ({err_msg})，跳过该主体该类型查询")
+                continue
             else:
                 await insert_syslog("warning", "工信部查重", f"主体【{company_name}】工信部 {label} 查询异常 ({err_msg})，已平滑降级跳过")
 
