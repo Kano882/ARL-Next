@@ -3,6 +3,7 @@
 查询路由模块
 处理单个查询和批量查询相关的路由
 """
+import asyncio
 import random
 import aiohttp
 from aiohttp import web
@@ -130,6 +131,14 @@ async def geturl(request):
 
         if data.get("code", 500) == 200:
             return wj(data)
+
+        # WAF 拦截不消耗重试：直接返回，避免紧循环连撞把临时限流撞成实质封禁
+        if data.get("message", "") == "当前访问已被创宇盾拦截":
+            logger.warning("当前访问已被创宇盾拦截，直接返回不再重试")
+            return wj(data)
+
+        # 非 WAF 失败走指数退避，避免固定节奏被行为聚类识别
+        await asyncio.sleep(min(2 ** i, 30))
     
     logger.error(f"END OF LOOP. data={data}")
     res = wj(data)

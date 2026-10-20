@@ -561,6 +561,9 @@ class beian:
             return 1
 
     async def _query_beian_page(self, name, sp, pageNum, pageSize, proxy=""):
+        # WAF 熔断短路整个任务：冷却期内不再发起列表请求，避免换类型继续撞封禁
+        if self._waf_open():
+            return False, "当前访问已被创宇盾拦截", None
         info = ujson.loads(self.typj.get(sp))
         info["pageNum"] = pageNum
         info["pageSize"] = pageSize
@@ -726,7 +729,7 @@ class beian:
                         detailed_list.append(res)
 
                 if i + batch_size < len(items) and not self._waf_open():
-                    await asyncio.sleep(0.3)
+                    await asyncio.sleep(random.uniform(0.6, 1.5))
 
             result["params"]["list"] = detailed_list
             missing = max(pending_cnt - stats["enriched"], 0)

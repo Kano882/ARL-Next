@@ -202,6 +202,12 @@ async def run_icp_job(options):
             
         if qt in handlers:
             try:
+                # WAF 熔断短路整个任务：冷却期内不再发起后续类型查询，直接收尾
+                _waf_check = getattr(myicp, "_waf_open", None)
+                if callable(_waf_check) and _waf_check():
+                    error_msg.append(f"{qt}: 触发创宇盾风控熔断，跳过剩余类型查询")
+                    await insert_syslog("warning", f"{qt}查询", "检测到创宇盾风控熔断，跳过剩余类型查询，可稍后重跑本任务补全")
+                    break
                 await insert_syslog("info", f"{qt}查询", f"开始获取 {qt} 资产数据...")
                 res = await handlers[qt](target, "", "", proxy=None)
                 if not await _task_is_running(task_id):
@@ -523,6 +529,12 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
         if not task_info or task_info.get("status") != "running":
             logger.info(f"Task {task_id} manually stopped during ICP enrichment.")
             return
+
+        # WAF 熔断短路双轨补全：冷却期内不再发起后续类型查询，避免换类型继续撞封禁
+        _waf_check = getattr(myicp, "_waf_open", None)
+        if callable(_waf_check) and _waf_check():
+            await insert_syslog("warning", "工信部查重", f"主体【{company_name}】检测到创宇盾风控熔断，跳过剩余类型补全，可稍后重跑补全")
+            break
 
         await asyncio.sleep(random.uniform(1.5, 3.0))
         try:
