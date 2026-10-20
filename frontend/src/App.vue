@@ -1,5 +1,5 @@
 <template>
-  <a-config-provider :theme="currentTheme">
+  <a-config-provider :theme="currentTheme" :locale="componentLocale">
     <div :style="{ 
       '--arl-theme-color': currentPrimaryColor,
       color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.85)' 
@@ -12,9 +12,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watchEffect } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, watchEffect } from 'vue';
 import { theme } from 'ant-design-vue';
+import zhCN from 'ant-design-vue/es/locale/zh_CN';
+import enUS from 'ant-design-vue/es/locale/en_US';
+import { useI18n } from 'vue-i18n';
+import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
+import 'dayjs/locale/en';
 import { dbHelper } from '@/utils/theme';
+
+const { locale } = useI18n({ useScope: 'global' });
+const componentLocale = computed(() => locale.value === 'en-US' ? enUS : zhCN);
+watch(locale, value => dayjs.locale(value === 'en-US' ? 'en' : 'zh-cn'), { immediate: true });
 
 // 默认恢复为 火山橙，如果是之前保存的颜色则使用保存的
 const currentPrimaryColor = ref('#fa541c'); 

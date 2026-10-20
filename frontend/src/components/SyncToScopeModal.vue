@@ -2,25 +2,25 @@
   <a-modal
     :open="open"
     @update:open="val => $emit('update:open', val)"
-    :title="step === 'form' ? '同步资产至资产组' : '资产同步完成'"
+    :title="step === 'form' ? taskText('tasks.syncAssetsToAssetGroup') : taskText('tasks.assetsSynced')"
     wrapClassName="arl-theme-modal"
     width="680px"
     :destroyOnClose="true"
     :footer="null"
   >
     <!-- 步骤 1：同步配置与域名预检表单 -->
-    <a-spin :spinning="modalDataLoading || syncLoading" :tip="syncLoading ? '正在同步数据与下发任务...' : '正在加载资产组及预检数据...'">
+    <a-spin :spinning="modalDataLoading || syncLoading" :tip="syncLoading ? taskText('tasks.syncingDataAndQueuingTasks') : taskText('tasks.loadingAssetGroupsAndPreviewData')">
       <div v-if="step === 'form'">
         <!-- 明确"同步"的实际作用，避免被理解为拉取最新数据 -->
         <div style="background: var(--arl-bg-light, rgba(0,0,0,0.03)); border: 1px solid var(--arl-border-color, rgba(0,0,0,0.08)); border-radius: 4px; padding: 8px 12px; margin-bottom: 16px; font-size: 12px; color: var(--arl-text-color); opacity: 0.85; line-height: 1.6;">
-          本操作将把勾选的域名<strong>写入目标资产组</strong>并纳入资产组归档；是否同时下发扫描任务取决于下方「立即发起探测」选项。
+          {{ taskText('tasks.syncDescription') }}
         </div>
-        <a-form :label-col="{ style: { width: '100px' } }" :wrapper-col="{ style: { width: 'calc(100% - 100px)' } }">
-          
-          <a-form-item label="所属集团">
+        <a-form :label-wrap="true" :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '100px' } }" :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 100px)' } }">
+
+          <a-form-item :label="taskText('tasks.parentOrganization')">
             <a-select
               v-model:value="syncFormState.group_id"
-              placeholder="请选择所属集团（可选）"
+              :placeholder="taskText('tasks.selectAParentOrganizationOptional')"
               allowClear
               show-search
               option-filter-prop="label"
@@ -32,17 +32,17 @@
             </a-select>
           </a-form-item>
 
-          <a-form-item label="同步方式">
+          <a-form-item :label="taskText('tasks.syncMode')">
             <a-radio-group v-model:value="syncFormState.mode" @change="onSyncScopeChange">
-              <a-radio value="existing">关联已有资产组</a-radio>
-              <a-radio value="new">新建资产组</a-radio>
+              <a-radio value="existing">{{ taskText('tasks.linkAnExistingAssetGroup') }}</a-radio>
+              <a-radio value="new">{{ taskText('tasks.createAnAssetGroup') }}</a-radio>
             </a-radio-group>
           </a-form-item>
 
-          <a-form-item v-if="syncFormState.mode === 'existing'" label="选择资产组" :rules="[{ required: true, message: '请选择资产组' }]">
+          <a-form-item v-if="syncFormState.mode === 'existing'" :label="taskText('tasks.chooseAssetGroup')" :rules="[{ required: true, message: taskText('tasks.selectAnAssetGroup') }]">
             <a-select
               v-model:value="syncFormState.scope_id"
-              placeholder="请选择资产组"
+              :placeholder="taskText('tasks.selectAnAssetGroup')"
               show-search
               option-filter-prop="label"
               @change="onSyncScopeChange"
@@ -63,21 +63,21 @@
             </a-select>
           </a-form-item>
 
-          <a-form-item v-if="syncFormState.mode === 'new'" label="资产组名称" :rules="[{ required: true, message: '请输入资产组名称' }]">
-            <a-input v-model:value="syncFormState.target_name" placeholder="请输入资产组名称" @input="onSyncScopeChange" />
+          <a-form-item v-if="syncFormState.mode === 'new'" :label="taskText('tasks.assetGroupName')" :rules="[{ required: true, message: taskText('tasks.enterAnAssetGroupName') }]">
+            <a-input v-model:value="syncFormState.target_name" :placeholder="taskText('tasks.enterAnAssetGroupName')" @input="onSyncScopeChange" />
           </a-form-item>
 
           <!-- 增量预检摘要与穿透面板 -->
           <div style="margin: 0 16px 16px 16px; border: 1px solid var(--arl-border-color); border-radius: 6px; overflow: hidden; background: var(--arl-bg-light, rgba(0,0,0,0.02));">
             <div style="padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
               <div style="font-size: 13px;">
-                本次任务共包含 <b>{{ diffStats.totalCount }}</b> 个网站域名：
-                <span style="color: #1890ff; font-weight: bold;">{{ diffStats.newCount }} 个全新</span>，
-                <span style="color: #8c8c8c;">{{ diffStats.duplicateCount }} 个已存在</span>。
-                <span style="margin-left: 8px; color: #52c41a;">(已勾选 {{ selectedDomainKeys.length }}/{{ diffStats.totalCount }})</span>
+                {{ taskText('tasks.domainSummary', { count: diffStats.totalCount }) }}
+                <span class="task-new-count">{{ taskText('tasks.newDomainCount', { count: diffStats.newCount }) }}</span>
+                <span class="task-existing-count">{{ taskText('tasks.existingDomainCount', { count: diffStats.duplicateCount }) }}</span>
+                <span class="task-selection-count">{{ taskText('tasks.selectedLabel') }} {{ selectedDomainKeys.length }}/{{ diffStats.totalCount }})</span>
               </div>
               <a-button type="link" size="small" style="padding: 0;" @click="isDomainPanelExpanded = !isDomainPanelExpanded">
-                {{ isDomainPanelExpanded ? '收起域名明细 ▲' : '展开挑选明细 ▼' }}
+                {{ isDomainPanelExpanded ? taskText('tasks.hideDomainDetails') : taskText('tasks.showDomainSelection') }}
               </a-button>
             </div>
 
@@ -85,21 +85,21 @@
             <div v-show="isDomainPanelExpanded" style="border-top: 1px solid var(--arl-border-color); padding: 10px 14px; background: var(--arl-bg-white);">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; flex-wrap: wrap;">
                 <a-radio-group v-model:value="domainFilterTab" size="small" button-style="solid">
-                  <a-radio-button value="all">全部 ({{ diffStats.totalCount }})</a-radio-button>
-                  <a-radio-button value="new">全新 ({{ diffStats.newCount }})</a-radio-button>
-                  <a-radio-button value="duplicate">已存在 ({{ diffStats.duplicateCount }})</a-radio-button>
+                  <a-radio-button value="all">{{ taskText('tasks.allDomainCount', { count: diffStats.totalCount }) }}</a-radio-button>
+                  <a-radio-button value="new">{{ taskText('tasks.newDomainTabCount', { count: diffStats.newCount }) }}</a-radio-button>
+                  <a-radio-button value="duplicate">{{ taskText('tasks.existingDomainTabCount', { count: diffStats.duplicateCount }) }}</a-radio-button>
                 </a-radio-group>
                 <div style="display: flex; gap: 6px; align-items: center;">
                   <a-input
                     v-model:value="domainSearchKey"
-                    placeholder="过滤域名..."
+                    :placeholder="taskText('tasks.filterDomains')"
                     size="small"
                     style="width: 140px;"
                     allowClear
                   />
-                  <a-button size="small" @click="selectAllDomains">全选</a-button>
-                  <a-button size="small" @click="selectOnlyNewDomains">仅选全新</a-button>
-                  <a-button size="small" @click="unselectAllDomains">取消全选</a-button>
+                  <a-button size="small" @click="selectAllDomains">{{ taskText('tasks.selectAll') }}</a-button>
+                  <a-button size="small" @click="selectOnlyNewDomains">{{ taskText('tasks.selectNewOnly') }}</a-button>
+                  <a-button size="small" @click="unselectAllDomains">{{ taskText('tasks.clearThisCategory') }}</a-button>
                 </div>
               </div>
 
@@ -116,11 +116,11 @@
                   >
                     <span>{{ d.domain }}</span>
                   </a-checkbox>
-                  <a-tag v-if="d.isNew" color="blue" size="small" style="margin-right: 0;">全新</a-tag>
-                  <a-tag v-else color="default" size="small" style="margin-right: 0;">已存在</a-tag>
+                  <a-tag v-if="d.isNew" color="blue" size="small" class="task-compact-tag">{{ taskText('tasks.new') }}</a-tag>
+                  <a-tag v-else color="default" size="small" class="task-compact-tag">{{ taskText('tasks.existing') }}</a-tag>
                 </div>
                 <div v-if="displayedDomainList.length === 0" style="text-align: center; color: #bfbfbf; padding: 16px 0; font-size: 12px;">
-                  未找到匹配的域名
+                  {{ taskText('tasks.noMatchingDomains') }}
                 </div>
               </div>
             </div>
@@ -128,52 +128,52 @@
 
           <a-divider style="margin: 12px 0 16px 0;" dashed />
 
-          <a-form-item label="任务下发">
+          <a-form-item :label="taskText('tasks.runDiscoveryNow')">
             <a-checkbox v-model:checked="syncFormState.auto_scan">
-              立即对新发现域名发起自动化探测任务
+              {{ taskText('tasks.automaticallyScanNewlyDiscoveredDomainsNow') }}
             </a-checkbox>
           </a-form-item>
 
           <template v-if="syncFormState.auto_scan">
-            <a-form-item label="任务类型">
+            <a-form-item :label="taskText('tasks.taskTypeLabel')">
               <a-radio-group v-model:value="syncFormState.task_type">
-                <a-radio value="oneshot">一次性扫描 (下发后深度探测并入库)</a-radio>
-                <a-radio value="periodic">周期性监控 (定时自动化巡航)</a-radio>
+                <a-radio value="oneshot">{{ taskText('tasks.oneTimeScanDiscoverAndSaveAssets') }}</a-radio>
+                <a-radio value="periodic">{{ taskText('tasks.recurringMonitoringScheduledScans') }}</a-radio>
               </a-radio-group>
             </a-form-item>
 
             <a-form-item
-              label="扫描策略"
+              :label="taskText('tasks.scanPolicy')"
               :required="syncFormState.auto_scan"
-              :rules="syncFormState.auto_scan ? [{ required: true, message: '请选择扫描策略' }] : []"
+              :rules="syncFormState.auto_scan ? [{ required: true, message: taskText('tasks.selectAScanPolicy') }] : []"
             >
               <a-select
                 v-model:value="syncFormState.policy_id"
-                placeholder="请选择扫描策略"
+                :placeholder="taskText('tasks.selectAScanPolicy')"
                 show-search
                 option-filter-prop="label"
                 :options="policyList.map(p => ({ value: p._id, label: `${p.name} (PoC : ${p.policy?.poc_config?.length || 0})` }))"
               />
               <div v-if="syncFormState.auto_scan && !syncFormState.policy_id" class="policy-required-hint">
-                已开启「立即发起探测」，需显式选择扫描策略后方可提交
+                {{ taskText('tasks.runDiscoveryNowIsEnabledSelectAScan') }}
               </div>
             </a-form-item>
 
-            <a-form-item v-if="syncFormState.task_type === 'periodic'" label="运行间隔">
+            <a-form-item v-if="syncFormState.task_type === 'periodic'" :label="taskText('tasks.runInterval')">
               <a-input-number
                 v-model:value="syncFormState.interval_hours"
                 :min="6"
                 :max="720"
                 style="width: 160px;"
-                addon-after="小时"
+                :addon-after="taskText('tasks.hours')"
               />
             </a-form-item>
           </template>
 
           <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
-            <a-button @click="$emit('update:open', false)">取 消</a-button>
+            <a-button @click="$emit('update:open', false)">{{ taskText('tasks.cancel') }}</a-button>
             <a-button type="primary" :loading="syncLoading" :disabled="modalDataLoading || selectedDomainKeys.length === 0" @click="submitSync">
-              同 步 ({{ selectedDomainKeys.length }}项)
+              {{ taskText('tasks.syncDomainCount', { count: selectedDomainKeys.length }) }}
             </a-button>
           </div>
         </a-form>
@@ -183,15 +183,15 @@
       <div v-else-if="step === 'result'" style="padding: 12px 16px 4px 16px;">
         <div style="text-align: center; margin-bottom: 24px;">
           <div style="font-size: 40px; margin-bottom: 8px;">🎉</div>
-          <div style="font-size: 18px; font-weight: 600;">资产同步完成</div>
+          <div class="task-result-heading">{{ taskText('tasks.assetsSynced') }}</div>
           <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65; margin-top: 4px;">
-            企业资产查询数据已成功写入资产组与探测调度管线
+            {{ taskText('tasks.enterpriseDiscoveryResultsWereSavedToTheAsset') }}
           </div>
         </div>
 
         <div style="background: var(--arl-bg-light, rgba(0,0,0,0.02)); border: 1px solid var(--arl-border-color); border-radius: 8px; padding: 16px; margin-bottom: 24px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 14px;">
-            <span style="color: var(--arl-text-color); opacity: 0.75;">目标归属:</span>
+            <span class="task-secondary-label">{{ taskText('tasks.targetGroup') }}</span>
             <span style="font-weight: 600;">
               <span v-if="syncResult.group_name" style="color: var(--arl-theme-color);">{{ syncResult.group_name }} / </span>
               <span>{{ syncResult.target_name }}</span>
@@ -201,23 +201,23 @@
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
             <div style="padding: 12px 8px; background: var(--arl-bg-white); border-radius: 6px; border: 1px solid var(--arl-border-color);">
               <div style="font-size: 20px; font-weight: bold; color: #1890ff;">+{{ syncResult.insert_count || 0 }}</div>
-              <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.65; margin-top: 4px;">新增入库域名</div>
+              <div class="task-result-label">{{ taskText('tasks.newDomainsSaved') }}</div>
             </div>
             <div style="padding: 12px 8px; background: var(--arl-bg-white); border-radius: 6px; border: 1px solid var(--arl-border-color);">
               <div style="font-size: 20px; font-weight: bold; color: #8c8c8c;">{{ syncResult.duplicate_count || 0 }}</div>
-              <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.65; margin-top: 4px;">跳过重复域名</div>
+              <div class="task-result-label">{{ taskText('tasks.duplicateDomainsSkipped') }}</div>
             </div>
             <div style="padding: 12px 8px; background: var(--arl-bg-white); border-radius: 6px; border: 1px solid var(--arl-border-color);">
               <div style="font-size: 20px; font-weight: bold; color: #52c41a;">{{ syncResult.task_triggered_count || 0 }}</div>
-              <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.65; margin-top: 4px;">下发探测任务</div>
+              <div class="task-result-label">{{ taskText('tasks.discoveryTasksQueued') }}</div>
             </div>
           </div>
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
-          <a-button @click="handleStayHere">留在当前页</a-button>
+          <a-button @click="handleStayHere">{{ taskText('tasks.stayOnCurrentPage') }}</a-button>
           <a-button type="primary" @click="handleGoToScope">
-            立即前往资产组查看 &rarr;
+            {{ taskText('tasks.openAssetGroup') }}
           </a-button>
         </div>
       </div>
@@ -226,10 +226,14 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import request from '../utils/request';
+
+const { t: taskText, locale: taskLocale } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
   open: { type: Boolean, required: true },
@@ -454,7 +458,7 @@ watch(() => props.open, async (newVal) => {
       }
     } catch (error) {
       console.error('加载同步弹窗数据失败', error);
-      message.error('加载资产组数据失败');
+      message.error(taskText('tasks.failedToLoadAssetGroups'));
     } finally {
       modalDataLoading.value = false;
     }
@@ -463,19 +467,19 @@ watch(() => props.open, async (newVal) => {
 
 const submitSync = async () => {
   if (syncFormState.mode === 'existing' && !syncFormState.scope_id) {
-    message.error('请选择关联的资产组');
+    message.error(taskText('tasks.selectAnExistingAssetGroup'));
     return;
   }
   if (syncFormState.mode === 'new' && !syncFormState.target_name.trim()) {
-    message.error('请输入资产组名称');
+    message.error(taskText('tasks.enterAnAssetGroupName'));
     return;
   }
   if (selectedDomainKeys.value.length === 0) {
-    message.error('请至少勾选一个待同步域名');
+    message.error(taskText('tasks.selectAtLeastOneDomainToSync'));
     return;
   }
   if (syncFormState.auto_scan && !syncFormState.policy_id) {
-    message.error('请选择扫描策略');
+    message.error(taskText('tasks.selectAScanPolicy'));
     return;
   }
 
@@ -507,11 +511,11 @@ const submitSync = async () => {
       step.value = 'result';
       emit('success', syncResult);
     } else {
-      message.error(res.message || '同步失败');
+      message.error(res.message || taskText('tasks.syncFailedLabel'));
     }
   } catch (error) {
     console.error('同步失败', error);
-    message.error('网络异常，同步失败');
+    message.error(taskText('tasks.networkErrorSyncFailed'));
   } finally {
     syncLoading.value = false;
   }
@@ -542,4 +546,12 @@ const handleGoToScope = () => {
   line-height: 1.5;
   color: var(--arl-warning-color, #faad14);
 }
+
+.task-new-count { color: #1890ff; font-weight: bold; margin-right: 8px; }
+.task-existing-count { color: #8c8c8c; margin-right: 8px; }
+.task-selection-count { margin-left: 8px; color: #52c41a; }
+.task-compact-tag { margin-right: 0; }
+.task-result-heading { font-size: 18px; font-weight: 600; }
+.task-secondary-label { color: var(--arl-text-color); opacity: 0.75; }
+.task-result-label { font-size: 12px; color: var(--arl-text-color); opacity: 0.65; margin-top: 4px; }
 </style>

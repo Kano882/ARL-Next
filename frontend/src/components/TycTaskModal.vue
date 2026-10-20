@@ -2,16 +2,16 @@
   <a-modal
     :open="open"
     @update:open="val => $emit('update:open', val)"
-    title="🏢 新建企业全景测绘任务"
+    :title="taskText('tasks.newEnterpriseOsintTaskLabel')"
     @ok="handleSubmit"
     :confirmLoading="submitLoading"
     width="580px"
     wrapClassName="arl-theme-modal"
-    okText="🚀 开始全景测绘"
-    cancelText="取 消"
+    :okText="taskText('tasks.startEnterpriseDiscovery')"
+    :cancelText="taskText('tasks.cancel')"
     destroyOnClose
   >
-    <a-spin :spinning="configChecking" tip="正在检测测绘环境配置...">
+    <a-spin :spinning="configChecking" :tip="taskText('tasks.checkingDiscoveryConfiguration')">
       <!-- 引擎能力状态动态提示 -->
       <a-alert
         v-if="!configChecking"
@@ -21,31 +21,32 @@
       >
         <template #message>
           <span v-if="tycConfigValid" style="color: var(--arl-text-color); line-height: 1.5;">
-            已就绪：支持<b>天眼查股权穿透</b>与<b>工信部官方 ICP</b> 双轨测绘。输入天眼查链接、ID 或企业全称即可发起。
+            {{ taskText('tasks.enterpriseReadyHint') }}
           </span>
           <span v-else style="color: var(--arl-text-color); line-height: 1.5;">
-            未配置天眼查 API：系统将自动通过<b>工信部 ICP 备案数据</b>归集资产；若需投资穿透，请先完善凭据
-            <a @click="goToApiConfig" style="margin-left: 4px;">前往配置 →</a>
+            {{ taskText('tasks.enterpriseIcpHint') }}
+            <a @click="goToApiConfig" class="task-settings-link">{{ taskText('tasks.openSettings') }}</a>
           </span>
         </template>
       </a-alert>
 
       <a-form
+        :label-wrap="true"
         ref="formRef"
         :model="formState"
         :rules="rules"
-        :label-col="{ style: { width: '100px' } }"
-        :wrapper-col="{ style: { width: 'calc(100% - 100px)' } }"
+        :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '100px' } }"
+        :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 100px)' } }"
       >
         <!-- 核心企业目标输入框 -->
         <a-form-item
-          label="企业目标"
+          :label="taskText('tasks.targetOrganization')"
           name="rawTarget"
-          tooltip="支持天眼查企业主页链接（如 https://www.tianyancha.com/company/25174642）、纯数字 GID 或企业工商注册全称"
+          :tooltip="taskText('tasks.enterATianyanchaCompanyUrlEGHttps')"
         >
           <a-input
             v-model:value="formState.rawTarget"
-            placeholder="粘贴天眼查链接 / GID 或输入企业工商全称"
+            :placeholder="taskText('tasks.pasteATianyanchaUrlGidOrEnterThe')"
             allowClear
             @pressEnter="handleSubmit"
           >
@@ -57,23 +58,23 @@
           <!-- 智能识别反馈状态 -->
           <div v-if="parsedGid" style="margin-top: 5px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
             <check-circle-outlined />
-            <span>按天眼查 GID 解析: <b>{{ parsedGid }}</b> (将在提交后校验并执行全景双轨穿透)</span>
+            <span>{{ taskText('tasks.parsedTianyanchaGid') }} <b>{{ parsedGid }}</b> {{ taskText('tasks.theGidWillBeVerifiedAndCombinedDiscovery') }}</span>
           </div>
           <div v-else-if="isCompanyName" style="margin-top: 5px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
             <safety-certificate-outlined />
-            <span>已识别企业主体: <b>{{ formState.rawTarget.trim() }}</b> (来源：工信部 ICP 备案)</span>
+            <span>{{ taskText('tasks.organizationIdentified') }} <b>{{ formState.rawTarget.trim() }}</b> {{ taskText('tasks.sourceMiitIcpRecords') }}</span>
           </div>
         </a-form-item>
 
         <!-- 任务名称 (选填，自动补齐) -->
         <a-form-item
-          label="任务名称"
+          :label="taskText('tasks.taskName')"
           name="name"
-          tooltip="选填，留空将根据企业官方名称或目标 ID 自动命名"
+          :tooltip="taskText('tasks.optionalUsesTheOfficialCompanyNameOrTarget')"
         >
           <a-input
             v-model:value="formState.name"
-            placeholder="选填，留空将自动生成标准全景测绘任务名"
+            :placeholder="taskText('tasks.optionalAStandardEnterpriseDiscoveryTaskNameWill')"
             allowClear
             @pressEnter="handleSubmit"
           />
@@ -82,17 +83,17 @@
         <!-- 高级测绘参数（常驻平铺展示） -->
         <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 12px 14px; margin-top: 10px; margin-bottom: 12px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-            <span style="font-weight: 500; font-size: 13px;">⚙️ 高级测绘参数</span>
+            <span class="task-section-caption">{{ taskText('tasks.advancedDiscoverySettings') }}</span>
           </div>
 
           <a-row :gutter="16">
-            <a-col :span="12">
+            <a-col :span="taskLocale === 'en-US' ? 24 : 12">
               <a-form-item
-                label="投资层级"
-                :label-col="{ style: { width: '80px' } }"
-                :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }"
+                :label="taskText('tasks.investmentDepthLabel')"
+                :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '80px' } }"
+                :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
                 style="margin-bottom: 8px;"
-                tooltip="穿透控股子公司与参股公司的递归深度 (1~20)。层级越高，天眼查 API 调用量与执行耗时增长越明显，且会消耗付费查询额度，请按需设置"
+                :tooltip="taskText('tasks.recursiveDepthForSubsidiariesAndInvesteeCompanies1')"
               >
                 <a-input-number
                   v-model:value="formState.depth"
@@ -100,20 +101,20 @@
                   :max="20"
                   size="small"
                   style="width: 100px;"
-                  addon-after="层"
+                  :addon-after="taskText('tasks.levels')"
                 />
                 <div v-if="formState.depth > 1" class="depth-cost-hint">
-                  已设置为 {{ formState.depth }} 层，将递归查询下属企业，API 调用量与付费额度消耗相应增加
+                  {{ taskText('tasks.investmentDepthHint', { depth: formState.depth }) }}
                 </div>
               </a-form-item>
             </a-col>
-            <a-col :span="12">
+            <a-col :span="taskLocale === 'en-US' ? 24 : 12">
               <a-form-item
-                label="控股比例"
-                :label-col="{ style: { width: '80px' } }"
-                :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }"
+                :label="taskText('tasks.minimumOwnershipLabel')"
+                :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '80px' } }"
+                :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
                 style="margin-bottom: 8px;"
-                tooltip="对外投资的最小持股比例 (1~100%)"
+                :tooltip="taskText('tasks.minimumOwnershipShareForInvestments1100')"
               >
                 <a-input-number
                   v-model:value="formState.invest_ratio"
@@ -128,31 +129,31 @@
           </a-row>
 
           <a-form-item
-            label="ICP 双轨查重"
-            :label-col="{ style: { width: '85px' } }"
-            :wrapper-col="{ style: { width: 'calc(100% - 85px)' } }"
+            :label="taskText('tasks.icpCrossCheck')"
+            :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '85px' } }"
+            :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 85px)' } }"
             style="margin-bottom: 8px;"
-            tooltip="调用工信部 ICP 备案数据接口进行双轨校对与兜底补全"
+            :tooltip="taskText('tasks.crossCheckAgainstOfficialMiitIcpRecordsAnd')"
           >
             <a-switch v-model:checked="formState.enable_icp" size="small" />
             <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
-              {{ formState.enable_icp ? '已启用（推荐）' : '已关闭' }}
+              {{ formState.enable_icp ? taskText('tasks.enabledRecommended') : taskText('tasks.disabled') }}
             </span>
           </a-form-item>
 
           <a-form-item
-            label="资产维度"
-            :label-col="{ style: { width: '80px' } }"
-            :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }"
+            :label="taskText('tasks.assetCategories')"
+            :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '80px' } }"
+            :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
             style="margin-bottom: 0;"
           >
             <a-checkbox-group v-model:value="formState.query_type" style="display: flex; flex-wrap: wrap; gap: 6px;">
-              <a-checkbox value="invest">对外投资</a-checkbox>
-              <a-checkbox value="web">网站备案</a-checkbox>
-              <a-checkbox value="app">移动APP</a-checkbox>
-              <a-checkbox value="mapp">微信小程序</a-checkbox>
-              <a-checkbox value="wechat">微信公众号</a-checkbox>
-              <a-checkbox value="weibo">企业微博</a-checkbox>
+              <a-checkbox value="invest">{{ taskText('tasks.investments') }}</a-checkbox>
+              <a-checkbox value="web">{{ taskText('tasks.websiteIcpRecords') }}</a-checkbox>
+              <a-checkbox value="app">{{ taskText('tasks.mobileApps') }}</a-checkbox>
+              <a-checkbox value="mapp">{{ taskText('tasks.wechatMiniPrograms') }}</a-checkbox>
+              <a-checkbox value="wechat">{{ taskText('tasks.wechatOfficialAccounts') }}</a-checkbox>
+              <a-checkbox value="weibo">{{ taskText('tasks.corporateWeiboAccounts') }}</a-checkbox>
             </a-checkbox-group>
           </a-form-item>
         </div>
@@ -162,6 +163,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Modal, message } from 'ant-design-vue';
@@ -170,6 +173,8 @@ import {
   BankOutlined
 } from '@ant-design/icons-vue';
 import request from '../utils/request';
+
+const { t: taskText, locale: taskLocale } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
   open: {
@@ -196,7 +201,7 @@ const formState = reactive({
 });
 
 const rules = {
-  rawTarget: [{ required: true, message: '请输入天眼查链接、GID 或企业工商全称', trigger: 'blur' }]
+  rawTarget: [{ required: true, get message() { return taskText('tasks.enterATianyanchaUrlGidOrFullRegistered'); }, trigger: 'blur' }]
 };
 
 // 正则解析企业输入
@@ -277,7 +282,7 @@ const handleSubmit = async () => {
     const parsed = parseTargetInput(targetStr);
 
     if (!parsed.gid && !parsed.isName) {
-      message.error('未能识别有效目标，请输入天眼查链接、ID 或企业工商注册全称');
+      message.error(taskText('tasks.noValidTargetRecognizedEnterATianyanchaUrl'));
       return;
     }
 
@@ -285,10 +290,10 @@ const handleSubmit = async () => {
     if (parsed.gid) {
       if (!tycConfigValid.value) {
         Modal.confirm({
-          title: '未配置天眼查商业凭据',
-          content: '当前输入的天眼查 GID 需要商业凭据才能执行股权穿透。您可以先去系统设置配置凭据，或改用企业工商全称通过工信部官方备案检索。',
-          okText: '前往配置凭据',
-          cancelText: '留在本页',
+          title: taskText('tasks.tianyanchaCommercialCredentialsAreNotConfigured'),
+          content: taskText('tasks.investmentTraversalForATianyanchaGidRequiresCommercial'),
+          okText: taskText('tasks.configureCredentials'),
+          cancelText: taskText('tasks.stayOnThisPage'),
           onOk() {
             goToApiConfig();
           }
@@ -311,11 +316,11 @@ const handleSubmit = async () => {
       }
       const res = await request.post('/icp/tyc_task', payload);
       if (res.code === 200) {
-        message.success(`企业全景测绘任务【${taskName}】创建成功`);
+        message.success(taskText('tasks.enterpriseDiscoveryTaskNameCreated', { name: taskName }));
         emit('update:open', false);
         emit('success', res);
       } else {
-        message.error(res.message || '创建任务失败');
+        message.error(res.message || taskText('tasks.failedToCreateTask'));
       }
       return;
     }
@@ -333,12 +338,12 @@ const handleSubmit = async () => {
     };
     const res = await request.post('/icp/task', payload);
     if (res.code === 200) {
-      const modeTip = res.data?.matched_tyc ? ' (已自动识别并升级为全景双轨测绘)' : '';
-      message.success(`企业全景测绘任务【${taskName}】创建成功${modeTip}`);
+      const modeTip = res.data?.matched_tyc ? taskText('tasks.automaticallyIdentifiedAndUpgradedToCombinedDiscovery') : '';
+      message.success(taskText('tasks.enterpriseDiscoveryTaskNameCreatedDetails', { name: taskName, details: modeTip }));
       emit('update:open', false);
       emit('success', res);
     } else {
-      message.error(res.message || '创建任务失败');
+      message.error(res.message || taskText('tasks.failedToCreateTask'));
     }
 
   } catch (error) {
@@ -357,4 +362,7 @@ const handleSubmit = async () => {
   line-height: 1.5;
   color: var(--arl-warning-color, #faad14);
 }
+
+.task-settings-link { margin-left: 4px; }
+.task-section-caption { font-weight: 500; font-size: 13px; }
 </style>

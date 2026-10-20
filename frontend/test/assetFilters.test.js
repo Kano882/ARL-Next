@@ -5,11 +5,13 @@ import vm from 'node:vm';
 import { parse, compileScript } from 'vue/compiler-sfc';
 import { computed, ref } from 'vue';
 import dayjs from 'dayjs';
+import { i18n } from '../src/i18n/index.js';
 import { buildAssetFilterParams, normalizeHttpStatuses } from '../src/utils/assetFilters.js';
 import { serializeSearchForm, deserializeSearchForm } from '../src/utils/useTabStateCache.js';
 
 const statusFields = [{ key: 'status', type: 'httpStatus' }, { key: 'title' }];
 const plain = value => JSON.parse(JSON.stringify(value));
+const taskText = (...args) => i18n.global.t(...args);
 
 function sourceBindings(file) {
   const source = fs.readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
@@ -31,7 +33,7 @@ function pageFixture(name, tab = 'site') {
   const calls = [];
   const notices = [];
   const context = vm.createContext({
-    reactive: value => value, computed, buildAssetFilterParams,
+    reactive: value => value, computed, buildAssetFilterParams, taskText, assetText: taskText,
     serviceEngineType: ref('nmap'), columns: ref([]), lastFetchedPage: 1, lastFetchedSize: 20,
     activeTab: ref(tab), searchForm: ref(tab === 'site' ? { status: ['403', '200'], title: 'admin' } : { status_code: ['403', '200'], title: 'admin' }),
     pagination: { current: 2, pageSize: 20, total: 2 }, taskId: ref('task-a'), scope_id: ref('scope-a'), targetName: ref('fixture'),
@@ -105,12 +107,12 @@ test('tab cache round trip preserves multiselect and date filters', () => {
 test('shared control normalizes old values and emits selection update before search', () => {
   const { bindings, descriptor } = sourceBindings('components/HttpStatusFilter.vue');
   const events = [];
-  const context = vm.createContext({ normalizeHttpStatuses, computed, props: { value: 200 }, emit: (...args) => events.push(plain(args)) });
-  for (const key of ['selectedCodes', 'descriptions', 'options', 'onChange']) {
+  const context = vm.createContext({ normalizeHttpStatuses, computed, taskText, props: { value: 200 }, emit: (...args) => events.push(plain(args)) });
+  for (const key of ['selectedCodes', 'descriptionKeys', 'options', 'onChange']) {
     vm.runInContext(`var ${key} = ${bindings[key]};`, context);
   }
   assert.deepEqual(plain(context.selectedCodes.value), ['200']);
-  assert.equal(context.options.length, 500);
+  assert.equal(context.options.value.length, 500);
   assert.match(descriptor.template.content, /mode="multiple"/);
   assert.match(descriptor.template.content, /show-search/);
   context.onChange(['403', '200']);

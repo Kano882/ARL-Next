@@ -1,3 +1,7 @@
+import { i18n } from '../i18n/index.js';
+
+const taskText = (key, params) => i18n.global.t(key, params);
+
 /**
  * 任务目标解析工具（与后端 app/helpers/task.py 的 target2list / get_ip_domain_list 保持一致）
  *
@@ -55,7 +59,7 @@ export function estimateTaskFanout(target) {
 }
 
 /**
- * 生成面向用户的中文构成说明，用于提交前预告。
+ * 生成面向用户的目标构成说明，用于提交前预告。
  * @param {string} target 用户输入的原始目标
  * @returns {{taskCount: number, total: number, text: string}} text 为可直接展示的说明文案
  */
@@ -67,15 +71,15 @@ export function describeTaskFanout(target) {
 
   const segments = [];
   if (ipCount > 0) {
-    segments.push(`${ipCount} 个 IP/CIDR 目标将合并为 1 个任务`);
+    segments.push(taskText('tasks.fanoutIp', { count: ipCount }));
   }
   if (domainCount > 0) {
-    segments.push(`${domainCount} 个域名将各自创建一个任务`);
+    segments.push(taskText('tasks.fanoutDomain', { count: domainCount }));
   }
 
   return {
     taskCount,
     total,
-    text: `共识别 ${total} 个去重目标：${segments.join('；')}，合计创建 ${taskCount} 个任务。`
+    text: taskText('tasks.fanoutSummary', { total, segments: segments.join(taskText('tasks.listSeparator')), count: taskCount })
   };
 }

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { message } from 'ant-design-vue';
+import { i18n } from '../i18n/index.js';
 
 // 创建 axios 实例
 const request = axios.create({
@@ -34,7 +35,7 @@ function triggerUnauthorizedRedirect() {
     if (!isRedirecting) {
         isRedirecting = true; // 上锁
 
-        message.warning('身份已过期或失效，请重新登录！');
+        message.warning(i18n.global.t('request.sessionExpired'));
 
         // 撕毁所有过期门票
         localStorage.removeItem('token');
@@ -96,7 +97,7 @@ request.interceptors.response.use(
         }
 
         // 3. 处理真正的 HTTP 级别报错 (如 500, 502)
-        message.error('网络请求异常，请检查后端服务！');
+        message.error(i18n.global.t('request.networkError'));
         return Promise.reject(error);
     }
 );

@@ -18,24 +18,24 @@
         </div>
         <div>
           <div class="drawer-title-text">
-            <span>全链路资产画像</span>
+            <span>{{ assetText('assets.assetRelationshipProfile') }}</span>
             <a-tag color="blue" class="drawer-target-tag">{{ target }}</a-tag>
           </div>
           <div class="drawer-subtitle-text">
-            已聚合 13 维资产暴露面与安全状态 · 点击下方指标胶囊可锚点直达
+            {{ assetText('assets.explore13AssetAndSecurityCategoriesClickA') }}
           </div>
         </div>
       </div>
       <div class="drawer-header-right">
-        <a-tooltip title="复制目标">
+        <a-tooltip :title="assetText('assets.copyTarget')">
           <a-button size="small" @click="handleCopyTarget">
             <template #icon><copy-outlined /></template>
           </a-button>
         </a-tooltip>
-        <a-tooltip title="导出画像 (JSON)">
+        <a-tooltip :title="assetText('assets.exportProfileJson')">
           <a-button size="small" :disabled="!chainData" @click="downloadChainJson">
             <template #icon><download-outlined /></template>
-            导出画像
+            {{ assetText('assets.exportProfile') }}
           </a-button>
         </a-tooltip>
         <a-button type="text" size="small" @click="handleClose">
@@ -46,15 +46,15 @@
 
     <!-- 抽屉主体内容区 -->
     <div class="chain-drawer-body">
-      <a-spin :spinning="loading" tip="正在聚合多维全链路资产画像...">
+      <a-spin :spinning="loading" :tip="assetText('assets.loadingAssetRelationshipsAcrossCategories')">
         <!-- 仅当未发起查询或请求失败无数据对象时展示空白提示 -->
         <div v-if="!loading && !chainData" class="drawer-empty-box">
-          <a-empty description="暂未检索到该资产的全链路关联记录">
+          <a-empty :description="assetText('assets.noRelatedAssetRecordsFoundForThisTarget')">
             <template #image>
               <compass-outlined style="font-size: 56px; color: var(--arl-theme-color); opacity: 0.6;" />
             </template>
             <div style="margin-top: 12px; color: var(--arl-text-secondary); font-size: 13px;">
-              目标暂未完成深度资产测绘，或未在当前资产组范围中命中关联数据
+              {{ assetText('assets.theTargetMayNotHaveCompletedDetailedDiscovery') }}
             </div>
           </a-empty>
         </div>
@@ -68,7 +68,7 @@
               class="chain-metric-chip"
               :class="{ 'is-zero': chip.count === 0 }"
               @click="scrollToSection(chip.id)"
-              :title="`点击快速跳转至${chip.label}`"
+              :title="assetText('assets.jumpToSection', { section: chip.label })"
             >
               <component :is="chip.icon" :style="{ color: chip.color }" class="metric-icon" />
               <span class="metric-label">{{ chip.label }}</span>
@@ -81,13 +81,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <global-outlined style="color: #1890ff;" />
-                <span>站点基础信息</span>
+                <span>{{ assetText('assets.websiteInformation') }}</span>
                 <a-badge :count="chainData.site?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.site?.length, '#1890ff')" />
               </div>
             </template>
             <div v-if="!chainData.site || chainData.site.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现关联站点记录</span>
+              <span>{{ assetText('assets.noRelatedWebsitesFound') }}</span>
             </div>
             <div v-else class="drawer-site-list">
               <div v-for="(siteItem, idx) in chainData.site" :key="idx" class="drawer-site-item">
@@ -100,18 +100,18 @@
                     </a-tag>
                   </div>
                   <div class="site-kv-grid">
-                    <div class="kv-item"><span class="kv-label">标题：</span><span class="kv-value">{{ siteItem.title || '-' }}</span></div>
+                    <div class="kv-item"><span class="kv-label">{{ assetText('assets.title') }}</span><span class="kv-value">{{ siteItem.title || '-' }}</span></div>
                     <div class="kv-item"><span class="kv-label">Server：</span><span class="kv-value">{{ siteItem.http_server || '-' }}</span></div>
                     <div class="kv-item"><span class="kv-label">IP：</span><span class="kv-value font-mono">{{ siteItem.ip || '-' }}</span></div>
-                    <div class="kv-item"><span class="kv-label">更新：</span><span class="kv-value">{{ siteItem.update_date || siteItem.save_date || '-' }}</span></div>
+                    <div class="kv-item"><span class="kv-label">{{ assetText('assets.updated') }}</span><span class="kv-value">{{ siteItem.update_date || siteItem.save_date || '-' }}</span></div>
                   </div>
                   <div v-if="siteItem.finger && siteItem.finger.length" class="site-finger-row">
-                    <span class="kv-label">指纹：</span>
+                    <span class="kv-label">{{ assetText('assets.fingerprints') }}</span>
                     <a-tag v-for="f in siteItem.finger" :key="f.name" color="blue" size="small">{{ f.name }}</a-tag>
                   </div>
                 </div>
                 <div v-if="siteItem.screenshot" class="drawer-site-shot">
-                  <a-image :src="`/api${siteItem.screenshot}`" alt="截图" />
+                  <a-image :src="`/api${siteItem.screenshot}`" :alt="assetText('tasks.screenshot')" />
                 </div>
               </div>
             </div>
@@ -122,13 +122,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <link-outlined style="color: #52c41a;" />
-                <span>子域名解析记录</span>
+                <span>{{ assetText('assets.subdomainDnsRecords') }}</span>
                 <a-badge :count="chainData.domain_records?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.domain_records?.length, '#52c41a')" />
               </div>
             </template>
             <div v-if="!chainData.domain_records || chainData.domain_records.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现子域名解析记录</span>
+              <span>{{ assetText('assets.noSubdomainDnsRecordsFound') }}</span>
             </div>
             <a-table
               v-else
@@ -157,13 +157,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <cloud-server-outlined style="color: #722ed1;" />
-                <span>IP 与网络归属</span>
+                <span>{{ assetText('assets.ipsAndNetworkOwnership') }}</span>
                 <a-badge :count="chainData.ip?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.ip?.length, '#722ed1')" />
               </div>
             </template>
             <div v-if="!chainData.ip || chainData.ip.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现关联 IP 资产记录</span>
+              <span>{{ assetText('assets.noRelatedIpAssetsFound') }}</span>
             </div>
             <a-table
               v-else
@@ -179,10 +179,10 @@
                 </template>
                 <template v-else-if="column.key === 'cdn'">
                   <a-tag v-if="record.is_cdn || record.cdn_name" color="blue">
-                    {{ record.cdn_name || 'CDN节点' }}
+                    {{ record.cdn_name || assetText('tasks.cdnNode') }}
                   </a-tag>
                   <a-tag v-else color="green">
-                    独立源站
+                    {{ assetText('tasks.originServer') }}
                   </a-tag>
                 </template>
                 <template v-else-if="column.key === 'port_info'">
@@ -203,22 +203,22 @@
             <template #title>
               <div class="drawer-card-title">
                 <safety-certificate-outlined style="color: #13c2c2;" />
-                <span>SSL 证书</span>
+                <span>{{ assetText('assets.sslCertificates') }}</span>
                 <a-badge :count="chainData.cert?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.cert?.length, '#13c2c2')" />
               </div>
             </template>
             <div v-if="!chainData.cert || chainData.cert.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现关联 SSL 证书记录</span>
+              <span>{{ assetText('assets.noRelatedSslCertificatesFound') }}</span>
             </div>
             <div v-else>
               <div v-for="(certItem, idx) in chainData.cert" :key="idx" class="drawer-cert-item">
                 <div class="cert-host-tag">{{ certItem.ip || certItem.host }}{{ certItem.port ? ':' + certItem.port : '' }}</div>
                 <div v-if="certItem.cert" class="cert-fields">
-                  <div><b>主题名称：</b>{{ certItem.cert.subject_dn || '-' }}</div>
-                  <div><b>签发机构：</b>{{ certItem.cert.issuer_dn || '-' }}</div>
-                  <div v-if="certItem.cert.extensions?.subjectAltName"><b>备用名称 (SAN)：</b>{{ certItem.cert.extensions.subjectAltName }}</div>
-                  <div><b>有效期限：</b>{{ certItem.cert.validity?.start || '-' }} 至 {{ certItem.cert.validity?.end || '-' }}</div>
+                  <div><b>{{ assetText('assets.subject') }}</b>{{ certItem.cert.subject_dn || '-' }}</div>
+                  <div><b>{{ assetText('assets.issuer') }}</b>{{ certItem.cert.issuer_dn || '-' }}</div>
+                  <div v-if="certItem.cert.extensions?.subjectAltName"><b>{{ assetText('assets.subjectAlternativeNamesSan') }}</b>{{ certItem.cert.extensions.subjectAltName }}</div>
+                  <div><b>{{ assetText('assets.validity') }}</b>{{ certItem.cert.validity?.start || '-' }} {{ assetText('tasks.to') }} {{ certItem.cert.validity?.end || '-' }}</div>
                 </div>
               </div>
             </div>
@@ -229,13 +229,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <api-outlined style="color: #fa8c16;" />
-                <span>开放系统服务</span>
+                <span>{{ assetText('assets.openNetworkServices') }}</span>
                 <a-badge :count="chainData.service?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.service?.length, '#fa8c16')" />
               </div>
             </template>
             <div v-if="!chainData.service || chainData.service.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现开放系统服务记录</span>
+              <span>{{ assetText('assets.noOpenNetworkServicesFound') }}</span>
             </div>
             <div v-else class="drawer-services-grid">
               <div v-for="(srv, idx) in chainData.service" :key="idx" class="service-pill">
@@ -253,13 +253,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <file-search-outlined style="color: #faad14;" />
-                <span>敏感文件泄露</span>
+                <span>{{ assetText('assets.sensitiveFileDisclosures') }}</span>
                 <a-badge :count="chainData.fileleak?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.fileleak?.length, '#faad14')" />
               </div>
             </template>
             <div v-if="!chainData.fileleak || chainData.fileleak.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现疑似敏感文件泄露</span>
+              <span>{{ assetText('assets.noSuspectedSensitiveFileDisclosuresFound') }}</span>
             </div>
             <a-table
               v-else
@@ -282,13 +282,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <deployment-unit-outlined style="color: #2f54eb;" />
-                <span>关联探测 URL</span>
+                <span>{{ assetText('assets.relatedDiscoveredUrls') }}</span>
                 <a-badge :count="chainData.url?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.url?.length, '#2f54eb')" />
               </div>
             </template>
             <div v-if="!chainData.url || chainData.url.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现关联探测 URL 记录</span>
+              <span>{{ assetText('assets.noRelatedDiscoveredUrlsFound') }}</span>
             </div>
             <a-table
               v-else
@@ -311,13 +311,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <cluster-outlined style="color: #eb2f96;" />
-                <span>关联 C 段网段</span>
+                <span>{{ assetText('assets.relatedCClassNetworks') }}</span>
                 <a-badge :count="chainData.cip?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.cip?.length, '#eb2f96')" />
               </div>
             </template>
             <div v-if="!chainData.cip || chainData.cip.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现关联 C 段资产记录</span>
+              <span>{{ assetText('assets.noRelatedCClassNetworksFound') }}</span>
             </div>
             <a-table
               v-else
@@ -332,10 +332,10 @@
                   <span class="font-mono font-bold">{{ record.cidr_ip || '-' }}</span>
                 </template>
                 <template v-else-if="column.key === 'ip_count'">
-                  <a-tag color="purple" class="font-mono">{{ record.ip_count ?? (record.ip_list?.length || 0) }} 个 IP</a-tag>
+                  <a-tag color="purple" class="font-mono">{{ assetText('assets.ipCount', { count: record.ip_count ?? (record.ip_list?.length || 0) }) }}</a-tag>
                 </template>
                 <template v-else-if="column.key === 'domain_count'">
-                  <a-tag color="blue" class="font-mono">{{ record.domain_count ?? (record.domain_list?.length || 0) }} 个域名</a-tag>
+                  <a-tag color="blue" class="font-mono">{{ assetText('assets.domainCount', { count: record.domain_count ?? (record.domain_list?.length || 0) }) }}</a-tag>
                 </template>
                 <template v-else-if="column.key === 'update_date'">
                   <span style="font-size: 12px; color: var(--arl-text-secondary);">{{ record.update_date || record.save_date || '-' }}</span>
@@ -349,13 +349,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <tag-outlined style="color: #1d39c4;" />
-                <span>关联指纹统计</span>
+                <span>{{ assetText('assets.relatedFingerprintStatistics') }}</span>
                 <a-badge :count="statFingerList.length" :show-zero="true" :number-style="getBadgeStyle(statFingerList.length, '#1d39c4')" />
               </div>
             </template>
             <div v-if="statFingerList.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未识别到关联技术栈与组件指纹</span>
+              <span>{{ assetText('assets.noRelatedTechnologyOrComponentFingerprintsFound') }}</span>
             </div>
             <a-table
               v-else
@@ -370,7 +370,7 @@
                   <a-tag color="blue">{{ record.finger_name }}</a-tag>
                 </template>
                 <template v-else-if="column.key === 'cnt'">
-                  <span class="font-mono font-bold">{{ record.cnt }} 个站点</span>
+                  <span class="font-mono font-bold">{{ assetText('assets.websiteCount', { count: record.cnt }) }}</span>
                 </template>
               </template>
             </a-table>
@@ -387,7 +387,7 @@
             </template>
             <div v-if="!chainData.wih || chainData.wih.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现 WEB Info Hunter (WIH) 泄露信息</span>
+              <span>{{ assetText('assets.noWebInfoHunterWihDisclosureRecordsFound') }}</span>
             </div>
             <a-table
               v-else
@@ -418,19 +418,19 @@
             <template #title>
               <div class="drawer-card-title">
                 <bug-outlined style="color: #f5222d;" />
-                <span>应用风险漏洞 (PoC)</span>
+                <span>{{ assetText('assets.applicationVulnerabilitiesPoc') }}</span>
                 <a-badge :count="chainData.vuln?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.vuln?.length, '#f5222d')" />
               </div>
             </template>
             <div v-if="!chainData.vuln || chainData.vuln.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未检测到应用服务漏洞风险</span>
+              <span>{{ assetText('assets.noApplicationVulnerabilitiesDetected') }}</span>
             </div>
             <div v-else class="drawer-vuln-list">
               <div v-for="(v, idx) in chainData.vuln" :key="'v-'+idx" class="vuln-item-card">
                 <div class="vuln-header">
-                  <a-tag color="error">风险</a-tag>
-                  <span class="vuln-name">{{ v.vul_name || v.title || '未知风险' }}</span>
+                  <a-tag color="error">{{ assetText('tasks.risks') }}</a-tag>
+                  <span class="vuln-name">{{ v.vul_name || v.title || assetText('assets.unknownRisk') }}</span>
                 </div>
                 <div class="vuln-target font-mono">{{ v.target }}</div>
               </div>
@@ -442,13 +442,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <code-outlined style="color: #722ed1;" />
-                <span>服务探测 (Python NPOC)</span>
+                <span>{{ assetText('assets.serviceDetectionPythonNpoc') }}</span>
                 <a-badge :count="chainData.npoc_service?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.npoc_service?.length, '#722ed1')" />
               </div>
             </template>
             <div v-if="!chainData.npoc_service || chainData.npoc_service.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未发现 Python NPOC 探测服务记录</span>
+              <span>{{ assetText('assets.noPythonNpocServiceRecordsFound') }}</span>
             </div>
             <a-table
               v-else
@@ -474,13 +474,13 @@
             <template #title>
               <div class="drawer-card-title">
                 <fire-outlined style="color: #fa541c;" />
-                <span>Nuclei 漏洞发现</span>
+                <span>{{ assetText('assets.nucleiVulnerabilityFindings') }}</span>
                 <a-badge :count="chainData.nuclei_result?.length || 0" :show-zero="true" :number-style="getBadgeStyle(chainData.nuclei_result?.length, '#fa541c')" />
               </div>
             </template>
             <div v-if="!chainData.nuclei_result || chainData.nuclei_result.length === 0" class="drawer-empty-row">
               <inbox-outlined class="empty-row-icon" />
-              <span>未命中 Nuclei 漏洞特征</span>
+              <span>{{ assetText('assets.noNucleiVulnerabilitySignaturesMatched') }}</span>
             </div>
             <div v-else class="drawer-vuln-list">
               <div v-for="(n, idx) in chainData.nuclei_result" :key="'n-'+idx" class="vuln-item-card">
@@ -508,7 +508,7 @@
         class="chain-back-top-btn"
         @click="scrollToTop"
       >
-        <a-tooltip title="回到顶端" placement="left">
+        <a-tooltip :title="assetText('assets.backToTop')" placement="left">
           <div class="back-top-circle">
             <vertical-align-top-outlined class="back-top-icon" />
           </div>
@@ -519,6 +519,7 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ref, computed, watch, nextTick } from 'vue';
 import { message } from 'ant-design-vue';
 import dayjs from 'dayjs';
@@ -546,6 +547,8 @@ import {
 import request from '../utils/request';
 import { formatGeo } from '../utils/formatGeo';
 import { copyText } from '../utils/clipboard';
+
+const { t: assetText } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
   open: {
@@ -588,56 +591,56 @@ const drawerWidth = computed(() => {
 });
 
 const domainCols = [
-  { title: '子域名', dataIndex: 'domain', key: 'domain' },
-  { title: '类型', dataIndex: 'type', key: 'type', width: 90, align: 'center' },
-  { title: '解析IP', key: 'ips' }
+  { get title() { return assetText('tasks.subdomains'); }, dataIndex: 'domain', key: 'domain' },
+  { get title() { return assetText('tasks.type'); }, dataIndex: 'type', key: 'type', width: 90, align: 'center' },
+  { get title() { return assetText('assets.resolvedIps'); }, key: 'ips' }
 ];
 
 const ipCols = [
   { title: 'IP', dataIndex: 'ip', key: 'ip', width: 140 },
   { title: 'CDN', key: 'cdn', width: 140 },
-  { title: '开放端口', key: 'port_info' },
-  { title: '地理位置', key: 'geo', width: 140 },
-  { title: 'AS机构', key: 'asn' }
+  { get title() { return assetText('tasks.openPorts'); }, key: 'port_info' },
+  { get title() { return assetText('assets.location'); }, key: 'geo', width: 140 },
+  { get title() { return assetText('assets.asOrganization'); }, key: 'asn' }
 ];
 
 const cipCols = [
-  { title: 'C段网段', dataIndex: 'cidr_ip', key: 'cidr_ip', width: 180 },
-  { title: '关联IP', key: 'ip_count', width: 120, align: 'center' },
-  { title: '关联域名', key: 'domain_count', width: 120, align: 'center' },
-  { title: '更新时间', key: 'update_date', width: 160 }
+  { get title() { return assetText('assets.cClassNetwork'); }, dataIndex: 'cidr_ip', key: 'cidr_ip', width: 180 },
+  { get title() { return assetText('tasks.associatedIps'); }, key: 'ip_count', width: 120, align: 'center' },
+  { get title() { return assetText('tasks.associatedDomains'); }, key: 'domain_count', width: 120, align: 'center' },
+  { get title() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', width: 160 }
 ];
 
 const npocCols = [
-  { title: '协议', dataIndex: 'scheme', key: 'scheme', width: 100, align: 'center' },
-  { title: '目标', dataIndex: 'target', key: 'target' }
+  { get title() { return assetText('tasks.protocol'); }, dataIndex: 'scheme', key: 'scheme', width: 100, align: 'center' },
+  { get title() { return assetText('tasks.target'); }, dataIndex: 'target', key: 'target' }
 ];
 
 const fileleakCols = [
   { title: 'URL', key: 'url' },
-  { title: '标题', dataIndex: 'title', key: 'title', width: 160 },
-  { title: '状态码', dataIndex: 'status_code', key: 'status_code', width: 80, align: 'center' },
-  { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 160 }
+  { get title() { return assetText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 160 },
+  { get title() { return assetText('tasks.statusCode'); }, dataIndex: 'status_code', key: 'status_code', width: 80, align: 'center' },
+  { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'update_date', key: 'update_date', width: 160 }
 ];
 
 const urlCols = [
   { title: 'URL', key: 'url' },
-  { title: '标题', dataIndex: 'title', key: 'title', width: 160 },
-  { title: '状态码', dataIndex: 'status_code', key: 'status_code', width: 80, align: 'center' },
-  { title: '来源', dataIndex: 'source', key: 'source', width: 110 },
-  { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 160 }
+  { get title() { return assetText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 160 },
+  { get title() { return assetText('tasks.statusCode'); }, dataIndex: 'status_code', key: 'status_code', width: 80, align: 'center' },
+  { get title() { return assetText('tasks.source'); }, dataIndex: 'source', key: 'source', width: 110 },
+  { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'update_date', key: 'update_date', width: 160 }
 ];
 
 const fingerCols = [
-  { title: '指纹组件名称', dataIndex: 'finger_name', key: 'finger_name' },
-  { title: '关联站点数量', key: 'cnt', width: 140, align: 'center' }
+  { get title() { return assetText('assets.fingerprintComponent'); }, dataIndex: 'finger_name', key: 'finger_name' },
+  { get title() { return assetText('assets.relatedWebsites'); }, key: 'cnt', width: 140, align: 'center' }
 ];
 
 const wihCols = [
-  { title: '类型', dataIndex: 'record_type', key: 'record_type', width: 100 },
-  { title: '敏感内容', dataIndex: 'content', key: 'content' },
-  { title: '来源 JS/站点', key: 'source', width: 220 },
-  { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 160 }
+  { get title() { return assetText('tasks.type'); }, dataIndex: 'record_type', key: 'record_type', width: 100 },
+  { get title() { return assetText('assets.sensitiveContent'); }, dataIndex: 'content', key: 'content' },
+  { get title() { return assetText('assets.sourceJavascriptWebsite'); }, key: 'source', width: 220 },
+  { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'update_date', key: 'update_date', width: 160 }
 ];
 
 // 动态汇总当前目标关联站点的技术栈与指纹
@@ -664,18 +667,18 @@ const metricChips = computed(() => {
   if (!chainData.value) return [];
   const d = chainData.value;
   return [
-    { id: 'chain-sec-site', label: '站点', count: d.site?.length || 0, icon: GlobalOutlined, color: '#1890ff' },
-    { id: 'chain-sec-domain', label: '子域名', count: d.domain_records?.length || 0, icon: LinkOutlined, color: '#52c41a' },
+    { id: 'chain-sec-site', label: assetText('tasks.websites'), count: d.site?.length || 0, icon: GlobalOutlined, color: '#1890ff' },
+    { id: 'chain-sec-domain', label: assetText('tasks.subdomains'), count: d.domain_records?.length || 0, icon: LinkOutlined, color: '#52c41a' },
     { id: 'chain-sec-ip', label: 'IP', count: d.ip?.length || 0, icon: CloudServerOutlined, color: '#722ed1' },
-    { id: 'chain-sec-cert', label: 'SSL证书', count: d.cert?.length || 0, icon: SafetyCertificateOutlined, color: '#13c2c2' },
-    { id: 'chain-sec-service', label: '服务', count: d.service?.length || 0, icon: ApiOutlined, color: '#fa8c16' },
-    { id: 'chain-sec-fileleak', label: '文件泄露', count: d.fileleak?.length || 0, icon: FileSearchOutlined, color: '#faad14' },
-    { id: 'chain-sec-url', label: 'URL信息', count: d.url?.length || 0, icon: DeploymentUnitOutlined, color: '#2f54eb' },
-    { id: 'chain-sec-cip', label: 'C段', count: d.cip?.length || 0, icon: ClusterOutlined, color: '#eb2f96' },
-    { id: 'chain-sec-stat-finger', label: '指纹统计', count: statFingerList.value.length, icon: TagOutlined, color: '#1d39c4' },
+    { id: 'chain-sec-cert', label: assetText('assets.sslCertificates'), count: d.cert?.length || 0, icon: SafetyCertificateOutlined, color: '#13c2c2' },
+    { id: 'chain-sec-service', label: assetText('tasks.services'), count: d.service?.length || 0, icon: ApiOutlined, color: '#fa8c16' },
+    { id: 'chain-sec-fileleak', label: assetText('tasks.fileDisclosure'), count: d.fileleak?.length || 0, icon: FileSearchOutlined, color: '#faad14' },
+    { id: 'chain-sec-url', label: assetText('tasks.urls'), count: d.url?.length || 0, icon: DeploymentUnitOutlined, color: '#2f54eb' },
+    { id: 'chain-sec-cip', label: assetText('tasks.cClassNetworks'), count: d.cip?.length || 0, icon: ClusterOutlined, color: '#eb2f96' },
+    { id: 'chain-sec-stat-finger', label: assetText('tasks.fingerprintStatistics'), count: statFingerList.value.length, icon: TagOutlined, color: '#1d39c4' },
     { id: 'chain-sec-wih', label: 'WIH', count: d.wih?.length || 0, icon: RadarChartOutlined, color: '#fa8c16' },
-    { id: 'chain-sec-vuln', label: '风险', count: d.vuln?.length || 0, icon: BugOutlined, color: '#f5222d' },
-    { id: 'chain-sec-npoc', label: 'Python 插件服务', count: d.npoc_service?.length || 0, icon: CodeOutlined, color: '#722ed1' },
+    { id: 'chain-sec-vuln', label: assetText('tasks.risks'), count: d.vuln?.length || 0, icon: BugOutlined, color: '#f5222d' },
+    { id: 'chain-sec-npoc', label: assetText('assets.pythonPluginServicesLabel'), count: d.npoc_service?.length || 0, icon: CodeOutlined, color: '#722ed1' },
     { id: 'chain-sec-nuclei', label: 'nuclei', count: d.nuclei_result?.length || 0, icon: FireOutlined, color: '#fa541c' }
   ];
 });
@@ -718,10 +721,10 @@ const fetchChainData = async () => {
     if (res.code === 200) {
       chainData.value = res.data || {};
     } else {
-      message.error(res.message || '获取画像失败');
+      message.error(res.message || assetText('assets.failedToLoadAssetProfile'));
     }
   } catch (e) {
-    message.error('网络请求异常');
+    message.error(assetText('tasks.networkRequestFailed'));
   } finally {
     loading.value = false;
   }
@@ -754,12 +757,12 @@ const handleClose = () => {
 
 const handleCopyTarget = async () => {
   const ok = await copyText(props.target);
-  if (ok) message.success('已复制目标: ' + props.target);
+  if (ok) message.success(assetText('assets.targetCopied') + props.target);
 };
 
 const downloadChainJson = () => {
   if (!chainData.value) {
-    message.warning('当前无画像数据可导出');
+    message.warning(assetText('assets.noProfileDataToExport'));
     return;
   }
   try {
@@ -775,9 +778,9 @@ const downloadChainJson = () => {
     downloadAnchor.click();
     downloadAnchor.remove();
     URL.revokeObjectURL(blobUrl);
-    message.success(`已成功导出画像数据: ${filename}`);
+    message.success(assetText('assets.assetProfileExportedTarget', { target: filename }));
   } catch (err) {
-    message.error('导出画像数据失败');
+    message.error(assetText('assets.failedToExportAssetProfile'));
   }
 };
 </script>

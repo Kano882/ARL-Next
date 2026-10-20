@@ -1,6 +1,7 @@
 <template>
   <div class="login-wrapper">
     <a-card class="login-card" :bordered="false">
+      <template #extra><LanguageSwitcher /></template>
       <template #title>
         <div class="login-card-header">
           <DeploymentUnitOutlined class="login-brand-icon" />
@@ -14,13 +15,13 @@
         @finish="onFinish"
         @submit.prevent
       >
-        <a-form-item label="账号" name="username" :rules="[{ required: true, message: '请输入账号!' }]">
+        <a-form-item :label="t('login.username')" name="username" :rules="[{ required: true, message: t('login.usernameRequired') }]">
           <a-input v-model:value="formState.username" placeholder="admin" size="large">
             <template #prefix><UserOutlined style="color: rgba(255, 255, 255, 0.45);" /></template>
           </a-input>
         </a-form-item>
 
-        <a-form-item label="密码" name="password" :rules="[{ required: true, message: '请输入密码!' }]">
+        <a-form-item :label="t('login.password')" name="password" :rules="[{ required: true, message: t('login.passwordRequired') }]">
           <a-input-password v-model:value="formState.password" placeholder="arlpass" size="large">
             <template #prefix><LockOutlined style="color: rgba(255, 255, 255, 0.45);" /></template>
           </a-input-password>
@@ -28,7 +29,7 @@
 
         <a-form-item style="margin-top: 32px; margin-bottom: 8px;">
           <a-button type="primary" html-type="submit" block size="large" :loading="loading" class="login-submit-btn">
-            登录
+            {{ t('login.signIn') }}
           </a-button>
         </a-form-item>
       </a-form>
@@ -38,11 +39,14 @@
 
 <script setup>
 import { reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import request from '../utils/request';
 import { message } from 'ant-design-vue';
 import { DeploymentUnitOutlined, UserOutlined, LockOutlined } from '@ant-design/icons-vue';
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 
+const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
 const loading = ref(false);
 
@@ -61,17 +65,17 @@ const onFinish = async (values) => {
 
     if (loginRes.code === 200) {
       localStorage.setItem('token', loginRes.data.token);
-      message.success('登录成功');
+      message.success(t('login.success'));
       router.push('/');
     } else if (loginRes.code === 401) {
-      message.error('登录失败：账号或密码错误');
+      message.error(t('login.invalidCredentials'));
     } else {
-      message.error('登录失败：' + (loginRes.message || '未知错误'));
+      message.error(t('login.failed', { reason: loginRes.message || t('common.unknownError') }));
     }
   } catch (error) {
     console.error('登录请求抛出异常:', error.message);
     if (error.message !== '未登录或 Token 失效') {
-      message.error('网络请求失败，请检查控制台或服务状态');
+      message.error(t('login.networkError'));
     }
   } finally {
     loading.value = false;
@@ -80,6 +84,10 @@ const onFinish = async (values) => {
 </script>
 
 <style scoped>
+.login-card :deep(.ant-form-item-label > label) {
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .login-wrapper {
   height: 100vh;
   display: flex;

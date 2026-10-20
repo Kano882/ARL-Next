@@ -11,7 +11,7 @@
     <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
       <a-input
         v-model:value="searchKeyword"
-        placeholder="搜索 IP / 端口 / 产品 / 版本"
+        :placeholder="taskText('tasks.searchIpPortProductVersion')"
         style="width: 280px;"
         allowClear
       >
@@ -22,7 +22,7 @@
 
       <div style="display: flex; gap: 8px; align-items: center;">
         <span style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65;">
-          当前显示: {{ filteredList.length }} / {{ totalCount }} 项
+          {{ taskText('tasks.showing') }} {{ filteredList.length }} / {{ totalCount }} {{ taskText('tasks.itemsLabel') }}
         </span>
         <a-button type="primary" ghost size="small" @click="copyAllEndpoints">
           <CopyOutlined /> {{ copyButtonText }}
@@ -75,7 +75,7 @@
             style="padding: 0; font-size: 12px;"
             @click="copySingleEndpoint(record)"
           >
-            <CopyOutlined /> 复制
+            <CopyOutlined /> {{ taskText('tasks.copy') }}
           </a-button>
         </template>
       </template>
@@ -84,10 +84,14 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
 import { ref, computed, watch, reactive } from 'vue';
 import { message } from 'ant-design-vue';
 import { SearchOutlined, CopyOutlined } from '@ant-design/icons-vue';
 import { copyText } from '../utils/clipboard';
+
+const { t: taskText } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
   open: { type: Boolean, required: true },
@@ -103,7 +107,7 @@ const pagination = reactive({
   pageSize: 10,
   showSizeChanger: true,
   pageSizeOptions: ['10', '20', '50', '100'],
-  showTotal: (total) => `共 ${total} 项`,
+  showTotal: (total) => taskText('tasks.totalCount', { count: total }),
   onChange: (page, pageSize) => {
     pagination.current = page;
     pagination.pageSize = pageSize;
@@ -115,15 +119,15 @@ const totalCount = computed(() => {
 });
 
 const modalTitle = computed(() => {
-  const name = props.record?.service_name || '服务';
-  return `系统服务端点详情 - ${name} (共 ${totalCount.value} 个端点)`;
+  const name = props.record?.service_name || taskText('tasks.services');
+  return taskText('tasks.serviceEndpointsNameCountEndpoints', { name: name, count: totalCount.value });
 });
 
 const copyButtonText = computed(() => {
   if (searchKeyword.value && filteredList.value.length !== totalCount.value) {
-    return `复制筛选端点 (${filteredList.value.length})`;
+    return taskText('tasks.copyFilteredEndpointsCount', { count: filteredList.value.length });
   }
-  return `复制所有端点 (${totalCount.value})`;
+  return taskText('tasks.copyAllEndpointsCount', { count: totalCount.value });
 });
 
 const filteredList = computed(() => {
@@ -172,15 +176,15 @@ const getEndpointUrl = (item) => {
 
 const copyAllEndpoints = async () => {
   if (!filteredList.value.length) {
-    message.warning('当前列表为空，无端点可复制');
+    message.warning(taskText('tasks.noEndpointsToCopy'));
     return;
   }
   const text = filteredList.value.map(item => `${item.ip}:${item.port_id}`).join('\n');
   const ok = await copyText(text);
   if (ok) {
-    message.success(`已复制 ${filteredList.value.length} 个端点到剪贴板`);
+    message.success(taskText('tasks.endpointsCopiedToClipboardCount', { count: filteredList.value.length }));
   } else {
-    message.error('复制失败，请手动复制');
+    message.error(taskText('tasks.copyFailedPleaseCopyManually'));
   }
 };
 
@@ -188,17 +192,17 @@ const copySingleEndpoint = async (item) => {
   const text = `${item.ip}:${item.port_id}`;
   const ok = await copyText(text);
   if (ok) {
-    message.success(`已复制 ${text}`);
+    message.success(taskText('tasks.copiedValue', { value: text }));
   } else {
-    message.error('复制失败');
+    message.error(taskText('tasks.copyFailed'));
   }
 };
 
 const columns = [
-  { title: '序号', key: 'index', width: 65, align: 'center' },
-  { title: 'IP:端口', key: 'ip_port', width: 220 },
+  { get title() { return taskText('tasks.no'); }, key: 'index', width: 65, align: 'center' },
+  { get title() { return taskText('tasks.ipPort'); }, key: 'ip_port', width: 220 },
   { title: 'Product', key: 'product', dataIndex: 'product', ellipsis: true },
   { title: 'Version', key: 'version', dataIndex: 'version', width: 140, ellipsis: true },
-  { title: '操作', key: 'action', width: 80, align: 'center' }
+  { get title() { return taskText('tasks.actions'); }, key: 'action', width: 80, align: 'center' }
 ];
 </script>

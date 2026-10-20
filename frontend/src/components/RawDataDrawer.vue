@@ -1,7 +1,7 @@
 <template>
   <a-drawer
     :open="open"
-    title="原始数据 (Raw JSON)"
+    :title="assetText('assets.rawDataJson')"
     placement="right"
     :width="drawerWidth"
     destroyOnClose
@@ -10,14 +10,14 @@
     <template #extra>
       <a-button type="primary" size="small" @click="handleCopy">
         <template #icon><copy-outlined /></template>
-        复制 JSON
+        {{ assetText('assets.copyJson') }}
       </a-button>
     </template>
 
     <div class="raw-drawer-container">
       <div class="raw-meta-bar">
-        <span class="raw-tip">格式化 JSON 数据预览 · 支持语法节点快速浏览</span>
-        <a-tag color="blue">{{ Object.keys(data || {}).length }} 个属性键</a-tag>
+        <span class="raw-tip">{{ assetText('assets.formattedJsonPreviewBrowseDataFields') }}</span>
+        <a-tag color="blue">{{ assetText('assets.jsonPropertyCount', { count: Object.keys(data || {}).length }) }}</a-tag>
       </div>
       <div class="json-code-block">
         <pre><code>{{ formattedJson }}</code></pre>
@@ -27,10 +27,13 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { computed } from 'vue';
 import { message } from 'ant-design-vue';
 import { CopyOutlined } from '@ant-design/icons-vue';
 import { copyText } from '../utils/clipboard';
+
+const { t: assetText } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
   open: {
@@ -59,7 +62,7 @@ const formattedJson = computed(() => {
 
 const handleCopy = async () => {
   const ok = await copyText(formattedJson.value);
-  if (ok) message.success('原始 JSON 已复制到剪贴板');
+  if (ok) message.success(assetText('assets.rawJsonCopiedToClipboard'));
 };
 
 const handleClose = () => {
