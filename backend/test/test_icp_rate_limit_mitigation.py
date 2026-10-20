@@ -117,5 +117,44 @@ class TestIcpRateLimitMitigation(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.icp._is_rate_limited(None))
 
 
+class TestWafCooldownWaitOnce(unittest.IsolatedAsyncioTestCase):
+    """熔断等待重试一次语义：命中即等（至多一次），而非永久跳过"""
+
+    def _load_wait_fn(self):
+        import importlib.util
+        path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", "osint_service", "clients", "job_runner.py"))
+        src = open(path, encoding="utf-8").read()
+        ns = {"__name__": "job_runner_wait_test"}
+        # 仅提取等待函数与其常量，避免拉起 motor/mongo 连接
+        start = src.index("WAF_WAIT_MAX_SECONDS = 300")
+        end = src.index("async def _claim_recon_task")
+        chunk = "import asyncio\nimport logging\nimport time\nlogger = logging.getLogger(__name__)\n" + src[start:end]
+        exec(compile(chunk, path, "exec"), ns)
+        return ns["_wait_waf_cooldown_once"], ns["WAF_WAIT_MAX_SECONDS"]
+
+    async def test_no_wait_when_cooldown_expired(self):
+        fn, _ = self._load_wait_fn()
+        fake = type("M", (), {"_waf_block_ts": time.time() - 400, "waf_cooldown": 300})()
+        self.assertTrue(await fn(fake, "tid", "场景"))
+
+    async def test_skip_when_wait_exceeds_cap(self):
+        fn, cap = self._load_wait_fn()
+        fake = type("M", (), {"_waf_block_ts": time.time(), "waf_cooldown": 9999})()
+        self.assertFalse(await fn(fake, "tid", "场景"))
+        self.assertEqual(cap, 300)
+
+    async def test_wait_then_proceed_once(self):
+        fn, _ = self._load_wait_fn()
+        logged = []
+        async def fake_log(level, title, msg):
+            logged.append((level, title, msg))
+        fake = type("M", (), {"_waf_block_ts": time.time() - 299, "waf_cooldown": 300})()
+        t0 = time.time()
+        self.assertTrue(await fn(fake, "tid", "场景", insert_syslog=fake_log))
+        self.assertLess(time.time() - t0, 30)
+        self.assertTrue(any("重试一次" in m for _, _, m in logged))
+
+
 if __name__ == "__main__":
     unittest.main()

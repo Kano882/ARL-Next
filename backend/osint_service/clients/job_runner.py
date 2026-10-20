@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import time
 from datetime import datetime, timezone, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -15,6 +16,41 @@ db = client['arl']
 def curr_date():
     tz = timezone(timedelta(hours=8))
     return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+
+
+# 熔断等待上限：超过此值说明 IP 被连续封禁，等待无意义，直接跳过保任务收尾
+WAF_WAIT_MAX_SECONDS = 300
+
+
+async def _wait_waf_cooldown_once(myicp, task_id, scene, insert_syslog=None):
+    """
+    熔断命中后等待冷却结束再试一次（仅一次，不循环）。
+
+    语义：此前是命中即 continue 永久跳过该类型，导致大任务限流期内
+    数据整段丢失；现改为睡到冷却结束（至多等 WAF_WAIT_MAX_SECONDS），
+    醒后直接返回 True 由调用方正常发起查询，不再二次检查。
+    等待期间任务被手动停止，由调用方循环头状态检查负责退出。
+    返回 True=已等待可继续查询，False=无需等待或无需重试直接跳过。
+    """
+    block_ts = getattr(myicp, "_waf_block_ts", 0.0) or 0.0
+    cooldown = getattr(myicp, "waf_cooldown", WAF_WAIT_MAX_SECONDS) or WAF_WAIT_MAX_SECONDS
+    try:
+        wait = float(block_ts) + float(cooldown) - time.time()
+    except (TypeError, ValueError):
+        return False
+    if wait <= 0:
+        return True
+    if wait > WAF_WAIT_MAX_SECONDS:
+        return False
+    msg = f"{scene}命中熔断，等待 {int(wait)}s 后重试一次"
+    logger.info(f"Task {task_id} {msg}")
+    if insert_syslog is not None:
+        try:
+            await insert_syslog("info", scene, msg)
+        except Exception:
+            pass
+    await asyncio.sleep(wait)
+    return True
 
 
 async def _claim_recon_task(task_id):
@@ -202,12 +238,17 @@ async def run_icp_job(options):
             
         if qt in handlers:
             try:
-                # 检查全局 WAF 熔断状态（仅当单 IP 直连且处于封禁期时跳过，多代理模式不停机）
+                # 全局 WAF 熔断：等待冷却后重试一次（仅一次），而非永久跳过该维度
                 _waf_check = getattr(myicp, "_is_global_waf_blocked", None)
                 if callable(_waf_check) and _waf_check():
-                    error_msg.append(f"{qt}: 出口网络被创宇盾封禁，跳过该维度查询")
-                    await insert_syslog("warning", f"{qt}查询", "检测到出口网络触发创宇盾封禁，跳过该维度查询，稍后可重跑补全")
-                    continue
+                    waited = await _wait_waf_cooldown_once(myicp, task_id, f"{qt}查询")
+                    if not waited:
+                        error_msg.append(f"{qt}: 出口网络被创宇盾封禁，跳过该维度查询")
+                        await insert_syslog("warning", f"{qt}查询", "检测到出口网络触发创宇盾封禁，跳过该维度查询，稍后可重跑补全")
+                        continue
+                    # 长等待后复查任务状态：等待期间用户可能已手动停止
+                    if not await _task_is_running(task_id):
+                        return
                 await insert_syslog("info", f"{qt}查询", f"开始获取 {qt} 资产数据...")
                 res = await handlers[qt](target, "", "", proxy=None)
                 if not await _task_is_running(task_id):
@@ -530,11 +571,18 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
             logger.info(f"Task {task_id} manually stopped during ICP enrichment.")
             return
 
-        # 检查全局 WAF 熔断状态（仅当单 IP 直连且处于封禁期时跳过，多代理模式不停机）
+        # 全局 WAF 熔断：等待冷却后重试一次（仅一次），而非永久跳过剩余类型
         _waf_check = getattr(myicp, "_is_global_waf_blocked", None)
         if callable(_waf_check) and _waf_check():
-            await insert_syslog("warning", "工信部查重", f"主体【{company_name}】检测到出口网络触发创宇盾熔断，跳过该类型补全")
-            continue
+            waited = await _wait_waf_cooldown_once(myicp, task_id, "工信部查重", insert_syslog)
+            if not waited:
+                await insert_syslog("warning", "工信部查重", f"主体【{company_name}】检测到出口网络触发创宇盾熔断，跳过该类型补全")
+                continue
+            # 长等待后复查任务状态：等待期间用户可能已手动停止
+            task_info = await db['icp_task'].find_one({"_id": ObjectId(task_id)}, {"status": 1})
+            if not task_info or task_info.get("status") != "running":
+                logger.info(f"Task {task_id} manually stopped during WAF cooldown wait.")
+                return
 
         await asyncio.sleep(random.uniform(8.0, 15.0))
         try:
