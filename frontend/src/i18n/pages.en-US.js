@@ -1143,5 +1143,17 @@ export default {
   "selectedRecordsDeleted": "Selected records deleted",
   "queueMemoryBudget": "(Available: {available} MB; budget after burst reserve: {budget} MB)",
   "insufficientQueueMemory": "Available memory cannot support the minimum configuration of one process per queue: the worst-case peak is about {peak} MB against a budget of {budget} MB. The system will still use the minimum configuration, but the kernel may terminate processes under memory pressure. Add memory or reduce resident services.",
-  "queueProcessLimit": "(Allocated using the peak memory model; per-process limit: {limit} MB)"
+  "queueProcessLimit": "(Allocated using the peak memory model; per-process limit: {limit} MB)",
+  "screensaverResumeHint": "Monitoring assets... Click anywhere to resume.",
+  "poweredByArlNext": "Powered by ARL-Next",
+  "maxPagesPlaceholder": "Max pages",
+  "pageSizePlaceholder": "Page size",
+  "authEmailPlaceholder": "Auth email",
+  "authKeyPlaceholder": "Auth key",
+  "fingerCategoryCdn": "CDN",
+  "fingerCategoryServer": "Server",
+  "fingerCategoryFrontend": "Frontend",
+  "fingerCategoryFramework": "Framework",
+  "fingerCategoryApplication": "Application",
+  "fingerCategoryWeb": "Web"
 };

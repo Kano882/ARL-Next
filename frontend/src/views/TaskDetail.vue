@@ -159,8 +159,8 @@
               {{ record.site || record.url }}
             </a>
 
-            <p v-if="record.favicon && record.favicon.hash" class="site-word">Favicon Hash: {{ record.favicon.hash }}</p>
-            <p v-else-if="record.favicon_hash" class="site-word">Favicon Hash: {{ record.favicon_hash }}</p>
+            <p v-if="record.favicon && record.favicon.hash" class="site-word">{{ taskText('tasks.faviconHash') }}: {{ record.favicon.hash }}</p>
+            <p v-else-if="record.favicon_hash" class="site-word">{{ taskText('tasks.faviconHash') }}: {{ record.favicon_hash }}</p>
 
             <div class="mt5" style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
 
@@ -397,7 +397,7 @@
                 style="padding: 0; height: auto; font-size: 12px;"
                 @click="openServiceDetailModal(record)"
               >
-                {{ taskText('tasks.viewAllTotal') }} {{ record.service_info.length }} 项) &gt;&gt;
+                {{ taskText('tasks.viewAllTotal', { count: record.service_info.length }) }}
               </a-button>
             </div>
           </div>
@@ -973,11 +973,11 @@ const tabConfig = reactive({
       { get label() { return taskText('tasks.websites'); }, key: 'site', operator: '=' },
       { label: 'IP', key: 'ip', operator: '=' },
       { get label() { return taskText('tasks.title'); }, key: 'title', operator: '=' },
-      { label: 'Web Server', key: 'http_server', operator: '=' },
+      { get label() { return taskText('tasks.webServer'); }, key: 'http_server', operator: '=' },
       { get label() { return taskText('tasks.statusCode'); }, key: 'status', type: 'httpStatus' },
       { get label() { return taskText('tasks.headers'); }, key: 'headers', operator: '=' },
       { get label() { return taskText('tasks.fingerprints'); }, key: 'finger', operator: '=' },
-      { label: 'favicon hash', key: 'favicon.hash', operator: '=' },
+      { get label() { return taskText('tasks.faviconHash'); }, key: 'favicon.hash', operator: '=' },
       { get label() { return taskText('tasks.tags'); }, key: 'tag', operator: '=' }
     ],
     cols: [
@@ -986,8 +986,8 @@ const tabConfig = reactive({
       { get title() { return taskText('tasks.websites'); }, key: 'site', width: 250 },
       { get title() { return taskText('tasks.statusCode'); }, dataIndex: 'status', key: 'status', width: 100, align: 'center' },
       { get title() { return taskText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 200 },
-      { title: 'headers', key: 'headers',width: 500},
-      { title: 'finger', key: 'finger', width: 150 },
+      { get title() { return taskText('tasks.headers'); }, key: 'headers',width: 500},
+      { get title() { return taskText('tasks.fingerprints'); }, key: 'finger', width: 150 },
       { get title() { return taskText('tasks.screenshot'); }, key: 'screenshot', width: 280 }
     ]
   },
@@ -1045,7 +1045,7 @@ const tabConfig = reactive({
       { get title() { return taskText('tasks.openPorts'); }, key: 'port_info', width: 200 },
       { get title() { return taskText('tasks.associatedDomains'); }, key: 'domain', width: 250 },
       { get title() { return taskText('tasks.cdnStatus'); }, key: 'ip_cdn_tag', width: 150 },
-      { title: 'Geo', key: 'geo_city', width: 180 },
+      { get title() { return taskText('tasks.geoLocation'); }, key: 'geo_city', width: 180 },
       { title: 'AS', key: 'geo_asn', width: 280 }
     ]
   },
@@ -1064,8 +1064,8 @@ const tabConfig = reactive({
     cols: [
       { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
       { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
-      { title: 'HOST', key: 'host', width: 180 },
-      { title: 'CERT', key: 'cert_detail', width: 900 }
+      { get title() { return taskText('tasks.host'); }, key: 'host', width: 180 },
+      { get title() { return taskText('tasks.sslCertificateInformation'); }, key: 'cert_detail', width: 900 }
     ]
   },
   service: {
@@ -1082,7 +1082,7 @@ const tabConfig = reactive({
       { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
       { get title() { return taskText('tasks.services'); }, dataIndex: 'service_name', key: 'service_name', width: 150, align: 'center' },
       { get title() { return taskText('tasks.ipPort'); }, key: 'ip_port', width: 300 },
-      { title: 'Product', key: 'product', width: 250 }
+      { get title() { return taskText('tasks.product'); }, key: 'product', width: 250 }
     ]
   },
   fileleak: {
@@ -1131,7 +1131,7 @@ const tabConfig = reactive({
           { label: 'AlienVault', value: 'alienvault' },
           { label: 'WaybackMachine', value: 'waybackmachine' },
           { label: 'CommonCrawl', value: 'commoncrawl' },
-          { label: 'Fuzz', value: 'fuzz' }
+          { get label() { return taskText('tasks.fuzzing'); }, value: 'fuzz' }
         ],
         operator: '='
       }
@@ -1230,7 +1230,7 @@ const tabConfig = reactive({
     globalUrl: '/asset_stat_finger/',
     searchFields: [
       {
-        label: 'finger',
+        get label() { return taskText('tasks.fingerprints'); },
         key: 'name',
         operator: '模糊匹配',
         hasOperatorSelect: true,
@@ -1240,7 +1240,7 @@ const tabConfig = reactive({
     cols: [
       { get title() { return taskText('tasks.no'); }, key: 'index', width: 80, align: 'center' },
       { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
-      { title: 'finger', key: 'finger_name', width: 500 }, // 用专用 key 渲染青蓝字体
+      { get title() { return taskText('tasks.fingerprints'); }, key: 'finger_name', width: 500 }, // 用专用 key 渲染青蓝字体
       { get title() { return taskText('tasks.count'); }, dataIndex: 'cnt', key: 'cnt', width: 200 }
     ]
   },

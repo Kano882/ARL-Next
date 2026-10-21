@@ -101,7 +101,7 @@
                   </div>
                   <div class="site-kv-grid">
                     <div class="kv-item"><span class="kv-label">{{ assetText('assets.title') }}</span><span class="kv-value">{{ siteItem.title || '-' }}</span></div>
-                    <div class="kv-item"><span class="kv-label">Server：</span><span class="kv-value">{{ siteItem.http_server || '-' }}</span></div>
+                    <div class="kv-item"><span class="kv-label">{{ assetText('tasks.webServer') }}:</span><span class="kv-value">{{ siteItem.http_server || '-' }}</span></div>
                     <div class="kv-item"><span class="kv-label">IP：</span><span class="kv-value font-mono">{{ siteItem.ip || '-' }}</span></div>
                     <div class="kv-item"><span class="kv-label">{{ assetText('assets.updated') }}</span><span class="kv-value">{{ siteItem.update_date || siteItem.save_date || '-' }}</span></div>
                   </div>

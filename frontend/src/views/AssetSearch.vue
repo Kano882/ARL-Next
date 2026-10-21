@@ -159,8 +159,8 @@
               {{ record.site || record.url }}
             </a>
 
-            <p v-if="record.favicon && record.favicon.hash" class="site-word">Favicon Hash: {{ record.favicon.hash }}</p>
-            <p v-else-if="record.favicon_hash" class="site-word">Favicon Hash: {{ record.favicon_hash }}</p>
+            <p v-if="record.favicon && record.favicon.hash" class="site-word">{{ assetText('tasks.faviconHash') }}: {{ record.favicon.hash }}</p>
+            <p v-else-if="record.favicon_hash" class="site-word">{{ assetText('tasks.faviconHash') }}: {{ record.favicon_hash }}</p>
 
             <div class="mt5" style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
 
@@ -636,7 +636,7 @@ const tabConfig = reactive({
     searchFields: [
       { get label() { return assetText('tasks.websites'); }, key: 'site', operator: '=' },
       { get label() { return assetText('tasks.title'); }, key: 'title', operator: '=' },
-      { label: 'Web Server', key: 'http_server', operator: '=' },
+      { get label() { return assetText('tasks.webServer'); }, key: 'http_server', operator: '=' },
       { get label() { return assetText('tasks.statusCode'); }, key: 'status', type: 'httpStatus' },
       { get label() { return assetText('tasks.headers'); }, key: 'headers', operator: '=' },
       {
@@ -646,7 +646,7 @@ const tabConfig = reactive({
         hasOperatorSelect: true,
         operators: ['模糊匹配', '精确匹配']
       },
-      { label: 'favicon hash', key: 'favicon.hash', operator: '=' },
+      { get label() { return assetText('tasks.faviconHash'); }, key: 'favicon.hash', operator: '=' },
       { get label() { return assetText('tasks.tags'); }, key: 'tag', operator: '=' }
     ],
     // 💥 修复：删除了瞎加的 IP、端口和操作列，完全对齐原版站点表格！表格控制
@@ -800,7 +800,7 @@ const tabConfig = reactive({
           { label: 'AlienVault', value: 'alienvault' },
           { label: 'WaybackMachine', value: 'waybackmachine' },
           { label: 'CommonCrawl', value: 'commoncrawl' },
-          { label: 'Fuzz', value: 'fuzz' }
+          { get label() { return assetText('tasks.fuzzing'); }, value: 'fuzz' }
         ],
         operator: '='
       }

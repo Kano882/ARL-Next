@@ -293,9 +293,9 @@
           </a-form-item>
           <a-form-item :label="pageText('tasks.statusLabel')">
             <a-select v-model:value="schedulerSearchForm.status" :placeholder="pageText('pages.selectAStatus')" class="page-width-180" allowClear @change="onSchedulerSearch">
-              <a-select-option value="running">running</a-select-option>
-              <a-select-option value="stop">stop</a-select-option>
-              <a-select-option value="error">error</a-select-option>
+              <a-select-option value="running">{{ TASK_STATUS_LABEL.running }}</a-select-option>
+              <a-select-option value="stop">{{ TASK_STATUS_LABEL.stop }}</a-select-option>
+              <a-select-option value="error">{{ TASK_STATUS_LABEL.error }}</a-select-option>
             </a-select>
           </a-form-item>
         </a-form>
@@ -336,7 +336,7 @@
 
             <template v-else-if="column.key === 'status'">
               <a-tag :color="record.status === 'running' ? 'blue' : record.status === 'stop' ? 'warning' : 'error'">
-                {{ record.status }}
+                {{ TASK_STATUS_LABEL[record.status] || record.status }}
               </a-tag>
             </template>
 
@@ -402,11 +402,11 @@
           </a-form-item>
           <a-form-item :label="pageText('tasks.statusLabel')">
             <a-select v-model:value="taskSearchForm.status" :placeholder="pageText('pages.selectAStatus')" class="page-width-180" allowClear @change="onTaskSearch">
-              <a-select-option value="waiting">waiting</a-select-option>
-              <a-select-option value="running">running</a-select-option>
-              <a-select-option value="done">done</a-select-option>
-              <a-select-option value="error">error</a-select-option>
-              <a-select-option value="stop">stop</a-select-option>
+              <a-select-option value="waiting">{{ TASK_STATUS_LABEL.waiting }}</a-select-option>
+              <a-select-option value="running">{{ TASK_STATUS_LABEL.running }}</a-select-option>
+              <a-select-option value="done">{{ TASK_STATUS_LABEL.done }}</a-select-option>
+              <a-select-option value="error">{{ TASK_STATUS_LABEL.error }}</a-select-option>
+              <a-select-option value="stop">{{ TASK_STATUS_LABEL.stop }}</a-select-option>
             </a-select>
           </a-form-item>
         </a-form>
@@ -452,7 +452,7 @@
                   'success'
                 "
               >
-                {{ record.status }}
+                {{ TASK_STATUS_LABEL[record.status] || record.status }}
               </a-tag>
             </template>
 
@@ -716,6 +716,7 @@ import request from '../utils/request';
 import { message, Modal } from 'ant-design-vue';
 import { SearchOutlined, InboxOutlined, SyncOutlined, LinkOutlined, ClockCircleOutlined } from '@ant-design/icons-vue';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
+import { TASK_STATUS_LABEL } from '../constants/taskStatus';
 
 const { t: pageText } = useI18n({ useScope: 'global' });
 

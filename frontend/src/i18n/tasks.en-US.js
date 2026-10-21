@@ -418,7 +418,7 @@ export default {
   "cdnNode": "CDN node",
   "unknown": "Unknown",
   "countWebsites": "+{count} websites",
-  "viewAllTotal": "View all (total",
+  "viewAllTotal": "View all (total: {count}) >>",
   "updated": "Updated",
   "viewTheCompleteDiff": "🔍 View the complete diff",
   "longTextChanged": "[Long text changed]",
@@ -741,5 +741,11 @@ export default {
   "syncSelectedDomainCount": "Sync selected domains ({count})",
   "allDomainCount": "All ({count})",
   "newDomainTabCount": "New ({count})",
-  "existingDomainTabCount": "Existing ({count})"
+  "existingDomainTabCount": "Existing ({count})",
+  "webServer": "Web server",
+  "faviconHash": "Favicon hash",
+  "geoLocation": "Location",
+  "version": "Version",
+  "taskId": "Task ID",
+  "fuzzing": "Fuzzing"
 };

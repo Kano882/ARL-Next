@@ -321,7 +321,7 @@
           <div v-show="isAdvancedFilterOpen" class="advanced-filter-panel">
             <div class="advanced-filter-grid">
               <div class="filter-item">
-                <span class="filter-label">Task_Id:</span>
+                <span class="filter-label">{{ taskText('tasks.taskId') }}:</span>
                 <a-input
                   v-model:value="searchForm.task_id"
                   :placeholder="taskText('tasks.enterA24CharacterTaskId')"
@@ -1692,7 +1692,7 @@ const columns = [
   { get title() { return taskText('tasks.status'); }, dataIndex: 'status', key: 'status', width: 150 },
   { get title() { return taskText('tasks.startTime'); }, dataIndex: 'start_time', key: 'start_time', width: 160 },
   { get title() { return taskText('tasks.endTime'); }, dataIndex: 'end_time', key: 'end_time', width: 160 },
-  { title: 'Task_Id', dataIndex: '_id', key: 'task_id', width: 190 },
+  { get title() { return taskText('tasks.taskId'); }, dataIndex: '_id', key: 'task_id', width: 190 },
   { get title() { return taskText('tasks.actions'); }, key: 'action', fixed: 'right', width: 160 },
 ];
 

@@ -418,7 +418,7 @@ export default {
   "cdnNode": "CDN节点",
   "unknown": "未知",
   "countWebsites": "+{count} 站点",
-  "viewAllTotal": "查看全部 (共",
+  "viewAllTotal": "查看全部（共 {count} 项） >>",
   "updated": "更新",
   "viewTheCompleteDiff": "🔍 点击查看完整明细差异",
   "longTextChanged": "[长文本内容变动]",
@@ -741,5 +741,11 @@ export default {
   "syncSelectedDomainCount": "同步选中域名 ({count})",
   "allDomainCount": "全部 ({count})",
   "newDomainTabCount": "全新 ({count})",
-  "existingDomainTabCount": "已存在 ({count})"
+  "existingDomainTabCount": "已存在 ({count})",
+  "webServer": "Web 服务器",
+  "faviconHash": "Favicon 哈希",
+  "geoLocation": "地理位置",
+  "version": "版本",
+  "taskId": "任务 ID",
+  "fuzzing": "字典探测"
 };

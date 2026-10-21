@@ -592,7 +592,7 @@
                 style="padding: 0; height: auto; font-size: 12px;"
                 @click="openServiceDetailModal(record)"
               >
-                {{ assetText('tasks.viewAllTotal') }} {{ record.service_info.length }} {{ assetText('assets.itemsText') }}
+                {{ assetText('tasks.viewAllTotal', { count: record.service_info.length }) }}
               </a-button>
             </div>
           </div>
@@ -1599,12 +1599,12 @@ const tabConfig = reactive({
     searchFields: [
       { get label() { return assetText('tasks.websites'); }, key: 'site', operator: '=' },
       { get label() { return assetText('tasks.title'); }, key: 'title', operator: '=' },
-      { label: 'Web Server', key: 'http_server', operator: '=' },
+      { get label() { return assetText('tasks.webServer'); }, key: 'http_server', operator: '=' },
       { get label() { return assetText('tasks.statusCode'); }, key: 'status', type: 'httpStatus' },
       // 🚨 补充丢失的 4 个字段
       { get label() { return assetText('tasks.headers'); }, key: 'headers', operator: '=' },
       { get label() { return assetText('tasks.fingerprints'); }, key: 'finger', operator: '=' },
-      { label: 'favicon hash', key: 'favicon.hash', operator: '=' },
+      { get label() { return assetText('tasks.faviconHash'); }, key: 'favicon.hash', operator: '=' },
       { get label() { return assetText('tasks.tags'); }, key: 'tag', operator: '=' },
       { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
@@ -1648,7 +1648,7 @@ const tabConfig = reactive({
     tabName: 'IP',
     // 🚨 修复：完美对齐截图的 7 个搜索字段，首个为下拉框
     searchFields: [
-      { get label() { return assetText('tasks.ipType'); }, key: 'ip_type', type: 'select', options: [{label: 'PUBLIC', value: 'PUBLIC'}, {label: 'PRIVATE', value: 'PRIVATE'}] },
+      { get label() { return assetText('tasks.ipType'); }, key: 'ip_type', type: 'select', options: [{ get label() { return assetText('tasks.publicPublic'); }, value: 'PUBLIC' }, { get label() { return assetText('tasks.privatePrivate'); }, value: 'PRIVATE' }] },
       { label: 'IP', key: 'ip', operator: '=' },
       { get label() { return assetText('tasks.port'); }, key: 'port_info.port_id', operator: '=' },
       { get label() { return assetText('tasks.operatingSystem'); }, key: 'os_info.name', operator: '=' }, // ARL 默认 OS 字段名

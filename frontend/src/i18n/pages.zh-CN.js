@@ -1143,5 +1143,17 @@ export default {
   "selectedRecordsDeleted": "批量删除成功",
   "queueMemoryBudget": "（可用 {available} MB，扣除突发余量后预算 {budget} MB）",
   "insufficientQueueMemory": "当前可用内存不足以支撑最小配置（各队列各 1 个进程，最坏峰值约 {peak} MB，预算 {budget} MB）。系统仍会以最小配置运行，但内存紧张时进程可能被内核回收，建议扩容内存或减少常驻服务。",
-  "queueProcessLimit": "（按峰值模型分配，单进程上限 {limit} MB）"
+  "queueProcessLimit": "（按峰值模型分配，单进程上限 {limit} MB）",
+  "screensaverResumeHint": "正在监控资产，点击任意位置恢复界面。",
+  "poweredByArlNext": "由 ARL-Next 提供支持",
+  "maxPagesPlaceholder": "最大页数",
+  "pageSizePlaceholder": "每页条数",
+  "authEmailPlaceholder": "认证邮箱",
+  "authKeyPlaceholder": "认证密钥",
+  "fingerCategoryCdn": "CDN",
+  "fingerCategoryServer": "服务器",
+  "fingerCategoryFrontend": "前端",
+  "fingerCategoryFramework": "框架",
+  "fingerCategoryApplication": "应用",
+  "fingerCategoryWeb": "网站"
 };
