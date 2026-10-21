@@ -20,32 +20,39 @@ from app.services.backup_service import (
 
 class TestBackupRestore(unittest.TestCase):
     def test_progress_tracker_lifecycle(self):
-        tracker = BackupProgressTracker()
-        self.assertEqual(tracker.status, "idle")
+        with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
+            mock_status_file = tf.name
+        try:
+            with patch("app.services.backup_service.STATUS_FILE", mock_status_file):
+                tracker = BackupProgressTracker()
+                self.assertEqual(tracker.status, "idle")
 
-        tracker.start("backup", "arl_backup_test.tar.gz")
-        state = tracker.get_state()
-        self.assertEqual(state["status"], "backuping")
-        self.assertEqual(state["action"], "backup")
-        self.assertEqual(state["archive_name"], "arl_backup_test.tar.gz")
+                tracker.start("backup", "arl_backup_test.tar.gz")
+                state = tracker.get_state()
+                self.assertEqual(state["status"], "backing_up")
+                self.assertEqual(state["action"], "backup")
+                self.assertEqual(state["archive_name"], "arl_backup_test.tar.gz")
 
-        tracker.update("正在导出数据...", 50, "导出步骤A完成")
-        state = tracker.get_state()
-        self.assertEqual(state["stage"], "正在导出数据...")
-        self.assertEqual(state["percent"], 50)
-        self.assertTrue(any("导出步骤A完成" in log for log in state["logs"]))
+                tracker.update("正在导出数据...", 50, "导出步骤A完成")
+                state = tracker.get_state()
+                self.assertEqual(state["stage"], "正在导出数据...")
+                self.assertEqual(state["percent"], 50)
+                self.assertTrue(any("导出步骤A完成" in log for log in state["logs"]))
 
-        tracker.finish({"archive_name": "arl_backup_test.tar.gz", "size": 1024})
-        state = tracker.get_state()
-        self.assertEqual(state["status"], "success")
-        self.assertEqual(state["percent"], 100)
-        self.assertEqual(state["result"]["size"], 1024)
+                tracker.finish({"archive_name": "arl_backup_test.tar.gz", "size": 1024})
+                state = tracker.get_state()
+                self.assertEqual(state["status"], "success")
+                self.assertEqual(state["percent"], 100)
+                self.assertEqual(state["result"]["size"], 1024)
 
-        tracker.start("restore", "arl_backup_test.tar.gz")
-        tracker.fail("模拟还原失败错误")
-        state = tracker.get_state()
-        self.assertEqual(state["status"], "error")
-        self.assertEqual(state["error"], "模拟还原失败错误")
+                tracker.start("restore", "arl_backup_test.tar.gz")
+                tracker.fail("模拟还原失败错误")
+                state = tracker.get_state()
+                self.assertEqual(state["status"], "error")
+                self.assertEqual(state["error"], "模拟还原失败错误")
+        finally:
+            if os.path.exists(mock_status_file):
+                os.remove(mock_status_file)
 
     def test_compute_sha256(self):
         with tempfile.NamedTemporaryFile("w+", delete=False) as f:

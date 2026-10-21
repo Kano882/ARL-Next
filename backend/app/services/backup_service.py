@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import json
 import time
 import shutil
@@ -26,11 +27,25 @@ class BackupProgressTracker:
     """
     def __init__(self):
         self._lock = threading.Lock()
-        self.reset()
+        # 初始化时优先从磁盘读取现有状态，若有正在运行的任务则继承；终态则进入 idle
+        disk_state = self._read_from_disk()
+        if disk_state and disk_state.get("status") in ["backing_up", "restoring"]:
+            self.status = disk_state.get("status", "idle")
+            self.action = disk_state.get("action")
+            self.stage = disk_state.get("stage", "")
+            self.percent = disk_state.get("percent", 0)
+            self.start_time = disk_state.get("start_time")
+            self.end_time = disk_state.get("end_time")
+            self.logs = disk_state.get("logs", [])
+            self.error = disk_state.get("error")
+            self.result = disk_state.get("result")
+            self.archive_name = disk_state.get("archive_name")
+        else:
+            self.reset(save_disk=False)
 
     def _save_to_disk(self, state: Dict[str, Any]):
         try:
-            tmp_path = f"{STATUS_FILE}.tmp.{os.getpid()}"
+            tmp_path = f"{STATUS_FILE}.tmp.{os.getpid()}_{threading.get_ident()}"
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False)
             os.replace(tmp_path, STATUS_FILE)
@@ -46,7 +61,7 @@ class BackupProgressTracker:
             pass
         return None
 
-    def reset(self):
+    def reset(self, save_disk: bool = True):
         with self._lock:
             self.status = "idle"  # idle | backing_up | restoring | success | error
             self.action = None    # backup | restore
@@ -58,7 +73,8 @@ class BackupProgressTracker:
             self.error: Optional[str] = None
             self.result: Optional[Dict[str, Any]] = None
             self.archive_name: Optional[str] = None
-            self._save_to_disk(self._build_dict())
+            if save_disk:
+                self._save_to_disk(self._build_dict())
 
     def _build_dict(self) -> Dict[str, Any]:
         elapsed = 0
@@ -81,9 +97,9 @@ class BackupProgressTracker:
 
     def start(self, action: str, archive_name: Optional[str] = None):
         with self._lock:
-            self.status = f"{action}ing" if action == "backup" else "restoring"
+            self.status = "backing_up" if action == "backup" else "restoring"
             self.action = action
-            self.stage = "正在初始化..."
+            self.stage = "正在初始化工作区..."
             self.percent = 5
             self.start_time = time.time()
             self.end_time = None
@@ -129,7 +145,13 @@ class BackupProgressTracker:
     def get_state(self) -> Dict[str, Any]:
         disk_state = self._read_from_disk()
         if disk_state:
-            # 动态计算耗时
+            with self._lock:
+                self.status = disk_state.get("status", self.status)
+                self.percent = disk_state.get("percent", self.percent)
+                self.stage = disk_state.get("stage", self.stage)
+                self.action = disk_state.get("action", self.action)
+                self.logs = disk_state.get("logs", self.logs)
+
             start_time = disk_state.get("start_time")
             end_time = disk_state.get("end_time")
             if start_time:
@@ -274,6 +296,46 @@ def get_running_task_count() -> int:
     return conn_db('task').count_documents({"status": {"$nin": non_running}})
 
 
+def run_command_streaming(cmd: List[str], stage_prefix: str, pct_start: int, pct_end: int, log_tag: str = "Engine"):
+    """
+    流式执行外部工具命令（如 mongodump / mongorestore），
+    实时从 stderr/stdout 逐行读取输出，并平滑步进进度与控制台日志。
+    """
+    logger.info(f"Running streaming command: {' '.join(cmd[:3])} ...")
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        universal_newlines=True
+    )
+    
+    lines_read = 0
+    all_err_lines = []
+    while True:
+        line = proc.stderr.readline()
+        if not line and proc.poll() is not None:
+            break
+        if line:
+            line_str = line.strip()
+            if not line_str:
+                continue
+            all_err_lines.append(line_str)
+            lines_read += 1
+            clean_line = re.sub(r'^\d{4}-\d{2}-\d{2}T[\d:\.\+\-]+[\t\s]*', '', line_str)
+            is_milestone = any(k in clean_line.lower() for k in ["done", "writing", "restoring", "finished", "%"])
+            if is_milestone or lines_read % 3 == 0:
+                # 拟真在 [pct_start, pct_end - 1] 区间步进
+                curr_pct = min(pct_end - 1, pct_start + (lines_read // 2))
+                progress_tracker.update(f"{stage_prefix}: {clean_line[:55]}", curr_pct, f"[{log_tag}] {clean_line}")
+
+    proc.wait()
+    if proc.returncode != 0:
+        err_msg = "\n".join(all_err_lines[-10:]) if all_err_lines else "外部命令异常退出"
+        raise RuntimeError(f"{log_tag} 命令执行失败 (退出码 {proc.returncode}): {err_msg[:200]}")
+
+
 def create_backup_archive(include_screenshots: bool = True, note: str = "") -> Dict[str, Any]:
     """
     执行全量一键备份的核心实现函数
@@ -317,11 +379,7 @@ def create_backup_archive(include_screenshots: bool = True, note: str = "") -> D
             "--gzip"
         ]
         
-        logger.info(f"Running dump command: {dump_tool} --uri=*** --db={db_name} --archive={mongo_archive_path} --gzip")
-        res = subprocess.run(dump_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if res.returncode != 0:
-            err_msg = res.stderr or res.stdout or "mongodump 执行异常退出"
-            raise RuntimeError(f"MongoDB 导出失败: {err_msg}")
+        run_command_streaming(dump_cmd, "MongoDB 归档导出", 20, 55, log_tag="mongodump")
         
         dump_size = os.path.getsize(mongo_archive_path)
         progress_tracker.update(
@@ -335,21 +393,36 @@ def create_backup_archive(include_screenshots: bool = True, note: str = "") -> D
         
         # 3. 打包截图资源（如果选择包含且目录存在）
         if include_screenshots:
-            progress_tracker.update("正在打包站点资产截图 (tmp_screenshot)...", 60, "检查资产截图目录")
+            progress_tracker.update("正在打包站点资产截图 (tmp_screenshot)...", 56, "检查资产截图目录")
             screenshot_dirs = [
                 "/code/backend/app/tmp_screenshot",
                 os.path.join(basedir, "tmp_screenshot")
             ]
             scr_dir = next((d for d in screenshot_dirs if os.path.isdir(d)), None)
-            if scr_dir and os.listdir(scr_dir):
-                progress_tracker.update("正在压缩资产截图文件...", 65, f"打包截图目录: {scr_dir}")
-                scr_tar_name = "screenshots.tar.gz"
-                scr_tar_path = os.path.join(work_dir, scr_tar_name)
-                with tarfile.open(scr_tar_path, "w:gz", dereference=False) as tar:
-                    tar.add(scr_dir, arcname="tmp_screenshot")
-                file_map["screenshots"] = scr_tar_name
-                scr_size = os.path.getsize(scr_tar_path)
-                progress_tracker.update("资产截图打包完成", 75, f"截图打包成功 (体积: {round(scr_size / 1024 / 1024, 2)} MB)")
+            if scr_dir and os.path.isdir(scr_dir):
+                files = [f for f in os.listdir(scr_dir) if not f.startswith('.')]
+                total_files = len(files)
+                if total_files > 0:
+                    scr_tar_name = "screenshots.tar.gz"
+                    scr_tar_path = os.path.join(work_dir, scr_tar_name)
+                    progress_tracker.update("正在压缩资产截图文件...", 58, f"发现 {total_files} 张截图，启动多文件分批归档压缩")
+                    with tarfile.open(scr_tar_path, "w:gz", dereference=False) as tar:
+                        step = max(1, total_files // 10)
+                        for idx, fname in enumerate(files, 1):
+                            fpath = os.path.join(scr_dir, fname)
+                            tar.add(fpath, arcname=os.path.join("tmp_screenshot", fname))
+                            if idx % step == 0 or idx == total_files:
+                                sub_pct = min(74, 58 + int((idx / total_files) * 16))
+                                progress_tracker.update(
+                                    f"正在压缩截图 ({idx}/{total_files})...",
+                                    sub_pct,
+                                    f"已归档截图: {idx}/{total_files} ({round(idx * 100 / total_files)}%)"
+                                )
+                    file_map["screenshots"] = scr_tar_name
+                    scr_size = os.path.getsize(scr_tar_path)
+                    progress_tracker.update("资产截图打包完成", 75, f"截图打包成功 (体积: {round(scr_size / 1024 / 1024, 2)} MB)")
+                else:
+                    progress_tracker.update("跳过资产截图打包", 75, "未找到截图文件或目录为空，跳过")
             else:
                 progress_tracker.update("跳过资产截图打包", 75, "未找到截图文件或目录为空，跳过")
         else:
@@ -610,12 +683,7 @@ def restore_backup_archive(archive_path: str, force: bool = False) -> Dict[str, 
             "--gzip"
         ]
         
-        logger.info(f"Running restore command: {restore_tool} --uri=*** --nsInclude={db_name}.* --drop --archive={mongo_archive_path} --gzip")
-        res = subprocess.run(restore_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if res.returncode != 0:
-            err_msg = res.stderr or res.stdout or "mongorestore 异常退出"
-            raise RuntimeError(f"MongoDB 覆盖恢复失败: {err_msg}")
-            
+        run_command_streaming(restore_cmd, "MongoDB 覆盖恢复", 35, 70, log_tag="mongorestore")
         progress_tracker.update("MongoDB 数据覆盖还原成功", 70, "数据库集合已全部恢复")
 
         # 4. 还原静态资产与截图文件

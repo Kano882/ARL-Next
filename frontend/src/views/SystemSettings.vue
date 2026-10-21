@@ -1639,7 +1639,15 @@ admin123
       <!-- 阶段与总进度 -->
       <div style="margin-bottom: 12px; background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 10px 14px; border-radius: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <span style="font-size: 13px; font-weight: 500; color: var(--arl-text-color);">{{ progressStage }}</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <a-spin v-if="!progressFinished" size="small" />
+            <span style="font-size: 13px; font-weight: 500; color: var(--arl-text-color);">
+              {{ progressStage }}
+              <span v-if="!progressFinished" style="font-size: 12px; opacity: 0.65; margin-left: 4px;">
+                (持续写入中 · 已耗时 {{ progressElapsed }}s)
+              </span>
+            </span>
+          </div>
           <span style="font-size: 13px; font-weight: 600; color: #1677ff;">{{ progressPercent }}%</span>
         </div>
         <a-progress
@@ -3793,21 +3801,56 @@ const stopProgressTracking = () => {
   }
 };
 
-const startProgressTracking = (action, archiveName = '') => {
+const checkAndResumeBackupProgress = async () => {
+  try {
+    const res = await request.get('/api/backup/status');
+    if (res.code === 200 && res.data) {
+      const d = res.data;
+      if (['backing_up', 'restoring'].includes(d.status)) {
+        if (typeof d.percent === 'number') progressPercent.value = d.percent;
+        if (d.stage) progressStage.value = d.stage;
+        if (Array.isArray(d.logs)) progressLogs.value = d.logs;
+        if (d.archive_name) progressArchiveName.value = d.archive_name;
+        if (d.elapsed) progressElapsed.value = d.elapsed;
+        startProgressTracking(d.action, d.archive_name, true);
+      }
+    }
+  } catch (e) {
+    // 页面初始化静默容错
+  }
+};
+
+const startProgressTracking = (action, archiveName = '', isResume = false) => {
   stopProgressTracking();
-  progressAction.value = action;
-  progressPercent.value = 5;
-  progressStage.value = action === 'backup' ? '正在准备全量备份...' : '正在准备覆盖恢复...';
-  progressElapsed.value = 0;
-  progressLogs.value = ['⏳ 正在连接底层引擎...'];
+  progressAction.value = action || 'backup';
+  if (!isResume) {
+    progressPercent.value = 5;
+    progressStage.value = action === 'backup' ? '正在准备全量备份...' : '正在准备覆盖恢复...';
+    progressElapsed.value = 0;
+    progressLogs.value = ['⏳ 正在连接底层引擎...'];
+  }
   progressFinished.value = false;
   progressHasError.value = false;
-  progressArchiveName.value = archiveName;
+  if (archiveName) progressArchiveName.value = archiveName;
   backupProgressModalVisible.value = true;
 
-  const startTime = Date.now();
+  const initElapsed = progressElapsed.value || 0;
+  const startTime = Date.now() - initElapsed * 1000;
+  let microStepTick = 0;
+
   progressElapsedTimer = setInterval(() => {
     progressElapsed.value = Math.floor((Date.now() - startTime) / 1000);
+    microStepTick += 1;
+    // 每 2.5 秒执行一次拟真平滑微步（绝不倒退，且不超过当前阶段上限），降低长时间阻塞卡顿焦虑
+    if (microStepTick % 3 === 0 && !progressFinished.value) {
+      if (progressPercent.value >= 20 && progressPercent.value < 54) {
+        progressPercent.value = Math.min(54, progressPercent.value + 1);
+      } else if (progressPercent.value >= 58 && progressPercent.value < 74) {
+        progressPercent.value = Math.min(74, progressPercent.value + 1);
+      } else if (progressPercent.value >= 85 && progressPercent.value < 96) {
+        progressPercent.value = Math.min(96, progressPercent.value + 1);
+      }
+    }
   }, 1000);
 
   progressPollTimer = setInterval(async () => {
@@ -3815,17 +3858,30 @@ const startProgressTracking = (action, archiveName = '') => {
       const res = await request.get('/api/backup/status');
       if (res.code === 200 && res.data) {
         const d = res.data;
+        // 关键防抖保护：如果弹窗正在活跃跟踪，而返回的数据处于 idle 或 0%，坚决不倒退
+        if (d.status === 'idle' && !progressFinished.value) {
+          return;
+        }
+
         if (d.stage) progressStage.value = d.stage;
-        if (typeof d.percent === 'number') progressPercent.value = d.percent;
-        if (Array.isArray(d.logs)) progressLogs.value = d.logs;
+        // 单调递增保护：只增不减
+        if (typeof d.percent === 'number' && d.percent > progressPercent.value) {
+          progressPercent.value = d.percent;
+        }
+        if (Array.isArray(d.logs) && d.logs.length > 0) {
+          progressLogs.value = d.logs;
+        }
         if (d.archive_name) progressArchiveName.value = d.archive_name;
+        if (typeof d.elapsed === 'number' && d.elapsed > progressElapsed.value) {
+          progressElapsed.value = d.elapsed;
+        }
         scrollBackupTerminal();
 
         if (d.status === 'success') {
           progressFinished.value = true;
           progressHasError.value = false;
           progressPercent.value = 100;
-          progressStage.value = action === 'backup' ? '🎉 系统全量备份已生成！' : '🎉 数据覆盖恢复全部完成！';
+          progressStage.value = (d.action || action) === 'backup' ? '🎉 系统全量备份已生成！' : '🎉 数据覆盖恢复全部完成！';
           stopProgressTracking();
           fetchBackupList();
         } else if (d.status === 'error') {
@@ -3844,6 +3900,9 @@ const startProgressTracking = (action, archiveName = '') => {
 
 
 onMounted(() => {
+  // 页面加载时自动探测后台是否已有运行中的备份/恢复任务并接管看板
+  checkAndResumeBackupProgress();
+
   if (route.query.tab) {
     if (route.query.tab === 'cdn') {
       activeKey.value = 'dictionary';
