@@ -1,5 +1,5 @@
 <template>
-  <div class="nuclei-manage-container" :class="{ 'page-english': pageLocale === 'en-US' }">
+  <div class="nuclei-manage-container" :class="{ 'page-wide-text': pageLocale !== 'zh-CN' }">
     <!-- 统计指示条 -->
     <div class="stats-overview-bar">
       <div class="stat-pill">
@@ -1800,6 +1800,6 @@ onBeforeUnmount(() => {
 .page-secondary-label-alt { font-size: 13px; color: var(--arl-text-color); opacity: 0.65; }
 .page-subtle-label { font-size: 12px; opacity: 0.6; }
 
-.page-english .stats-overview-bar { flex-wrap: wrap; row-gap: 12px; }
-.page-english .filter-label { flex-shrink: 0; }
+.page-wide-text .stats-overview-bar { flex-wrap: wrap; row-gap: 12px; }
+.page-wide-text .filter-label { flex-shrink: 0; }
 </style>

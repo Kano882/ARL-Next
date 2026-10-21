@@ -131,7 +131,7 @@
         :cancelText="pageText('tasks.cancel')"
         destroyOnClose
     >
-      <a-form :label-wrap="true" :model="addForm" :label-col="{ span: pageLocale === 'en-US' ? 6 : 4 }" :wrapper-col="{ span: 18 }" class="page-risk-form">
+      <a-form :label-wrap="true" :model="addForm" :label-col="{ span: pageLocale !== 'zh-CN' ? 6 : 4 }" :wrapper-col="{ span: 18 }" class="page-risk-form">
         <a-form-item :label="pageText('tasks.name')" required>
           <a-input v-model:value="addForm.name" :placeholder="pageText('tasks.enterAName')" />
         </a-form-item>

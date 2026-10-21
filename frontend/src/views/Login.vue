@@ -10,9 +10,11 @@
       </template>
 
       <a-form
+        ref="formRef"
         :model="formState"
         layout="vertical"
         @finish="onFinish"
+        @finishFailed="validationFailed = true"
         @submit.prevent
       >
         <a-form-item :label="t('login.username')" name="username" :rules="[{ required: true, message: t('login.usernameRequired') }]">
@@ -38,7 +40,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import request from '../utils/request';
@@ -46,9 +48,16 @@ import { message } from 'ant-design-vue';
 import { DeploymentUnitOutlined, UserOutlined, LockOutlined } from '@ant-design/icons-vue';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 
-const { t } = useI18n({ useScope: 'global' });
+const { t, locale } = useI18n({ useScope: 'global' });
 const router = useRouter();
 const loading = ref(false);
+const formRef = ref();
+const validationFailed = ref(false);
+
+// 校验结果由组件缓存，切换语言后重新校验已提交的表单。
+watch(locale, () => {
+  if (validationFailed.value) formRef.value?.validateFields().catch(() => {});
+}, { flush: 'post' });
 
 const formState = reactive({
   username: 'admin',

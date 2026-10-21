@@ -580,7 +580,7 @@
         :okText="taskText('tasks.confirm')"
         :cancelText="taskText('tasks.cancel')"
     >
-      <a-form :label-wrap="true" :model="riskForm" :label-col="{ span: taskLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: taskLocale === 'en-US' ? 15 : 17 }" class="task-risk-form">
+      <a-form :label-wrap="true" :model="riskForm" :label-col="{ span: taskLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: taskLocale !== 'zh-CN' ? 15 : 17 }" class="task-risk-form">
         <a-form-item :label="taskText('tasks.policyName')" name="policy_id" :rules="[{ required: true, message: taskText('tasks.selectAPolicy') }]">
           <a-select
               v-model:value="riskForm.policy_id"

@@ -15,7 +15,7 @@
         <div style="background: var(--arl-bg-light, rgba(0,0,0,0.03)); border: 1px solid var(--arl-border-color, rgba(0,0,0,0.08)); border-radius: 4px; padding: 8px 12px; margin-bottom: 16px; font-size: 12px; color: var(--arl-text-color); opacity: 0.85; line-height: 1.6;">
           {{ taskText('tasks.syncDescription') }}
         </div>
-        <a-form :label-wrap="true" :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '100px' } }" :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 100px)' } }">
+        <a-form :label-wrap="true" :label-col="{ style: { width: taskLocale !== 'zh-CN' ? '140px' : '100px' } }" :wrapper-col="{ style: { width: taskLocale !== 'zh-CN' ? 'calc(100% - 140px)' : 'calc(100% - 100px)' } }">
 
           <a-form-item :label="taskText('tasks.parentOrganization')">
             <a-select

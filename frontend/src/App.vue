@@ -16,15 +16,23 @@ import { ref, computed, onMounted, onUnmounted, watch, watchEffect } from 'vue';
 import { theme } from 'ant-design-vue';
 import zhCN from 'ant-design-vue/es/locale/zh_CN';
 import enUS from 'ant-design-vue/es/locale/en_US';
+import ruRU from 'ant-design-vue/es/locale/ru_RU';
 import { useI18n } from 'vue-i18n';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import 'dayjs/locale/en';
+import 'dayjs/locale/ru';
 import { dbHelper } from '@/utils/theme';
 
 const { locale } = useI18n({ useScope: 'global' });
-const componentLocale = computed(() => locale.value === 'en-US' ? enUS : zhCN);
-watch(locale, value => dayjs.locale(value === 'en-US' ? 'en' : 'zh-cn'), { immediate: true });
+const localeOptions = {
+  'zh-CN': { components: zhCN, date: 'zh-cn' },
+  'en-US': { components: enUS, date: 'en' },
+  'ru-RU': { components: ruRU, date: 'ru' },
+};
+const activeLocale = computed(() => localeOptions[locale.value] || localeOptions['zh-CN']);
+const componentLocale = computed(() => activeLocale.value.components);
+watch(activeLocale, value => dayjs.locale(value.date), { immediate: true });
 
 // 默认恢复为 火山橙，如果是之前保存的颜色则使用保存的
 const currentPrimaryColor = ref('#fa541c'); 

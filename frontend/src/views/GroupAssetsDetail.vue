@@ -4,7 +4,7 @@
     <div ref="heroRef" class="arl-hero-card hero-sticky-card">
       <div class="hero-unified-bar">
         <!-- 左侧：返回 + 标题 + 分组标签 + 类型 + 测绘状态 (去重) -->
-        <div class="hero-left-section" :class="{ 'hero-left-section-en': assetLocale === 'en-US' }">
+        <div class="hero-left-section" :class="{ 'hero-left-section-wide': assetLocale !== 'zh-CN' }">
           <a-button type="text" class="hero-back-btn" @click="handleBack" :title="assetText('assets.backToAssetGroupList')">
             <template #icon><arrow-left-outlined /></template>
             <span>{{ assetText('assets.backToAssetGroups') }}</span>
@@ -185,10 +185,10 @@
                 <a-col
                   v-for="field in tabConfig[effectiveTab].searchFields.filter(f => !f.hidden)"
                   :key="field.key"
-                  :xs="24" :sm="12" :md="assetLocale === 'en-US' ? 12 : 8" :lg="assetLocale === 'en-US' ? 8 : 6"
+                  :xs="24" :sm="12" :md="assetLocale !== 'zh-CN' ? 12 : 8" :lg="assetLocale !== 'zh-CN' ? 8 : 6"
                 >
                   <div class="filter-field-cell">
-                    <span class="filter-field-label" :class="{ 'filter-field-label-en': assetLocale === 'en-US' }" :title="field.label">{{ field.label }}</span>
+                    <span class="filter-field-label" :class="{ 'filter-field-label-wide': assetLocale !== 'zh-CN' }" :title="field.label">{{ field.label }}</span>
                     <div class="filter-field-widget">
                       <!-- 下拉选择 -->
                       <HttpStatusFilter
@@ -241,7 +241,7 @@
                           v-model:value="field.operator"
                           :bordered="false"
                           size="small"
-                          class="operator-op-select" :class="{ 'operator-op-select-en': assetLocale === 'en-US' }"
+                          class="operator-op-select" :class="{ 'operator-op-select-wide': assetLocale !== 'zh-CN' }"
                           @change="onSearch"
                         >
                           <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ formatAssetFilterOperator(op) }}</a-select-option>
@@ -748,7 +748,7 @@
   </div>
 
     <a-modal v-model:open="addSiteVisible" :title="assetText('assets.addWebsite')" @ok="submitAddSite" :confirmLoading="addSiteLoading" width="520px" :okText="assetText('tasks.confirm')" :cancelText="assetText('assets.cancel')" destroyOnClose>
-      <a-form :label-wrap="true" ref="addSiteFormRef" :model="addSiteForm" :rules="addSiteRules" :label-col="{ span: assetLocale === 'en-US' ? 6 : 4 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 17 : 19 }" class="asset-risk-form">
+      <a-form :label-wrap="true" ref="addSiteFormRef" :model="addSiteForm" :rules="addSiteRules" :label-col="{ span: assetLocale !== 'zh-CN' ? 6 : 4 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 17 : 19 }" class="asset-risk-form">
         <a-form-item :label="assetText('tasks.websites')" name="site">
           <a-textarea v-model:value="addSiteForm.site" :rows="4" :placeholder="assetText('assets.theWebsiteWillBeScannedForItsTitle')" />
         </a-form-item>
@@ -761,7 +761,7 @@
     </a-modal>
 
     <a-modal v-model:open="riskModalVisible" :title="assetText('tasks.addRiskScanningTask')" @ok="submitRiskTask" :confirmLoading="riskLoading" width="520px" :okText="assetText('tasks.confirm')" :cancelText="assetText('assets.cancel')" destroyOnClose>
-      <a-form :label-wrap="true" ref="riskFormRef" :model="riskForm" :rules="riskRules" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+      <a-form :label-wrap="true" ref="riskFormRef" :model="riskForm" :rules="riskRules" :label-col="{ span: assetLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 16 : 18 }" class="asset-risk-form">
 
         <a-form-item :label="assetText('tasks.policyName')" name="policy_id">
           <a-select v-model:value="riskForm.policy_id" :placeholder="assetText('tasks.selectAPolicy')" @change="handleRiskPolicyChange">
@@ -783,7 +783,7 @@
     </a-modal>
 
     <a-modal v-model:open="addDomainVisible" :title="assetText('assets.addSubdomain')" @ok="submitAddDomain" :confirmLoading="addDomainLoading" width="520px" :okText="assetText('tasks.confirm')" :cancelText="assetText('assets.cancel')" destroyOnClose>
-      <a-form :label-wrap="true" ref="addDomainFormRef" :model="addDomainForm" :rules="addDomainRules" :label-col="{ span: assetLocale === 'en-US' ? 6 : 4 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 17 : 19 }" class="asset-risk-form">
+      <a-form :label-wrap="true" ref="addDomainFormRef" :model="addDomainForm" :rules="addDomainRules" :label-col="{ span: assetLocale !== 'zh-CN' ? 6 : 4 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 17 : 19 }" class="asset-risk-form">
         <a-form-item :label="assetText('tasks.subdomains')" name="domain">
           <a-textarea v-model:value="addDomainForm.domain" :rows="4" :placeholder="assetText('assets.aDiscoveryTaskWillRetrieveIpsWebsitesAnd')" />
         </a-form-item>
@@ -807,7 +807,7 @@
       :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form :label-wrap="true" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+      <a-form :label-wrap="true" :label-col="{ span: assetLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 16 : 18 }" class="asset-risk-form">
         <a-form-item :label="assetText('assets.linkMethod')">
           <a-radio-group v-model:value="bindMode">
             <a-radio value="existing">{{ assetText('assets.selectAnExistingDiscoveryTask') }}</a-radio>
@@ -2426,12 +2426,12 @@ onDeactivated(() => {
 </script>
 
 <style scoped>
-.hero-left-section-en { flex-wrap: wrap; row-gap: 6px; overflow: visible; }
-.filter-field-label.filter-field-label-en { width: 112px; white-space: normal; overflow: visible; text-overflow: clip; }
+.hero-left-section-wide { flex-wrap: wrap; row-gap: 6px; overflow: visible; }
+.filter-field-label.filter-field-label-wide { width: 112px; white-space: normal; overflow: visible; text-overflow: clip; }
 .asset-increment-badge :deep(.ant-badge-count) { background-color: #52c41a; font-size: 10px; }
 .asset-site-count :deep(.ant-badge-count) { background-color: #1890ff; color: #fff; cursor: pointer; border-radius: 4px; padding: 0 6px; font-size: 12px; }
 
-.operator-op-select-en { width: 130px !important; min-width: 130px; }
+.operator-op-select-wide { width: 130px !important; min-width: 130px; }
 
 /* 全库 / 资产组范围的显式标注：两页 tab 结构一致，需明确各自数据范围避免误读 */
 .scope-hint-line {

@@ -1,5 +1,5 @@
 <template>
-  <div class="arl-page-container" :class="{ 'page-english': pageLocale === 'en-US' }">
+  <div class="arl-page-container" :class="{ 'page-wide-text': pageLocale !== 'zh-CN' }">
     <!-- 未保存改动常驻提示：让"改过但没存"成为可见状态，而非点保存时才发现 -->
     <a-alert
       v-if="hasUnsavedChanges"
@@ -60,7 +60,7 @@
           {{ pageText('pages.configuredCredentialsCount', { configured: configuredCredentialCount, total: credentialOverview.length }) }}
         </a-tag>
         <span v-if="missingRequiredCredentials.length" class="arl-cred-alert">
-          {{ pageText('pages.missingCredentials', { names: missingRequiredCredentials.map(c => c.label).join(pageLocale === 'en-US' ? ', ' : '、') }) }}
+          {{ pageText('pages.missingCredentials', { names: missingRequiredCredentials.map(c => c.label).join(pageLocale !== 'zh-CN' ? ', ' : '、') }) }}
         </span>
         <span v-else class="arl-cred-ok">{{ pageText('pages.allRequiredCredentialsAreConfigured') }}</span>
         <a class="arl-cred-toggle">{{ credExpanded ? pageText('pages.collapse') : pageText('pages.showDetails') }}</a>
@@ -3992,10 +3992,10 @@ onBeforeRouteLeave(() => {
 .page-small-heading { font-weight: 600; font-size: 12px; }
 .page-primary-action { border-radius: 6px; padding: 0 32px; font-weight: 600; }
 
-.page-english .page-config-card-fixed,
-.page-english .page-config-card-fixed-short,
-.page-english .page-config-card-fixed-tall { height: auto; min-height: 190px; }
-.page-english .arl-cred-summary { flex-wrap: wrap; row-gap: 8px; }
-.page-english .arl-cred-item { flex-wrap: wrap; gap: 6px; }
-.page-english :deep(.ant-card-head-title) { white-space: normal; line-height: 1.5; padding: 12px 0; }
+.page-wide-text .page-config-card-fixed,
+.page-wide-text .page-config-card-fixed-short,
+.page-wide-text .page-config-card-fixed-tall { height: auto; min-height: 190px; }
+.page-wide-text .arl-cred-summary { flex-wrap: wrap; row-gap: 8px; }
+.page-wide-text .arl-cred-item { flex-wrap: wrap; gap: 6px; }
+.page-wide-text :deep(.ant-card-head-title) { white-space: normal; line-height: 1.5; padding: 12px 0; }
 </style>
