@@ -8,6 +8,7 @@ from flask import make_response
 import time
 
 from app.utils import conn_db as conn
+from app.utils.wih_export import format_wih_export
 
 # 定义通用的api契约
 base_query_fields = {
@@ -556,10 +557,7 @@ class ARLResource(Resource):
 
                 # 6. 【特殊处理】WIH 信息导出需保留业务上下文
                 elif _type in ("wih", "asset_wih"):
-                    record_type = item.get("record_type") or item.get("recordType", "unknown")
-                    site = item.get("site", "unknown_site")
-                    content = item.get(filed_name, "")
-                    items_set.add(f"{site} [{record_type}] {content}")
+                    items_set.add(format_wih_export(item, filed_name))
 
                 # 7. 【常规处理】如果是其他类型（比如域名、URL）
                 else:
@@ -632,14 +630,13 @@ class ARLResource(Resource):
                     items_set.add(curr_ip)
 
         elif _type in ("wih", "asset_wih"):
-            cursor = conn(_type).find(query, {"site": 1, "record_type": 1, "recordType": 1, filed_name: 1, "_id": 0})
+            projection = {"site": 1, "record_type": 1, "recordType": 1, filed_name: 1,
+                          "source": 1, "api_request.verified": 1, "_id": 0}
+            cursor = conn(_type).find(query, projection)
             for item in cursor:
                 if not item.get(filed_name):
                     continue
-                record_type = item.get("record_type") or item.get("recordType", "unknown")
-                site = item.get("site", "unknown_site")
-                content = item.get(filed_name, "")
-                items_set.add(f"{site} [{record_type}] {content}")
+                items_set.add(format_wih_export(item, filed_name))
 
         # 2. 简单类型：无业务上下文，直接使用数据库级别的 distinct 高效去重
         else:

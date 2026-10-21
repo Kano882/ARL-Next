@@ -42,6 +42,7 @@ def assigned(node, names):
 def load_base(conn):
     env = dict(Resource=Resource, fields=fields, reqparse=reqparse, re=re, json=__import__('json'),
                ObjectId=ObjectId, copy=copy, datetime=datetime, quote=quote, time=time, make_response=make_response, conn=conn)
+    execute_nodes(ROOT / 'app/utils/wih_export.py', env, lambda n: isinstance(n, ast.FunctionDef))
     execute_nodes(ROOT / 'app/routes/__init__.py', env,
                   lambda n: assigned(n, ('base_query_fields', 'EQUAL_FIELDS')) or
                   isinstance(n, ast.ClassDef) and n.name == 'ARLResource' or

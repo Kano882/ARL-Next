@@ -6,6 +6,7 @@ and extracts sensitive information with rule matching & 64-bit FNV-1a deduplicat
 """
 
 import time
+import json
 from urllib.parse import urlparse
 from typing import List, Set, Dict, Optional, Tuple
 from concurrent.futures import as_completed
@@ -19,6 +20,7 @@ from app.modules import WihRecord
 from .fnv1a import fnv1a_64
 from .rule_engine import WihRuleEngine
 from .chunk_parser import WebpackChunkParser
+from .api_extractor import MAX_API_REQUESTS, document_base_url, extract_api_requests
 
 logger = logging.getLogger("arlv2.wih")
 
@@ -37,6 +39,15 @@ CHUNK_CONSECUTIVE_ERRORS_LIMIT = 5   # Break on 5 consecutive 404/403 errors
 DEFAULT_TIMEOUT = (5.0, 15.0)       # (connect_timeout, read_timeout)
 
 
+class _FetchedText(str):
+    """在不改变文本调用方式的前提下保留重定向后的页面地址。"""
+
+    def __new__(cls, value, response_url):
+        result = super().__new__(cls, value)
+        result.response_url = response_url
+        return result
+
+
 class PyInfoHunter:
     """
     Pure Python Web Info Hunter Engine.
@@ -50,6 +61,8 @@ class PyInfoHunter:
         self.concurrency = max(1, concurrency)
         self.max_chunks = max_chunks_per_site
         self.rule_engine = WihRuleEngine(rule_path)
+        self.api_enabled = any(rule["id"] == "api_endpoint" and not rule.get("compiled")
+                               for rule in self.rule_engine.rules)
         self.chunk_parser = WebpackChunkParser(max_chunks_per_site=max_chunks_per_site)
         self.proxy = _get_proxy()
         self.headers = {
@@ -109,16 +122,45 @@ class PyInfoHunter:
 
             # Attempt UTF-8 decode, fallback to latin1
             try:
-                return raw_bytes.decode("utf-8")
+                text = raw_bytes.decode("utf-8")
             except UnicodeDecodeError:
-                return raw_bytes.decode("latin1", errors="ignore")
+                text = raw_bytes.decode("latin1", errors="ignore")
+            return _FetchedText(text, getattr(resp, "url", url)) if self.api_enabled else text
 
         except Exception as e:
             logger.debug(f"Error fetching {url}: {e}")
             return None
 
+    def _collect_api_requests(self, code, site, source_url, source_tag, base_url, records, limit,
+                              source_label=None):
+        if not self.api_enabled or limit <= 0:
+            return 0
+        added = 0
+        try:
+            for request in extract_api_requests(code, document_base=base_url, limit=limit):
+                content = "{} {}".format(request["method"], request["url"] or request["path"])
+                if request["url"] and request["url"] != request["path"]:
+                    content += " [path: {}]".format(request["path"])
+                if self.rule_engine.is_excluded("api_endpoint", content, site, source_url, source_tag):
+                    continue
+                # 独立的类型前缀及请求方法防止与原始路径、其他方法的记录互相覆盖。
+                identity = json.dumps(["api_endpoint", site, request["method"], request["path"], request["url"]])
+                record = WihRecord(
+                    record_type="api_endpoint", content=content,
+                    source="{} [{}:line {}]".format(source_url, source_label or source_tag, request["line"]),
+                    site=site, fnv_hash=fnv1a_64(identity), api_request=request,
+                )
+                if record not in records:
+                    records.add(record)
+                    added += 1
+        except Exception as error:
+            # 附加提取失败时，原有规则和脚本发现仍继续执行。
+            logger.warning("API candidate extraction failed for %s: %s", source_url, error)
+        return added
+
     def _scan_single_site(self, site: str) -> List[WihRecord]:
         site_records: Set[WihRecord] = set()
+        api_count = 0
         session = self._create_session()
 
         try:
@@ -126,6 +168,12 @@ class PyInfoHunter:
             html_text = self._safe_stream_get(session, site)
             if not html_text:
                 return []
+            base_url = None
+            if self.api_enabled:
+                try:
+                    base_url = document_base_url(html_text, getattr(html_text, "response_url", None) or site)
+                except Exception as error:
+                    logger.warning("API document base resolution failed for %s: %s", site, error)
 
             # 2. Extract Sensitive Information from HTML directly
             html_matches = self.rule_engine.extract_from_text(
@@ -164,6 +212,10 @@ class PyInfoHunter:
                         site=site,
                         fnv_hash=rec_hash
                     ))
+                api_count += self._collect_api_requests(
+                    inline_code, site, site, "inline", base_url,
+                    site_records, MAX_API_REQUESTS - api_count, source_label="inline-{}".format(idx + 1),
+                )
 
             # 4. Queue Scripts to Fetch and Expand Chunks
             to_fetch_scripts = list(dom_data.get("scripts", set()))
@@ -208,6 +260,10 @@ class PyInfoHunter:
                             site=site,
                             fnv_hash=rec_hash
                         ))
+                    api_count += self._collect_api_requests(
+                        js_text, site, script_url, "script", base_url,
+                        site_records, MAX_API_REQUESTS - api_count,
+                    )
 
                     # Expand dynamic Webpack / Vite / Next.js chunks if within quota
                     if len(discovered_chunks) < self.max_chunks:
