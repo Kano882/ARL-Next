@@ -8,9 +8,10 @@ rules:
   # 路径，内置规则（引号中的 /、./、../ 路径）
   - id: path
     enabled: false
-  # 静态提取 fetch / axios 接口候选，不请求候选接口；需手动启用。
+  # 静态提取 fetch / axios 接口候选；主动采集还需单独启用 probe。
   - id: api_endpoint
     enabled: false
+    probe: false  # 启用后仅采集原站点同源 GET/HEAD 的有限响应。
   # HTTP(S) URL 主机部分为域名，内置规则
   - id: domain_url
     enabled: false

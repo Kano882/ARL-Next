@@ -131,7 +131,7 @@ rules:
     enabled: true
 ```
 
-This rule is disabled by default. It supplements existing path, URL and sensitive-information rules using already downloaded inline scripts and external JavaScript. It never requests candidate endpoints or submits bodies, credentials or test payloads.
+This rule is disabled by default. It supplements existing path, URL and sensitive-information rules. Enabling only `enabled` reuses downloaded scripts without requesting candidate endpoints. Active collection requires the separate `probe` option below.
 
 Supported calls with static string arguments are `fetch`, `window.fetch`, `globalThis.fetch`, `axios(config)`, `axios(url, config)`, `axios.request(...)` and the `get/post/put/patch/delete/head/options` Axios methods. Fetch URLs use the final document response URL and first `<base href>`, never the CDN script directory. Axios uses an explicit per-call `baseURL` with Axios concatenation semantics, preserving prefixes such as `/v1`. An unknown base keeps the original path with `api_request.url: null`; an unknown method is `UNKNOWN`.
 
@@ -153,9 +153,48 @@ Results use `/api/wih/` for tasks and `/api/asset_wih/` for asset groups. Filter
 }
 ```
 
-These are unverified request candidates, not confirmed vulnerabilities. The optional `api_request` metadata requires no backfill; legacy serialization and deduplication identifiers are unchanged. Candidates with the same method, original path and resolved URL use existing site-level deduplication and retain the first source. Different methods remain distinct.
+`verified: false` means no HTTP response has been received for the candidate. These candidates are not confirmed vulnerabilities. The optional `api_request` metadata requires no backfill; legacy serialization and deduplication identifiers are unchanged. Candidates with the same method, original path and resolved URL use existing site-level deduplication and retain the first source. Different methods remain distinct.
 
 List and `/export/` endpoints share filters. Single, task-batch and asset-group-batch WIH text exports preserve the candidate source. Export formats for existing record types remain unchanged.
+
+### WIH endpoint reachability and response collection
+
+Enable both boolean options on the built-in rule, then run a WIH task:
+
+```yaml
+rules:
+  - id: api_endpoint
+    enabled: true
+    probe: true
+```
+
+`probe` defaults to `false`. A disabled rule, a custom `pattern`, the string `"true"`, or `probe` alone does not enable requests.
+
+- Only resolved GET and HEAD URLs with the original task site's exact scheme, hostname and effective port are requested. Cross-origin APIs, other ports and endpoints derived from a cross-origin document redirect remain candidates without expanding the request scope.
+- Methods are preserved. POST, PUT, PATCH, DELETE, OPTIONS and UNKNOWN are not converted to GET. No body, page cookies, script authentication headers or netrc authentication is sent. Existing explicit WIH proxy and TLS verification settings apply. Extracted URL paths and query parameters are preserved.
+- Up to 20 distinct `(method, url)` candidates are attempted per site; duplicates reuse the observation. Up to 3 same-origin redirects are followed, checking origin, loops and existing `api_endpoint` exclusions before each hop. Cross-origin, port/scheme changes and URLs containing user credentials stop redirect following.
+- Connect/read timeouts are 3 seconds each. A 10-second candidate budget and a 60-second site budget are checked before requests and while reading bodies. DNS, connection and blocking reads remain subject to the network library; these budgets are not a hard limit on total task duration. Limits and failures preserve passive candidates and the existing WIH extraction completed before probing.
+- Observations include the last received HTTP status/URL, UTC check time, elapsed time and redirect chain. Only Content-Type, Content-Length, Server and Allow headers are stored, capped at 1,024 characters each. Set-Cookie and other authentication headers are omitted. GET text responses retain at most 16 KiB before decoding, including JSON, XML and JavaScript. HEAD, binary and unknown media types have no captured body. Previews may contain sensitive data and remain behind existing WIH authentication. HTML and scripts are not executed or rendered.
+
+Existing `/api/wih/` and `/api/asset_wih/` JSON lists return observations under `api_request.probe`. This stage does not add a response detail UI, endpoint screenshots or vulnerability classification. Text exports omit response bodies. Example metadata:
+
+```json
+{
+  "verified": true,
+  "probe": {
+    "state": "responded", "method": "GET", "status_code": 403,
+    "url": "https://app.example.test/api/users",
+    "last_attempt_url": "https://app.example.test/api/users",
+    "checked_at": "2026-01-01T00:00:00+00:00", "elapsed_ms": 12,
+    "headers": {"content-type": "application/json"}, "redirects": [],
+    "body_preview": "{\"error\":\"forbidden\"}", "body_bytes": 21, "body_truncated": false
+  }
+}
+```
+
+`state=responded` and `verified=true` indicate an HTTP response, including 401, 403, 404 and 5xx. They do not establish endpoint validity, unauthenticated access or a vulnerability. `redirect_stop` explains a stopped redirect. If a later hop fails, the last HTTP response remains, with `error` and `last_attempt_url` identifying the failed attempt; the final destination has not been verified. Body failures preserve headers and partial data, using `body_error` and `body_truncated`.
+
+With no received HTTP response, `state=error` uses `timeout`, `connection_error`, `tls_error`, `request_error` or `time_budget`, without raw exception messages. Unattempted candidates use `state=skipped` with `reason` set to `unsupported_method`, `unresolved_url`, `outside_origin`, `excluded`, `site_quota` or `site_budget`. Asset-group monitoring refreshes existing observations without repeating new-record notifications. Passive scans after disabling probes preserve earlier observations; use `checked_at` for their age. All nested fields are optional and require no historical migration or backfill.
 
 ### Global Dimension Counts
 

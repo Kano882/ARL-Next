@@ -59,8 +59,13 @@ class AssetWihMonitor(object):
                 query = {"scope_id": self.scope_id, "site": item.site, "fnv_hash": item.fnv_hash}
 
                 if dedup_key in existing_set:
-                    # 已存在，仅更新最后发现时间
-                    bulk_operations.append(UpdateOne(query, {"$set": {"update_date": utils.curr_date_obj()}}))
+                    update = {"update_date": utils.curr_date_obj()}
+                    api_request = getattr(item, "api_request", None)
+                    if item.recordType == "api_endpoint" and isinstance(api_request, dict) and "probe" in api_request:
+                        # 原静态候选保持同一标识，刷新本次观测，不作为新增结果重复通知。
+                        update["api_request.probe"] = api_request["probe"]
+                        update["api_request.verified"] = api_request.get("verified", False)
+                    bulk_operations.append(UpdateOne(query, {"$set": update}))
                 else:
                     # 预过滤逻辑（黑名单、合规性检查）
                     if item.recordType == "domain":

@@ -21,6 +21,7 @@ from .fnv1a import fnv1a_64
 from .rule_engine import WihRuleEngine
 from .chunk_parser import WebpackChunkParser
 from .api_extractor import MAX_API_REQUESTS, document_base_url, extract_api_requests
+from .api_probe import ApiProbe, ApiProbeSession
 
 logger = logging.getLogger("arlv2.wih")
 
@@ -63,6 +64,10 @@ class PyInfoHunter:
         self.rule_engine = WihRuleEngine(rule_path)
         self.api_enabled = any(rule["id"] == "api_endpoint" and not rule.get("compiled")
                                for rule in self.rule_engine.rules)
+        self.api_probe_enabled = any(
+            rule["id"] == "api_endpoint" and not rule.get("compiled") and rule.get("probe")
+            for rule in self.rule_engine.rules
+        )
         self.chunk_parser = WebpackChunkParser(max_chunks_per_site=max_chunks_per_site)
         self.proxy = _get_proxy()
         self.headers = {
@@ -84,6 +89,40 @@ class PyInfoHunter:
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         return session
+
+    def _create_api_session(self):
+        session = ApiProbeSession()
+        session.verify = False  # 与现有 WIH 站点采集保持一致。
+        session.trust_env = False  # 禁止隐式加载 netrc 认证及环境代理。
+        session.headers.update({
+            "User-Agent": self.headers["User-Agent"], "Accept": "*/*", "Accept-Encoding": "identity",
+        })
+        if self.proxy:
+            session.proxies = {"http": self.proxy, "https": self.proxy}
+        return session
+
+    def _probe_api_records(self, site, records):
+        if not self.api_probe_enabled:
+            return
+        probe = ApiProbe(site, self._create_api_session)
+        try:
+            candidates = [record for record in records if record.api_request is not None]
+            for record in sorted(candidates, key=lambda r: (r.api_request["method"],
+                                                           r.api_request["url"] or "", r.api_request["path"])):
+                source, _, label = record.source.rpartition(" [")
+                source_tag = "inline" if label.startswith("inline-") else "script"
+
+                def is_excluded(url):
+                    content = "{} {}".format(record.api_request["method"], url)
+                    return self.rule_engine.is_excluded("api_endpoint", content, site, source, source_tag)
+
+                result = probe.collect(record.api_request, is_excluded)
+                record.api_request["probe"] = result
+                record.api_request["verified"] = result["state"] == "responded"
+        except Exception as error:
+            logger.warning("API response collection failed for %s: %s", site, type(error).__name__)
+        finally:
+            probe.close()
 
     def _safe_stream_get(self, session: requests.Session, url: str) -> Optional[str]:
         """
@@ -278,6 +317,7 @@ class PyInfoHunter:
         finally:
             session.close()
 
+        self._probe_api_records(site, site_records)
         return list(site_records)
 
     def run(self) -> List[WihRecord]:
