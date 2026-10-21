@@ -1264,6 +1264,120 @@ admin123
           </a-spin>
         </div>
       </a-tab-pane>
+      <a-tab-pane key="system_backup" :tab="tabTitle('数据备份与恢复', false)" force-render>
+        <div class="tab-content" style="padding: 20px;">
+          <!-- 顶层操作看板 -->
+          <a-card data-setting-anchor="backup" title="系统全量数据备份与恢复" :bordered="false" style="max-width: 1050px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+              <div style="max-width: 620px;">
+                <div style="font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--arl-text-color);">
+                  📦 一键系统快照与新机原样恢复
+                </div>
+                <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65; line-height: 1.6;">
+                  备份 MongoDB 49 个核心数据集合（含所有资产测绘记录、扫描任务、策略配置、指纹规则与系统设置），支持包含/排除资产截图文件。在新构建的 ARL-Next 项目中导入此备份，系统将恢复至与备份时一致的状态。
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <a-button type="primary" @click="openCreateBackupModal" :loading="backupLoading">
+                  <template #icon><CloudUploadOutlined /></template>
+                  一键创建备份
+                </a-button>
+
+                <a-button @click="openUploadBackupModal">
+                  <template #icon><UploadOutlined /></template>
+                  上传外部备份
+                </a-button>
+
+                <a-button @click="fetchBackupList" :loading="backupListLoading">
+                  <template #icon><ReloadOutlined /></template>
+                  刷新清单
+                </a-button>
+              </div>
+            </div>
+
+            <a-alert
+              v-if="backupRunningTasks > 0"
+              type="warning"
+              show-icon
+              style="margin-top: 16px; border-radius: 6px;"
+              :message="`系统检测到当前有 ${backupRunningTasks} 个进行中的扫描任务。执行恢复操作将重置数据库，建议等待任务完成后再行恢复。`"
+            />
+          </a-card>
+
+          <!-- 现存备份归档表格 -->
+          <a-card title="📁 服务器现存备份清单" :bordered="false" style="max-width: 1050px;">
+            <a-table
+              :dataSource="backupList"
+              :columns="backupColumns"
+              rowKey="filename"
+              :loading="backupListLoading"
+              size="middle"
+              :pagination="{ pageSize: 10, showTotal: total => `共 ${total} 个备份归档` }"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'filename'">
+                  <div style="font-family: monospace; font-weight: 600; color: var(--arl-text-color);">
+                    {{ record.filename }}
+                  </div>
+                  <div v-if="record.note" style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6; margin-top: 2px;">
+                    📝 {{ record.note }}
+                  </div>
+                </template>
+
+                <template v-else-if="column.key === 'size'">
+                  <a-tag color="blue">{{ formatBytes(record.size) }}</a-tag>
+                </template>
+
+                <template v-else-if="column.key === 'include_screenshots'">
+                  <a-tag :color="record.include_screenshots ? 'cyan' : 'orange'">
+                    {{ record.include_screenshots ? '全量 (含截图)' : '精简 (无截图)' }}
+                  </a-tag>
+                </template>
+
+                <template v-else-if="column.key === 'summary'">
+                  <div v-if="record.summary && record.summary.task_assets !== undefined" style="font-size: 12px; line-height: 1.5;">
+                    <div>测绘资产: <b>{{ record.summary.task_assets }}</b> 条 | 资产组: <b>{{ record.summary.scope_assets || 0 }}</b> 条</div>
+                    <div style="opacity: 0.65;">历史任务: {{ record.summary.total_tasks || 0 }} 个 | 用户: {{ record.summary.total_users || 0 }} 个</div>
+                  </div>
+                  <span v-else style="opacity: 0.4;">-</span>
+                </template>
+
+                <template v-else-if="column.key === 'created_at'">
+                  <span style="font-size: 12px; white-space: nowrap;">{{ formatDateTime(record.created_at) }}</span>
+                </template>
+
+                <template v-else-if="column.key === 'action'">
+                  <a-space>
+                    <a-button type="link" size="small" @click="handleDownloadBackup(record.filename)">
+                      <template #icon><DownloadOutlined /></template>
+                      下载
+                    </a-button>
+
+                    <a-button type="link" danger size="small" @click="openRestoreModal(record)">
+                      <template #icon><CloudDownloadOutlined /></template>
+                      恢复
+                    </a-button>
+
+                    <a-popconfirm
+                      title="确定彻底删除此备份文件吗？"
+                      ok-text="确认删除"
+                      cancel-text="取消"
+                      ok-type="danger"
+                      @confirm="handleDeleteBackup(record.filename)"
+                    >
+                      <a-button type="link" danger size="small" style="opacity: 0.7;">
+                        <template #icon><DeleteOutlined /></template>
+                        删除
+                      </a-button>
+                    </a-popconfirm>
+                  </a-space>
+                </template>
+              </template>
+            </a-table>
+          </a-card>
+        </div>
+      </a-tab-pane>
       <a-tab-pane key="system_update" :tab="tabTitle('系统版本与更新', false)" force-render>
         <div class="tab-content" style="padding: 20px;">
           <a-card data-setting-anchor="update" title="系统更新管理" :bordered="false" style="max-width: 800px;">
@@ -1369,12 +1483,209 @@ admin123
         <a-button v-else type="default" size="large" @click="updateModalVisible = false" style="border-radius: 6px;">关闭窗口</a-button>
       </div>
     </a-modal>
+
+    <!-- 1. 创建备份 Modal -->
+    <a-modal
+      v-model:open="createBackupModalVisible"
+      title="📦 创建系统全量数据备份"
+      okText="确认立即备份"
+      cancelText="取消"
+      :confirmLoading="backupLoading"
+      @ok="handleExecuteCreateBackup"
+      width="560px"
+    >
+      <div style="padding: 10px 0;">
+        <a-alert
+          type="info"
+          show-icon
+          style="margin-bottom: 16px; border-radius: 6px;"
+          message="备份将导出 MongoDB 中的 49 个数据集合（含测绘资产、扫描任务、策略与系统配置）。"
+        />
+
+        <a-form layout="vertical">
+          <a-form-item label="备份内容选择">
+            <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 12px 16px; border-radius: 6px;">
+              <a-checkbox v-model:checked="createBackupForm.includeScreenshots">
+                <span style="font-weight: 500;">打包站点资产截图 (tmp_screenshot)</span>
+              </a-checkbox>
+              <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6; margin-top: 6px; margin-left: 24px;">
+                勾选后将完整打包所有资产网站截图附件（体积通常增加数百 MB 至数 GB）；若取消勾选，仅备份结构化数据与规则配置，备份文件体积极小且生成极快。
+              </div>
+            </div>
+          </a-form-item>
+
+          <a-form-item label="备份备注说明 (可选)">
+            <a-input v-model:value="createBackupForm.note" placeholder="例如：新版发布前例行全量快照、迁移备份等" :maxLength="80" showCount />
+          </a-form-item>
+        </a-form>
+      </div>
+    </a-modal>
+
+    <!-- 2. 上传备份 Modal -->
+    <a-modal
+      v-model:open="uploadBackupModalVisible"
+      title="📤 上传外部备份归档包"
+      :footer="null"
+      width="580px"
+    >
+      <div style="padding: 10px 0;">
+        <a-alert
+          type="info"
+          show-icon
+          style="margin-bottom: 16px; border-radius: 6px;"
+          message="请上传由本系统导出的 arl_backup_*.tar.gz 备份归档文件。上传成功后将显示在备份列表中，可随时进行一键恢复。"
+        />
+
+        <a-upload-dragger
+          name="file"
+          :multiple="false"
+          :showUploadList="true"
+          accept=".tar.gz,.gz"
+          :customRequest="handleCustomUploadBackup"
+        >
+          <p class="ant-upload-drag-icon">
+            <InboxOutlined style="font-size: 48px; color: #1677ff;" />
+          </p>
+          <p class="ant-upload-text" style="font-size: 15px; font-weight: 500;">点击或将备份包拖拽至此区域上传</p>
+          <p class="ant-upload-hint" style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6;">
+            支持 arl_backup_*.tar.gz 归档，底层已支持流式无缓冲高速传输
+          </p>
+        </a-upload-dragger>
+      </div>
+    </a-modal>
+
+    <!-- 3. 恢复确认 Modal -->
+    <a-modal
+      v-model:open="restoreModalVisible"
+      title="⚠️ 确认执行系统数据全量覆盖恢复"
+      okText="确认覆盖恢复"
+      cancelText="取消"
+      okType="danger"
+      :okButtonProps="{ disabled: restoreConfirmInput !== 'RESTORE' }"
+      @ok="handleExecuteRestore"
+      width="620px"
+    >
+      <div style="padding: 10px 0;" v-if="selectedRestoreBackup">
+        <a-alert
+          type="error"
+          show-icon
+          style="margin-bottom: 16px; border-radius: 6px;"
+          message="极高危操作：系统将执行 --drop 完全覆盖导入！"
+          description="恢复过程将清空当前目标数据库中所有集合的数据，并写入备份包中的数据，使其与备份时的状态 100% 保持一致。当前未保存的临时数据将被清除！"
+        />
+
+        <a-descriptions bordered size="small" :column="2" style="margin-bottom: 16px;">
+          <a-descriptions-item label="待恢复归档" :span="2">
+            <span style="font-family: monospace; font-weight: 600;">{{ selectedRestoreBackup.filename }}</span>
+          </a-descriptions-item>
+          <a-descriptions-item label="归档体积">
+            {{ formatBytes(selectedRestoreBackup.size) }}
+          </a-descriptions-item>
+          <a-descriptions-item label="包含截图">
+            {{ selectedRestoreBackup.include_screenshots ? '是' : '否' }}
+          </a-descriptions-item>
+          <a-descriptions-item label="创建时间" :span="2">
+            {{ formatDateTime(selectedRestoreBackup.created_at) }}
+          </a-descriptions-item>
+        </a-descriptions>
+
+        <div v-if="backupRunningTasks > 0" style="margin-bottom: 16px; background: rgba(250, 173, 20, 0.08); border: 1px dashed #faad14; padding: 10px 14px; border-radius: 6px;">
+          <a-checkbox v-model:checked="restoreForceCheck">
+            <span style="color: #d46b08; font-weight: 600;">强制终止当前正在进行的 {{ backupRunningTasks }} 个扫描任务并继续恢复</span>
+          </a-checkbox>
+        </div>
+
+        <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 12px 14px; border-radius: 6px;">
+          <div style="font-size: 13px; font-weight: 500; margin-bottom: 6px;">
+            防误操作验证：请输入大写 <span style="color: #ff4d4f; font-weight: bold; font-family: monospace;">RESTORE</span> 以激活确认按钮：
+          </div>
+          <a-input
+            v-model:value="restoreConfirmInput"
+            placeholder="请输入 RESTORE"
+            style="font-family: monospace; font-size: 14px;"
+          />
+        </div>
+      </div>
+    </a-modal>
+
+    <!-- 4. 备份 / 恢复实时进度流 Modal -->
+    <a-modal
+      v-model:open="backupProgressModalVisible"
+      :closable="progressFinished"
+      :maskClosable="false"
+      :footer="null"
+      width="780px"
+    >
+      <template #title>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-right: 24px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 18px;">{{ progressAction === 'backup' ? '📦' : '🔄' }}</span>
+            <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">
+              {{ progressAction === 'backup' ? 'ARL-Next 系统数据一键全量备份' : 'ARL-Next 系统数据覆盖恢复导入' }}
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div v-if="!progressFinished" class="update-heartbeat-badge">
+              <span class="heartbeat-dot"></span>
+              <span>执行中</span>
+            </div>
+            <div style="font-family: monospace; font-size: 13px; font-weight: 600; color: var(--arl-text-color); background: rgba(0,0,0,0.04); padding: 2px 8px; border-radius: 4px;">
+              ⏱️ 耗时: {{ progressElapsed }} 秒
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- 阶段与总进度 -->
+      <div style="margin-bottom: 12px; background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 10px 14px; border-radius: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="font-size: 13px; font-weight: 500; color: var(--arl-text-color);">{{ progressStage }}</span>
+          <span style="font-size: 13px; font-weight: 600; color: #1677ff;">{{ progressPercent }}%</span>
+        </div>
+        <a-progress
+          :percent="progressPercent"
+          :show-info="false"
+          :status="progressHasError ? 'exception' : (progressFinished ? 'success' : 'active')"
+          stroke-linecap="square"
+        />
+      </div>
+
+      <!-- 终端控制台 -->
+      <div style="background-color: #141414; border: 1px solid #333; color: #00ff66; padding: 14px; border-radius: 6px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; height: 320px; overflow-y: auto; box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);" ref="backupTerminalRef">
+        <pre style="margin: 0; white-space: pre-wrap; font-family: inherit; color: inherit; background: transparent; border: none; padding: 0; font-size: 12px; line-height: 1.6;">{{ progressLogs.join('\n') }}</pre>
+      </div>
+
+      <div v-if="progressFinished" style="margin-top: 16px; text-align: center;">
+        <template v-if="!progressHasError">
+          <div v-if="progressAction === 'restore'" style="display: flex; justify-content: center; gap: 12px;">
+            <a-button type="primary" size="large" @click="reloadPage" style="border-radius: 6px; padding: 0 32px; font-weight: 600;">
+              🎉 恢复成功！点击重新加载页面
+            </a-button>
+          </div>
+          <div v-else style="display: flex; justify-content: center; gap: 12px;">
+            <a-button v-if="progressArchiveName" type="primary" size="large" @click="handleDownloadBackup(progressArchiveName)" style="border-radius: 6px;">
+              <template #icon><DownloadOutlined /></template>
+              立即下载此备份归档
+            </a-button>
+            <a-button size="large" @click="backupProgressModalVisible = false" style="border-radius: 6px;">完成并关闭</a-button>
+          </div>
+        </template>
+        <template v-else>
+          <a-button type="default" size="large" @click="backupProgressModalVisible = false" style="border-radius: 6px;">关闭窗口</a-button>
+        </template>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
 defineOptions({ name: 'SystemSettings' });
-import { InfoCircleOutlined, ExclamationCircleOutlined, GithubOutlined } from '@ant-design/icons-vue';
+import {
+  InfoCircleOutlined, ExclamationCircleOutlined, GithubOutlined,
+  CloudUploadOutlined, CloudDownloadOutlined, DownloadOutlined,
+  UploadOutlined, DeleteOutlined, ReloadOutlined, CheckCircleOutlined,
+  CloseCircleOutlined, InboxOutlined
+} from '@ant-design/icons-vue';
 import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, watch, createVNode } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
@@ -1890,6 +2201,8 @@ const SETTINGS_INDEX = [
     desc: '邮件服务器、发件人与收件人配置', keywords: ['邮件', 'email', 'smtp', '推送'] },
   { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: 'API 安全认证机制', anchor: 'auth',
     desc: 'Swagger API 认证开关与 API Token', keywords: ['api', '认证', 'auth', 'token', 'swagger', '安全'] },
+  { tab: 'system_backup', tabLabel: '数据备份与恢复', label: '系统全量数据备份与恢复', anchor: 'backup',
+    desc: 'MongoDB 资产测绘信息、任务、策略与系统配置一键全量快照与新机原样恢复', keywords: ['备份', '恢复', 'backup', 'restore', '导出', '导入', '快照', '全量备份', '迁移'] },
   { tab: 'system_update', tabLabel: '系统版本与更新', label: '系统版本与更新', anchor: 'update',
     desc: '版本比对、更新日志与一键更新', keywords: ['版本', '更新', '升级', 'update', 'version', 'changelog'] },
 ];
@@ -3281,6 +3594,255 @@ const scrollToBottom = () => {
   });
 };
 
+// ======================= 数据备份与恢复模块 =======================
+const backupList = ref([]);
+const backupListLoading = ref(false);
+const backupRunningTasks = ref(0);
+const backupLoading = ref(false);
+
+const createBackupModalVisible = ref(false);
+const createBackupForm = reactive({
+  includeScreenshots: true,
+  note: ''
+});
+
+const uploadBackupModalVisible = ref(false);
+
+const restoreModalVisible = ref(false);
+const selectedRestoreBackup = ref(null);
+const restoreConfirmInput = ref('');
+const restoreForceCheck = ref(false);
+
+const backupProgressModalVisible = ref(false);
+const progressAction = ref('backup');
+const progressPercent = ref(0);
+const progressStage = ref('');
+const progressElapsed = ref(0);
+const progressLogs = ref([]);
+const progressFinished = ref(false);
+const progressHasError = ref(false);
+const progressArchiveName = ref('');
+const backupTerminalRef = ref(null);
+let progressPollTimer = null;
+let progressElapsedTimer = null;
+
+const formatBytes = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+};
+
+const formatDateTime = (iso) => {
+  if (!iso) return '-';
+  return iso.slice(0, 19).replace('T', ' ');
+};
+
+const backupColumns = [
+  { title: '备份归档名称', dataIndex: 'filename', key: 'filename', width: 280 },
+  { title: '文件大小', dataIndex: 'size', key: 'size', width: 110 },
+  { title: '截图包含', dataIndex: 'include_screenshots', key: 'include_screenshots', width: 130 },
+  { title: '核心资产总览', key: 'summary' },
+  { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 160 },
+  { title: '操作', key: 'action', width: 200, align: 'center' }
+];
+
+const fetchBackupList = async () => {
+  backupListLoading.value = true;
+  try {
+    const res = await request.get('/api/backup/list');
+    if (res.code === 200 && res.data) {
+      backupList.value = res.data.items || [];
+      backupRunningTasks.value = res.data.running_tasks || 0;
+    } else {
+      message.error(res.message || '获取备份清单失败');
+    }
+  } catch (e) {
+    message.error('获取备份列表网络异常');
+  } finally {
+    backupListLoading.value = false;
+  }
+};
+
+const openCreateBackupModal = () => {
+  createBackupForm.includeScreenshots = true;
+  createBackupForm.note = '';
+  createBackupModalVisible.value = true;
+};
+
+const handleExecuteCreateBackup = async () => {
+  backupLoading.value = true;
+  try {
+    const res = await request.post('/api/backup/create', {
+      include_screenshots: createBackupForm.includeScreenshots,
+      note: createBackupForm.note.trim()
+    });
+    if (res.code === 200) {
+      createBackupModalVisible.value = false;
+      startProgressTracking('backup');
+    } else {
+      message.error(res.message || '启动备份任务失败');
+    }
+  } catch (e) {
+    message.error(e.response?.data?.message || '启动备份任务异常');
+  } finally {
+    backupLoading.value = false;
+  }
+};
+
+const openUploadBackupModal = () => {
+  uploadBackupModalVisible.value = true;
+};
+
+const handleCustomUploadBackup = async ({ file, onSuccess, onError, onProgress }) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await request.post('/api/backup/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress({ percent });
+        }
+      }
+    });
+    if (res.code === 200) {
+      message.success('备份包上传并校验成功！');
+      onSuccess(res.data, file);
+      uploadBackupModalVisible.value = false;
+      fetchBackupList();
+    } else {
+      message.error(res.message || '备份包上传失败');
+      onError(new Error(res.message));
+    }
+  } catch (err) {
+    const errText = err.response?.data?.message || '上传网络异常或文件超出限制';
+    message.error(errText);
+    onError(err);
+  }
+};
+
+const openRestoreModal = (record) => {
+  selectedRestoreBackup.value = record;
+  restoreConfirmInput.value = '';
+  restoreForceCheck.value = false;
+  restoreModalVisible.value = true;
+};
+
+const handleExecuteRestore = async () => {
+  if (!selectedRestoreBackup.value) return;
+  try {
+    const res = await request.post('/api/backup/restore', {
+      filename: selectedRestoreBackup.value.filename,
+      force: restoreForceCheck.value || backupRunningTasks.value === 0
+    });
+    if (res.code === 200) {
+      restoreModalVisible.value = false;
+      startProgressTracking('restore', selectedRestoreBackup.value.filename);
+    } else {
+      message.error(res.message || '启动数据恢复失败');
+    }
+  } catch (e) {
+    message.error(e.response?.data?.message || '启动数据恢复异常');
+  }
+};
+
+const handleDownloadBackup = (filename) => {
+  const token = localStorage.getItem('token') || '';
+  const url = `/api/backup/download/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
+
+const handleDeleteBackup = async (filename) => {
+  try {
+    const res = await request.delete(`/api/backup/delete/${encodeURIComponent(filename)}`);
+    if (res.code === 200) {
+      message.success('备份文件已成功删除');
+      fetchBackupList();
+    } else {
+      message.error(res.message || '删除备份失败');
+    }
+  } catch (e) {
+    message.error('删除备份请求异常');
+  }
+};
+
+const scrollBackupTerminal = () => {
+  nextTick(() => {
+    if (backupTerminalRef.value) {
+      backupTerminalRef.value.scrollTop = backupTerminalRef.value.scrollHeight;
+    }
+  });
+};
+
+const stopProgressTracking = () => {
+  if (progressPollTimer) {
+    clearInterval(progressPollTimer);
+    progressPollTimer = null;
+  }
+  if (progressElapsedTimer) {
+    clearInterval(progressElapsedTimer);
+    progressElapsedTimer = null;
+  }
+};
+
+const startProgressTracking = (action, archiveName = '') => {
+  stopProgressTracking();
+  progressAction.value = action;
+  progressPercent.value = 5;
+  progressStage.value = action === 'backup' ? '正在准备全量备份...' : '正在准备覆盖恢复...';
+  progressElapsed.value = 0;
+  progressLogs.value = ['⏳ 正在连接底层引擎...'];
+  progressFinished.value = false;
+  progressHasError.value = false;
+  progressArchiveName.value = archiveName;
+  backupProgressModalVisible.value = true;
+
+  const startTime = Date.now();
+  progressElapsedTimer = setInterval(() => {
+    progressElapsed.value = Math.floor((Date.now() - startTime) / 1000);
+  }, 1000);
+
+  progressPollTimer = setInterval(async () => {
+    try {
+      const res = await request.get('/api/backup/status');
+      if (res.code === 200 && res.data) {
+        const d = res.data;
+        if (d.stage) progressStage.value = d.stage;
+        if (typeof d.percent === 'number') progressPercent.value = d.percent;
+        if (Array.isArray(d.logs)) progressLogs.value = d.logs;
+        if (d.archive_name) progressArchiveName.value = d.archive_name;
+        scrollBackupTerminal();
+
+        if (d.status === 'success') {
+          progressFinished.value = true;
+          progressHasError.value = false;
+          progressPercent.value = 100;
+          progressStage.value = action === 'backup' ? '🎉 系统全量备份已生成！' : '🎉 数据覆盖恢复全部完成！';
+          stopProgressTracking();
+          fetchBackupList();
+        } else if (d.status === 'error') {
+          progressFinished.value = true;
+          progressHasError.value = true;
+          progressStage.value = `❌ 执行失败: ${d.error || '未知错误'}`;
+          stopProgressTracking();
+          fetchBackupList();
+        }
+      }
+    } catch (err) {
+      // 容错重试
+    }
+  }, 1000);
+};
+
+
 onMounted(() => {
   if (route.query.tab) {
     if (route.query.tab === 'cdn') {
@@ -3320,6 +3882,15 @@ onMounted(() => {
   fetchSecurityPolicy();
   fetchPerformanceConfig();
   fetchGeneralConfig();
+  if (activeKey.value === 'system_backup') {
+    fetchBackupList();
+  }
+});
+
+watch(activeKey, (newVal) => {
+  if (newVal === 'system_backup') {
+    fetchBackupList();
+  }
 });
 
 onDeactivated(() => {
@@ -3332,13 +3903,19 @@ onDeactivated(() => {
   searchDrawerVisible.value = false;
   cdnDrawerVisible.value = false;
   updateModalVisible.value = false;
+  backupProgressModalVisible.value = false;
+  createBackupModalVisible.value = false;
+  uploadBackupModalVisible.value = false;
+  restoreModalVisible.value = false;
   clearAllDictPollTimers();
+  stopProgressTracking();
 });
 
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload);
   stopUpdateTimers();
   clearAllDictPollTimers();
+  stopProgressTracking();
 });
 
 // 路由级离开拦截：组件被 keep-alive 缓存时 onDeactivated 只提示不阻断，
