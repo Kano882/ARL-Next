@@ -29,7 +29,7 @@ class WihRecord:
     def risk_level(self):
         rtype = str(self.recordType).lower()
         if rtype == "api_endpoint" and self.api_request is not None:
-            return "LOW"  # 仅为静态发现的请求候选，尚未验证可达性或漏洞。
+            return "LOW"  # 接口发现和 HTTP 响应不代表存在漏洞。
         if rtype in HIGH_RISK_TYPES or any(k in rtype for k in ["secret", "token", "appid", "corpid", "key", "jwt", "pass"]):
             return "CRITICAL"
         elif rtype in MEDIUM_RISK_TYPES or any(k in rtype for k in ["api", "ip", "auth"]):

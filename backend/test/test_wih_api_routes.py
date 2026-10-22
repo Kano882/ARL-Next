@@ -121,6 +121,24 @@ class ApiRouteTests(unittest.TestCase):
             response = self.client.post("/api/batch_export/" + path + "/", json=payload)
             self.assertEqual(response.get_json()["code"], 401)
 
+    def test_captured_response_is_available_as_json_without_executing_or_exporting_body(self):
+        observation = {
+            "state": "responded", "status_code": 403, "headers": {"content-type": "text/html"},
+            "body_preview": "<script>fixture()</script>", "body_bytes": 26, "body_truncated": False,
+        }
+        for name, key, value in [("wih", "task_id", "task-a"), ("asset_wih", "scope_id", "scope-a")]:
+            collection = self.db[name]
+            item = collection.find_one({key: value, "record_type": "api_endpoint"})
+            item["api_request"].update(verified=True, probe=observation)
+            collection.replace_one({"_id": item["_id"]}, item)
+            query = {key: value, "record_type__eq": "api_endpoint", "content": item["content"]}
+            response = self.get(name + "/", **query)
+            self.assertTrue(response.content_type.startswith("application/json"))
+            captured = next(record for record in response.get_json()["items"] if "probe" in record["api_request"])
+            self.assertEqual(captured["api_request"]["probe"], observation)
+            self.assertTrue(captured["api_request"]["verified"])
+            self.assertNotIn("<script>", self.get(name + "/export/", **query).get_data(as_text=True))
+
 
 if __name__ == "__main__":
     unittest.main()

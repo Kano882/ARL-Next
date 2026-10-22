@@ -239,6 +239,7 @@ class WihRuleEngine:
                 parts = line_str.split(":", 1)
                 k = parts[0].strip()
                 val_raw = parts[1].strip()
+                quoted = val_raw.startswith(('"', "'"))
 
                 if val_raw.startswith('"'):
                     end_q = val_raw.rfind('"')
@@ -254,7 +255,7 @@ class WihRuleEngine:
                     val_raw = val_raw.strip('\'"')
 
                 v = val_raw
-                if isinstance(v, str):
+                if isinstance(v, str) and not (k == "probe" and quoted):
                     if v.lower() == "true":
                         v = True
                     elif v.lower() == "false":
@@ -302,7 +303,8 @@ class WihRuleEngine:
                 self.rules.append({
                     "id": rule_id,
                     "compiled": compiled,
-                    "raw_pattern": pattern_str
+                    "raw_pattern": pattern_str,
+                    "probe": r.get("probe") is True,
                 })
 
             raw_exclude = data.get("exclude_rules", [])

@@ -132,7 +132,7 @@ rules:
     enabled: true
 ```
 
-此规则默认关闭，不替代已有的 `path`、URL 或敏感信息规则。启用后复用已下载的页面内联脚本和外部 JS，不请求候选接口，不提交请求体、凭据或探测载荷。
+此规则默认关闭，不替代已有的 `path`、URL 或敏感信息规则。仅启用 `enabled` 时复用已下载的页面内联脚本和外部 JS，不请求候选接口。主动采集需要单独启用下文的 `probe`。
 
 - 支持静态字符串参数的 `fetch`、`window.fetch`、`globalThis.fetch`、`axios(config)`、`axios(url, config)`、`axios.request(...)` 和 `axios.get/post/put/patch/delete/head/options(...)`。
 - Fetch 相对地址按页面实际响应地址及首个 `<base href>` 补全，外部 JS 位于 CDN 时也不使用 CDN 目录。Axios 按调用内明确的 `baseURL` 拼接，保留 `/v1` 等路径前缀；未能确定基址时保留原始路径，`api_request.url` 为 `null`。未知方法记为 `UNKNOWN`。
@@ -155,9 +155,48 @@ rules:
 }
 ```
 
-`verified: false` 表示尚未请求接口或验证漏洞；`LOW` 为现有 WIH 分类中的低风险候选。`api_request` 为可选附加信息，历史记录无需回填，旧记录的序列化和去重标识保持原样。同一方法、原始路径和补全地址的候选复用现有站点级去重，保留首次来源，不合并不同方法。
+`verified: false` 表示尚未收到候选接口的 HTTP 响应；`LOW` 为现有 WIH 分类中的低风险候选。`api_request` 为可选附加信息，历史记录无需回填，旧记录的序列化和去重标识保持原样。同一方法、原始路径和补全地址的候选复用现有站点级去重，保留首次来源，不合并不同方法。
 
 列表和对应的 `/export/` 共用筛选参数；单项、任务批量及资产组批量 WIH 文本导出均保留接口候选的来源，其他类型的导出格式保持原样。
+
+### WIH 接口可达性与响应采集
+
+在上述内置规则中同时启用两个布尔开关，随后运行 WIH 任务：
+
+```yaml
+rules:
+  - id: api_endpoint
+    enabled: true
+    probe: true
+```
+
+`probe` 默认 `false`。仅配置 `probe`、禁用规则、使用自定义 `pattern` 或填写字符串 `"true"` 均不会开启主动采集。
+
+- 只请求与任务原始 `site` 的协议、主机、有效端口完全相同的完整 GET、HEAD 候选；相对路径须先能按静态规则补全。跨域 API、不同端口、页面跨域重定向后生成的接口仍保留为候选，但不自动扩展扫描范围。
+- 保留原始方法，不将 POST、PUT、PATCH、DELETE、OPTIONS 或 UNKNOWN 改为 GET。请求不带请求体、页面 Cookie、脚本认证头或 netrc 认证；沿用 WIH 的显式代理与 TLS 证书校验设置。URL 的路径和查询参数按提取结果发送。
+- 每站点最多探测 20 个不同的 `(method, url)`，重复候选复用结果。同源重定向最多跟随 3 次，每次发送前校验同源、循环及现有 `api_endpoint` 排除规则；跨域、不同端口、协议变化和含用户密码的地址会停止跟随。
+- 连接及读取超时分别为 3 秒；每个候选按 10 秒、每个站点按 60 秒的预算，在请求前及正文读取期间检查。底层 DNS、连接和阻塞读取仍受网络库行为影响，这些预算不构成任务总时长的硬上限。配额用尽或采集失败不删除静态候选，也不影响先行完成的原有 WIH 提取。
+- 保存最后一次已收到的 HTTP 响应状态、URL、UTC 检查时间、耗时和重定向链。仅保存 Content-Type、Content-Length、Server、Allow 四种响应头，各最多 1,024 字符，不保存 Set-Cookie 等认证头。GET 文本响应最多保留 16 KiB 解码前字节的摘要；JSON、XML、JavaScript 等按文本处理，HEAD、二进制及未知类型不读取正文。摘要可能包含敏感数据，沿用现有 WIH 接口鉴权；不会执行或渲染其中的 HTML、脚本。
+
+响应通过现有 `/api/wih/` 和 `/api/asset_wih/` 的 JSON 列表返回，位于 `api_request.probe`。本阶段未新增响应详情界面、接口截图或漏洞判断，文本导出也不附带响应正文。示例：
+
+```json
+{
+  "verified": true,
+  "probe": {
+    "state": "responded", "method": "GET", "status_code": 403,
+    "url": "https://app.example.test/api/users",
+    "last_attempt_url": "https://app.example.test/api/users",
+    "checked_at": "2026-01-01T00:00:00+00:00", "elapsed_ms": 12,
+    "headers": {"content-type": "application/json"}, "redirects": [],
+    "body_preview": "{\"error\":\"forbidden\"}", "body_bytes": 21, "body_truncated": false
+  }
+}
+```
+
+`state=responded` 和 `verified=true` 仅证明收到 HTTP 响应，401、403、404、5xx 同样会记录，不能证明接口有效、无需认证或存在漏洞。重定向停止时用 `redirect_stop` 说明原因；后续一跳失败会保留上一跳响应，在 `error` 和 `last_attempt_url` 中标明失败，不能据此认定最终地址可达。正文读取失败仍保留状态和已读摘要，使用 `body_error`、`body_truncated` 标记不完整。
+
+未收到任何 HTTP 响应时 `state=error`，`error` 区分 `timeout`、`connection_error`、`tls_error`、`request_error`、`time_budget`，不保存异常原文。未尝试的候选为 `state=skipped`，`reason` 区分 `unsupported_method`、`unresolved_url`、`outside_origin`、`excluded`、`site_quota`、`site_budget`。资产组监控会刷新已有候选的本次采集状态，不因状态变化重复发送新增通知；关闭主动采集后的静态扫描保留先前响应，响应时间以 `checked_at` 为准。新增嵌套字段均为可选，不需迁移或回填历史数据。
 
 ### 全局维度计数接口
 
