@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-container">
+  <div class="dashboard-container" :class="{ 'page-english': pageLocale === 'en-US' }">
     <!-- Row 1: 4 组安全态势感知核心大卡 (Security Posture Priority Cards) -->
     <div class="dashboard-section section-posture">
       <a-row :gutter="[14, 14]" class="stat-row">
@@ -10,7 +10,7 @@
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
-                  <span class="card-title-text">站点资产总量</span>
+                  <span class="card-title-text">{{ pageText('pages.totalWebsiteAssets') }}</span>
                   <div class="stat-icon-box primary">
                     <DatabaseOutlined />
                   </div>
@@ -21,10 +21,10 @@
                 <div class="card-footer-ribbon">
                   <div class="status-indicator">
                     <span class="pulse-beacon green"></span>
-                    <span class="status-text">站点库监控中</span>
+                    <span class="status-text">{{ pageText('pages.websiteMonitoringActive') }}</span>
                   </div>
                   <div class="trend-badge positive">
-                    今日 +{{ stats.today_new_assets || 0 }} 站点
+                    {{ pageText('pages.todayNewWebsitesCount', { count: stats.today_new_assets || 0 }) }}
                   </div>
                 </div>
               </div>
@@ -39,7 +39,7 @@
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
-                  <span class="card-title-text">今日扫描动向</span>
+                  <span class="card-title-text">{{ pageText('pages.todaySScanningActivity') }}</span>
                   <div class="stat-icon-box success">
                     <SyncOutlined />
                   </div>
@@ -47,20 +47,20 @@
                 <div class="dual-metric-wrap">
                   <div class="metric-cell clickable-cell" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">
                     <div class="cell-val success-val">{{ stats.today_tasks || 0 }}</div>
-                    <div class="cell-lbl">新增扫描任务</div>
+                    <div class="cell-lbl">{{ pageText('pages.newScanningTasks') }}</div>
                   </div>
                   <div class="metric-divider"></div>
                   <div class="metric-cell clickable-cell" @click="router.push('/asset-search')">
                     <div class="cell-val primary-val">{{ stats.today_new_assets || 0 }}</div>
-                    <div class="cell-lbl">新发现站点</div>
+                    <div class="cell-lbl">{{ pageText('pages.newWebsitesDiscovered') }}</div>
                   </div>
                 </div>
                 <div class="card-footer-ribbon">
                   <div class="status-indicator">
                     <span class="beacon-dot"></span>
-                    <span class="status-text">全网主动测绘</span>
+                    <span class="status-text">{{ pageText('pages.activeAssetDiscovery') }}</span>
                   </div>
-                  <span class="footer-link-hint" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">查看任务流水 &gt;</span>
+                  <span class="footer-link-hint" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">{{ pageText('pages.viewTaskActivity') }}</span>
                 </div>
               </div>
             </a-skeleton>
@@ -74,7 +74,7 @@
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
-                  <span class="card-title-text">漏洞风险矩阵</span>
+                  <span class="card-title-text">{{ pageText('pages.vulnerabilityOverview') }}</span>
                   <div class="stat-icon-box danger">
                     <AlertOutlined />
                   </div>
@@ -82,62 +82,62 @@
                 <div class="vuln-matrix-header">
                   <div class="vuln-total-num">
                     {{ totalVulnCount }}
-                    <span class="vuln-total-unit">处漏洞命中（多引擎累计，未去重）</span>
+                    <span class="vuln-total-unit">{{ pageText('pages.findingsAllEnginesCombinedWithoutDeduplication') }}</span>
                   </div>
                   <a-tag v-if="criticalVulnCount > 0" color="error" class="critical-alert-tag">
                     <template #icon><span class="pulse-beacon red"></span></template>
-                    Nuclei {{ criticalVulnCount }} 处严重+高危
+                    {{ pageText('pages.highCriticalCount', { count: criticalVulnCount }) }}
                   </a-tag>
                   <a-tag v-else color="success" class="critical-alert-tag">
-                    Nuclei 无高危/严重
+                    {{ pageText('pages.nucleiNoCriticalOrHighFindings') }}
                   </a-tag>
                 </div>
                 <div class="vuln-pill-row">
-                  <a-tooltip title="严重漏洞 (Nuclei)">
+                  <a-tooltip :title="pageText('pages.criticalVulnerabilitiesNuclei')">
                     <div 
                       class="vuln-pill critical" 
                       :class="{ empty: !(stats.vuln?.nuclei_critical) }"
                       @click="router.push({ path: '/asset-search', query: { tab: 'nuclei_result', vuln_severity: 'critical' } })"
                     >
-                      <span class="pill-name">严重</span>
+                      <span class="pill-name">{{ pageText('assets.critical') }}</span>
                       <span class="pill-cnt">{{ stats.vuln?.nuclei_critical || 0 }}</span>
                     </div>
                   </a-tooltip>
 
-                  <a-tooltip title="高危漏洞 (Nuclei)">
+                  <a-tooltip :title="pageText('pages.highVulnerabilitiesNuclei')">
                     <div 
                       class="vuln-pill high" 
                       :class="{ empty: !(stats.vuln?.nuclei_high) }"
                       @click="router.push({ path: '/asset-search', query: { tab: 'nuclei_result', vuln_severity: 'high' } })"
                     >
-                      <span class="pill-name">高危</span>
+                      <span class="pill-name">{{ pageText('assets.high') }}</span>
                       <span class="pill-cnt">{{ stats.vuln?.nuclei_high || 0 }}</span>
                     </div>
                   </a-tooltip>
 
-                  <a-tooltip title="中危漏洞 (Nuclei)">
+                  <a-tooltip :title="pageText('pages.mediumVulnerabilitiesNuclei')">
                     <div 
                       class="vuln-pill medium" 
                       :class="{ empty: !(stats.vuln?.nuclei_medium) }"
                       @click="router.push({ path: '/asset-search', query: { tab: 'nuclei_result', vuln_severity: 'medium' } })"
                     >
-                      <span class="pill-name">中危</span>
+                      <span class="pill-name">{{ pageText('assets.medium') }}</span>
                       <span class="pill-cnt">{{ stats.vuln?.nuclei_medium || 0 }}</span>
                     </div>
                   </a-tooltip>
 
-                  <a-tooltip title="低危漏洞 (Nuclei)">
+                  <a-tooltip :title="pageText('pages.lowVulnerabilitiesNuclei')">
                     <div 
                       class="vuln-pill low" 
                       :class="{ empty: !(stats.vuln?.nuclei_low) }"
                       @click="router.push({ path: '/asset-search', query: { tab: 'nuclei_result', vuln_severity: 'low' } })"
                     >
-                      <span class="pill-name">低危</span>
+                      <span class="pill-name">{{ pageText('assets.low') }}</span>
                       <span class="pill-cnt">{{ stats.vuln?.nuclei_low || 0 }}</span>
                     </div>
                   </a-tooltip>
 
-                  <a-tooltip title="ARL 资产内置弱点">
+                  <a-tooltip :title="pageText('pages.arlBuiltInVulnerabilityChecks')">
                     <div 
                       class="vuln-pill arl" 
                       :class="{ empty: !(stats.vuln?.arl_total) }"
@@ -160,7 +160,7 @@
             <a-skeleton :loading="initialLoading" active :paragraph="{ rows: 2 }" :title="false">
               <div class="card-inner">
                 <div class="card-top-header">
-                  <span class="card-title-text">GitHub 威胁与情报 (今日)</span>
+                  <span class="card-title-text">{{ pageText('pages.githubThreatsAndIntelligenceToday') }}</span>
                   <div class="stat-icon-box dark">
                     <GithubOutlined />
                   </div>
@@ -171,35 +171,35 @@
                       {{ sysInfo.github_today?.leaks || 0 }}
                       <span v-if="(sysInfo.github_today?.leaks || 0) > 0" class="pulse-beacon red inline-pulse"></span>
                     </div>
-                    <div class="cell-lbl">今日代码泄露</div>
+                    <div class="cell-lbl">{{ pageText('pages.codeLeaksToday') }}</div>
                   </div>
                   <div class="metric-divider"></div>
                   <a-tooltip placement="bottom">
                     <template #title>
                       <div class="intel-tooltip-box">
-                        <div class="tooltip-title">今日新增情报明细：</div>
-                        <div>● 新增 CVE：{{ sysInfo.github_today_breakdown?.cves || 0 }}</div>
-                        <div>● 追踪大佬：{{ sysInfo.github_today_breakdown?.hackers || 0 }}</div>
-                        <div>● 其他情报：{{ sysInfo.github_today_breakdown?.general || 0 }}</div>
+                        <div class="tooltip-title">{{ pageText('pages.newIntelligenceToday') }}</div>
+                        <div>{{ pageText('pages.newCves') }}{{ sysInfo.github_today_breakdown?.cves || 0 }}</div>
+                        <div>{{ pageText('pages.trackedResearchers') }}{{ sysInfo.github_today_breakdown?.hackers || 0 }}</div>
+                        <div>{{ pageText('pages.otherIntelligence') }}{{ sysInfo.github_today_breakdown?.general || 0 }}</div>
                         <div class="tooltip-sep"></div>
-                        <div class="tooltip-title">全库累计收录：</div>
-                        <div>● 累计 CVE：{{ sysInfo.github_totals?.cves || 0 }}</div>
-                        <div>● 监控工具：{{ sysInfo.github_totals?.tools || 0 }}</div>
-                        <div>● 追踪大佬：{{ sysInfo.github_totals?.hackers || 0 }}</div>
+                        <div class="tooltip-title">{{ pageText('pages.allTimeTotals') }}</div>
+                        <div>{{ pageText('pages.cves') }}{{ sysInfo.github_totals?.cves || 0 }}</div>
+                        <div>{{ pageText('pages.monitoredTools') }}{{ sysInfo.github_totals?.tools || 0 }}</div>
+                        <div>{{ pageText('pages.trackedResearchers') }}{{ sysInfo.github_totals?.hackers || 0 }}</div>
                       </div>
                     </template>
                     <div class="metric-cell clickable-cell" @click.stop="router.push('/GitHubTasks/GitHubTasksList?tab=cve_history')">
                       <div class="cell-val warning-val">{{ sysInfo.github_today?.intel || 0 }}</div>
-                      <div class="cell-lbl">今日威胁情报</div>
+                      <div class="cell-lbl">{{ pageText('pages.threatIntelligenceToday') }}</div>
                     </div>
                   </a-tooltip>
                 </div>
                 <div class="card-footer-ribbon">
                   <div class="status-indicator">
                     <span class="beacon-dot"></span>
-                    <span class="status-text">监控任务: {{ stats.github_monitors || 0 }} 个</span>
+                    <span class="status-text">{{ pageText('pages.monitorTaskCount', { count: stats.github_monitors || 0 }) }}</span>
                   </div>
-                  <span class="footer-link-hint" @click="router.push('/GitHubTasks/GitHubTasksList')">情报大厅 &gt;</span>
+                  <span class="footer-link-hint" @click="router.push('/GitHubTasks/GitHubTasksList')">{{ pageText('pages.intelligenceDashboard') }}</span>
                 </div>
               </div>
             </a-skeleton>
@@ -237,15 +237,15 @@
             <a-tooltip placement="bottom">
               <template #title>
                 <div style="font-size: 12px; line-height: 1.6;">
-                  <div>宿主机物理内存：{{ sysInfo.mem_used_gb }} / {{ sysInfo.mem_total_gb }} GB（可用 {{ sysInfo.mem_available_gb }} GB）</div>
-                  <div>虚拟内存 (Swap)：使用率 {{ sysInfo.swap_percent }}%（总量 {{ sysInfo.swap_total_gb }} GB）</div>
-                  <div v-if="sysInfo.mem_alert === 'critical'" style="color: #ff4d4f; margin-top: 2px;">⚠️ 宿主机内存负载极高，建议关注扫描任务并发量</div>
-                  <div v-else-if="sysInfo.mem_alert === 'warning'" style="color: #faad14; margin-top: 2px;">⚡ 宿主机内存水位偏高，请留意整体资源负载</div>
+                  <div>{{ pageText('pages.hostPhysicalMemory') }}{{ sysInfo.mem_used_gb }} / {{ sysInfo.mem_total_gb }} {{ pageText('pages.gbAvailable') }} {{ sysInfo.mem_available_gb }} GB）</div>
+                  <div>{{ pageText('pages.swapUsage') }} {{ sysInfo.swap_percent }}{{ pageText('pages.total') }} {{ sysInfo.swap_total_gb }} GB）</div>
+                  <div v-if="sysInfo.mem_alert === 'critical'" class="page-error-note">{{ pageText('pages.hostMemoryUsageIsVeryHighReviewTheNumber') }}</div>
+                  <div v-else-if="sysInfo.mem_alert === 'warning'" class="page-warning-note">{{ pageText('pages.hostMemoryUsageIsElevatedMonitorOverallResourceUsage') }}</div>
                 </div>
               </template>
               <div class="ribbon-item cursor-help">
                 <span class="ribbon-icon mem-color"><DatabaseOutlined /></span>
-                <span class="ribbon-name">内存</span>
+                <span class="ribbon-name">{{ pageText('pages.memory') }}</span>
                 <span class="ribbon-val" :class="{ 'text-danger': sysInfo.mem_alert === 'critical', 'text-warning': sysInfo.mem_alert === 'warning' }">
                   {{ sysInfo.mem_percent }}%
                 </span>
@@ -259,8 +259,8 @@
                     }"
                   ></div>
                 </div>
-                <a-tag v-if="sysInfo.mem_alert === 'critical'" color="red" class="ribbon-alert-tag">高危告警</a-tag>
-                <a-tag v-else-if="sysInfo.mem_alert === 'warning'" color="orange" class="ribbon-alert-tag">偏高</a-tag>
+                <a-tag v-if="sysInfo.mem_alert === 'critical'" color="red" class="ribbon-alert-tag">{{ pageText('pages.criticalWarning') }}</a-tag>
+                <a-tag v-else-if="sysInfo.mem_alert === 'warning'" color="orange" class="ribbon-alert-tag">{{ pageText('pages.elevated') }}</a-tag>
               </div>
             </a-tooltip>
 
@@ -269,7 +269,7 @@
             <!-- 磁盘指标 -->
             <div class="ribbon-item">
               <span class="ribbon-icon disk-color"><HddOutlined /></span>
-              <span class="ribbon-name">磁盘</span>
+              <span class="ribbon-name">{{ pageText('pages.disk') }}</span>
               <span class="ribbon-val" :class="{ 'text-danger': sysInfo.disk_percent > 90 }">
                 {{ sysInfo.disk_percent }}%
               </span>
@@ -289,14 +289,14 @@
             <!-- 扫描调度流水线 (Celery) -->
             <div class="ribbon-item cursor-pointer ribbon-tasks-item" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">
               <span class="ribbon-icon celery-color"><ThunderboltOutlined /></span>
-              <span class="ribbon-name">扫描调度</span>
+              <span class="ribbon-name">{{ pageText('pages.scanScheduling') }}</span>
               <div class="ribbon-task-badges">
                 <span class="task-badge running">
                   <span v-if="(sysInfo.tasks?.running || 0) > 0" class="pulse-beacon green inline-pulse"></span>
-                  <span class="num">{{ sysInfo.tasks?.running || 0 }}</span> 运行中
+                  <span class="num">{{ sysInfo.tasks?.running || 0 }}</span> {{ pageText('pages.running') }}
                 </span>
                 <span class="task-badge waiting">
-                  <span class="num">{{ sysInfo.tasks?.waiting || 0 }}</span> 排队等待
+                  <span class="num">{{ sysInfo.tasks?.waiting || 0 }}</span> {{ pageText('pages.queued') }}
                 </span>
               </div>
               <RightOutlined class="ribbon-arrow" />
@@ -316,7 +316,7 @@
               <div class="card-header-flex">
                 <div class="card-header-title">
                   <LineChartOutlined class="card-header-icon" />
-                  <span>站点暴露面与风险演进趋势</span>
+                  <span>{{ pageText('pages.websiteExposureAndRiskTrends') }}</span>
                 </div>
                 <div class="trend-controls">
                   <div class="metric-filter-group">
@@ -324,19 +324,19 @@
                       class="filter-pill" 
                       :class="{ active: trendFilter === 'all' }"
                       @click="setTrendFilter('all')"
-                    >综合</span>
+                    >{{ pageText('pages.combined') }}</span>
                     <span 
                       class="filter-pill" 
                       :class="{ active: trendFilter === 'assets' }"
                       @click="setTrendFilter('assets')"
-                    >仅站点</span>
+                    >{{ pageText('pages.websitesOnly') }}</span>
                     <span 
                       class="filter-pill" 
                       :class="{ active: trendFilter === 'risks' }"
                       @click="setTrendFilter('risks')"
-                    >仅风险与情报</span>
+                    >{{ pageText('pages.risksAndIntelligenceOnly') }}</span>
                   </div>
-                  <div class="range-tag">近 7 天</div>
+                  <div class="range-tag">{{ pageText('tasks.last7Days') }}</div>
                 </div>
               </div>
             </template>
@@ -354,24 +354,24 @@
               <div class="card-header-flex">
                 <div class="card-header-title">
                   <ClockCircleOutlined class="card-header-icon" />
-                  <span>安全动态与调度流</span>
+                  <span>{{ pageText('pages.securityAndSchedulingActivity') }}</span>
                 </div>
                 <div class="log-filter-group">
                   <span 
                     class="log-tab-item" 
                     :class="{ active: logFilter === 'all' }"
                     @click="logFilter = 'all'"
-                  >全部</span>
+                  >{{ pageText('pages.all') }}</span>
                   <span 
                     class="log-tab-item" 
                     :class="{ active: logFilter === 'warn' }"
                     @click="logFilter = 'warn'"
-                  >告警/异常</span>
+                  >{{ pageText('pages.warningsErrors') }}</span>
                   <span 
                     class="log-tab-item" 
                     :class="{ active: logFilter === 'task' }"
                     @click="logFilter = 'task'"
-                  >任务业务</span>
+                  >{{ pageText('pages.taskActivity') }}</span>
                 </div>
               </div>
             </template>
@@ -388,10 +388,10 @@
                     >
                       <div class="heartbeat-info">
                         <SyncOutlined class="heartbeat-spin" />
-                        <span>已智能收敛 {{ item.count }} 次调度轮询心跳</span>
+                        <span>{{ pageText('pages.schedulerHeartbeatsGrouped', { count: item.count }) }}</span>
                       </div>
                       <span class="heartbeat-toggle">
-                        {{ item.expanded ? '收起' : '展开' }}
+                        {{ item.expanded ? pageText('pages.collapse') : pageText('pages.expand') }}
                         <DownOutlined v-if="!item.expanded" style="font-size: 10px;" />
                         <UpOutlined v-else style="font-size: 10px;" />
                       </span>
@@ -405,7 +405,7 @@
                         class="log-stream-item heartbeat-sub-item"
                         @click="showLogDetail(subLog)"
                       >
-                        <span class="log-tag info">[调度心跳]</span>
+                        <span class="log-tag info">{{ pageText('pages.schedulerHeartbeat') }}</span>
                         <span class="log-msg-preview">{{ subLog.message }}</span>
                         <span class="log-time">{{ subLog.create_time ? subLog.create_time.substring(11, 19) : '' }}</span>
                       </div>
@@ -434,14 +434,14 @@
                         </div>
                         <div class="log-item-msg">
                           <span v-if="!getLogMeta(item).isCve">{{ getLogMeta(item).desc || item.message }}</span>
-                          <span v-else class="cve-msg-highlight">全网测绘探测到高价值披露威胁，已归档入库</span>
+                          <span v-else class="cve-msg-highlight">{{ pageText('pages.assetDiscoveryFoundAPotentialDisclosureThreatAndSaved') }}</span>
                         </div>
                       </div>
                     </div>
                   </template>
                 </div>
                 <div v-else class="empty-log-box">
-                  <a-empty description="当前分类暂无相关动态" :image="simpleImage" />
+                  <a-empty :description="pageText('pages.noActivityInThisCategory')" :image="simpleImage" />
                 </div>
               </div>
             </div>
@@ -460,10 +460,10 @@
               <div class="card-header-flex">
                 <div class="card-header-title">
                   <TagsOutlined class="card-header-icon" />
-                  <span>Web 组件指纹 TOP 5</span>
+                  <span>{{ pageText('pages.top5WebTechnologyFingerprints') }}</span>
                 </div>
                 <span class="widget-extra-link" @click="router.push('/fingerprint')">
-                  指纹大库 <RightOutlined style="font-size: 11px;" />
+                  {{ pageText('pages.fingerprintLibrary') }} <RightOutlined class="page-small-label" />
                 </span>
               </div>
             </template>
@@ -475,7 +475,7 @@
                   :key="idx" 
                   class="finger-rank-row"
                   @click="router.push({ path: '/asset-search', query: { tab: 'site', finger: item.name } })"
-                  title="点击反查命中该指纹的站点"
+                  :title="pageText('pages.clickToFindWebsitesWithThisFingerprint')"
                 >
                   <div class="finger-left-box">
                     <span class="rank-badge" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</span>
@@ -484,7 +484,7 @@
                       {{ getFingerCategory(item.name) }}
                     </span>
                   </div>
-                  <a-tooltip title="条形长度以 TOP1 指纹为基准（最长即为 100%），右侧百分比为该指纹占全库站点的绝对占比">
+                  <a-tooltip :title="pageText('pages.barLengthsAreRelativeToTheMostCommonFingerprint')">
                     <div class="finger-bar-wrap">
                       <div class="finger-progress-bar">
                         <div class="finger-progress-fill" :style="{ width: getFingerPercent(item.count) + '%' }"></div>
@@ -498,7 +498,7 @@
                 </div>
               </div>
               <div v-else class="empty-widget-box">
-                <a-empty description="暂无指纹聚合数据" :image="simpleImage" />
+                <a-empty :description="pageText('pages.noAggregatedFingerprintData')" :image="simpleImage" />
               </div>
             </div>
           </a-card>
@@ -511,14 +511,14 @@
               <div class="card-header-flex">
                 <div class="card-header-title">
                   <PieChartOutlined class="card-header-icon" />
-                  <span>漏洞严重级别分布</span>
+                  <span>{{ pageText('pages.vulnerabilitySeverityDistribution') }}</span>
                 </div>
                 <div class="vuln-engine-switch">
                   <span 
                     class="engine-pill" 
                     :class="{ active: vulnEngineMode === 'all' }"
                     @click="setVulnEngineMode('all')"
-                  >全量</span>
+                  >{{ pageText('pages.allLabel2') }}</span>
                   <span 
                     class="engine-pill" 
                     :class="{ active: vulnEngineMode === 'nuclei' }"
@@ -546,10 +546,10 @@
               <div class="card-header-flex">
                 <div class="card-header-title">
                   <ThunderboltOutlined class="card-header-icon" />
-                  <span>实时侦察流水线</span>
+                  <span>{{ pageText('pages.liveDiscoveryPipeline') }}</span>
                 </div>
                 <span class="widget-extra-link" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">
-                  任务大厅 <RightOutlined style="font-size: 11px;" />
+                  {{ pageText('pages.tasks') }} <RightOutlined class="page-small-label" />
                 </span>
               </div>
             </template>
@@ -565,7 +565,7 @@
                   <div class="task-card-top">
                     <div class="task-name-box">
                       <span class="task-type-badge" :class="task.type || 'scan'">
-                        {{ task.type === 'ip' ? 'IP' : (task.type === 'domain' ? '域名' : '扫描') }}
+                        {{ task.type === 'ip' ? 'IP' : (task.type === 'domain' ? pageText('tasks.domains') : pageText('pages.scan')) }}
                       </span>
                       <span class="task-name" :title="task.name">{{ formatTaskTitle(task.name) }}</span>
                     </div>
@@ -579,7 +579,7 @@
                   </div>
                   <div class="task-card-bottom">
                     <span class="task-target" :title="task.target">
-                      <span class="target-lbl">目标:</span> <code>{{ task.target }}</code>
+                      <span class="target-lbl">{{ pageText('assets.target') }}</span> <code>{{ task.target }}</code>
                     </span>
                     <span class="task-time-wrap">
                       <ClockCircleOutlined style="font-size: 10px; margin-right: 4px; opacity: 0.7;" />
@@ -589,8 +589,8 @@
                 </div>
               </div>
               <div v-else class="empty-widget-box">
-                <a-empty description="暂无活动扫描任务" :image="simpleImage">
-                  <a-button type="primary" size="small" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">新建侦察任务</a-button>
+                <a-empty :description="pageText('pages.noActiveScanningTasks')" :image="simpleImage">
+                  <a-button type="primary" size="small" @click="router.push({ path: '/taskList', query: { tab: 'task' } })">{{ pageText('pages.newDiscoveryTask') }}</a-button>
                 </a-empty>
               </div>
             </div>
@@ -602,18 +602,18 @@
     <!-- 系统动态详情弹窗 -->
     <a-modal
       v-model:open="isLogModalVisible"
-      title="系统动态详情"
+      :title="pageText('pages.systemActivityDetails')"
       :footer="null"
       width="600px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
     >
       <div v-if="currentLog" class="log-detail-content">
-        <p><strong>【级别】</strong> <a-tag :color="getLogColor(currentLog.level)">{{ currentLog.level }}</a-tag></p>
-        <p><strong>【时间】</strong> {{ currentLog.create_time }}</p>
-        <p><strong>【标题】</strong> {{ currentLog.title || (currentLog.level === 'error' ? '系统异常' : '通知') }}</p>
+        <p><strong>{{ pageText('pages.level') }}</strong> <a-tag :color="getLogColor(currentLog.level)">{{ currentLog.level }}</a-tag></p>
+        <p><strong>{{ pageText('pages.time') }}</strong> {{ currentLog.create_time }}</p>
+        <p><strong>{{ pageText('pages.title') }}</strong> {{ currentLog.title || (currentLog.level === 'error' ? pageText('pages.systemError') : pageText('pages.notification')) }}</p>
         <div style="margin-top: 16px;">
-          <strong>【详细信息】</strong>
+          <strong>{{ pageText('pages.details') }}</strong>
           <div class="log-message-box">
             {{ currentLog.message }}
           </div>
@@ -624,11 +624,12 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 defineOptions({
   name: 'Dashboard'
 });
 
-import { ref, computed, reactive, onMounted, onUnmounted, onActivated, onDeactivated, nextTick } from 'vue';
+import { ref, computed, reactive, onMounted, onUnmounted, onActivated, onDeactivated, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { 
   DatabaseOutlined, 
@@ -665,6 +666,8 @@ echarts.use([
 ]);
 import request from '@/utils/request';
 import { formatTaskStatus } from '@/constants/taskStatus';
+
+const { t: pageText, locale: pageLocale } = useI18n({ useScope: 'global' });
 
 const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE;
 const router = useRouter();
@@ -742,7 +745,7 @@ const criticalVulnCount = computed(() => {
 
 // 格式化任务标题（去除冗余的一次性前缀，突出目标与实体）
 const formatTaskTitle = (name) => {
-  if (!name) return '未命名任务';
+  if (!name) return pageText('pages.unnamedTask');
   return name.replace(/^(一次性扫描|周期监控|定时任务)-/, '');
 };
 
@@ -756,7 +759,7 @@ const getLogMeta = (item) => {
     const cve = msg.replace('New CVE found:', '').trim();
     return {
       type: 'cve',
-      tag: 'CVE 发现',
+      tag: pageText('pages.cveDiscovered'),
       mainText: cve,
       isCve: true
     };
@@ -764,31 +767,31 @@ const getLogMeta = (item) => {
   if (msg.includes('Starting Github CVE Monitor Task')) {
     return {
       type: 'monitor',
-      tag: 'GitHub 监控',
-      mainText: '启动 CVE 监控任务',
-      desc: '执行全网 CVE 与开源威胁情报主动探测',
+      tag: pageText('pages.githubMonitoring'),
+      mainText: pageText('pages.startCveMonitoringTask'),
+      desc: pageText('pages.searchForCvesAndOpenSourceThreatIntelligence'),
       isCve: false
     };
   }
   if (level === 'error') {
     return {
       type: 'error',
-      tag: '系统异常',
-      mainText: title || '异常报警',
+      tag: pageText('pages.systemError'),
+      mainText: title || pageText('pages.errorAlert'),
       isCve: false
     };
   }
   if (level === 'warning') {
     return {
       type: 'warning',
-      tag: '风险预警',
-      mainText: title || '告警提醒',
+      tag: pageText('pages.riskWarning'),
+      mainText: title || pageText('pages.alert'),
       isCve: false
     };
   }
   return {
     type: 'info',
-    tag: title === 'run' ? '运行调度' : (title || '调度通知'),
+    tag: title === 'run' ? pageText('pages.scheduledActivity') : (title || pageText('pages.schedulingNotification')),
     mainText: msg,
     isCve: false
   };
@@ -815,7 +818,7 @@ const getLogColor = (level) => {
 
 // 任务状态文案映射（唯一事实源见 @/constants/taskStatus）
 const getTaskStatusLabel = (status) => {
-  return status ? formatTaskStatus(status) : '未知';
+  return status ? formatTaskStatus(status) : pageText('tasks.unknown');
 };
 
 // 指纹分类识别器
@@ -943,6 +946,13 @@ const setVulnEngineMode = (mode) => {
   renderVulnChart();
 };
 
+watch(pageLocale, () => {
+  renderTrendChart();
+  renderVulnChart();
+  myChart?.resize();
+  myVulnChart?.resize();
+}, { flush: 'post' });
+
 const fetchStats = async () => {
   try {
     const res = await request.get('/api/dashboard/stats');
@@ -1010,9 +1020,9 @@ const renderTrendChart = (customColor) => {
 
   // 1. 新增站点系列
   if (trendFilter.value === 'all' || trendFilter.value === 'assets') {
-    legends.push('新增站点');
+    legends.push(pageText('pages.newWebsites'));
     seriesList.push({
-      name: '新增站点',
+      name: pageText('pages.newWebsites'),
       type: 'line',
       smooth: 0.35,
       symbol: 'circle',
@@ -1031,9 +1041,9 @@ const renderTrendChart = (customColor) => {
 
   // 2. 漏洞系列
   if (trendFilter.value === 'all' || trendFilter.value === 'risks') {
-    legends.push('检出漏洞');
+    legends.push(pageText('pages.vulnerabilitiesDetected'));
     seriesList.push({
-      name: '检出漏洞',
+      name: pageText('pages.vulnerabilitiesDetected'),
       type: 'bar',
       yAxisIndex: 1,
       barMaxWidth: 12,
@@ -1047,9 +1057,9 @@ const renderTrendChart = (customColor) => {
       data: vulns
     });
 
-    legends.push('代码泄露');
+    legends.push(pageText('pages.codeLeaks'));
     seriesList.push({
-      name: '代码泄露',
+      name: pageText('pages.codeLeaks'),
       type: 'line',
       yAxisIndex: 1,
       smooth: 0.35,
@@ -1060,9 +1070,9 @@ const renderTrendChart = (customColor) => {
       lineStyle: { width: 2, type: 'dashed', color: '#fa8c16' }
     });
 
-    legends.push('CVE 情报');
+    legends.push(pageText('pages.cveIntelligence'));
     seriesList.push({
-      name: 'CVE 情报',
+      name: pageText('pages.cveIntelligence'),
       type: 'line',
       yAxisIndex: 1,
       smooth: 0.35,
@@ -1128,7 +1138,7 @@ const renderTrendChart = (customColor) => {
     yAxis: [
       {
         type: 'value',
-        name: '站点数量',
+        name: pageText('pages.websiteCount'),
         nameTextStyle: { color: isDark ? 'rgba(255, 255, 255, 0.45)' : '#888', padding: [0, 0, 0, 16], fontSize: 11 },
         axisLabel: { color: isDark ? 'rgba(255, 255, 255, 0.45)' : '#888', fontSize: 11, fontFamily: 'monospace' },
         minInterval: 1,
@@ -1141,7 +1151,7 @@ const renderTrendChart = (customColor) => {
       },
       {
         type: 'value',
-        name: '风险/事件数量',
+        name: pageText('pages.risksEvents'),
         nameTextStyle: { color: isDark ? 'rgba(255, 255, 255, 0.45)' : '#888', padding: [0, 16, 0, 0], fontSize: 11 },
         axisLabel: { color: isDark ? 'rgba(255, 255, 255, 0.45)' : '#888', fontSize: 11, fontFamily: 'monospace' },
         minInterval: 1,
@@ -1169,22 +1179,22 @@ const renderVulnChart = () => {
 
   if (vulnEngineMode.value === 'nuclei') {
     dataList = [
-      { value: v.nuclei_critical || 0, name: '严重', itemStyle: { color: '#e53935' }, tabKey: 'critical' },
-      { value: v.nuclei_high || 0, name: '高危', itemStyle: { color: '#f4511e' }, tabKey: 'high' },
-      { value: v.nuclei_medium || 0, name: '中危', itemStyle: { color: '#fb8c00' }, tabKey: 'medium' },
-      { value: v.nuclei_low || 0, name: '低危', itemStyle: { color: '#1e88e5' }, tabKey: 'low' }
+      { value: v.nuclei_critical || 0, name: pageText('assets.critical'), itemStyle: { color: '#e53935' }, tabKey: 'critical' },
+      { value: v.nuclei_high || 0, name: pageText('assets.high'), itemStyle: { color: '#f4511e' }, tabKey: 'high' },
+      { value: v.nuclei_medium || 0, name: pageText('assets.medium'), itemStyle: { color: '#fb8c00' }, tabKey: 'medium' },
+      { value: v.nuclei_low || 0, name: pageText('assets.low'), itemStyle: { color: '#1e88e5' }, tabKey: 'low' }
     ];
   } else if (vulnEngineMode.value === 'arl') {
     dataList = [
-      { value: v.arl_total || 0, name: 'ARL内置', itemStyle: { color: '#8e24aa' }, tabKey: 'arl' }
+      { value: v.arl_total || 0, name: pageText('pages.arlBuiltIn'), itemStyle: { color: '#8e24aa' }, tabKey: 'arl' }
     ];
   } else {
     dataList = [
-      { value: v.nuclei_critical || 0, name: '严重', itemStyle: { color: '#e53935' }, tabKey: 'critical' },
-      { value: v.nuclei_high || 0, name: '高危', itemStyle: { color: '#f4511e' }, tabKey: 'high' },
-      { value: v.nuclei_medium || 0, name: '中危', itemStyle: { color: '#fb8c00' }, tabKey: 'medium' },
-      { value: v.nuclei_low || 0, name: '低危', itemStyle: { color: '#1e88e5' }, tabKey: 'low' },
-      { value: v.arl_total || 0, name: 'ARL内置', itemStyle: { color: '#8e24aa' }, tabKey: 'arl' }
+      { value: v.nuclei_critical || 0, name: pageText('assets.critical'), itemStyle: { color: '#e53935' }, tabKey: 'critical' },
+      { value: v.nuclei_high || 0, name: pageText('assets.high'), itemStyle: { color: '#f4511e' }, tabKey: 'high' },
+      { value: v.nuclei_medium || 0, name: pageText('assets.medium'), itemStyle: { color: '#fb8c00' }, tabKey: 'medium' },
+      { value: v.nuclei_low || 0, name: pageText('assets.low'), itemStyle: { color: '#1e88e5' }, tabKey: 'low' },
+      { value: v.arl_total || 0, name: pageText('pages.arlBuiltIn'), itemStyle: { color: '#8e24aa' }, tabKey: 'arl' }
     ];
   }
 
@@ -1197,7 +1207,7 @@ const renderVulnChart = () => {
       backgroundColor: isDark ? 'rgba(20, 20, 20, 0.9)' : 'rgba(255, 255, 255, 0.95)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#e2e8f0',
       textStyle: { color: isDark ? 'rgba(255, 255, 255, 0.9)' : '#262626', fontSize: 12 },
-      formatter: '{b}: {c} 处 ({d}%)'
+      formatter: value => pageText('pages.chartFindingCount', { name: value.name, count: value.value, percent: value.percent })
     },
     legend: {
       orient: 'vertical',
@@ -1219,7 +1229,7 @@ const renderVulnChart = () => {
     },
     series: [
       {
-        name: '漏洞严重级别',
+        name: pageText('pages.vulnerabilitySeverity'),
         type: 'pie',
         radius: ['56%', '78%'],
         center: ['34%', '50%'],
@@ -1232,7 +1242,7 @@ const renderVulnChart = () => {
         label: {
           show: true,
           position: 'center',
-          formatter: () => `{total|${totalFilteredVulns}}\n{label|${vulnEngineMode.value === 'nuclei' ? 'Nuclei 检出' : (vulnEngineMode.value === 'arl' ? 'ARL 内置' : '全库风险')}}`,
+          formatter: () => `{total|${totalFilteredVulns}}\n{label|${vulnEngineMode.value === 'nuclei' ? pageText('pages.nucleiFindings') : (vulnEngineMode.value === 'arl' ? pageText('pages.arlBuiltInLabel2') : pageText('pages.allFindings'))}}`,
           rich: {
             total: {
               fontSize: 24,
@@ -2683,5 +2693,20 @@ onUnmounted(() => {
     height: auto;
     min-height: 255px;
   }
+}
+
+.page-error-note { color: #ff4d4f; margin-top: 2px; }
+.page-warning-note { color: #faad14; margin-top: 2px; }
+.page-small-label { font-size: 11px; }
+
+.page-english .vuln-matrix-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+.page-english .vuln-total-unit { display: block; margin-left: 0; line-height: 1.5; }
+.page-english .critical-alert-tag { white-space: normal; max-width: 100%; }
+.page-english .cell-lbl { white-space: normal; line-height: 1.5; }
+.page-english .card-header-flex { flex-wrap: wrap; row-gap: 8px; }
+.page-english .trend-controls { flex-wrap: wrap; }
+.page-english .main-card :deep(.ant-card-head-title) { white-space: normal; }
+@media (min-width: 992px) and (max-width: 1599px) {
+  .page-english .stat-row > :deep(.ant-col) { flex: 0 0 50%; max-width: 50%; }
 }
 </style>

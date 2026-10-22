@@ -1,3 +1,7 @@
+import { i18n } from '../i18n/index.js';
+
+const pageText = (...args) => i18n.global.t(...args);
+
 /**
  * 提取图片的主色调，内置超时与降级保护，避免解析挂死
  * @param {string} imageSrc - 图片的 Base64 或 URL
@@ -108,14 +112,14 @@ export const extractDominantColor = (imageSrc, timeoutMs = 2500) => {
 export const processImageToBase64 = (file, maxWidth = 1920, maxHeight = 1080, quality = 0.85) => {
   return new Promise((resolve, reject) => {
     if (!file || !file.type || !file.type.startsWith('image/')) {
-      return reject(new Error('请选择有效的图片文件'));
+      return reject(new Error(pageText('pages.selectAValidImageFile')));
     }
 
     let objectUrl = null;
     try {
       objectUrl = URL.createObjectURL(file);
     } catch (e) {
-      return reject(new Error('创建图片临时对象失败: ' + (e.message || '未知错误')));
+      return reject(new Error(pageText('pages.failedToCreateATemporaryImageUrl') + (e.message || pageText('tasks.unknownError'))));
     }
 
     const cleanup = () => {
@@ -144,7 +148,7 @@ export const processImageToBase64 = (file, maxWidth = 1920, maxHeight = 1080, qu
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          return reject(new Error('创建 Canvas 2D 绘图上下文失败'));
+          return reject(new Error(pageText('pages.failedToCreateACanvas2dContext')));
         }
 
         ctx.drawImage(img, 0, 0, width, height);
@@ -161,13 +165,13 @@ export const processImageToBase64 = (file, maxWidth = 1920, maxHeight = 1080, qu
 
         resolve(canvas.toDataURL('image/jpeg', quality));
       } catch (err) {
-        reject(new Error('图片压缩处理失败: ' + (err.message || '未知错误')));
+        reject(new Error(pageText('pages.failedToProcessImage') + (err.message || pageText('tasks.unknownError'))));
       }
     };
 
     img.onerror = () => {
       cleanup();
-      reject(new Error('图片解码失败，请确认文件是否完整'));
+      reject(new Error(pageText('pages.failedToDecodeImageCheckThatTheFileIs')));
     };
 
     img.src = objectUrl;

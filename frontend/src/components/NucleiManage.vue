@@ -1,34 +1,34 @@
 <template>
-  <div class="nuclei-manage-container">
+  <div class="nuclei-manage-container" :class="{ 'page-english': pageLocale === 'en-US' }">
     <!-- 统计指示条 -->
     <div class="stats-overview-bar">
       <div class="stat-pill">
-        <span class="stat-label">自建模板</span>
+        <span class="stat-label">{{ pageText('pages.customTemplates') }}</span>
         <span class="stat-val highlight">{{ stats.custom_total }}</span>
       </div>
       <div class="stat-pill">
-        <span class="stat-label">已启用自建</span>
+        <span class="stat-label">{{ pageText('pages.enabledCustomTemplates') }}</span>
         <span class="stat-val active">{{ stats.custom_enabled }}</span>
       </div>
       <div class="stat-pill">
-        <span class="stat-label">官方社区库</span>
-        <span class="stat-val">{{ stats.community_total ? stats.community_total.toLocaleString() : '扫描中...' }}</span>
+        <span class="stat-label">{{ pageText('pages.communityLibrary') }}</span>
+        <span class="stat-val">{{ stats.community_total ? stats.community_total.toLocaleString() : pageText('pages.scanning') }}</span>
       </div>
       <div class="stat-pill">
-        <span class="stat-label">已屏蔽误报</span>
+        <span class="stat-label">{{ pageText('pages.blockedFalsePositives') }}</span>
         <span class="stat-val" style="color: #fa8c16; font-weight: 600;">{{ stats.blacklist_total || 0 }}</span>
       </div>
       <div class="stat-pill">
-        <span class="stat-label">社区模板版本</span>
+        <span class="stat-label">{{ pageText('pages.communityTemplateVersion') }}</span>
         <a-tag :color="stats.has_template_update ? 'orange' : 'cyan'" style="margin: 0; font-weight: 500;">
-          {{ stats.template_version || '未知' }}
-          <span v-if="stats.has_template_update" style="margin-left: 4px; font-size: 11px;">(可更新至 {{ stats.template_latest_version }})</span>
+          {{ formatTemplateVersion(stats.template_version) }}
+          <span v-if="stats.has_template_update" class="page-version-note">({{ pageText('pages.templateUpdateAvailable', { version: formatTemplateVersion(stats.template_latest_version) }) }})</span>
         </a-tag>
       </div>
       <div class="stat-pill">
-        <span class="stat-label">Nuclei 引擎</span>
-        <a-tag :color="stats.nuclei_version !== '未知' ? 'green' : 'orange'" style="margin: 0; font-weight: 500;">
-          {{ stats.nuclei_version }}
+        <span class="stat-label">{{ pageText('pages.nucleiEngine') }}</span>
+        <a-tag :color="stats.nuclei_version !== pageText('tasks.unknown') ? 'green' : 'orange'" class="page-quiet-status-tag">
+          {{ formatTemplateVersion(stats.nuclei_version) }}
         </a-tag>
       </div>
     </div>
@@ -36,74 +36,74 @@
     <!-- 二级 Sub-Tabs -->
     <a-tabs v-model:activeKey="innerTab" type="card" class="nuclei-inner-tabs">
       <!-- 1. 社区模板库 (只读检索) -->
-      <a-tab-pane key="community" tab="社区模板库 (只读检索)">
+      <a-tab-pane key="community" :tab="pageText('pages.communityTemplatesReadOnlySearch')">
         <div class="tab-content-wrapper">
           <div class="filter-bar-row">
             <div class="filter-item">
-              <span class="filter-label">关键词 / CVE：</span>
-              <a-input v-model:value="communitySearch.search" placeholder="输入 CVE 或名称进行检索" style="width: 240px;" allowClear @pressEnter="onSearchCommunity" />
+              <span class="filter-label">{{ pageText('pages.keywordCve') }}</span>
+              <a-input v-model:value="communitySearch.search" :placeholder="pageText('pages.searchByCveOrName')" class="page-width-240" allowClear @pressEnter="onSearchCommunity" />
             </div>
             <div class="filter-item">
-              <span class="filter-label">危害级别：</span>
-              <a-select v-model:value="communitySearch.severity" style="width: 130px;" allowClear placeholder="全部级别" @change="onSearchCommunity">
-                <a-select-option value="critical">严重 (Critical)</a-select-option>
-                <a-select-option value="high">高危 (High)</a-select-option>
-                <a-select-option value="medium">中危 (Medium)</a-select-option>
-                <a-select-option value="low">低危 (Low)</a-select-option>
-                <a-select-option value="info">信息 (Info)</a-select-option>
+              <span class="filter-label">{{ pageText('pages.severityLabel2') }}</span>
+              <a-select v-model:value="communitySearch.severity" class="page-width-130" allowClear :placeholder="pageText('pages.allSeverities')" @change="onSearchCommunity">
+                <a-select-option value="critical">{{ pageText('pages.critical') }}</a-select-option>
+                <a-select-option value="high">{{ pageText('pages.high') }}</a-select-option>
+                <a-select-option value="medium">{{ pageText('pages.medium') }}</a-select-option>
+                <a-select-option value="low">{{ pageText('pages.low') }}</a-select-option>
+                <a-select-option value="info">{{ pageText('pages.info') }}</a-select-option>
               </a-select>
             </div>
             <div class="filter-item">
-              <span class="filter-label">扫描状态：</span>
-              <a-select v-model:value="communitySearch.blacklist_status" style="width: 140px;" placeholder="全部状态" @change="onSearchCommunity">
-                <a-select-option value="all">全部模板</a-select-option>
-                <a-select-option value="normal">正常扫描</a-select-option>
-                <a-select-option value="blacklisted">已屏蔽(误报)</a-select-option>
+              <span class="filter-label">{{ pageText('pages.scanStatus') }}</span>
+              <a-select v-model:value="communitySearch.blacklist_status" class="page-width-140" :placeholder="pageText('tasks.allStatuses')" @change="onSearchCommunity">
+                <a-select-option value="all">{{ pageText('pages.allTemplates') }}</a-select-option>
+                <a-select-option value="normal">{{ pageText('pages.includedInScans') }}</a-select-option>
+                <a-select-option value="blacklisted">{{ pageText('pages.blockedFalsePositive') }}</a-select-option>
               </a-select>
             </div>
             <div class="filter-actions">
-              <a-button type="primary" @click="onSearchCommunity"><template #icon><search-outlined /></template>查 询</a-button>
-              <a-button @click="resetSearchCommunity">重 置</a-button>
+              <a-button type="primary" @click="onSearchCommunity"><template #icon><search-outlined /></template>{{ pageText('tasks.search') }}</a-button>
+              <a-button @click="resetSearchCommunity">{{ pageText('tasks.reset') }}</a-button>
             </div>
 
             <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
               <!-- 同步状态指示 -->
               <a-tag v-if="syncStatus.status === 'syncing'" color="processing" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
                 <template #icon><sync-outlined spin /></template>
-                官方模板加速同步中...
+                {{ pageText('pages.synchronizingCommunityTemplates') }}
               </a-tag>
               <a-tag v-else-if="syncStatus.status === 'success'" color="success" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
                 <template #icon><check-circle-outlined /></template>
-                同步已完成 ({{ syncStatus.diff_count >= 0 ? '+' : '' }}{{ syncStatus.diff_count }}条)
+                {{ pageText('pages.synchronizationCompleted') }}{{ syncStatus.diff_count >= 0 ? '+' : '' }}{{ syncStatus.diff_count }}{{ pageText('pages.templates') }}
               </a-tag>
               <a-tag v-else-if="syncStatus.status === 'failed'" color="error" style="cursor: pointer; padding: 3px 8px;" @click="openSyncLogModal">
                 <template #icon><close-circle-outlined /></template>
-                同步异常 (点击查看)
+                {{ pageText('pages.synchronizationFailedClickForDetails') }}
               </a-tag>
 
               <!-- 查看日志按钮 -->
               <a-button type="link" size="small" style="padding: 0 4px;" @click="openSyncLogModal">
                 <template #icon><file-text-outlined /></template>
-                查看同步日志
+                {{ pageText('pages.viewSynchronizationLogs') }}
               </a-button>
 
               <!-- 在线同步按钮 -->
               <a-popconfirm
-                title="确认启动官方模板库加速同步吗？系统将自动通过镜像加速通道更新至最新版本。"
-                ok-text="确认同步"
-                cancel-text="取消"
+                :title="pageText('pages.synchronizeTheCommunityTemplateLibraryTheSystemWillUse')"
+                :ok-text="pageText('pages.confirmSynchronization')"
+                :cancel-text="pageText('tasks.cancel')"
                 @confirm="handleSyncCommunity"
               >
                 <a-button type="primary" :loading="syncStatus.status === 'syncing'">
                   <template #icon><sync-outlined /></template>
-                  同步最新官方版本
+                  {{ pageText('pages.syncLatestCommunityVersion') }}
                 </a-button>
               </a-popconfirm>
 
               <!-- 离线更新包按钮 -->
               <a-button @click="isOfflineModalVisible = true">
                 <template #icon><cloud-upload-outlined /></template>
-                离线更新包
+                {{ pageText('pages.offlineUpdatePackage') }}
               </a-button>
             </div>
           </div>
@@ -130,10 +130,10 @@
                 </a-tag>
               </template>
               <template v-if="column.key === 'status'">
-                <a-tooltip v-if="record.is_blacklisted" :title="record.blacklist_reason ? `屏蔽原因: ${record.blacklist_reason}` : '已加入误报黑名单，扫描不执行'">
-                  <a-tag color="orange" style="cursor: pointer;">已屏蔽 (误报)</a-tag>
+                <a-tooltip v-if="record.is_blacklisted" :title="record.blacklist_reason ? pageText('pages.reasonForBlockingReason', { reason: record.blacklist_reason }) : pageText('pages.blockedAsAFalsePositiveExcludedFromScans')">
+                  <a-tag color="orange" class="page-clickable">{{ pageText('pages.blockedFalsePositiveLabel2') }}</a-tag>
                 </a-tooltip>
-                <a-tag v-else color="blue">正常扫描</a-tag>
+                <a-tag v-else color="blue">{{ pageText('pages.includedInScans') }}</a-tag>
               </template>
               <template v-if="column.key === 'file_path'">
                 <span style="font-family: monospace; font-size: 12px; color: var(--arl-text-color); opacity: 0.65;">
@@ -143,19 +143,19 @@
               <template v-if="column.key === 'action'">
                 <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
                   <a @click="viewCommunitySource(record)">
-                    <file-text-outlined /> 查看 YAML
+                    <file-text-outlined /> {{ pageText('pages.viewYaml') }}
                   </a>
                   <a-popconfirm
                     v-if="record.is_blacklisted"
-                    title="确认解除该模板的误报屏蔽（恢复参与扫描）吗？"
-                    ok-text="解除屏蔽"
-                    cancel-text="取消"
+                    :title="pageText('pages.unblockThisTemplateAndIncludeItInScansAgain')"
+                    :ok-text="pageText('pages.unblock')"
+                    :cancel-text="pageText('tasks.cancel')"
                     @confirm="handleRemoveBlacklist(record.template_id)"
                   >
-                    <a style="color: #52c41a;"><check-outlined /> 解除屏蔽</a>
+                    <a class="page-success"><check-outlined /> {{ pageText('pages.unblock') }}</a>
                   </a-popconfirm>
                   <a v-else style="color: #fa8c16;" @click="openMarkBlacklistModal(record)">
-                    <stop-outlined /> 标记误报
+                    <stop-outlined /> {{ pageText('pages.markAsFalsePositive') }}
                   </a>
                 </div>
               </template>
@@ -165,7 +165,7 @@
           <!-- 分页器 -->
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
             <div style="color: var(--arl-text-color); opacity: 0.65;">
-              共 {{ Math.ceil(communityPagination.total / communityPagination.pageSize) || 1 }} 页 / {{ communityPagination.total }} 条数据
+              {{ pageText('tasks.paginationSummary', { pages: Math.ceil(communityPagination.total / communityPagination.pageSize) || 1, total: communityPagination.total }) }}
             </div>
             <a-pagination
               :pageSizeOptions="$pageSizeOptions"
@@ -180,50 +180,50 @@
       </a-tab-pane>
 
       <!-- 2. 误报黑名单 (集中治理) -->
-      <a-tab-pane key="blacklist" tab="误报黑名单 (集中治理)">
+      <a-tab-pane key="blacklist" :tab="pageText('pages.falsePositiveBlocklist')">
         <div class="tab-content-wrapper">
           <!-- 顶部操作栏 -->
           <div class="action-bar-row">
             <a-button type="primary" @click="openAddBlacklistModal">
               <template #icon><plus-outlined /></template>
-              手动录入误报
+              {{ pageText('pages.addAFalsePositive') }}
             </a-button>
             <a-popconfirm
-              title="确认将选中的模板从误报黑名单移除（恢复参与扫描）吗？"
-              ok-text="确认移除"
-              cancel-text="取消"
+              :title="pageText('pages.removeTheSelectedTemplatesFromTheFalsePositiveBlocklist')"
+              :ok-text="pageText('pages.confirmRemoval')"
+              :cancel-text="pageText('tasks.cancel')"
               @confirm="handleBatchRemoveBlacklist"
               :disabled="blacklistSelectedRowKeys.length === 0"
             >
               <a-button danger :disabled="blacklistSelectedRowKeys.length === 0">
                 <template #icon><delete-outlined /></template>
-                批量解除屏蔽
+                {{ pageText('pages.unblockSelectedTemplates') }}
               </a-button>
             </a-popconfirm>
             <div style="margin-left: auto; color: var(--arl-text-color); opacity: 0.65; font-size: 13px;">
-              💡 提示：被屏蔽的模板将在后续全站所有 Nuclei 扫描任务中自动排除（通过引擎原生 -eid 临时清单注入，零篡改模板文件）
+              {{ pageText('pages.blockedTemplatesAreExcludedFromAllSubsequentNucleiScans') }}
             </div>
           </div>
 
           <!-- 搜索过滤栏 -->
           <div class="filter-bar-row">
             <div class="filter-item">
-              <span class="filter-label">关键词：</span>
-              <a-input v-model:value="blacklistSearch.search" placeholder="输入 ID、名称或误报原因" style="width: 240px;" allowClear @pressEnter="onSearchBlacklist" />
+              <span class="filter-label">{{ pageText('pages.keywordLabel3') }}</span>
+              <a-input v-model:value="blacklistSearch.search" :placeholder="pageText('pages.enterAnIdNameOrReasonForBlocking')" class="page-width-240" allowClear @pressEnter="onSearchBlacklist" />
             </div>
             <div class="filter-item">
-              <span class="filter-label">危害级别：</span>
-              <a-select v-model:value="blacklistSearch.severity" style="width: 130px;" allowClear placeholder="全部级别" @change="onSearchBlacklist">
-                <a-select-option value="critical">严重 (Critical)</a-select-option>
-                <a-select-option value="high">高危 (High)</a-select-option>
-                <a-select-option value="medium">中危 (Medium)</a-select-option>
-                <a-select-option value="low">低危 (Low)</a-select-option>
-                <a-select-option value="info">信息 (Info)</a-select-option>
+              <span class="filter-label">{{ pageText('pages.severityLabel2') }}</span>
+              <a-select v-model:value="blacklistSearch.severity" class="page-width-130" allowClear :placeholder="pageText('pages.allSeverities')" @change="onSearchBlacklist">
+                <a-select-option value="critical">{{ pageText('pages.critical') }}</a-select-option>
+                <a-select-option value="high">{{ pageText('pages.high') }}</a-select-option>
+                <a-select-option value="medium">{{ pageText('pages.medium') }}</a-select-option>
+                <a-select-option value="low">{{ pageText('pages.low') }}</a-select-option>
+                <a-select-option value="info">{{ pageText('pages.info') }}</a-select-option>
               </a-select>
             </div>
             <div class="filter-actions">
-              <a-button type="primary" @click="onSearchBlacklist"><template #icon><search-outlined /></template>查 询</a-button>
-              <a-button @click="resetSearchBlacklist">重 置</a-button>
+              <a-button type="primary" @click="onSearchBlacklist"><template #icon><search-outlined /></template>{{ pageText('tasks.search') }}</a-button>
+              <a-button @click="resetSearchBlacklist">{{ pageText('tasks.reset') }}</a-button>
             </div>
           </div>
 
@@ -244,7 +244,7 @@
               <template v-if="column.key === 'template_id'">
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <span style="font-family: monospace; font-weight: 600; color: #fa8c16;">{{ record.template_id }}</span>
-                  <a-tooltip title="复制模板 ID">
+                  <a-tooltip :title="pageText('pages.copyTemplateId')">
                     <copy-outlined style="cursor: pointer; opacity: 0.5; font-size: 12px;" @click="copyText(record.template_id)" />
                   </a-tooltip>
                 </div>
@@ -266,15 +266,15 @@
               <template v-if="column.key === 'action'">
                 <div style="display: flex; gap: 10px; align-items: center; justify-content: center;">
                   <a @click="viewCommunitySource(record)">
-                    <file-text-outlined /> 查看 YAML
+                    <file-text-outlined /> {{ pageText('pages.viewYaml') }}
                   </a>
                   <a-popconfirm
-                    title="确认将该模板移出误报黑名单（恢复参与扫描）吗？"
-                    ok-text="解除屏蔽"
-                    cancel-text="取消"
+                    :title="pageText('pages.removeThisTemplateFromTheFalsePositiveBlocklistAnd')"
+                    :ok-text="pageText('pages.unblock')"
+                    :cancel-text="pageText('tasks.cancel')"
                     @confirm="handleRemoveBlacklist(record.template_id)"
                   >
-                    <a style="color: #52c41a;"><check-outlined /> 解除屏蔽</a>
+                    <a class="page-success"><check-outlined /> {{ pageText('pages.unblock') }}</a>
                   </a-popconfirm>
                 </div>
               </template>
@@ -282,7 +282,7 @@
             <template #emptyText>
               <div style="padding: 40px 0;">
                 <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
-                <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无被屏蔽的误报模板，扫描将使用官方推荐规则执行</div>
+                <div class="page-option-hint">{{ pageText('pages.noFalsePositiveTemplatesBlockedScansWillUseThe') }}</div>
               </div>
             </template>
           </a-table>
@@ -290,7 +290,7 @@
           <!-- 分页器 -->
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
             <div style="color: var(--arl-text-color); opacity: 0.65;">
-              共 {{ Math.ceil(blacklistPagination.total / blacklistPagination.pageSize) || 1 }} 页 / {{ blacklistPagination.total }} 条被屏蔽规则
+              {{ pageText('tasks.paginationSummary', { pages: Math.ceil(blacklistPagination.total / blacklistPagination.pageSize) || 1, total: blacklistPagination.total }) }}
             </div>
             <a-pagination
               :pageSizeOptions="$pageSizeOptions"
@@ -305,42 +305,42 @@
       </a-tab-pane>
 
       <!-- 3. 自建模板库 (工作台) -->
-      <a-tab-pane key="custom" tab="自建模板库 (工作台)">
+      <a-tab-pane key="custom" :tab="pageText('pages.customTemplateWorkspace')">
         <div class="tab-content-wrapper">
           <!-- 顶部操作栏 -->
           <div class="action-bar-row">
             <a-button type="primary" @click="openCreateModal">
               <template #icon><plus-outlined /></template>
-              新建模板
+              {{ pageText('pages.newTemplate') }}
             </a-button>
             <a-button type="primary" @click="isImportModalVisible = true">
               <template #icon><cloud-upload-outlined /></template>
-              导入模板
+              {{ pageText('pages.importTemplates') }}
             </a-button>
             <a-button @click="downloadSampleTemplate">
               <template #icon><download-outlined /></template>
-              下载标准模板
+              {{ pageText('pages.downloadStandardTemplate') }}
             </a-button>
             <a-button @click="handleExport">
               <template #icon><cloud-download-outlined /></template>
-              导出所选 / 全部
+              {{ pageText('pages.exportSelectedAll') }}
             </a-button>
             <a-button :disabled="selectedRowKeys.length === 0" @click="handleBatchToggle(true)">
-              批量启用
+              {{ pageText('pages.enableSelected') }}
             </a-button>
             <a-button :disabled="selectedRowKeys.length === 0" @click="handleBatchToggle(false)">
-              批量禁用
+              {{ pageText('pages.disableSelected') }}
             </a-button>
             <a-popconfirm
-              title="确认批量删除选中的自建模板吗？此操作不可逆！"
-              ok-text="确认"
-              cancel-text="取消"
+              :title="pageText('pages.permanentlyDeleteTheSelectedCustomTemplatesThisCannotBe')"
+              :ok-text="pageText('assets.confirm')"
+              :cancel-text="pageText('tasks.cancel')"
               @confirm="handleBatchDelete"
               :disabled="selectedRowKeys.length === 0"
             >
               <a-button type="primary" danger :disabled="selectedRowKeys.length === 0" :loading="batchDeleteLoading">
                 <template #icon><delete-outlined /></template>
-                批量删除
+                {{ pageText('tasks.deleteSelected') }}
               </a-button>
             </a-popconfirm>
           </div>
@@ -348,30 +348,30 @@
           <!-- 搜索与筛选区 -->
           <div class="filter-bar-row">
             <div class="filter-item">
-              <span class="filter-label">模板 ID：</span>
-              <a-input v-model:value="customSearch.template_id" placeholder="如 cve-2024" style="width: 170px;" allowClear @pressEnter="onSearchCustom" />
+              <span class="filter-label">{{ pageText('pages.templateId') }}</span>
+              <a-input v-model:value="customSearch.template_id" :placeholder="pageText('pages.eGCve2024')" class="page-width-170" allowClear @pressEnter="onSearchCustom" />
             </div>
             <div class="filter-item">
-              <span class="filter-label">漏洞名称：</span>
-              <a-input v-model:value="customSearch.name" placeholder="请输入名称" style="width: 170px;" allowClear @pressEnter="onSearchCustom" />
+              <span class="filter-label">{{ pageText('pages.vulnerabilityName') }}</span>
+              <a-input v-model:value="customSearch.name" :placeholder="pageText('tasks.enterAName')" class="page-width-170" allowClear @pressEnter="onSearchCustom" />
             </div>
             <div class="filter-item">
-              <span class="filter-label">危害级别：</span>
-              <a-select v-model:value="customSearch.severity" style="width: 130px;" allowClear placeholder="全部级别" @change="onSearchCustom">
-                <a-select-option value="critical">严重 (Critical)</a-select-option>
-                <a-select-option value="high">高危 (High)</a-select-option>
-                <a-select-option value="medium">中危 (Medium)</a-select-option>
-                <a-select-option value="low">低危 (Low)</a-select-option>
-                <a-select-option value="info">信息 (Info)</a-select-option>
+              <span class="filter-label">{{ pageText('pages.severityLabel2') }}</span>
+              <a-select v-model:value="customSearch.severity" class="page-width-130" allowClear :placeholder="pageText('pages.allSeverities')" @change="onSearchCustom">
+                <a-select-option value="critical">{{ pageText('pages.critical') }}</a-select-option>
+                <a-select-option value="high">{{ pageText('pages.high') }}</a-select-option>
+                <a-select-option value="medium">{{ pageText('pages.medium') }}</a-select-option>
+                <a-select-option value="low">{{ pageText('pages.low') }}</a-select-option>
+                <a-select-option value="info">{{ pageText('pages.info') }}</a-select-option>
               </a-select>
             </div>
             <div class="filter-item">
-              <span class="filter-label">标签 Tag：</span>
-              <a-input v-model:value="customSearch.tag" placeholder="如 rce, spring" style="width: 150px;" allowClear @pressEnter="onSearchCustom" />
+              <span class="filter-label">{{ pageText('pages.tags') }}</span>
+              <a-input v-model:value="customSearch.tag" :placeholder="pageText('pages.eGRceSpring')" class="page-width-150" allowClear @pressEnter="onSearchCustom" />
             </div>
             <div class="filter-actions">
-              <a-button type="primary" @click="onSearchCustom"><template #icon><search-outlined /></template>查 询</a-button>
-              <a-button @click="resetSearchCustom">重 置</a-button>
+              <a-button type="primary" @click="onSearchCustom"><template #icon><search-outlined /></template>{{ pageText('tasks.search') }}</a-button>
+              <a-button @click="resetSearchCustom">{{ pageText('tasks.reset') }}</a-button>
             </div>
           </div>
 
@@ -393,7 +393,7 @@
               <template v-if="column.key === 'template_id'">
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <span style="font-family: monospace; font-weight: 600; color: var(--arl-text-color);">{{ record.template_id }}</span>
-                  <a-tooltip title="复制模板 ID">
+                  <a-tooltip :title="pageText('pages.copyTemplateId')">
                     <copy-outlined style="cursor: pointer; opacity: 0.5; font-size: 12px;" @click="copyText(record.template_id)" />
                   </a-tooltip>
                 </div>
@@ -423,20 +423,20 @@
                 <a-switch
                   :checked="record.enable"
                   :loading="record._toggling"
-                  checked-children="启用"
-                  un-checked-children="禁用"
+                  :checked-children="pageText('pages.enable')"
+                  :un-checked-children="pageText('pages.disable')"
                   @change="(val) => handleToggleEnable(record, val)"
                 />
               </template>
 
               <template v-if="column.key === 'action'">
                 <div style="display: flex; gap: 12px; align-items: center;">
-                  <a @click="openEditModal(record)">编辑源码</a>
+                  <a @click="openEditModal(record)">{{ pageText('pages.editSource') }}</a>
                   <a @click="openDryRunDirect(record)" style="color: #52c41a;">
-                    <thunderbolt-outlined /> 调试
+                    <thunderbolt-outlined /> {{ pageText('pages.debug') }}
                   </a>
-                  <a-popconfirm title="确认删除此模板吗？" ok-text="删除" cancel-text="取消" @confirm="handleSingleDelete(record.template_id)">
-                    <a style="color: #ff4d4f;">删除</a>
+                  <a-popconfirm :title="pageText('pages.deleteThisTemplate')" :ok-text="pageText('tasks.delete')" :cancel-text="pageText('tasks.cancel')" @confirm="handleSingleDelete(record.template_id)">
+                    <a class="page-danger">{{ pageText('tasks.delete') }}</a>
                   </a-popconfirm>
                 </div>
               </template>
@@ -445,7 +445,7 @@
             <template #emptyText>
               <div style="padding: 40px 0;">
                 <inbox-outlined style="font-size: 48px; color: var(--arl-border-color);" />
-                <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 8px;">暂无自建模板，点击上方「新建模板」或「导入」开始使用</div>
+                <div class="page-option-hint">{{ pageText('pages.noCustomTemplatesSelectNewTemplateOrImportTemplates') }}</div>
               </div>
             </template>
           </a-table>
@@ -453,7 +453,7 @@
           <!-- 分页器 -->
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 0;">
             <div style="color: var(--arl-text-color); opacity: 0.65;">
-              共 {{ Math.ceil(customPagination.total / customPagination.pageSize) || 1 }} 页 / {{ customPagination.total }} 条数据
+              {{ pageText('tasks.paginationSummary', { pages: Math.ceil(customPagination.total / customPagination.pageSize) || 1, total: customPagination.total }) }}
             </div>
             <a-pagination
               :pageSizeOptions="$pageSizeOptions"
@@ -471,7 +471,7 @@
     <!-- 弹窗 1：新建 / 编辑自建模板弹窗 (带 Dry Run) -->
     <a-modal
       v-model:open="isEditModalVisible"
-      :title="isCreateMode ? '新建 Nuclei 模板' : `编辑模板 - ${currentEditTemplateId}`"
+      :title="isCreateMode ? pageText('pages.newNucleiTemplate') : pageText('pages.editTemplateId', { id: currentEditTemplateId })"
       width="900px"
       :footer="null"
       :destroyOnClose="true"
@@ -479,12 +479,12 @@
       <div style="display: flex; flex-direction: column; gap: 12px;">
         <!-- 骨架模板快速填充选择器 (仅新建时显示) -->
         <div v-if="isCreateMode" style="display: flex; align-items: center; justify-content: space-between; background: var(--arl-bg-layout); padding: 8px 12px; border-radius: 4px;">
-          <span style="font-size: 13px; font-weight: 500;">快速预设骨架：</span>
+          <span class="page-label">{{ pageText('pages.starterTemplate') }}</span>
           <a-select v-model:value="selectedSkeleton" style="width: 240px;" @change="handleSkeletonChange">
-            <a-select-option value="http_get">标准 HTTP GET 漏洞验证</a-select-option>
-            <a-select-option value="http_post">HTTP POST 带有 Body 与标头</a-select-option>
-            <a-select-option value="file_leak">敏感信息泄露 / 备份文件</a-select-option>
-            <a-select-option value="dns_check">DNS 解析记录匹配</a-select-option>
+            <a-select-option value="http_get">{{ pageText('pages.standardHttpGetVulnerabilityCheck') }}</a-select-option>
+            <a-select-option value="http_post">{{ pageText('pages.httpPostWithBodyAndHeaders') }}</a-select-option>
+            <a-select-option value="file_leak">{{ pageText('pages.sensitiveInformationBackupFileDisclosure') }}</a-select-option>
+            <a-select-option value="dns_check">{{ pageText('pages.dnsRecordMatching') }}</a-select-option>
           </a-select>
         </div>
 
@@ -492,7 +492,7 @@
         <div style="border: 1px solid var(--arl-border-color); border-radius: 4px; overflow: hidden;">
           <codemirror
             v-model="currentEditorCode"
-            placeholder="请在此输入合规的 Nuclei YAML 规则..."
+            :placeholder="pageText('pages.enterAValidNucleiYamlTemplateHere')"
             :style="{ height: '400px', fontSize: '13px' }"
             :autofocus="true"
             :indent-with-tab="true"
@@ -509,24 +509,24 @@
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
             <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
               <thunderbolt-outlined style="color: #faad14;" />
-              <span>在线单目标即时调试 (Dry Run)</span>
+              <span>{{ pageText('pages.runAgainstOneTargetDryRun') }}</span>
             </div>
-            <span style="font-size: 12px; opacity: 0.5;">限时 30 秒执行，所见即所得</span>
+            <span class="page-faded-note">{{ pageText('pages.executionIsLimitedTo30Seconds') }}</span>
           </div>
 
           <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-            <a-input v-model:value="dryRunTarget" placeholder="输入测试目标 (如: https://example.com 或 1.2.3.4:8080)" style="flex: 1;" />
+            <a-input v-model:value="dryRunTarget" :placeholder="pageText('pages.testTargetEGHttpsExampleComOr1')" class="page-fill-space" />
             <a-button type="primary" ghost :loading="dryRunLoading" @click="executeDryRun">
               <template #icon><play-circle-outlined /></template>
-              发送测试
+              {{ pageText('pages.runTest') }}
             </a-button>
           </div>
 
           <div v-if="dryRunOutput" class="dryrun-console">
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px; color: #8c8c8c; font-size: 11px;">
-              <span>Nuclei 回显控制台 (耗时: {{ dryRunCost }}s)</span>
+              <span>{{ pageText('pages.nucleiOutputElapsed') }} {{ dryRunCost }}s)</span>
               <a-tag :color="dryRunMatched ? 'red' : 'default'" size="small">
-                {{ dryRunMatched ? '🎯 匹配漏洞命中' : '⚪ 未触发匹配' }}
+                {{ dryRunMatched ? pageText('pages.vulnerabilityMatched') : pageText('pages.noMatch') }}
               </a-tag>
             </div>
             <pre class="console-pre">{{ dryRunOutput }}</pre>
@@ -535,16 +535,16 @@
 
         <!-- 底部保存按钮 -->
         <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px;">
-          <a-button @click="isEditModalVisible = false">取 消</a-button>
+          <a-button @click="isEditModalVisible = false">{{ pageText('assets.cancel') }}</a-button>
           <a-button type="primary" :loading="saveLoading" @click="saveTemplate">
-            保 存 模 板
+            {{ pageText('pages.saveTemplate') }}
           </a-button>
         </div>
       </div>
     </a-modal>
 
     <!-- 弹窗 2：导入模板弹窗 -->
-    <a-modal v-model:open="isImportModalVisible" title="批量导入 Nuclei 模板" :footer="null">
+    <a-modal v-model:open="isImportModalVisible" :title="pageText('pages.importNucleiTemplatesInBulk')" :footer="null">
       <a-upload-dragger
         name="file"
         :multiple="true"
@@ -554,13 +554,13 @@
         @change="handleUploadChange"
       >
         <p class="ant-upload-drag-icon"><inbox-outlined /></p>
-        <p class="ant-upload-text">点击或将文件拖拽到这里上传</p>
-        <p class="ant-upload-hint">支持 .yaml / .yml 单文件，或打包了模板的 .zip 压缩包</p>
+        <p class="ant-upload-text">{{ pageText('pages.clickOrDragFilesHereToUpload') }}</p>
+        <p class="ant-upload-hint">{{ pageText('pages.acceptsYamlYmlFilesOrAZipArchiveContaining') }}</p>
       </a-upload-dragger>
       <div style="margin-top: 12px; display: flex; justify-content: flex-end; align-items: center; font-size: 13px;">
-        <span style="color: var(--arl-text-color); opacity: 0.65;">需要标准格式参考？</span>
+        <span class="page-muted">{{ pageText('pages.needAStandardFormatExample') }}</span>
         <a @click="downloadSampleTemplate" style="margin-left: 6px; font-weight: 500;">
-          <download-outlined /> 下载标准 YAML 模板
+          <download-outlined /> {{ pageText('pages.downloadStandardYamlTemplate') }}
         </a>
       </div>
     </a-modal>
@@ -568,12 +568,12 @@
     <!-- 抽屉：查看社区模板源码 -->
     <a-drawer
       v-model:open="isCommunityDrawerVisible"
-      :title="`社区模板源码 - ${selectedCommunityRecord?.template_id || ''}`"
+      :title="pageText('pages.communityTemplateSourceId', { id: selectedCommunityRecord?.template_id || '' })"
       placement="right"
       width="750"
     >
       <div v-if="communitySourceLoading" style="text-align: center; padding: 60px 0;">
-        <a-spin tip="加载模板源码中..." />
+        <a-spin :tip="pageText('pages.loadingTemplateSource')" />
       </div>
       <div v-else style="border: 1px solid var(--arl-border-color); border-radius: 4px; overflow: hidden;">
         <codemirror
@@ -590,7 +590,7 @@
     <!-- 弹窗 3：官方模板同步控制台 -->
     <a-modal
       v-model:open="isSyncLogModalVisible"
-      title="官方社区模板同步控制台"
+      :title="pageText('pages.communityTemplateSynchronizationConsole')"
       width="800px"
       :footer="null"
     >
@@ -598,27 +598,27 @@
         <!-- 状态与指标面板 -->
         <div style="background: var(--arl-bg-layout); padding: 12px 16px; border-radius: 6px; border: 1px solid var(--arl-border-color); display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
           <div>
-            <span style="color: var(--arl-text-color); opacity: 0.65; font-size: 13px;">当前状态：</span>
-            <a-tag v-if="syncStatus.status === 'syncing'" color="processing"><sync-outlined spin /> 同步进行中</a-tag>
-            <a-tag v-else-if="syncStatus.status === 'success'" color="success"><check-circle-outlined /> 同步成功</a-tag>
-            <a-tag v-else-if="syncStatus.status === 'failed'" color="error"><close-circle-outlined /> 同步失败</a-tag>
-            <a-tag v-else>空闲</a-tag>
+            <span class="page-secondary-label">{{ pageText('pages.currentStatus') }}</span>
+            <a-tag v-if="syncStatus.status === 'syncing'" color="processing"><sync-outlined spin /> {{ pageText('pages.synchronizing') }}</a-tag>
+            <a-tag v-else-if="syncStatus.status === 'success'" color="success"><check-circle-outlined /> {{ pageText('pages.synchronizationCompletedLabel2') }}</a-tag>
+            <a-tag v-else-if="syncStatus.status === 'failed'" color="error"><close-circle-outlined /> {{ pageText('tasks.syncFailedLabel') }}</a-tag>
+            <a-tag v-else>{{ pageText('pages.idle') }}</a-tag>
           </div>
           <div>
-            <span style="color: var(--arl-text-color); opacity: 0.65; font-size: 13px;">当前版本：</span>
-            <a-tag color="blue">{{ syncStatus.current_version || '未知' }}</a-tag>
+            <span class="page-secondary-label">{{ pageText('pages.currentVersion') }}</span>
+            <a-tag color="blue">{{ formatTemplateVersion(syncStatus.current_version) }}</a-tag>
           </div>
           <div>
-            <span style="color: var(--arl-text-color); opacity: 0.65; font-size: 13px;">官方最新：</span>
-            <a-tag color="purple">{{ syncStatus.latest_version || '未知' }}</a-tag>
+            <span class="page-secondary-label">{{ pageText('pages.latestCommunityVersion') }}</span>
+            <a-tag color="purple">{{ formatTemplateVersion(syncStatus.latest_version) }}</a-tag>
           </div>
           <div>
-            <span style="color: var(--arl-text-color); opacity: 0.65; font-size: 13px;">增量模板：</span>
+            <span class="page-secondary-label">{{ pageText('pages.newTemplates') }}</span>
             <span style="font-weight: 600; color: #1890ff;">{{ syncStatus.diff_count >= 0 ? '+' : '' }}{{ syncStatus.diff_count }}</span>
           </div>
           <div style="margin-left: auto;">
             <a-button size="small" :loading="syncStatusLoading" @click="fetchSyncStatus">
-              <template #icon><sync-outlined /></template> 刷新状态
+              <template #icon><sync-outlined /></template> {{ pageText('pages.refreshStatus') }}
             </a-button>
           </div>
         </div>
@@ -628,7 +628,7 @@
           v-if="syncStatus.status === 'failed' && syncStatus.error_message"
           type="error"
           show-icon
-          :message="'同步异常: ' + syncStatus.error_message"
+          :message="pageText('pages.synchronizationFailed') + syncStatus.error_message"
           style="margin-bottom: 4px;"
         />
 
@@ -636,25 +636,25 @@
         <div style="position: relative;">
           <div style="position: absolute; right: 12px; top: 10px; z-index: 10;">
             <a-button size="small" type="link" style="color: #aaa;" @click="copyText(syncStatus.log)">
-              <template #icon><copy-outlined /></template> 复制日志
+              <template #icon><copy-outlined /></template> {{ pageText('pages.copyLogs') }}
             </a-button>
           </div>
-          <pre class="sync-terminal-log">{{ syncStatus.log || '暂无控制台日志，点击上方「同步最新官方版本」启动' }}</pre>
+          <pre class="sync-terminal-log">{{ syncStatus.log || pageText('pages.noConsoleLogsSelectSyncLatestCommunityVersionAbove') }}</pre>
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 8px;">
-          <a-button @click="isSyncLogModalVisible = false">关 闭</a-button>
+          <a-button @click="isSyncLogModalVisible = false">{{ pageText('pages.close') }}</a-button>
         </div>
       </div>
     </a-modal>
 
     <!-- 弹窗 4：离线全量模板 ZIP 包导入 -->
-    <a-modal v-model:open="isOfflineModalVisible" title="导入官方模板全量离线包 (.zip)" :footer="null">
+    <a-modal v-model:open="isOfflineModalVisible" :title="pageText('pages.importCompleteCommunityTemplateArchiveZip')" :footer="null">
       <a-alert
         type="info"
         show-icon
-        message="离线更新模式说明"
-        description="支持将官方 nuclei-templates.zip 全量压缩包直接上传覆盖至生产环境。适用于无法直连外网 GitHub 的严苛内网隔离环境。"
+        :message="pageText('pages.offlineUpdateMode')"
+        :description="pageText('pages.uploadTheCompleteCommunityNucleiTemplatesZipArchiveTo')"
         style="margin-bottom: 16px;"
       />
       <a-upload-dragger
@@ -666,15 +666,15 @@
         @change="handleOfflineUploadChange"
       >
         <p class="ant-upload-drag-icon"><cloud-upload-outlined /></p>
-        <p class="ant-upload-text">点击或将 nuclei-templates.zip 拖拽至此处</p>
-        <p class="ant-upload-hint">上传后系统将在后台解压覆盖至官方模板目录，并自动同步至 Worker 扫描节点</p>
+        <p class="ant-upload-text">{{ pageText('pages.clickOrDragNucleiTemplatesZipHere') }}</p>
+        <p class="ant-upload-hint">{{ pageText('pages.theSystemWillExtractTheArchiveIntoTheCommunity') }}</p>
       </a-upload-dragger>
     </a-modal>
 
     <!-- 弹窗 5：标记误报原因录入弹窗 -->
     <a-modal
       v-model:open="isMarkModalVisible"
-      title="标记为误报并屏蔽扫描"
+      :title="pageText('pages.markAsFalsePositiveAndExcludeFromScans')"
       :confirmLoading="markModalLoading"
       @ok="handleConfirmMarkBlacklist"
     >
@@ -682,33 +682,33 @@
         <a-alert
           type="warning"
           show-icon
-          message="屏蔽说明"
-          description="将此模板加入全局误报黑名单后，全站所有扫描策略默认将不再加载执行该模板探测，避免产生无意义告警。"
+          :message="pageText('pages.blockingBehavior')"
+          :description="pageText('pages.addingThisTemplateToTheGlobalFalsePositiveBlocklist')"
         />
         <div>
-          <span style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65;">模板 ID：</span>
+          <span class="page-secondary-label-alt">{{ pageText('pages.templateId') }}</span>
           <span style="font-family: monospace; font-weight: 600; color: #fa8c16; margin-left: 6px;">{{ markModalForm.template_id }}</span>
         </div>
         <div>
-          <span style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65;">漏洞名称：</span>
+          <span class="page-secondary-label-alt">{{ pageText('pages.vulnerabilityName') }}</span>
           <span style="font-weight: 500; margin-left: 6px;">{{ markModalForm.name }}</span>
         </div>
         <div>
           <div style="margin-bottom: 6px; font-size: 13px; font-weight: 500;">
-            误报原因 / 屏蔽说明：
+            {{ pageText('pages.reasonForBlocking') }}
           </div>
           <a-textarea
             v-model:value="markModalForm.reason"
-            placeholder="例如：在目标业务架构下命中泛解析或统一错误页面造成误报"
+            :placeholder="pageText('pages.eGAFalsePositiveCausedByWildcardRouting')"
             :rows="3"
             allowClear
           />
           <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
-            <span style="font-size: 12px; opacity: 0.6;">快捷标签：</span>
-            <a-tag style="cursor: pointer;" @click="markModalForm.reason = '内网泛解析与统一404状态码误判'">泛解析误判</a-tag>
-            <a-tag style="cursor: pointer;" @click="markModalForm.reason = '特定CMS版本指纹匹配过宽'">指纹过宽</a-tag>
-            <a-tag style="cursor: pointer;" @click="markModalForm.reason = '反向代理网关默认返回特定响应头误报'">网关返回误报</a-tag>
-            <a-tag style="cursor: pointer;" @click="markModalForm.reason = '业务自定义静态资源文件名称重合'">路径重合</a-tag>
+            <span class="page-subtle-label">{{ pageText('pages.quickReasons') }}</span>
+            <a-tag class="page-clickable" @click="markModalForm.reason = '内网泛解析与统一404状态码误判'">{{ pageText('pages.wildcardRouting') }}</a-tag>
+            <a-tag class="page-clickable" @click="markModalForm.reason = '特定CMS版本指纹匹配过宽'">{{ pageText('pages.broadFingerprintMatch') }}</a-tag>
+            <a-tag class="page-clickable" @click="markModalForm.reason = '反向代理网关默认返回特定响应头误报'">{{ pageText('pages.gatewayResponse') }}</a-tag>
+            <a-tag class="page-clickable" @click="markModalForm.reason = '业务自定义静态资源文件名称重合'">{{ pageText('pages.matchingFilePath') }}</a-tag>
           </div>
         </div>
       </div>
@@ -717,30 +717,30 @@
     <!-- 弹窗 6：手动录入误报模板弹窗 -->
     <a-modal
       v-model:open="isAddBlacklistModalVisible"
-      title="手动添加误报黑名单"
+      :title="pageText('pages.addToFalsePositiveBlocklist')"
       :confirmLoading="addBlacklistLoading"
       @ok="handleConfirmAddBlacklist"
     >
       <div style="display: flex; flex-direction: column; gap: 14px; padding-top: 8px;">
-        <a-form layout="vertical">
-          <a-form-item label="模板 ID (必填)" required>
-            <a-input v-model:value="addBlacklistForm.template_id" placeholder="例如：cve-2021-41773 或 apache-status" allowClear />
+        <a-form :label-wrap="true" layout="vertical">
+          <a-form-item :label="pageText('pages.templateIdRequired')" required>
+            <a-input v-model:value="addBlacklistForm.template_id" :placeholder="pageText('pages.eGCve202141773OrApacheStatus')" allowClear />
           </a-form-item>
-          <a-form-item label="漏洞名称 (选填)">
-            <a-input v-model:value="addBlacklistForm.name" placeholder="请输入漏洞简要描述" allowClear />
+          <a-form-item :label="pageText('pages.vulnerabilityNameOptional')">
+            <a-input v-model:value="addBlacklistForm.name" :placeholder="pageText('pages.enterABriefVulnerabilityDescription')" allowClear />
           </a-form-item>
-          <a-form-item label="危害级别">
+          <a-form-item :label="pageText('pages.severityLabel3')">
             <a-select v-model:value="addBlacklistForm.severity" style="width: 100%;">
-              <a-select-option value="critical">严重 (Critical)</a-select-option>
-              <a-select-option value="high">高危 (High)</a-select-option>
-              <a-select-option value="medium">中危 (Medium)</a-select-option>
-              <a-select-option value="low">低危 (Low)</a-select-option>
-              <a-select-option value="info">信息 (Info)</a-select-option>
-              <a-select-option value="unknown">未知 (Unknown)</a-select-option>
+              <a-select-option value="critical">{{ pageText('pages.critical') }}</a-select-option>
+              <a-select-option value="high">{{ pageText('pages.high') }}</a-select-option>
+              <a-select-option value="medium">{{ pageText('pages.medium') }}</a-select-option>
+              <a-select-option value="low">{{ pageText('pages.low') }}</a-select-option>
+              <a-select-option value="info">{{ pageText('pages.info') }}</a-select-option>
+              <a-select-option value="unknown">{{ pageText('pages.unknown') }}</a-select-option>
             </a-select>
           </a-form-item>
-          <a-form-item label="误报原因说明">
-            <a-textarea v-model:value="addBlacklistForm.reason" placeholder="说明为何屏蔽此模板" :rows="3" allowClear />
+          <a-form-item :label="pageText('pages.reasonForBlockingLabel2')">
+            <a-textarea v-model:value="addBlacklistForm.reason" :placeholder="pageText('pages.explainWhyThisTemplateShouldBeBlocked')" :rows="3" allowClear />
           </a-form-item>
         </a-form>
       </div>
@@ -749,6 +749,7 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { message, notification } from 'ant-design-vue';
 import {
@@ -773,6 +774,8 @@ import { Codemirror } from 'vue-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
 import request from '../utils/request';
 
+const { t: pageText, locale: pageLocale } = useI18n({ useScope: 'global' });
+
 const editExtensions = [oneDark];
 const uploadHeaders = computed(() => {
   const token = localStorage.getItem('token');
@@ -780,6 +783,11 @@ const uploadHeaders = computed(() => {
 });
 
 // ---------- 页面状态与统计 ----------
+const formatTemplateVersion = version => {
+  const keys = { '检测中': 'pages.detecting', '未知': 'tasks.unknown', '未安装': 'pages.notInstalled', '未下载': 'pages.notDownloaded' };
+  return keys[version] ? pageText(keys[version]) : (version || pageText('tasks.unknown'));
+};
+
 const innerTab = ref('community');
 const stats = reactive({
   custom_total: 0,
@@ -830,14 +838,14 @@ const customPagination = reactive({
 });
 
 const customColumns = [
-  { title: '序号', key: 'index', width: 65, align: 'center' },
-  { title: '模板 ID', key: 'template_id', width: 220 },
-  { title: '漏洞名称', key: 'name', minWidth: 200 },
-  { title: '危害级别', key: 'severity', width: 110, align: 'center' },
-  { title: '标签 Tags', key: 'tags', width: 180 },
-  { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 170 },
-  { title: '状态', key: 'enable', width: 90, align: 'center' },
-  { title: '操作', key: 'action', width: 180, align: 'center' }
+  { get title() { return pageText('tasks.no'); }, key: 'index', width: 65, align: 'center' },
+  { get title() { return pageText('pages.templateIdLabel2'); }, key: 'template_id', width: 220 },
+  { get title() { return pageText('tasks.vulnerabilityName'); }, key: 'name', minWidth: 200 },
+  { get title() { return pageText('pages.severityLabel3'); }, key: 'severity', width: 110, align: 'center' },
+  { get title() { return pageText('pages.tagsLabel2'); }, key: 'tags', width: 180 },
+  { get title() { return pageText('assets.updatedAtLabel'); }, dataIndex: 'updated_at', key: 'updated_at', width: 170 },
+  { get title() { return pageText('tasks.status'); }, key: 'enable', width: 90, align: 'center' },
+  { get title() { return pageText('tasks.actions'); }, key: 'action', width: 180, align: 'center' }
 ];
 
 const fetchCustomTemplates = async () => {
@@ -857,7 +865,7 @@ const fetchCustomTemplates = async () => {
       customPagination.total = res.data.total || 0;
     }
   } catch (e) {
-    message.error('加载自建模板失败');
+    message.error(pageText('pages.failedToLoadCustomTemplates'));
   } finally {
     customLoading.value = false;
   }
@@ -890,13 +898,13 @@ const handleToggleEnable = async (record, val) => {
     });
     if (res.code === 200) {
       record.enable = val;
-      message.success(`模板已${val ? '启用' : '禁用'}`);
+      message.success(pageText('pages.templateActionCompletedAction', { action: val ? pageText('pages.enable') : pageText('pages.disable') }));
       fetchStats();
     } else {
-      message.error(res.message || res.error || '状态切换失败');
+      message.error(res.message || res.error || pageText('pages.failedToChangeTemplateStatus'));
     }
   } catch (e) {
-    message.error('请求异常');
+    message.error(pageText('tasks.requestFailed'));
   } finally {
     record._toggling = false;
   }
@@ -911,12 +919,12 @@ const handleBatchToggle = async (enableVal) => {
       enable: enableVal
     });
     if (res.code === 200) {
-      message.success(`已批量${enableVal ? '启用' : '禁用'} ${res.data?.modified_count || selectedRowKeys.value.length} 个模板`);
+      message.success(pageText('pages.actionCountTemplatesUpdated', { action: enableVal ? pageText('pages.enable') : pageText('pages.disable'), count: res.data?.modified_count || selectedRowKeys.value.length }));
       fetchCustomTemplates();
       fetchStats();
     }
   } catch (e) {
-    message.error('批量操作失败');
+    message.error(pageText('pages.bulkOperationFailed'));
   }
 };
 
@@ -925,13 +933,13 @@ const handleSingleDelete = async (templateId) => {
   try {
     const res = await request.post('/nuclei/template/delete/', { template_ids: [templateId] });
     if (res.code === 200) {
-      message.success('模板删除成功');
+      message.success(pageText('pages.templateDeleted'));
       selectedRowKeys.value = selectedRowKeys.value.filter(k => k !== templateId);
       fetchCustomTemplates();
       fetchStats();
     }
   } catch (e) {
-    message.error('删除请求失败');
+    message.error(pageText('pages.deletionRequestFailed'));
   }
 };
 
@@ -942,13 +950,13 @@ const handleBatchDelete = async () => {
   try {
     const res = await request.post('/nuclei/template/delete/', { template_ids: selectedRowKeys.value });
     if (res.code === 200) {
-      message.success(`成功删除 ${res.data?.delete_cnt || 0} 个模板`);
+      message.success(pageText('pages.templatesDeletedCount', { count: res.data?.delete_cnt || 0 }));
       selectedRowKeys.value = [];
       fetchCustomTemplates();
       fetchStats();
     }
   } catch (e) {
-    message.error('批量删除失败');
+    message.error(pageText('pages.templateDeletionFailed'));
   } finally {
     batchDeleteLoading.value = false;
   }
@@ -1100,10 +1108,10 @@ const openEditModal = async (record) => {
     if (res.code === 200 && res.data) {
       currentEditorCode.value = res.data.content || '';
     } else {
-      message.error('获取模板源码失败: ' + (res.message || '未知错误'));
+      message.error(pageText('pages.failedToLoadTemplateSource') + (res.message || pageText('tasks.unknownError')));
     }
   } catch (e) {
-    message.error('获取模板数据异常');
+    message.error(pageText('pages.failedToLoadTemplateData'));
   }
 };
 
@@ -1116,7 +1124,7 @@ const handleSkeletonChange = (val) => {
 const saveTemplate = async () => {
   saveErrorMsg.value = '';
   if (!currentEditorCode.value.trim()) {
-    saveErrorMsg.value = '模板内容不可为空';
+    saveErrorMsg.value = pageText('pages.templateContentCannotBeEmpty');
     return;
   }
   saveLoading.value = true;
@@ -1128,15 +1136,15 @@ const saveTemplate = async () => {
 
     const res = await request.post(endpoint, payload);
     if (res.code === 200) {
-      message.success(isCreateMode.value ? '模板创建成功' : '模板更新成功');
+      message.success(isCreateMode.value ? pageText('pages.templateCreated') : pageText('pages.templateUpdated'));
       isEditModalVisible.value = false;
       fetchCustomTemplates();
       fetchStats();
     } else {
-      saveErrorMsg.value = res.message || res.error || '保存失败';
+      saveErrorMsg.value = res.message || res.error || pageText('pages.failedToSaveLabel2');
     }
   } catch (e) {
-    saveErrorMsg.value = '请求通信异常，未能保存';
+    saveErrorMsg.value = pageText('pages.requestFailedChangesWereNotSavedLabel2');
   } finally {
     saveLoading.value = false;
   }
@@ -1155,31 +1163,31 @@ const openDryRunDirect = (record) => {
 
 const executeDryRun = async () => {
   if (!dryRunTarget.value.trim()) {
-    message.warning('请输入调试目标 URL');
+    message.warning(pageText('pages.enterATargetUrlToTest'));
     return;
   }
   dryRunLoading.value = true;
-  dryRunOutput.value = '正在下发 Nuclei 引擎探测中，请稍候...';
+  dryRunOutput.value = pageText('pages.startingTheNucleiTestPleaseWait');
   try {
     const res = await request.post('/nuclei/template/test/', {
       content: currentEditorCode.value,
       target: dryRunTarget.value.trim()
     });
     if (res.code === 200 && res.data) {
-      dryRunOutput.value = res.data.output || '(无标准输出)';
+      dryRunOutput.value = res.data.output || pageText('pages.noStandardOutput');
       dryRunMatched.value = !!res.data.matched;
       dryRunCost.value = res.data.cost_seconds || 0;
       if (dryRunMatched.value) {
-        message.success('🎯 命中漏洞匹配条件！');
+        message.success(pageText('pages.vulnerabilityMatchingConditionsMet'));
       } else {
-        message.info('探测完毕，未触发漏洞规则');
+        message.info(pageText('pages.testCompletedNoVulnerabilityRuleMatched'));
       }
     } else {
-      dryRunOutput.value = '执行失败: ' + (res.message || res.error || '未知错误');
+      dryRunOutput.value = pageText('pages.executionFailed') + (res.message || res.error || pageText('tasks.unknownError'));
       dryRunMatched.value = false;
     }
   } catch (e) {
-    dryRunOutput.value = '请求异常: ' + e.message;
+    dryRunOutput.value = pageText('pages.requestFailedLabel2') + e.message;
   } finally {
     dryRunLoading.value = false;
   }
@@ -1192,15 +1200,15 @@ const handleUploadChange = (info) => {
   if (status === 'done') {
     const res = info.file.response;
     if (res && res.code === 200) {
-      message.success(`导入完成：成功 ${res.data.success_count || 0} 个，失败 ${res.data.fail_count || 0} 个`);
+      message.success(pageText('pages.importCompletedSuccessSucceededFailedFailed', { success: res.data.success_count || 0, failed: res.data.fail_count || 0 }));
       isImportModalVisible.value = false;
       fetchCustomTemplates();
       fetchStats();
     } else {
-      message.error(res?.message || res?.error || '导入失败');
+      message.error(res?.message || res?.error || pageText('pages.importFailed'));
     }
   } else if (status === 'error') {
-    message.error('文件上传通信错误');
+    message.error(pageText('pages.networkErrorUploadingFile'));
   }
 };
 
@@ -1232,13 +1240,13 @@ const communityPagination = reactive({
 });
 
 const communityColumns = [
-  { title: '序号', key: 'index', width: 65, align: 'center' },
-  { title: '模板 ID', key: 'template_id', width: 220 },
-  { title: '漏洞名称', dataIndex: 'name', key: 'name', minWidth: 220 },
-  { title: '危害级别', key: 'severity', width: 110, align: 'center' },
-  { title: '状态', key: 'status', width: 120, align: 'center' },
-  { title: '文件相对路径', key: 'file_path', minWidth: 260 },
-  { title: '操作', key: 'action', width: 200, align: 'center' }
+  { get title() { return pageText('tasks.no'); }, key: 'index', width: 65, align: 'center' },
+  { get title() { return pageText('pages.templateIdLabel2'); }, key: 'template_id', width: 220 },
+  { get title() { return pageText('tasks.vulnerabilityName'); }, dataIndex: 'name', key: 'name', minWidth: 220 },
+  { get title() { return pageText('pages.severityLabel3'); }, key: 'severity', width: 110, align: 'center' },
+  { get title() { return pageText('tasks.status'); }, key: 'status', width: 120, align: 'center' },
+  { get title() { return pageText('pages.relativeFilePath'); }, key: 'file_path', minWidth: 260 },
+  { get title() { return pageText('tasks.actions'); }, key: 'action', width: 200, align: 'center' }
 ];
 
 const fetchCommunityTemplates = async () => {
@@ -1257,7 +1265,7 @@ const fetchCommunityTemplates = async () => {
       communityPagination.total = res.data.total || 0;
     }
   } catch (e) {
-    message.error('加载社区模板失败');
+    message.error(pageText('pages.failedToLoadCommunityTemplates'));
   } finally {
     communityLoading.value = false;
   }
@@ -1290,13 +1298,13 @@ const blacklistPagination = reactive({
 });
 
 const blacklistColumns = [
-  { title: '序号', key: 'index', width: 65, align: 'center' },
-  { title: '模板 ID', key: 'template_id', width: 220 },
-  { title: '漏洞名称', key: 'name', minWidth: 200 },
-  { title: '危害级别', key: 'severity', width: 110, align: 'center' },
-  { title: '误报原因说明', key: 'reason', minWidth: 260 },
-  { title: '屏蔽时间', key: 'created_at', width: 170, align: 'center' },
-  { title: '操作', key: 'action', width: 170, align: 'center' }
+  { get title() { return pageText('tasks.no'); }, key: 'index', width: 65, align: 'center' },
+  { get title() { return pageText('pages.templateIdLabel2'); }, key: 'template_id', width: 220 },
+  { get title() { return pageText('tasks.vulnerabilityName'); }, key: 'name', minWidth: 200 },
+  { get title() { return pageText('pages.severityLabel3'); }, key: 'severity', width: 110, align: 'center' },
+  { get title() { return pageText('pages.reasonForBlockingLabel2'); }, key: 'reason', minWidth: 260 },
+  { get title() { return pageText('pages.blockedAt'); }, key: 'created_at', width: 170, align: 'center' },
+  { get title() { return pageText('tasks.actions'); }, key: 'action', width: 170, align: 'center' }
 ];
 
 const fetchBlacklist = async () => {
@@ -1314,7 +1322,7 @@ const fetchBlacklist = async () => {
       blacklistPagination.total = res.data.total || 0;
     }
   } catch (e) {
-    message.error('加载误报黑名单失败');
+    message.error(pageText('pages.failedToLoadFalsePositiveBlocklist'));
   } finally {
     blacklistLoading.value = false;
   }
@@ -1367,16 +1375,16 @@ const handleConfirmMarkBlacklist = async () => {
       reason: markModalForm.reason || '手工标记误报'
     });
     if (res.code === 200) {
-      message.success(`模板 ${markModalForm.template_id} 已加入误报黑名单`);
+      message.success(pageText('pages.templateIdAddedToTheFalsePositiveBlocklist', { id: markModalForm.template_id }));
       isMarkModalVisible.value = false;
       fetchCommunityTemplates();
       fetchBlacklist();
       fetchStats();
     } else {
-      message.error(res.message || '标记失败');
+      message.error(res.message || pageText('pages.failedToMarkTemplate'));
     }
   } catch (e) {
-    message.error('请求通信异常');
+    message.error(pageText('pages.requestFailedLabel3'));
   } finally {
     markModalLoading.value = false;
   }
@@ -1402,7 +1410,7 @@ const openAddBlacklistModal = () => {
 
 const handleConfirmAddBlacklist = async () => {
   if (!addBlacklistForm.template_id.trim()) {
-    message.warning('请输入模板 ID');
+    message.warning(pageText('pages.enterATemplateId'));
     return;
   }
   addBlacklistLoading.value = true;
@@ -1414,16 +1422,16 @@ const handleConfirmAddBlacklist = async () => {
       reason: addBlacklistForm.reason.trim() || '手动录入误报'
     });
     if (res.code === 200) {
-      message.success(`模板 ${addBlacklistForm.template_id} 已成功加入黑名单`);
+      message.success(pageText('pages.templateIdAddedToTheBlocklist', { id: addBlacklistForm.template_id }));
       isAddBlacklistModalVisible.value = false;
       fetchBlacklist();
       fetchCommunityTemplates();
       fetchStats();
     } else {
-      message.error(res.message || '添加失败');
+      message.error(res.message || pageText('pages.failedToAdd'));
     }
   } catch (e) {
-    message.error('网络请求异常');
+    message.error(pageText('tasks.networkRequestFailed'));
   } finally {
     addBlacklistLoading.value = false;
   }
@@ -1434,16 +1442,16 @@ const handleRemoveBlacklist = async (templateId) => {
   try {
     const res = await request.delete(`/nuclei/blacklist/${templateId}/`);
     if (res.code === 200) {
-      message.success(`模板 ${templateId} 已恢复扫描参与`);
+      message.success(pageText('pages.templateIdIncludedInScansAgain', { id: templateId }));
       fetchBlacklist();
       fetchCommunityTemplates();
       fetchStats();
       blacklistSelectedRowKeys.value = blacklistSelectedRowKeys.value.filter(k => k !== templateId);
     } else {
-      message.error(res.message || '解除失败');
+      message.error(res.message || pageText('pages.failedToUnblockTemplate'));
     }
   } catch (e) {
-    message.error('请求失败');
+    message.error(pageText('pages.requestFailed'));
   }
 };
 
@@ -1453,16 +1461,16 @@ const handleBatchRemoveBlacklist = async () => {
   try {
     const res = await request.post('/nuclei/blacklist/delete/', { template_ids: blacklistSelectedRowKeys.value });
     if (res.code === 200) {
-      message.success(`已成功解除 ${res.data?.deleted_count || 0} 个模板的误报屏蔽`);
+      message.success(pageText('pages.templatesUnblockedCount', { count: res.data?.deleted_count || 0 }));
       blacklistSelectedRowKeys.value = [];
       fetchBlacklist();
       fetchCommunityTemplates();
       fetchStats();
     } else {
-      message.error(res.message || '批量操作失败');
+      message.error(res.message || pageText('pages.bulkOperationFailed'));
     }
   } catch (e) {
-    message.error('网络请求异常');
+    message.error(pageText('tasks.networkRequestFailed'));
   }
 };
 
@@ -1527,16 +1535,16 @@ const startSyncPolling = () => {
           stopSyncPolling();
           if (syncStatus.status === 'success') {
             notification.success({
-              message: '官方模板库同步成功',
-              description: `已成功更新至最新版 (${syncStatus.current_version})，增量更新 ${syncStatus.diff_count >= 0 ? '+' : ''}${syncStatus.diff_count} 条模板。`,
+              message: pageText('pages.communityTemplatesSynchronized'),
+              description: pageText('pages.updatedToVersionVersionNewTemplatesSignCount', { version: syncStatus.current_version, sign: syncStatus.diff_count >= 0 ? '+' : '', count: syncStatus.diff_count }),
               duration: 5
             });
             fetchStats();
             fetchCommunityTemplates();
           } else if (syncStatus.status === 'failed') {
             notification.error({
-              message: '官方模板库同步失败',
-              description: syncStatus.error_message || '同步过程异常，请点击「查看同步日志」排查原因。',
+              message: pageText('pages.communityTemplateSynchronizationFailed'),
+              description: syncStatus.error_message || pageText('pages.synchronizationFailedOpenViewSynchronizationLogsToInvestigate'),
               duration: 7
             });
           }
@@ -1552,14 +1560,14 @@ const handleSyncCommunity = async () => {
   try {
     const res = await request.post('/nuclei/community/sync/');
     if (res.code === 200) {
-      message.loading('官方模板加速同步任务已下发，正在后台拉取中...', 2.5);
+      message.loading(pageText('pages.communityTemplateSynchronizationQueuedDownloadingInTheBackground'), 2.5);
       syncStatus.status = 'syncing';
       startSyncPolling();
     } else {
-      message.warning(res.message || '触发同步受阻');
+      message.warning(res.message || pageText('pages.unableToStartSynchronization'));
     }
   } catch (e) {
-    message.error('触发同步请求失败');
+    message.error(pageText('pages.failedToRequestSynchronization'));
   }
 };
 
@@ -1568,15 +1576,15 @@ const handleOfflineUploadChange = (info) => {
   if (status === 'done') {
     const res = info.file.response;
     if (res && res.code === 200) {
-      message.success(res.data?.message || '离线模板包上传成功，已触发后台解压');
+      message.success(res.data?.message || pageText('pages.offlineTemplateArchiveUploadedBackgroundExtractionStarted'));
       isOfflineModalVisible.value = false;
       syncStatus.status = 'syncing';
       startSyncPolling();
     } else {
-      message.error(res?.message || '离线包解析失败');
+      message.error(res?.message || pageText('pages.failedToParseOfflineArchive'));
     }
   } else if (status === 'error') {
-    message.error('上传离线包失败');
+    message.error(pageText('pages.failedToUploadOfflineArchive'));
   }
 };
 
@@ -1588,7 +1596,7 @@ const communitySourceLoading = ref(false);
 
 const viewCommunitySource = async (record) => {
   selectedCommunityRecord.value = record;
-  communitySourceCode.value = '正在读取官方模板 YAML 源码...';
+  communitySourceCode.value = pageText('pages.readingCommunityTemplateYamlSource');
   communitySourceLoading.value = true;
   isCommunityDrawerVisible.value = true;
   try {
@@ -1598,10 +1606,10 @@ const viewCommunitySource = async (record) => {
     if (res.code === 200 && res.data) {
       communitySourceCode.value = res.data.content || '';
     } else {
-      communitySourceCode.value = '读取失败: ' + (res.message || '找不到该文件');
+      communitySourceCode.value = pageText('pages.failedToRead') + (res.message || pageText('pages.fileNotFound'));
     }
   } catch (e) {
-    communitySourceCode.value = '请求发生异常';
+    communitySourceCode.value = pageText('pages.requestFailedLabel4');
   } finally {
     communitySourceLoading.value = false;
   }
@@ -1620,7 +1628,7 @@ const getSeverityColor = (sev) => {
 
 const copyText = (txt) => {
   navigator.clipboard.writeText(txt);
-  message.success('已复制到剪贴板');
+  message.success(pageText('pages.copiedToClipboard'));
 };
 
 watch(innerTab, (newTab) => {
@@ -1772,4 +1780,26 @@ onBeforeUnmount(() => {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+.page-version-note { margin-left: 4px; font-size: 11px; }
+.page-quiet-status-tag { margin: 0; font-weight: 500; }
+.page-width-240 { width: 240px; }
+.page-width-130 { width: 130px; }
+.page-width-140 { width: 140px; }
+.page-clickable { cursor: pointer; }
+.page-success { color: #52c41a; }
+.page-option-hint { color: var(--arl-text-color); opacity: 0.45; margin-top: 8px; }
+.page-width-170 { width: 170px; }
+.page-width-150 { width: 150px; }
+.page-danger { color: #ff4d4f; }
+.page-label { font-size: 13px; font-weight: 500; }
+.page-faded-note { font-size: 12px; opacity: 0.5; }
+.page-fill-space { flex: 1; }
+.page-muted { color: var(--arl-text-color); opacity: 0.65; }
+.page-secondary-label { color: var(--arl-text-color); opacity: 0.65; font-size: 13px; }
+.page-secondary-label-alt { font-size: 13px; color: var(--arl-text-color); opacity: 0.65; }
+.page-subtle-label { font-size: 12px; opacity: 0.6; }
+
+.page-english .stats-overview-bar { flex-wrap: wrap; row-gap: 12px; }
+.page-english .filter-label { flex-shrink: 0; }
 </style>

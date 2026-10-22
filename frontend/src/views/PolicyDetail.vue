@@ -1,25 +1,25 @@
 <template>
   <div class="policy-detail-container">
     <div class="policy-detail-header">
-      <a-button type="link" @click="goBack" class="back-link-btn">&lt; 返回列表</a-button>
-      <h2 class="page-title">{{ isEdit ? '编辑策略配置' : '新建扫描策略' }}</h2>
+      <a-button type="link" @click="goBack" class="back-link-btn">{{ pageText('pages.backToList') }}</a-button>
+      <h2 class="page-title">{{ isEdit ? pageText('pages.editPolicyConfiguration') : pageText('pages.newScanPolicy') }}</h2>
     </div>
 
-    <a-form :model="policyForm" layout="vertical" class="policy-form-layout">
+    <a-form :label-wrap="true" :model="policyForm" layout="vertical" class="policy-form-layout">
       <!-- 基础信息卡片 -->
       <a-card :bordered="false" class="policy-section-card basic-info-card">
         <div class="section-card-title">
-          <span class="indicator-bar"></span>基础信息
+          <span class="indicator-bar"></span>{{ pageText('tasks.basicSettings') }}
         </div>
         <a-row :gutter="16">
           <a-col :span="12">
-            <a-form-item label="策略名称" required>
-              <a-input v-model:value="policyForm.name" placeholder="请输入策略名称，如：全面综合侦查策略" />
+            <a-form-item :label="pageText('tasks.policyName')" required>
+              <a-input v-model:value="policyForm.name" :placeholder="pageText('pages.enterAPolicyNameEGComprehensiveDiscovery')" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item label="策略描述">
-              <a-input v-model:value="policyForm.desc" placeholder="请输入策略的适用场景与描述" />
+            <a-form-item :label="pageText('pages.policyDescription')">
+              <a-input v-model:value="policyForm.desc" :placeholder="pageText('pages.describeWhenToUseThisPolicy')" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -29,32 +29,32 @@
       <a-collapse v-model:activeKey="activePanels" :bordered="false" class="policy-collapse-box">
         
         <!-- 1. 域名与资产发现 -->
-        <a-collapse-panel key="1" header="🌐 域名与资产发现">
+        <a-collapse-panel key="1" :header="pageText('tasks.domainsAndAssetDiscovery')">
           <div class="panel-action-bar">
-            <a-checkbox :checked="isAllDomainSelected" @change="toggleAllDomain">全选本组</a-checkbox>
-            <a-input v-model:value="domainSearch" placeholder="搜索域名探测项" class="search-input" allowClear>
+            <a-checkbox :checked="isAllDomainSelected" @change="toggleAllDomain">{{ pageText('pages.selectThisGroup') }}</a-checkbox>
+            <a-input v-model:value="domainSearch" :placeholder="pageText('pages.searchDomainDiscoveryOptions')" class="search-input" allowClear>
               <template #suffix><search-outlined class="search-icon" /></template>
             </a-input>
           </div>
 
           <div class="feature-item-list">
             <!-- 域名查询插件 -->
-            <div v-show="matchSearch('域名查询插件', domainSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.domainLookupPlugins'), domainSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.domain_config.dns_query_plugin">域名查询插件</a-checkbox>
-                <span class="feature-hint">调用 crt.sh、AlienVault、VirusTotal 等外部公开被动 DNS 平台提取子域名</span>
+                <a-checkbox v-model:checked="policyForm.domain_config.dns_query_plugin">{{ pageText('tasks.domainLookupPlugins') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.collectSubdomainsFromExternalPassiveDnsServicesSuchAs') }}</span>
               </div>
             </div>
 
             <!-- 域名爆破 + 内联字典 -->
-            <div v-show="matchSearch('域名爆破', domainSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.subdomainBruteForce'), domainSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.domain_config.domain_brute">域名爆破</a-checkbox>
-                <span class="feature-hint">基于字典进行 DNS 高速子域名暴力解析探测</span>
+                <a-checkbox v-model:checked="policyForm.domain_config.domain_brute">{{ pageText('tasks.subdomainBruteForce') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.discoverSubdomainsUsingHighSpeedDictionaryBasedDnsQueries') }}</span>
               </div>
               <div v-if="policyForm.domain_config.domain_brute" class="sub-config-box">
-                <a-form-item label="爆破字典" required class="inline-form-item">
-                  <a-select v-model:value="policyForm.domain_config.domain_brute_type" placeholder="请选择爆破字典" style="width: 280px;">
+                <a-form-item :label="pageText('pages.discoveryDictionary')" required class="inline-form-item">
+                  <a-select v-model:value="policyForm.domain_config.domain_brute_type" :placeholder="pageText('pages.selectADiscoveryDictionary')" class="page-width-280">
                     <a-select-option v-for="item in domainDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
                   </a-select>
                 </a-form-item>
@@ -62,14 +62,14 @@
             </div>
 
             <!-- DNS字典智能生成 + 内联字典 -->
-            <div v-show="matchSearch('DNS字典智能生成', domainSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.dnsWordlistGeneration'), domainSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.domain_config.alt_dns">DNS字典智能生成 (AltDNS)</a-checkbox>
-                <span class="feature-hint">依据已发现子域名自动置换前缀/数字后缀并排列变异词进行二次探测</span>
+                <a-checkbox v-model:checked="policyForm.domain_config.alt_dns">{{ pageText('pages.dnsMutationDiscoveryAltdns') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.generatePrefixAndNumericSuffixVariationsFromDiscoveredSubdomains') }}</span>
               </div>
               <div v-if="policyForm.domain_config.alt_dns" class="sub-config-box">
-                <a-form-item label="智能子域爆破字典" required class="inline-form-item">
-                  <a-select v-model:value="policyForm.domain_config.alt_dns_dict" placeholder="请选择智能变异字典" style="width: 280px;">
+                <a-form-item :label="pageText('pages.subdomainMutationDictionary')" required class="inline-form-item">
+                  <a-select v-model:value="policyForm.domain_config.alt_dns_dict" :placeholder="pageText('pages.selectAMutationDictionary')" class="page-width-280">
                     <a-select-option v-for="item in altDnsDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
                   </a-select>
                 </a-form-item>
@@ -77,52 +77,52 @@
             </div>
 
             <!-- ARL 历史查询 -->
-            <div v-show="matchSearch('ARL 历史查询', domainSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.arlHistorySearch'), domainSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.domain_config.arl_search">ARL 历史资产查询</a-checkbox>
-                <span class="feature-hint">自动从本系统历史资产数据库中关联提取目标子域记录</span>
+                <a-checkbox v-model:checked="policyForm.domain_config.arl_search">{{ pageText('pages.arlHistoricalAssets') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.findRelatedSubdomainRecordsInThisSystemSHistorical') }}</span>
               </div>
             </div>
           </div>
         </a-collapse-panel>
 
         <!-- 2. 端口与服务发现 -->
-        <a-collapse-panel key="2" header="⚡️ 端口与服务发现">
+        <a-collapse-panel key="2" :header="pageText('tasks.portsAndServices')">
           <div class="panel-action-bar">
-            <a-checkbox :checked="isAllIpSelected" @change="toggleAllIp">全选本组</a-checkbox>
-            <a-input v-model:value="ipSearch" placeholder="搜索端口与服务探测项" class="search-input" allowClear>
+            <a-checkbox :checked="isAllIpSelected" @change="toggleAllIp">{{ pageText('pages.selectThisGroup') }}</a-checkbox>
+            <a-input v-model:value="ipSearch" :placeholder="pageText('pages.searchPortAndServiceDiscoveryOptions')" class="search-input" allowClear>
               <template #suffix><search-outlined class="search-icon" /></template>
             </a-input>
           </div>
 
           <div class="feature-item-list">
             <!-- 跳过 CDN -->
-            <div v-show="matchSearch('跳过CDN', ipSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.skipCdn'), ipSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.ip_config.skip_scan_cdn_ip">跳过 CDN IP 扫描</a-checkbox>
-                <span class="feature-hint">识别到 CDN 节点 IP 时自动略过全端口探测，避免无效开销</span>
+                <a-checkbox v-model:checked="policyForm.ip_config.skip_scan_cdn_ip">{{ pageText('pages.skipCdnIpScans') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.skipFullPortScansForIpsIdentifiedAsCdn') }}</span>
               </div>
             </div>
 
             <!-- 端口扫描 + 策略/自定义/高级配置内联 -->
-            <div v-show="matchSearch('端口扫描', ipSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.portScanning'), ipSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.ip_config.port_scan">端口扫描</a-checkbox>
-                <span class="feature-hint">对目标 IP 资产执行 TCP 端口存活状态探测</span>
+                <a-checkbox v-model:checked="policyForm.ip_config.port_scan">{{ pageText('tasks.portScanning') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.probeTcpPortsOnTargetIpAssets') }}</span>
               </div>
               <div v-if="policyForm.ip_config.port_scan" class="sub-config-box">
                 <a-row :gutter="16">
                   <a-col :span="12">
-                    <a-form-item label="端口扫描策略" required class="inline-form-item">
-                      <a-select v-model:value="policyForm.ip_config.port_scan_type" placeholder="请选择端口策略">
-                        <a-select-option value="custom">自定义端口</a-select-option>
+                    <a-form-item :label="pageText('pages.portScanPolicy')" required class="inline-form-item">
+                      <a-select v-model:value="policyForm.ip_config.port_scan_type" :placeholder="pageText('tasks.selectAPortScanPolicy')">
+                        <a-select-option value="custom">{{ pageText('tasks.customPorts') }}</a-select-option>
                         <a-select-option v-for="item in portDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
                       </a-select>
                     </a-form-item>
                   </a-col>
                   <a-col :span="12" v-if="policyForm.ip_config.port_scan_type === 'custom'">
-                    <a-form-item label="自定义端口范围" required class="inline-form-item">
-                      <a-input v-model:value="policyForm.ip_config.port_custom" placeholder="例如: 80,443,8000-8080" />
+                    <a-form-item :label="pageText('pages.customPortRange')" required class="inline-form-item">
+                      <a-input v-model:value="policyForm.ip_config.port_custom" :placeholder="pageText('pages.eG8044380008080')" />
                     </a-form-item>
                   </a-col>
                 </a-row>
@@ -130,38 +130,38 @@
                 <!-- 高级发包配置收展 -->
                 <div class="advanced-toggle-row">
                   <a-button type="link" size="small" @click="showAdvancedPortConfig = !showAdvancedPortConfig" style="padding: 0;">
-                    {{ showAdvancedPortConfig ? '收起高级发包参数 ▲' : '展开高级发包参数 (速率/并发/排除端口) ▼' }}
+                    {{ showAdvancedPortConfig ? pageText('pages.hideAdvancedPortScanSettings') : pageText('pages.showAdvancedPortScanSettingsRateConcurrencyExcludedPorts') }}
                   </a-button>
                 </div>
 
                 <div v-if="showAdvancedPortConfig" class="advanced-params-grid">
                   <a-row :gutter="16">
                     <a-col :span="8">
-                      <a-form-item label="主机超时时间" class="inline-form-item">
+                      <a-form-item :label="pageText('pages.hostTimeout')" class="inline-form-item">
                         <a-select v-model:value="policyForm.ip_config.host_timeout_type">
-                          <a-select-option value="default">默认 (900s)</a-select-option>
-                          <a-select-option value="custom">自定义超时</a-select-option>
+                          <a-select-option value="default">{{ pageText('pages.default900s') }}</a-select-option>
+                          <a-select-option value="custom">{{ pageText('pages.customTimeout') }}</a-select-option>
                         </a-select>
                       </a-form-item>
                     </a-col>
                     <a-col :span="8" v-if="policyForm.ip_config.host_timeout_type === 'custom'">
-                      <a-form-item label="超时秒数" required class="inline-form-item">
+                      <a-form-item :label="pageText('pages.timeoutInSeconds')" required class="inline-form-item">
                         <a-input-number v-model:value="policyForm.ip_config.host_timeout" :min="1" style="width: 100%;" />
                       </a-form-item>
                     </a-col>
                     <a-col :span="8">
-                      <a-form-item label="探测并行度" class="inline-form-item">
+                      <a-form-item :label="pageText('pages.probeParallelism')" class="inline-form-item">
                         <a-input-number v-model:value="policyForm.ip_config.port_parallelism" :min="1" style="width: 100%;" />
                       </a-form-item>
                     </a-col>
                     <a-col :span="8">
-                      <a-form-item label="最少发包速率" class="inline-form-item">
+                      <a-form-item :label="pageText('pages.minimumPacketRate')" class="inline-form-item">
                         <a-input-number v-model:value="policyForm.ip_config.port_min_rate" :min="1" style="width: 100%;" />
                       </a-form-item>
                     </a-col>
                     <a-col :span="16">
-                      <a-form-item label="排除扫描端口" class="inline-form-item">
-                        <a-input v-model:value="policyForm.ip_config.exclude_ports" placeholder="排除指定端口，如：9100,9102,1-100" />
+                      <a-form-item :label="pageText('pages.excludedPorts')" class="inline-form-item">
+                        <a-input v-model:value="policyForm.ip_config.exclude_ports" :placeholder="pageText('pages.excludePortsEG910091021100')" />
                       </a-form-item>
                     </a-col>
                   </a-row>
@@ -170,61 +170,61 @@
             </div>
 
             <!-- 服务识别 (双轨合并为单一选项) -->
-            <div v-show="matchSearch('服务识别', ipSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.serviceDetection'), ipSearch)" class="feature-item-block">
               <div class="feature-switch-row">
                 <a-checkbox v-model:checked="policyForm.ip_config.service_detection">
-                  <span style="font-weight: 500;">服务识别</span>
-                  <a-tag color="blue" style="margin-left: 8px;">双轨协同</a-tag>
+                  <span class="page-medium-label">{{ pageText('tasks.serviceDetection') }}</span>
+                  <a-tag color="blue" class="page-start-gap">{{ pageText('pages.combinedDetection') }}</a-tag>
                 </a-checkbox>
-                <span class="feature-hint">系统自动并行协同执行精准指纹分析与高危端口纯协议探测，无需手动区分底层引擎</span>
+                <span class="feature-hint">{{ pageText('pages.runFingerprintAnalysisAndProtocolBasedDetectionForHigh') }}</span>
               </div>
             </div>
 
             <!-- 操作系统识别 -->
-            <div v-show="matchSearch('操作系统识别', ipSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.osDetection'), ipSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.ip_config.os_detection">操作系统识别</a-checkbox>
-                <span class="feature-hint">基于 TCP/IP 协议栈指纹探针智能推断目标主机操作系统类型</span>
+                <a-checkbox v-model:checked="policyForm.ip_config.os_detection">{{ pageText('tasks.osDetection') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.identifyTheTargetOperatingSystemUsingTcpIpStack') }}</span>
               </div>
             </div>
 
             <!-- SSL 证书获取 -->
-            <div v-show="matchSearch('SSL 证书获取', ipSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.sslCertificates'), ipSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.ip_config.ssl_cert">SSL 证书获取</a-checkbox>
-                <span class="feature-hint">拉取 HTTPS 与 TLS 端口证书信息，解析域名主体与颁发机构</span>
+                <a-checkbox v-model:checked="policyForm.ip_config.ssl_cert">{{ pageText('tasks.sslCertificates') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.collectCertificatesFromHttpsAndTlsPortsIncludingSubject') }}</span>
               </div>
             </div>
           </div>
         </a-collapse-panel>
 
         <!-- 3. Web 深度探测 -->
-        <a-collapse-panel key="3" header="🕷️ Web 深度探测">
+        <a-collapse-panel key="3" :header="pageText('tasks.webDiscovery')">
           <div class="panel-action-bar">
-            <a-checkbox :checked="isAllSiteSelected" @change="toggleAllSite">全选本组</a-checkbox>
-            <a-input v-model:value="siteSearch" placeholder="搜索 Web 探测项" class="search-input" allowClear>
+            <a-checkbox :checked="isAllSiteSelected" @change="toggleAllSite">{{ pageText('pages.selectThisGroup') }}</a-checkbox>
+            <a-input v-model:value="siteSearch" :placeholder="pageText('pages.searchWebDiscoveryOptions')" class="search-input" allowClear>
               <template #suffix><search-outlined class="search-icon" /></template>
             </a-input>
           </div>
 
           <div class="feature-item-list">
             <!-- 站点与指纹识别 -->
-            <div v-show="matchSearch('站点与指纹识别', siteSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.websiteDiscoveryAndFingerprinting'), siteSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.site_config.site_identify">站点与指纹识别</a-checkbox>
-                <span class="feature-hint">提取 HTTP 响应头、网页标题、Server Banner 及开源 CMS/组件框架指纹</span>
+                <a-checkbox v-model:checked="policyForm.site_config.site_identify">{{ pageText('tasks.websiteDiscoveryAndFingerprinting') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.collectHttpHeadersPageTitlesServerBannersAndCms') }}</span>
               </div>
             </div>
 
             <!-- 文件泄露 + 内联字典 -->
-            <div v-show="matchSearch('文件泄露', siteSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.fileDisclosure'), siteSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.file_leak">目录文件泄露检测</a-checkbox>
-                <span class="feature-hint">探测目标 Web 站点的备份文件、源码泄露、敏感配置及未授权后台路径</span>
+                <a-checkbox v-model:checked="policyForm.file_leak">{{ pageText('pages.directoryAndFileDisclosureChecks') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.checkWebsitesForBackupFilesExposedSourceCodeSensitive') }}</span>
               </div>
               <div v-if="policyForm.file_leak" class="sub-config-box">
-                <a-form-item label="目录文件泄露字典" required class="inline-form-item">
-                  <a-select v-model:value="policyForm.file_leak_dict" placeholder="请选择泄露字典" style="width: 280px;">
+                <a-form-item :label="pageText('pages.directoryAndFileDisclosureDictionary')" required class="inline-form-item">
+                  <a-select v-model:value="policyForm.file_leak_dict" :placeholder="pageText('tasks.selectAFileDiscoveryWordlist')" class="page-width-280">
                     <a-select-option v-for="item in fileLeakDicts" :key="item.name" :value="item.name">{{ item.name }}</a-select-option>
                   </a-select>
                 </a-form-item>
@@ -232,70 +232,70 @@
             </div>
 
             <!-- 搜索引擎调用 -->
-            <div v-show="matchSearch('搜索引擎调用', siteSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.searchEngines'), siteSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.site_config.search_engines">搜索引擎调用 (360 / Bing)</a-checkbox>
-                <span class="feature-hint">调用公共搜索引擎检索目标域名的收录页面与入口 URL</span>
+                <a-checkbox v-model:checked="policyForm.site_config.search_engines">{{ pageText('pages.searchEngines360Bing') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.searchPublicSearchEnginesForPagesAndUrlsAssociated') }}</span>
               </div>
             </div>
 
             <!-- 站点静态爬虫 -->
-            <div v-show="matchSearch('站点爬虫', siteSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.websiteCrawler'), siteSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.site_config.site_spider">站点静态爬虫</a-checkbox>
-                <span class="feature-hint">深入爬取页面 a/form/src 等超链接标签，拓扑收敛全站资产</span>
+                <a-checkbox v-model:checked="policyForm.site_config.site_spider">{{ pageText('pages.websiteCrawler') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.followLinksFromAFormSrcAndSimilarPage') }}</span>
               </div>
             </div>
 
             <!-- WIH 调用 -->
-            <div v-show="matchSearch('WIH 调用', siteSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.wihExtraction'), siteSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.site_config.web_info_hunter">WIH 前端 JS 深度提取</a-checkbox>
-                <span class="feature-hint">深度静态解析前端 JavaScript 脚本，提取 API 路由、隐藏子域与敏感凭据</span>
+                <a-checkbox v-model:checked="policyForm.site_config.web_info_hunter">{{ pageText('pages.wihJavascriptAnalysis') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.staticallyAnalyzeJavascriptForApiRoutesHiddenSubdomainsAnd') }}</span>
               </div>
             </div>
 
             <!-- Host 碰撞 -->
-            <div v-show="matchSearch('Host 碰撞', siteSearch)" class="feature-item-block">
+            <div v-show="matchSearch(pageText('tasks.hostCollision'), siteSearch)" class="feature-item-block">
               <div class="feature-switch-row">
-                <a-checkbox v-model:checked="policyForm.site_config.findvhost">Host 碰撞检测</a-checkbox>
-                <span class="feature-hint">遍历内网域名与外网 IP 组合，探测未做访问隔离的虚拟主机 Host 漏洞</span>
+                <a-checkbox v-model:checked="policyForm.site_config.findvhost">{{ pageText('pages.hostHeaderDiscovery') }}</a-checkbox>
+                <span class="feature-hint">{{ pageText('pages.testDomainAndIpCombinationsForExposedVirtualHosts') }}</span>
               </div>
             </div>
           </div>
         </a-collapse-panel>
 
         <!-- 4. 漏洞与风险巡航 -->
-        <a-collapse-panel key="4" header="🛡️ 漏洞与风险巡航">
+        <a-collapse-panel key="4" :header="pageText('tasks.vulnerabilityAndRiskScanning')">
           <!-- Nuclei 独立开关与细粒度策略配置 -->
           <div class="feature-item-block" style="padding-bottom: 16px; border-bottom: 1px solid var(--arl-border-color); margin-bottom: 16px;">
             <div class="feature-switch-row">
               <a-checkbox v-model:checked="policyForm.site_config.nuclei_scan">
-                <span style="font-weight: 500;">Nuclei 自动化扫描</span>
-                <a-tag color="purple" style="margin-left: 8px;">社区模板 + 自建模板</a-tag>
+                <span class="page-medium-label">{{ pageText('pages.nucleiAutomatedScanning') }}</span>
+                <a-tag color="purple" class="page-start-gap">{{ pageText('pages.communityAndCustomTemplates') }}</a-tag>
               </a-checkbox>
-              <span class="feature-hint">调用 Nuclei 引擎针对已发现 Web 站点执行模板化漏洞探测</span>
+              <span class="feature-hint">{{ pageText('pages.runNucleiTemplateChecksAgainstDiscoveredWebsites') }}</span>
             </div>
 
             <!-- Nuclei 细粒度过滤与自建模板配置 (纯开关矩阵，极简交互) -->
             <div v-if="policyForm.site_config.nuclei_scan" class="sub-config-box" style="margin-top: 12px;">
               <a-row :gutter="16">
                 <a-col :span="13">
-                  <a-form-item label="探测危害级别 (Severity)" class="inline-form-item">
+                  <a-form-item :label="pageText('pages.scanSeverity')" class="inline-form-item">
                     <a-checkbox-group v-model:value="policyForm.site_config.nuclei_config.severity" :options="nucleiSeverityOptions" />
                   </a-form-item>
                 </a-col>
                 <a-col :span="11">
-                  <a-form-item label="防御与自建模板联动" class="inline-form-item">
+                  <a-form-item :label="pageText('pages.blocklistAndCustomTemplates')" class="inline-form-item">
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                       <a-checkbox v-model:checked="policyForm.site_config.nuclei_config.exclude_blacklist">
-                        自动排除全局误报黑名单 (推荐)
+                        {{ pageText('pages.excludeTheGlobalFalsePositiveBlocklistRecommended') }}
                       </a-checkbox>
                       <a-checkbox
                         :checked="policyForm.site_config.nuclei_config.custom_template_mode === 'all_enabled'"
                         @change="(e) => policyForm.site_config.nuclei_config.custom_template_mode = e.target.checked ? 'all_enabled' : 'none'"
                       >
-                        自动加载所有已启用的自建模板 (推荐)
+                        {{ pageText('pages.loadAllEnabledCustomTemplatesRecommended') }}
                       </a-checkbox>
                     </div>
                   </a-form-item>
@@ -308,12 +308,12 @@
           <div class="plugin-sub-section">
             <div class="sub-section-header">
               <div class="sub-section-title">
-                <span>PoC 漏洞验证插件</span>
-                <span class="count-tag">已选 {{ selectedPocCount }} / {{ pocList.length }}</span>
+                <span>{{ pageText('pages.pocVerificationPlugins') }}</span>
+                <span class="count-tag">{{ pageText('pages.selected') }} {{ selectedPocCount }} / {{ pocList.length }}</span>
               </div>
               <div class="sub-section-actions">
-                <a-checkbox :checked="isAllPocSelected" @change="toggleAllPoc">全选 PoC</a-checkbox>
-                <a-input v-model:value="pocSearch" placeholder="搜索 PoC 插件名称" class="search-input" allowClear>
+                <a-checkbox :checked="isAllPocSelected" @change="toggleAllPoc">{{ pageText('pages.selectAllPocs') }}</a-checkbox>
+                <a-input v-model:value="pocSearch" :placeholder="pageText('pages.searchPocPlugins')" class="search-input" allowClear>
                   <template #suffix><search-outlined class="search-icon" /></template>
                 </a-input>
               </div>
@@ -336,12 +336,12 @@
           <div class="plugin-sub-section">
             <div class="sub-section-header">
               <div class="sub-section-title">
-                <span>弱口令爆破插件</span>
-                <span class="count-tag">已选 {{ selectedBruteCount }} / {{ bruteList.length }}</span>
+                <span>{{ pageText('pages.credentialCheckPlugins') }}</span>
+                <span class="count-tag">{{ pageText('pages.selected') }} {{ selectedBruteCount }} / {{ bruteList.length }}</span>
               </div>
               <div class="sub-section-actions">
-                <a-checkbox :checked="isAllBruteSelected" @change="toggleAllBrute">全选爆破</a-checkbox>
-                <a-input v-model:value="bruteSearch" placeholder="搜索弱口令插件" class="search-input" allowClear>
+                <a-checkbox :checked="isAllBruteSelected" @change="toggleAllBrute">{{ pageText('pages.selectAllCredentialChecks') }}</a-checkbox>
+                <a-input v-model:value="bruteSearch" :placeholder="pageText('pages.searchCredentialCheckPlugins')" class="search-input" allowClear>
                   <template #suffix><search-outlined class="search-icon" /></template>
                 </a-input>
               </div>
@@ -363,19 +363,22 @@
 
       <!-- 底部保存/取消操作条 -->
       <div class="policy-footer-actions">
-        <a-button type="primary" size="large" class="submit-btn" @click="submitPolicy" :loading="submitLoading">保 存 策 略</a-button>
-        <a-button size="large" class="cancel-btn" @click="goBack">取 消</a-button>
+        <a-button type="primary" size="large" class="submit-btn" @click="submitPolicy" :loading="submitLoading">{{ pageText('pages.savePolicy') }}</a-button>
+        <a-button size="large" class="cancel-btn" @click="goBack">{{ pageText('assets.cancel') }}</a-button>
       </div>
     </a-form>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ref, reactive, onMounted, computed } from 'vue';
 import request from '../utils/request';
 import { message } from 'ant-design-vue';
 import { SearchOutlined } from '@ant-design/icons-vue';
 import { useRouter, useRoute } from 'vue-router';
+
+const { t: pageText, locale: pageLocale } = useI18n({ useScope: 'global' });
 
 const router = useRouter();
 const route = useRoute();
@@ -432,11 +435,11 @@ const initPolicyForm = () => ({
 });
 
 const nucleiSeverityOptions = [
-  { label: '严重 (Critical)', value: 'critical' },
-  { label: '高危 (High)', value: 'high' },
-  { label: '中危 (Medium)', value: 'medium' },
-  { label: '低危 (Low)', value: 'low' },
-  { label: '信息 (Info)', value: 'info' }
+  { get label() { return pageText('pages.critical'); }, value: 'critical' },
+  { get label() { return pageText('pages.high'); }, value: 'high' },
+  { get label() { return pageText('pages.medium'); }, value: 'medium' },
+  { get label() { return pageText('pages.low'); }, value: 'low' },
+  { get label() { return pageText('pages.info'); }, value: 'info' }
 ];
 
 const policyForm = reactive(initPolicyForm());
@@ -563,10 +566,10 @@ onMounted(async () => {
     ]);
 
     if (dictRes.code === 200 && dictRes.data) {
-      domainDicts.value = dictRes.data.filter(item => item.category && item.category.includes('子域名爆破') && !item.category.includes('智能'));
-      altDnsDicts.value = dictRes.data.filter(item => item.category && item.category.includes('智能子域爆破'));
-      fileLeakDicts.value = dictRes.data.filter(item => item.category && (item.category.includes('目录文件泄露') || item.category.includes('目录与文件泄露')));
-      portDicts.value = dictRes.data.filter(item => item.category && item.category.includes('端口扫描策略') && item.name !== 'port_custom.txt');
+      domainDicts.value = dictRes.data.filter(item => item.category && item.category.includes(pageText('pages.subdomainDiscovery')) && !item.category.includes(pageText('pages.smart')));
+      altDnsDicts.value = dictRes.data.filter(item => item.category && item.category.includes(pageText('pages.subdomainMutationDiscovery')));
+      fileLeakDicts.value = dictRes.data.filter(item => item.category && (item.category.includes(pageText('pages.directoryAndFileDisclosure')) || item.category.includes(pageText('pages.directoryAndFileDisclosures'))));
+      portDicts.value = dictRes.data.filter(item => item.category && item.category.includes(pageText('pages.portScanPolicy')) && item.name !== 'port_custom.txt');
 
       if (!isEdit) {
         if (domainDicts.value.length > 0) policyForm.domain_config.domain_brute_type = domainDicts.value[0].name;
@@ -655,45 +658,45 @@ onMounted(async () => {
         data.policy?.brute_config?.forEach(p => bruteMap[p.plugin_name] = p.enable);
         bruteList.value.forEach(p => { if (bruteMap[p.plugin_name] !== undefined) p.enable = bruteMap[p.plugin_name]; });
       } else {
-        message.error('未找到对应策略或该策略已被删除');
+        message.error(pageText('pages.policyNotFoundOrAlreadyDeleted'));
         router.push('/policy');
         return;
       }
     }
   } catch (e) {
-    message.error('加载策略数据失败');
+    message.error(pageText('pages.failedToLoadPolicies'));
   }
 });
 
 // ================= 提交表单 =================
 const submitPolicy = async () => {
   if (isEdit && !hasPocLoaded.value) {
-    return message.error('插件数据尚未加载完毕，禁止保存！');
+    return message.error(pageText('pages.pluginDataIsStillLoadingWaitBeforeSaving'));
   }
-  if (!policyForm.name?.trim()) return message.warning('策略名称不能为空！');
+  if (!policyForm.name?.trim()) return message.warning(pageText('pages.policyNameCannotBeEmpty'));
 
   // 条件校验：仅在勾选对应功能时，校验字典必选项
   if (policyForm.domain_config.domain_brute && !policyForm.domain_config.domain_brute_type) {
-    return message.warning('开启域名爆破后，必须选择爆破字典！');
+    return message.warning(pageText('pages.selectADictionaryWhenSubdomainDiscoveryIsEnabled'));
   }
   if (policyForm.domain_config.alt_dns && !policyForm.domain_config.alt_dns_dict) {
-    return message.warning('开启智能子域爆破后，必须选择智能字典！');
+    return message.warning(pageText('pages.selectAMutationDictionaryWhenSubdomainMutationDiscoveryIs'));
   }
   if (policyForm.ip_config.port_scan) {
     if (!policyForm.ip_config.port_scan_type) {
-      return message.warning('开启端口扫描后，必须选择扫描策略！');
+      return message.warning(pageText('pages.selectAScanPolicyWhenPortScanningIsEnabled'));
     }
     if (policyForm.ip_config.port_scan_type === 'custom' && !policyForm.ip_config.port_custom?.trim()) {
-      return message.warning('自定义端口策略下，必须输入自定义端口范围！');
+      return message.warning(pageText('pages.enterAPortRangeForTheCustomPortPolicy'));
     }
     if (policyForm.ip_config.host_timeout_type === 'custom') {
       if (!policyForm.ip_config.host_timeout || policyForm.ip_config.host_timeout < 1) {
-        return message.warning('自定义主机超时时间必须大于等于 1 秒！');
+        return message.warning(pageText('pages.customHostTimeoutMustBeAtLeast1Second'));
       }
     }
   }
   if (policyForm.file_leak && !policyForm.file_leak_dict) {
-    return message.warning('开启文件泄露检测后，必须选择文件泄露字典！');
+    return message.warning(pageText('pages.selectADictionaryWhenFileDisclosureChecksAreEnabled'));
   }
 
   submitLoading.value = true;
@@ -727,13 +730,13 @@ const submitPolicy = async () => {
     }
 
     if (res.code === 200) {
-      message.success(isEdit ? '修改策略成功！' : '创建策略成功！');
+      message.success(isEdit ? pageText('pages.policyUpdated') : pageText('pages.policyCreated'));
       router.push('/policy');
     } else {
-      message.error((isEdit ? '修改' : '创建') + '失败: ' + (res.message || '未知错误'));
+      message.error((isEdit ? pageText('pages.edit') : pageText('pages.create')) + pageText('pages.failed') + (res.message || pageText('tasks.unknownError')));
     }
   } catch (error) {
-    message.error('请求异常，保存失败');
+    message.error(pageText('pages.requestFailedChangesWereNotSaved'));
   } finally {
     submitLoading.value = false;
   }
@@ -1023,4 +1026,8 @@ const submitPolicy = async () => {
   font-size: 14px;
   border-radius: 20px;
 }
+
+.page-width-280 { width: 280px; }
+.page-medium-label { font-weight: 500; }
+.page-start-gap { margin-left: 8px; }
 </style>

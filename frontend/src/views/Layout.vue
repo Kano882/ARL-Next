@@ -138,7 +138,7 @@
   </a-layout>
   <a-modal
       v-model:visible="showMcpModal"
-      title="AI 助手 MCP 客户端配置"
+      :title="pageText('pages.aiAssistantMcpClientConfiguration')"
       @cancel="showMcpModal = false"
       :footer="null"
       width="640px"
@@ -146,40 +146,40 @@
       rootClassName="arl-theme-modal"
   >
     <div style="margin-bottom: 16px;">
-      <p style="margin-bottom: 10px;">支持接入 CC-Switch、Claude Code、Cursor、Windsurf 或 Antigravity 等 AI 助手：</p>
+      <p class="page-section-gap">{{ pageText('pages.connectAiAssistantsSuchAsCcSwitchClaudeCode') }}</p>
       <div :style="{ background: hasBgImage ? 'rgba(0,0,0,0.15)' : 'var(--arl-bg-light)', border: hasBgImage ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--arl-border-color)', borderRadius: '6px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }">
         <div>
-          <div style="font-weight: 600; font-size: 13px; margin-bottom: 2px;">📥 第一步：导出专属客户端脚本</div>
-          <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.75;">已预置当前账号 Token 与服务端地址，零三方依赖，开箱即用。</div>
+          <div class="page-section-heading">{{ pageText('pages.step1ExportYourClientScript') }}</div>
+          <div class="page-muted-note">{{ pageText('pages.theScriptIncludesYourAccountTokenAndServerUrl') }}</div>
         </div>
         <a-button type="primary" :loading="isDownloadingScript" @click="downloadMcpScript">
-          下载 arl_mcp.py
+          {{ pageText('pages.downloadArlMcpPy') }}
         </a-button>
       </div>
     </div>
 
     <div style="margin-bottom: 8px; font-size: 13px; font-weight: 500;">
-      📋 第二步：复制配置并粘贴至客户端 <code>"mcpServers"</code> 节点下：
+      {{ pageText('pages.step2CopyTheConfigurationIntoYourClient') }} <code>"mcpServers"</code> {{ pageText('pages.node') }}
     </div>
 
     <div style="position: relative;">
       <pre :style="{ background: hasBgImage ? 'rgba(0,0,0,0.2)' : 'var(--arl-bg-light)', padding: '16px', borderRadius: '6px', overflowX: 'auto', fontSize: '13px', border: hasBgImage ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--arl-border-color)', margin: 0 }"><code :style="{ color: hasBgImage ? 'var(--arl-text-color)' : 'inherit' }">{{ mcpConfigJson }}</code></pre>
       <div style="position: absolute; top: 12px; right: 12px; display: flex; gap: 8px;">
         <a-popconfirm
-          title="刷新将立即作废当前 Token，导致已导出的脚本与已接入客户端失效，确认刷新？"
-          okText="确认刷新"
-          cancelText="取消"
+          :title="pageText('pages.refreshingImmediatelyInvalidatesTheCurrentTokenExportedScriptsAnd')"
+          :okText="pageText('pages.confirmRefresh')"
+          :cancelText="pageText('tasks.cancel')"
           @confirm="refreshMcpToken"
         >
-          <a-button type="default" size="small" :loading="isRefreshingToken">刷新 Token</a-button>
+          <a-button type="default" size="small" :loading="isRefreshingToken">{{ pageText('pages.refreshToken') }}</a-button>
         </a-popconfirm>
-        <a-button type="primary" size="small" @click="copyMcpConfig">复制配置</a-button>
+        <a-button type="primary" size="small" @click="copyMcpConfig">{{ pageText('pages.copyConfiguration') }}</a-button>
       </div>
     </div>
 
     <div style="margin-top: 14px; font-size: 12px; color: var(--arl-text-color); opacity: 0.75; line-height: 1.6;">
-      💡 <b>免环境配置</b>：脚本已内嵌访问凭据，默认假定下载至 <code>~/Downloads/arl_mcp.py</code>。若存放于其他路径，请将 <code>args</code> 调整为实际绝对路径；Windows 环境请使用 <code>python</code> 命令。<br/>
-      🔒 <b>凭据安全</b>：导出的脚本包含当前账号的高权限 API Token，请妥善保管勿公开提交；若发生泄露可点击“刷新 Token”一键作废。
+      💡 <b>{{ pageText('pages.noEnvironmentSetupNeeded') }}</b>{{ pageText('pages.theScriptIncludesAccessCredentialsAndAssumesItIs') }} <code>~/Downloads/arl_mcp.py</code>{{ pageText('pages.ifItIsSavedElsewhereUpdate') }} <code>args</code> {{ pageText('pages.toTheActualAbsolutePathOnWindowsUse') }} <code>python</code> {{ pageText('pages.message') }}<br/>
+      🔒 <b>{{ pageText('pages.credentialSecurity') }}</b>{{ pageText('pages.theExportedScriptContainsAPrivilegedApiTokenFor') }}
     </div>
   </a-modal>
 
@@ -192,7 +192,7 @@
       :okText="t('account.confirmChange')"
       :cancelText="t('common.cancel')"
   >
-    <a-form :model="passForm" :rules="passRules" ref="passFormRef" layout="vertical">
+    <a-form :label-wrap="true" :model="passForm" :rules="passRules" ref="passFormRef" layout="vertical">
       <a-form-item :label="t('account.oldPassword')" name="old_password">
         <a-input-password v-model:value="passForm.old_password" :placeholder="t('account.oldPlaceholder')" />
       </a-form-item>
@@ -208,9 +208,9 @@
   <!-- Basic Auth 配置与开启弹窗 -->
   <a-modal
     v-model:visible="showBasicAuthModal"
-    title="🔒 开启 Nginx Basic Auth 前置安全防护"
-    okText="确认开启并生效"
-    cancelText="取消"
+    :title="pageText('pages.enableNginxBasicAuthProtection')"
+    :okText="pageText('pages.enableAndApply')"
+    :cancelText="pageText('tasks.cancel')"
     :confirmLoading="isBasicAuthLoading"
     @ok="handleConfirmEnableBasicAuth"
     @cancel="showBasicAuthModal = false"
@@ -219,25 +219,25 @@
     rootClassName="arl-theme-modal"
   >
     <div style="margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--arl-text-color);">
-      <p style="margin-bottom: 8px;">开启 Basic Auth 前置安全网关防护后，访问系统前需输入 HTTP 基础认证账密，可有效抵御公网扫描器被动探测与爆破。</p>
+      <p class="page-form-spacing">{{ pageText('pages.basicAuthAddsAnHttpUsernameAndPasswordPrompt') }}</p>
     </div>
 
-    <a-form :model="basicAuthForm" :rules="basicAuthRules" ref="basicAuthFormRef" layout="vertical">
-      <a-form-item label="Basic Auth 账号" name="username" extra="基础认证账号，默认为 admin">
-        <a-input v-model:value="basicAuthForm.username" placeholder="请输入账号" />
+    <a-form :label-wrap="true" :model="basicAuthForm" :rules="basicAuthRules" ref="basicAuthFormRef" layout="vertical">
+      <a-form-item :label="pageText('pages.basicAuthUsername')" name="username" :extra="pageText('pages.httpAuthenticationUsernameDefaultsToAdmin')">
+        <a-input v-model:value="basicAuthForm.username" :placeholder="pageText('pages.enterAUsername')" />
       </a-form-item>
-      <a-form-item label="Basic Auth 密码" name="password" extra="留空则保持现有密码或使用系统默认密码 (arl_next)">
-        <a-input-password v-model:value="basicAuthForm.password" placeholder="留空使用默认/现有密码，或输入新密码" />
+      <a-form-item :label="pageText('pages.basicAuthPassword')" name="password" :extra="pageText('pages.leaveBlankToKeepTheCurrentPasswordOrUse')">
+        <a-input-password v-model:value="basicAuthForm.password" :placeholder="pageText('pages.leaveBlankForTheCurrentDefaultPasswordOrEnter')" />
       </a-form-item>
     </a-form>
 
     <div style="background: var(--arl-bg-light, rgba(0,0,0,0.03)); padding: 12px; border-radius: 6px; border: 1px solid var(--arl-border-color, rgba(255,255,255,0.08)); font-size: 12px; color: var(--arl-text-color); opacity: 0.85;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <span style="font-weight: bold; color: var(--arl-theme-color);">💡 快速预设：</span>
-        <a-button type="link" size="small" style="padding: 0; height: auto;" @click="resetBasicAuthDefaults">填充默认凭证 (admin / arl_next)</a-button>
+        <span class="page-theme-emphasis">{{ pageText('pages.quickPreset') }}</span>
+        <a-button type="link" size="small" class="page-text-action" @click="resetBasicAuthDefaults">{{ pageText('pages.fillDefaultCredentialsAdminArlNext') }}</a-button>
       </div>
-      <div>• 凭证文件持久化存放于宿主机工作目录下的 <code>frontend/.htpasswd</code>。</div>
-      <div style="margin-top: 4px; color: #faad14;">• <b>验证提示：</b> 浏览器会长期缓存基础认证，开启后若需验证防护拦截效果，请使用<b>无痕窗口</b>访问。</div>
+      <div>{{ pageText('pages.credentialsAreStoredPersistentlyInTheHostWorkingDirectory') }} <code>frontend/.htpasswd</code>。</div>
+      <div class="page-validation-warning">• <b>{{ pageText('pages.verification') }}</b> {{ pageText('pages.browsersCacheBasicAuthCredentialsToCheckTheAuthentication') }}<b>{{ pageText('pages.aPrivateWindow') }}</b>{{ pageText('pages.messageLabel2') }}</div>
     </div>
   </a-modal>
 
@@ -299,6 +299,7 @@ import {
 
 const route = useRoute();
 const { t, locale } = useI18n({ useScope: 'global' });
+const pageText = t;
 const router = useRouter();
 const collapsed = ref(false);
 const selectedKeys = ref([route.path]);
@@ -483,16 +484,16 @@ const handleThemeChange = async (e) => {
   hasBgImage.value = false;
   window.dispatchEvent(new CustomEvent('theme-changed', { detail: color }));
   window.dispatchEvent(new CustomEvent('bg-image-changed', { detail: '' }));
-  message.success('主题色已切换');
+  message.success(pageText('pages.themeColorChanged'));
 };
 
 const handleUploadBackground = async (file) => {
   if (file.size > 25 * 1024 * 1024) {
-    message.warning('图片大小不能超过 25MB，请重新选择');
+    message.warning(pageText('pages.imageMustBeNoLargerThan25Mb'));
     return false;
   }
   // 由于读取和提取可能较慢，可以给个 Loading 提示
-  const hide = message.loading('正在提取主题色并设置高清背景...', 0);
+  const hide = message.loading(pageText('pages.extractingTheThemeColorAndSettingTheBackground'), 0);
   try {
     const base64 = await processImageToBase64(file);
     const color = await extractDominantColor(base64);
@@ -503,9 +504,9 @@ const handleUploadBackground = async (file) => {
     window.dispatchEvent(new CustomEvent('theme-changed', { detail: color }));
     window.dispatchEvent(new CustomEvent('bg-image-changed', { detail: base64 }));
     
-    message.success('自定义高清主题背景设置成功！');
+    message.success(pageText('pages.customBackgroundApplied'));
   } catch (e) {
-    message.error('提取颜色或设置失败：' + (e.message || '未知错误'));
+    message.error(pageText('pages.failedToExtractColorOrApplySettings') + (e.message || pageText('tasks.unknownError')));
   } finally {
     hide();
   }
@@ -760,9 +761,9 @@ const handleShowMcpModal = () => {
 const copyMcpConfig = async () => {
   const ok = await copyText(mcpConfigJson.value);
   if (ok) {
-    message.success('MCP 配置已复制到剪贴板！');
+    message.success(pageText('pages.mcpConfigurationCopiedToClipboard'));
   } else {
-    message.error('复制失败，请手动选择复制');
+    message.error(pageText('pages.copyFailedSelectAndCopyTheTextManually'));
   }
 };
 
@@ -793,7 +794,7 @@ const downloadMcpScript = async () => {
     if (!scriptText || scriptText.startsWith('{"code":')) {
       const staticRes = await fetch('/mcp/server.py');
       if (!staticRes.ok) {
-        throw new Error('获取客户端模板失败');
+        throw new Error(pageText('pages.failedToLoadClientScriptTemplate'));
       }
       let content = await staticRes.text();
       const host = window.location.origin;
@@ -815,10 +816,10 @@ const downloadMcpScript = async () => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
-    message.success('arl_mcp.py 已成功导出并开始下载！');
+    message.success(pageText('pages.arlMcpPyExportedDownloadStarted'));
   } catch (error) {
     console.error('下载 MCP 客户端脚本失败:', error);
-    message.error('下载脚本失败，请检查网络');
+    message.error(pageText('pages.failedToDownloadScriptCheckTheNetworkConnection'));
   } finally {
     isDownloadingScript.value = false;
   }
@@ -831,13 +832,13 @@ const refreshMcpToken = async () => {
     const res = await request.post('/user/refresh_token');
     if (res.code === 200 && res.data && res.data.token) {
       localStorage.setItem('token', res.data.token);
-      message.success('Token 已作废并刷新成功！请重新下载客户端脚本。');
+      message.success(pageText('pages.tokenInvalidatedAndRefreshedDownloadANewClientScript'));
       handleShowMcpModal(); // 重新生成配置展示
     } else {
-      message.error(res.message || '刷新 Token 失败');
+      message.error(res.message || pageText('pages.failedToRefreshToken'));
     }
   } catch (error) {
-    message.error('刷新 Token 失败，请检查网络');
+    message.error(pageText('pages.failedToRefreshTokenCheckTheNetworkConnection'));
   } finally {
     isRefreshingToken.value = false;
   }
@@ -852,7 +853,7 @@ const basicAuthForm = reactive({
 });
 
 const basicAuthRules = {
-  username: [{ required: true, message: '请输入 Basic Auth 账号', trigger: 'blur' }]
+  username: [{ required: true, get message() { return pageText('pages.enterABasicAuthUsername'); }, trigger: 'blur' }]
 };
 
 const resetBasicAuthDefaults = () => {
@@ -891,16 +892,16 @@ const handleBasicAuthSwitchClick = () => {
   } else {
     // 当前为开启状态，点击弹出高危关闭警示
     Modal.confirm({
-      title: '关闭 Nginx Basic Auth 前置安全防护',
+      title: pageText('pages.disableNginxBasicAuthProtection'),
       icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
       width: 480,
       content: createVNode('div', { style: 'margin-top: 12px; line-height: 1.6;' }, [
-        createVNode('p', { style: 'margin-bottom: 8px; color: #ff4d4f;' }, '关闭后，Web 前端网关将直接对网络环境暴露（仅保留系统应用层登录鉴权）。'),
-        createVNode('p', { style: 'margin-bottom: 0;' }, '确定要关闭 Basic Auth 防护吗？')
+        createVNode('p', { style: 'margin-bottom: 8px; color: #ff4d4f;' }, pageText('pages.disablingBasicAuthExposesTheWebGatewayDirectlyTo')),
+        createVNode('p', { style: 'margin-bottom: 0;' }, pageText('pages.disableBasicAuthProtection'))
       ]),
-      okText: '确认关闭',
+      okText: pageText('pages.disableProtection'),
       okButtonProps: { danger: true },
-      cancelText: '取消',
+      cancelText: pageText('tasks.cancel'),
       onOk: () => executeToggleBasicAuth(false)
     });
   }
@@ -953,27 +954,27 @@ const executeToggleBasicAuth = async (checked, username = null, password = null)
           isBasicAuthEnabled.value = checked;
           if (checked) {
             message.success({
-              content: `Basic Auth 防护已开启！(账号: ${username || 'admin'}，建议使用无痕窗口验证拦截效果)`,
+              content: pageText('pages.basicAuthEnabledUsernameUsernameUseAPrivateWindow', { username: username || 'admin' }),
               duration: 6
             });
           } else {
-            message.success('Basic Auth 前置防护已成功关闭！');
+            message.success(pageText('pages.basicAuthProtectionDisabled'));
           }
         } else {
-          message.error('切换失败: ' + (data.message || '未知错误'));
+          message.error(pageText('pages.failedToChangeSetting') + (data.message || pageText('tasks.unknownError')));
         }
       } else {
-        message.error('调用底层切换接口失败，请检查更新服务状态');
+        message.error(pageText('pages.gatewayConfigurationRequestFailedCheckTheUpdateServiceStatus'));
       }
     } else {
-      message.error(tokenRes.message || '获取授权 Token 失败');
+      message.error(tokenRes.message || pageText('pages.failedToObtainAuthorizationToken'));
     }
   } catch (error) {
     if (error.name === 'AbortError') {
-      message.error('请求超时，请检查 updater 更新服务是否正常运行');
+      message.error(pageText('pages.requestTimedOutCheckThatTheUpdaterServiceIs'));
     } else {
       console.error(error);
-      message.error('操作失败，请检查网络或控制台日志');
+      message.error(pageText('pages.operationFailedCheckTheNetworkConnectionOrConsoleLogs'));
     }
   } finally {
     clearTimeout(timeoutId);
@@ -1234,4 +1235,12 @@ body.dark-mode .support-author-popover-overlay .ant-popover-inner {
 .sidebar-menu-chosen {
   cursor: grabbing !important;
 }
+
+.page-section-gap { margin-bottom: 10px; }
+.page-section-heading { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.page-muted-note { font-size: 12px; color: var(--arl-text-color); opacity: 0.75; }
+.page-form-spacing { margin-bottom: 8px; }
+.page-theme-emphasis { font-weight: bold; color: var(--arl-theme-color); }
+.page-text-action { padding: 0; height: auto; }
+.page-validation-warning { margin-top: 4px; color: #faad14; }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="arl-page-container">
+  <div class="arl-page-container" :class="{ 'page-english': pageLocale === 'en-US' }">
     <!-- 未保存改动常驻提示：让"改过但没存"成为可见状态，而非点保存时才发现 -->
     <a-alert
       v-if="hasUnsavedChanges"
@@ -9,31 +9,31 @@
       style="margin-bottom: 12px; border-radius: 6px;"
     >
       <template #message>
-        当前有 <strong>{{ unsavedCount }}</strong> 项配置改动尚未保存，
-        <a @click="activeKey = firstDirtyTabKey">点击跳转到待保存项</a>
-        。离开本页前请逐项保存。
+        <strong>{{ pageText('pages.unsavedSettingsCount', { count: unsavedCount }) }}</strong>
+        <a @click="activeKey = firstDirtyTabKey">{{ pageText('pages.goToUnsavedSettings') }}</a>
+        {{ pageText('pages.saveEachChangeBeforeLeavingThisPage') }}
       </template>
     </a-alert>
     <!-- 设置项搜索：输入关键词直接定位到目标 Tab 并高亮，避免在 7 个 Tab 间盲翻 -->
     <div class="arl-settings-search">
       <a-input-search
         v-model:value="settingsKeyword"
-        placeholder="搜索设置项，例如「FOFA」「并发」「黑名单」「Webhook」「代理」"
+        :placeholder="pageText('pages.searchSettingsEGFofaConcurrencyBlocklistWebhookOr')"
         allow-clear
         style="max-width: 520px;"
       >
         <template #prefix><span style="opacity: 0.45;">🔍</span></template>
       </a-input-search>
       <span v-if="settingsKeyword.trim()" class="arl-search-count">
-        {{ settingsSearchResults.length }} 项匹配
+        {{ pageText('pages.settingsMatchCount', { count: settingsSearchResults.length }) }}
       </span>
-      <a v-if="settingsKeyword.trim()" @click="settingsKeyword = ''" style="font-size: 12px;">清除</a>
+      <a v-if="settingsKeyword.trim()" @click="settingsKeyword = ''" class="page-small-text">{{ pageText('pages.clear') }}</a>
     </div>
 
     <!-- 搜索结果：点击直达对应 Tab 并高亮目标设置项 -->
     <div v-if="settingsKeyword.trim()" class="arl-search-panel">
       <div v-if="settingsSearchResults.length === 0" class="arl-search-empty">
-        未找到匹配的设置项，请尝试「FOFA / 并发 / 黑名单 / Webhook / 代理 / 版本」等关键词
+        {{ pageText('pages.noMatchingSettingsTryFofaConcurrencyBlocklistWebhookProxy') }}
       </div>
       <div
         v-for="item in settingsSearchResults"
@@ -55,27 +55,27 @@
     <div v-if="credentialOverview.length" class="arl-global-cred">
       <div class="arl-cred-summary" @click="credExpanded = !credExpanded">
         <span class="arl-cred-chevron">{{ credExpanded ? '▾' : '▸' }}</span>
-        <span class="arl-cred-summary-title">凭据配置状态</span>
+        <span class="arl-cred-summary-title">{{ pageText('pages.credentialConfigurationStatus') }}</span>
         <a-tag :color="missingRequiredCredentials.length ? 'red' : 'green'" style="margin: 0;">
-          已配置 {{ configuredCredentialCount }} / {{ credentialOverview.length }}
+          {{ pageText('pages.configuredCredentialsCount', { configured: configuredCredentialCount, total: credentialOverview.length }) }}
         </a-tag>
         <span v-if="missingRequiredCredentials.length" class="arl-cred-alert">
-          ⚠️ {{ missingRequiredCredentials.map(c => c.label).join('、') }} 未配置，相关能力不可用
+          {{ pageText('pages.missingCredentials', { names: missingRequiredCredentials.map(c => c.label).join(pageLocale === 'en-US' ? ', ' : '、') }) }}
         </span>
-        <span v-else class="arl-cred-ok">所需凭据均已配置</span>
-        <a class="arl-cred-toggle">{{ credExpanded ? '收起' : '展开明细' }}</a>
+        <span v-else class="arl-cred-ok">{{ pageText('pages.allRequiredCredentialsAreConfigured') }}</span>
+        <a class="arl-cred-toggle">{{ credExpanded ? pageText('pages.collapse') : pageText('pages.showDetails') }}</a>
       </div>
 
       <div v-show="credExpanded" class="arl-cred-body">
         <div class="arl-cred-hint">
-          以下状态读取的是系统<strong>当前实际生效值</strong>。标记为「未配置」的凭据对应的采集能力将不可用或降级。
+          {{ pageText('pages.credentialStatusHelp') }}
         </div>
         <a-row :gutter="[8, 8]" style="margin-top: 12px;">
           <a-col :span="8" v-for="item in credentialOverview" :key="item.key">
             <div class="arl-cred-item" :class="item.configured ? 'is-ok' : 'is-missing'">
               <span class="arl-cred-name">{{ item.label }}</span>
               <a-tag :color="item.configured ? 'green' : (item.required ? 'red' : 'default')" style="margin: 0;">
-                {{ item.configured ? '已配置' : (item.required ? '未配置 · 必需' : '未配置 · 可选') }}
+                {{ item.configured ? pageText('pages.configured') : (item.required ? pageText('pages.notConfiguredRequired') : pageText('pages.notConfiguredOptional')) }}
               </a-tag>
             </div>
           </a-col>
@@ -85,19 +85,19 @@
 
     <a-tabs v-model:activeKey="activeKey">
       <!-- 统一字典与规则库 Tab -->
-      <a-tab-pane key="api_config" :tab="tabTitle('资产测绘与情报', Object.keys(pendingByGroup.api_config).length > 0)" force-render>
+      <a-tab-pane key="api_config" :tab="tabTitle(pageText('pages.assetDiscoveryAndIntelligence'), Object.keys(pendingByGroup.api_config).length > 0)" force-render>
         <div style="max-width: 1000px; padding-bottom: 40px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <span style="color: var(--arl-text-color); opacity: 0.45;">
-              此处的配置项用于三方情报或搜索接口的 API 凭证管理，配置保存后将动态应用至对应的域名/资产收集任务。
+              {{ pageText('pages.manageApiCredentialsForExternalIntelligenceAndSearchServices') }}
             </span>
             <a-button
               type="primary"
               :class="{ 'arl-dirty-btn': Object.keys(pendingByGroup.api_config).length > 0 }"
-              @click="saveGeneralConfig('api_config', 'API 配置已保存')"
+              @click="saveGeneralConfig('api_config', pageText('pages.apiConfigurationSaved'))"
               :loading="generalSaveLoading"
             >
-              保存 API 配置
+              {{ pageText('pages.saveApiConfiguration') }}
               <a-badge
                 v-if="Object.keys(pendingByGroup.api_config).length > 0"
                 :count="Object.keys(pendingByGroup.api_config).length"
@@ -108,28 +108,28 @@
           </div>
           
           <a-spin :spinning="generalLoading">
-            <a-form layout="vertical">
+            <a-form :label-wrap="true" layout="vertical">
 
               <!-- 1. 空间测绘情报 -->
-              <a-card data-setting-anchor="fofa" title="🌐 空间测绘情报 (FOFA)" size="small" style="margin-bottom: 16px; border-radius: 6px;">
+              <a-card data-setting-anchor="fofa" :title="pageText('pages.assetDiscoveryIntelligenceFofa')" size="small" class="page-config-card">
                 <a-row :gutter="24">
                   <a-col :span="12">
                     <a-form-item label="FOFA URL" style="margin-bottom: 12px;">
-                      <a-input v-model:value="generalForm.fofa_url" placeholder="例如：https://fofa.info" />
+                      <a-input v-model:value="generalForm.fofa_url" :placeholder="pageText('pages.eGHttpsFofaInfo')" />
                     </a-form-item>
                   </a-col>
                   <a-col :span="12">
                     <a-form-item label="FOFA KEY" style="margin-bottom: 12px;">
-                      <a-input-password v-model:value="generalForm.fofa_key" placeholder="请输入您的 FOFA API KEY" />
+                      <a-input-password v-model:value="generalForm.fofa_key" :placeholder="pageText('pages.enterYourFofaApiKey')" />
                     </a-form-item>
                   </a-col>
                   <a-col :span="12">
-                    <a-form-item label="最大查询页数 (Max Page)" style="margin-bottom: 0;">
+                    <a-form-item :label="pageText('pages.maximumQueryPages')" class="page-flush-bottom">
                       <a-input-number v-model:value="generalForm.fofa_max_page" :min="1" style="width: 100%" />
                     </a-form-item>
                   </a-col>
                   <a-col :span="12">
-                    <a-form-item label="每页条数 (Page Size)" style="margin-bottom: 0;">
+                    <a-form-item :label="pageText('pages.resultsPerPage')" class="page-flush-bottom">
                       <a-input-number v-model:value="generalForm.fofa_page_size" :min="1" style="width: 100%" />
                     </a-form-item>
                   </a-col>
@@ -139,28 +139,28 @@
               <a-row :gutter="16">
                 <!-- 2. 企业与代码监控 (左半边) -->
                 <a-col :span="12">
-                  <a-card data-setting-anchor="tyc" title="🏢 企业全景测绘凭据 (天眼查 API)" size="small" style="margin-bottom: 16px; border-radius: 6px; min-height: 190px;">
+                  <a-card data-setting-anchor="tyc" :title="pageText('pages.enterpriseDiscoveryCredentialsTianyanchaApi')" size="small" class="page-config-card-min-height">
                     <template #extra>
-                      <a-tooltip title="选配项。配置后支持投资控股树深度穿透与工信部双轨校对；未配置时系统仍可通过工信部 ICP 备案数据进行资产归集。">
+                      <a-tooltip :title="pageText('pages.optionalEnablesInvestmentRelationshipTraversalAndCrossCheckingAgainst')">
                         <info-circle-outlined style="color: #bfbfbf;" />
                       </a-tooltip>
                     </template>
-                    <a-form-item label="天眼查 ID (X-Tycid)" style="margin-bottom: 12px;">
-                      <a-input v-model:value="generalForm.tyc_id" placeholder="请输入天眼查 ID" />
+                    <a-form-item :label="pageText('pages.tianyanchaIdXTycid')" class="page-field-spacing">
+                      <a-input v-model:value="generalForm.tyc_id" :placeholder="pageText('pages.enterYourTianyanchaId')" />
                     </a-form-item>
-                    <a-form-item label="天眼查 Token (X-Auth-Token)" style="margin-bottom: 0;">
-                      <a-input-password v-model:value="generalForm.tyc_token" placeholder="请输入 JWT Token" />
+                    <a-form-item :label="pageText('pages.tianyanchaTokenXAuthToken')" class="page-flush-bottom">
+                      <a-input-password v-model:value="generalForm.tyc_token" :placeholder="pageText('pages.enterAJwtToken')" />
                     </a-form-item>
                   </a-card>
                 </a-col>
 
                 <!-- 3. 代码与搜索引擎 (右半边) -->
                 <a-col :span="12">
-                  <a-card data-setting-anchor="search_cookie" title="🔍 搜索引擎 & 开源情报" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 190px;">
-                    <a-form-item data-setting-anchor="github_token" label="GitHub Token (监控任务调用)" style="margin-bottom: 12px;">
-                      <a-input-password v-model:value="generalForm.github_token" placeholder="请输入您的 GitHub PAT" />
+                  <a-card data-setting-anchor="search_cookie" :title="pageText('pages.searchEnginesAndOpenSourceIntelligence')" size="small" class="page-config-card-fixed">
+                    <a-form-item data-setting-anchor="github_token" :label="pageText('pages.githubTokenMonitoringTasks')" class="page-field-spacing">
+                      <a-input-password v-model:value="generalForm.github_token" :placeholder="pageText('pages.enterYourGithubPat')" />
                     </a-form-item>
-                    <a-form-item label="360搜索 Cookie (反爬绕过)" style="margin-bottom: 0;">
+                    <a-form-item :label="pageText('pages.360SearchCookieAntiBotAccess')" class="page-flush-bottom">
                       <a-input-password v-model:value="generalForm.so_search_cookie" placeholder="so_search_cookie" />
                     </a-form-item>
                   </a-card>
@@ -169,14 +169,14 @@
 
               <!-- 单独一行放必应，如果上面放不下 -->
               <a-card size="small" style="margin-bottom: 16px; border-radius: 6px;">
-                 <a-form-item label="必应搜索 Cookie (bing_search_cookie)" style="margin-bottom: 0;">
-                   <a-input-password v-model:value="generalForm.bing_search_cookie" placeholder="请输入必应搜索 Cookie" />
+                 <a-form-item :label="pageText('pages.bingSearchCookieBingSearchCookie')" class="page-flush-bottom">
+                   <a-input-password v-model:value="generalForm.bing_search_cookie" :placeholder="pageText('pages.enterABingSearchCookie')" />
                  </a-form-item>
               </a-card>
 
 
               <!-- 4. 插件配置 -->
-              <a-card data-setting-anchor="query_plugin" title="🧩 域名收集扩展插件配置 (QUERY_PLUGIN)" size="small" style="border-radius: 6px;">
+              <a-card data-setting-anchor="query_plugin" :title="pageText('pages.domainCollectionPluginConfigurationQueryPlugin')" size="small" class="page-rounded">
                 <div style="background: var(--arl-bg-light); border-radius: 4px; padding: 12px;">
                   <a-row :gutter="[12, 12]">
                     <a-col :span="8" v-for="(conf, pluginName) in generalForm.query_plugin_config" :key="pluginName">
@@ -220,14 +220,14 @@
           </a-spin>
         </div>
       </a-tab-pane>
-      <a-tab-pane key="dictionary" :tab="tabTitle('字典与规则库', false)">
+      <a-tab-pane key="dictionary" :tab="tabTitle(pageText('pages.dictionariesAndRules'), false)">
         <a-tabs v-model:activeKey="dictSubTab" type="card" class="dict-sub-tabs" style="margin-bottom: 16px;">
-          <a-tab-pane key="dict" tab="通用文本字典">
+          <a-tab-pane key="dict" :tab="pageText('pages.textDictionaries')">
             <a-spin :spinning="loading || bruteLoading">
             <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> <!-- 左侧语义化菜单与独立滚动 -->
             <div style="width: 256px; flex-shrink: 0; border-right: 1px solid var(--arl-border-color); background: var(--arl-bg-white); display: flex; flex-direction: column;">
               <div style="padding: 16px; border-bottom: 1px solid var(--arl-border-color); display: flex; align-items: center; min-height: 64px; box-sizing: border-box;">
-                <span style="font-weight: 600; font-size: 14px; color: var(--arl-text-color);">字典分类</span>
+                <span class="page-panel-heading">{{ pageText('pages.dictionaryCategories') }}</span>
               </div>
               <div class="hide-scrollbar" style="flex: 1; overflow-y: auto;">
                 <div style="padding: 12px 8px; display: flex; flex-direction: column; gap: 4px;">
@@ -250,8 +250,8 @@
             <div style="width: 250px; flex-shrink: 0; border-right: 1px solid var(--arl-border-color); background: var(--arl-bg-white); display: flex; flex-direction: column;">
               <div style="padding: 16px; border-bottom: 1px solid var(--arl-border-color); min-height: 64px; box-sizing: border-box;">
                 <div style="display: flex; gap: 8px;">
-                  <a-input-search v-model:value="menuSearch" placeholder="搜索当前分类下的字典..." style="flex: 1; border-radius: 4px;" />
-                  <a-button type="primary" @click="openCreateDictDrawer" style="padding: 0 8px;" title="新建字典">
+                  <a-input-search v-model:value="menuSearch" :placeholder="pageText('pages.searchDictionariesInThisCategory')" class="page-search-field" />
+                  <a-button type="primary" @click="openCreateDictDrawer" class="page-icon-padding" :title="pageText('pages.newDictionary')">
                     <template #icon><span style="margin-right:0px;">➕</span></template>
                   </a-button>
                 </div>
@@ -259,8 +259,8 @@
               <div class="hide-scrollbar" style="flex: 1; overflow-y: auto; padding: 12px 8px;">
                 <div v-if="currentFilteredDicts.length === 0" style="padding: 48px 24px; text-align: center; color: var(--arl-text-color); opacity: 0.65; display: flex; flex-direction: column; align-items: center; gap: 12px;">
                   <span style="font-size: 32px; opacity: 0.8;">📭</span>
-                  <span style="font-size: 13px; font-weight: 500;">分类下暂无字典</span>
-                  <span style="font-size: 12px; opacity: 0.7;">点击上方 ➕ 新建或者换个分类</span>
+                  <span class="page-label">{{ pageText('pages.noDictionariesInThisCategory') }}</span>
+                  <span class="page-quiet-help">{{ pageText('pages.selectNewDictionaryAboveOrChooseAnotherCategory') }}</span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 4px;">
                   <div
@@ -276,7 +276,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                           <span class="dict-subtitle">{{ item.subTitle }}</span>
                           <div style="display: flex; gap: 4px; align-items: center;">
-                            <a-tag v-if="item.is_builtin" color="purple" style="margin: 0; font-size: 10px; line-height: 16px; padding: 0 4px; border-radius: 2px;">内置</a-tag>
+                            <a-tag v-if="item.is_builtin" color="purple" class="page-tiny-tag">{{ pageText('pages.builtIn') }}</a-tag>
                             <span class="dict-badge">txt</span>
                           </div>
                         </div>
@@ -297,20 +297,20 @@
                   <div class="health-icon-pulse">
                     <span style="font-size: 56px;">🌌</span>
                   </div>
-                  <h3 class="health-title">字典库健康概览</h3>
+                  <h3 class="health-title">{{ pageText('pages.dictionaryLibraryOverview') }}</h3>
                   <div class="health-stats-container">
                     <div class="health-stat-card primary-stat">
                       <div class="stat-value">{{ dictList.length }}</div>
-                      <div class="stat-label">核心资产字典数</div>
+                      <div class="stat-label">{{ pageText('pages.coreAssetDictionaries') }}</div>
                     </div>
                     <div class="health-stat-card warning-stat">
                       <div class="stat-value">{{ bruteDictList.length }}</div>
-                      <div class="stat-label">弱口令字典数</div>
+                      <div class="stat-label">{{ pageText('pages.credentialDictionaries') }}</div>
                     </div>
                   </div>
                   <div class="health-hint">
                     <span class="pulse-dot"></span>
-                    <span>系统状态良好，请在左侧选择要管理的字典文件</span>
+                    <span>{{ pageText('pages.systemStatusIsHealthySelectADictionaryOnThe') }}</span>
                   </div>
                 </div>
               </div>
@@ -323,38 +323,38 @@
                      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
                        <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--arl-text-color);">{{ unifiedSelectedName }}</h3>
                        <a-tag :color="unifiedSelectedType === 'asset' ? 'blue' : 'orange'" style="margin: 0;">
-                         {{ unifiedSelectedType === 'asset' ? '资产发现' : '弱口令' }}
+                         {{ unifiedSelectedType === 'asset' ? pageText('pages.assetDiscovery') : pageText('pages.credentialChecks') }}
                        </a-tag>
                        <a-tag v-if="unifiedSelectedIsBuiltin" color="purple" style="margin: 0;">
-                         🔒 系统内置
+                         {{ pageText('pages.systemBuiltIn') }}
                        </a-tag>
                      </div>
-                     <div style="color: var(--arl-text-color); opacity: 0.55; font-size: 12px; font-family: 'Fira Code', monospace;">{{ unifiedSelectedDesc }} | Total: {{ totalLines }} lines</div>
+                     <div class="page-dictionary-summary">{{ pageText('pages.dictionaryDescriptionCount', { description: unifiedSelectedDesc, count: totalLines }) }}</div>
                    </div>
                    <div style="display: flex; gap: 8px; align-items: center;">
-                      <a-button @click="handleDownloadDict" :loading="downloadLoading" title="导出字典文件">
-                        <template #icon><span style="margin-right:4px;">📥</span></template> 导出字典
+                      <a-button @click="handleDownloadDict" :loading="downloadLoading" :title="pageText('pages.exportDictionaryFile')">
+                        <template #icon><span class="page-icon-gap">📥</span></template> {{ pageText('pages.exportDictionary') }}
                       </a-button>
-                      <a-tooltip v-if="unifiedSelectedIsBuiltin" title="系统预置核心字典受安全保护，禁止彻底删除">
+                      <a-tooltip v-if="unifiedSelectedIsBuiltin" :title="pageText('pages.coreBuiltInDictionariesAreProtectedAndCannotBe')">
                         <a-button danger disabled>
-                          <template #icon><span style="margin-right:4px;">🗑️</span></template> 删除字典
+                          <template #icon><span class="page-icon-gap">🗑️</span></template> {{ pageText('pages.deleteDictionary') }}
                         </a-button>
                       </a-tooltip>
                       <a-popconfirm
                         v-else
-                        title="确定要彻底删除该字典文件吗？此操作不可逆！"
+                        :title="pageText('pages.permanentlyDeleteThisDictionaryFileThisCannotBeUndone')"
                         placement="bottomRight"
                         @confirm="handleDeleteDict"
                       >
                         <a-button danger>
-                          <template #icon><span style="margin-right:4px;">🗑️</span></template> 删除字典
+                          <template #icon><span class="page-icon-gap">🗑️</span></template> {{ pageText('pages.deleteDictionary') }}
                         </a-button>
                       </a-popconfirm>
                      <a-button @click="searchDrawerVisible = true">
-                       <template #icon><span style="margin-right:4px;">🔍</span></template> 检索清理
+                       <template #icon><span class="page-icon-gap">🔍</span></template> {{ pageText('pages.searchAndRemove') }}
                      </a-button>
                      <a-button type="primary" @click="appendDrawerVisible = true">
-                       <template #icon><span style="margin-right:4px;">➕</span></template> 追加数据
+                       <template #icon><span class="page-icon-gap">➕</span></template> {{ pageText('pages.appendEntries') }}
                      </a-button>
                    </div>
                 </div>
@@ -364,11 +364,11 @@
                   <div style="display: flex; justify-content: space-between; align-items: center; background: var(--arl-bg-white); padding: 8px 16px; border-radius: 8px; border: 1px solid var(--arl-border-color); box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
                     <div style="display: flex; align-items: center; gap: 8px;">
                       <span style="font-size: 13px; font-weight: 500; color: var(--arl-text-color);">
-                        📄 内容预览 (展示前 {{ previewLimit }} 行 / 共 {{ totalLines }} 行)
+                        {{ pageText('pages.dictionaryPreviewCount', { shown: previewLimit, total: totalLines }) }}
                       </span>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                      <span style="font-size: 12px; opacity: 0.65; color: var(--arl-text-color);">预览行数:</span>
+                      <span class="page-muted-label">{{ pageText('pages.previewLines') }}</span>
                       <a-radio-group v-model:value="previewLimit" size="small" @change="() => fetchPreview(selectedDict)">
                         <a-radio-button :value="50">50</a-radio-button>
                         <a-radio-button :value="100">100</a-radio-button>
@@ -376,7 +376,7 @@
                         <a-radio-button :value="1000">1000</a-radio-button>
                       </a-radio-group>
                       <a-button size="small" @click="copyPreviewContent">
-                        <template #icon><span style="margin-right:2px;">📋</span></template> 复制预览
+                        <template #icon><span class="page-small-icon-gap">📋</span></template> {{ pageText('pages.copyPreview') }}
                       </a-button>
                     </div>
                   </div>
@@ -387,11 +387,11 @@
                     </div>
                     <div class="native-code-content">
                       <div v-if="!previewContent" class="empty-code">
-                        <span>/* 该字典暂无内容 */</span>
+                        <span>{{ pageText('pages.thisDictionaryIsEmpty') }}</span>
                       </div>
                       <pre v-else class="code-text">{{ previewContent }}</pre>
                       <div v-if="totalLines > previewLimit" class="code-limit-hint">
-                        // 仅预览前 {{ previewLimit }} 行内容 (总计 {{ totalLines }} 行)...
+                        {{ pageText('pages.dictionaryPreviewTail', { shown: previewLimit, total: totalLines }) }}
                       </div>
                     </div>
                   </div>
@@ -403,65 +403,65 @@
         </a-spin>
 
         <!-- 新建字典抽屉 -->
-        <a-drawer v-model:open="createDictDrawerVisible" title="新建字典" placement="right" width="450" @close="resetCreateDictForm">
+        <a-drawer v-model:open="createDictDrawerVisible" :title="pageText('pages.newDictionary')" placement="right" width="450" @close="resetCreateDictForm">
           <a-tabs v-model:activeKey="createDictTabKey">
             <!-- 手动输入新建 -->
-            <a-tab-pane key="manual" tab="手动输入新建">
-              <div style="margin-bottom: 16px; color: var(--arl-text-color); font-size: 13px;">请选择字典分类并输入初始内容，系统将自动创建 .txt 文件。</div>
-              <a-form layout="vertical">
-                <a-form-item label="字典分类" required>
+            <a-tab-pane key="manual" :tab="pageText('pages.createFromText')">
+              <div class="page-description">{{ pageText('pages.selectADictionaryCategoryAndEnterInitialContentThe') }}</div>
+              <a-form :label-wrap="true" layout="vertical">
+                <a-form-item :label="pageText('pages.dictionaryCategories')" required>
                   <a-select v-model:value="createDictForm.prefix">
-                    <a-select-option value="domain_">🌍 子域名爆破 (domain_)</a-select-option>
-                    <a-select-option value="altdns_">🧠 智能子域爆破 (altdns_)</a-select-option>
-                    <a-select-option value="file_">📂 目录文件泄露 (file_)</a-select-option>
-                    <a-select-option value="black">🛡️ 全局黑名单拦截 (black*)</a-select-option>
-                    <a-select-option value="port_">🔌 端口扫描策略 (port_)</a-select-option>
-                    <a-select-option value="dnsserver_">🌐 DNS 解析配置 (dnsserver_)</a-select-option>
-                    <a-select-option value="username_">👤 弱口令账号 (username_)</a-select-option>
-                    <a-select-option value="password_">🔑 弱口令密码 (password_)</a-select-option>
+                    <a-select-option value="domain_">{{ pageText('pages.subdomainDiscoveryDomain') }}</a-select-option>
+                    <a-select-option value="altdns_">{{ pageText('pages.subdomainMutationDiscoveryAltdns') }}</a-select-option>
+                    <a-select-option value="file_">{{ pageText('pages.directoryAndFileDisclosureFile') }}</a-select-option>
+                    <a-select-option value="black">{{ pageText('pages.globalBlocklistBlack') }}</a-select-option>
+                    <a-select-option value="port_">{{ pageText('pages.portScanPolicyPort') }}</a-select-option>
+                    <a-select-option value="dnsserver_">{{ pageText('pages.dnsResolversDnsserver') }}</a-select-option>
+                    <a-select-option value="username_">{{ pageText('pages.usernamesUsername') }}</a-select-option>
+                    <a-select-option value="password_">{{ pageText('pages.passwordsPassword') }}</a-select-option>
                   </a-select>
                 </a-form-item>
-                <a-form-item label="字典名称 (仅英文、数字、下划线)" required>
-                  <a-input v-model:value="createDictForm.customName" placeholder="例如: top100" />
+                <a-form-item :label="pageText('pages.dictionaryNameLettersNumbersAndUnderscoresOnly')" required>
+                  <a-input v-model:value="createDictForm.customName" :placeholder="pageText('pages.eGTop100')" />
                 </a-form-item>
-                <a-form-item label="初始字典内容 (可选)">
-                  <a-textarea v-model:value="createDictForm.content" placeholder="每行一个条目，支持批量粘贴（超大字典建议切换至【文件上传新建】）" :rows="8" @paste="handlePasteContent" />
+                <a-form-item :label="pageText('pages.initialDictionaryContentOptional')">
+                  <a-textarea v-model:value="createDictForm.content" :placeholder="pageText('pages.oneEntryPerLineBulkPasteIsSupportedUse')" :rows="8" @paste="handlePasteContent" />
                 </a-form-item>
               </a-form>
               <div style="text-align: right; margin-top: 24px;">
-                <a-button @click="createDictDrawerVisible = false" style="margin-right: 8px;">取消</a-button>
-                <a-button type="primary" :loading="createDictLoading" :disabled="!isCreateDictValid" @click="handleCreateDictManual">确定新建</a-button>
+                <a-button @click="createDictDrawerVisible = false" class="page-inline-gap">{{ pageText('tasks.cancel') }}</a-button>
+                <a-button type="primary" :loading="createDictLoading" :disabled="!isCreateDictValid" @click="handleCreateDictManual">{{ pageText('pages.createDictionary') }}</a-button>
               </div>
             </a-tab-pane>
 
             <!-- 文件上传新建 -->
-            <a-tab-pane key="upload" tab="文件上传新建">
-              <div style="margin-bottom: 16px; color: var(--arl-text-color); font-size: 13px;">请选择字典分类并上传一个包含条目的 .txt 文件，我们将自动进行去重。</div>
-              <a-form layout="vertical">
-                <a-form-item label="字典分类" required>
+            <a-tab-pane key="upload" :tab="pageText('pages.createFromFile')">
+              <div class="page-description">{{ pageText('pages.selectADictionaryCategoryAndUploadATxtFile') }}</div>
+              <a-form :label-wrap="true" layout="vertical">
+                <a-form-item :label="pageText('pages.dictionaryCategories')" required>
                   <a-select v-model:value="createDictForm.prefix">
-                    <a-select-option value="domain_">🌍 子域名爆破 (domain_)</a-select-option>
-                    <a-select-option value="altdns_">🧠 智能子域爆破 (altdns_)</a-select-option>
-                    <a-select-option value="file_">📂 目录文件泄露 (file_)</a-select-option>
-                    <a-select-option value="black">🛡️ 全局黑名单拦截 (black*)</a-select-option>
-                    <a-select-option value="port_">🔌 端口扫描策略 (port_)</a-select-option>
-                    <a-select-option value="dnsserver_">🌐 DNS 解析配置 (dnsserver_)</a-select-option>
-                    <a-select-option value="username_">👤 弱口令账号 (username_)</a-select-option>
-                    <a-select-option value="password_">🔑 弱口令密码 (password_)</a-select-option>
+                    <a-select-option value="domain_">{{ pageText('pages.subdomainDiscoveryDomain') }}</a-select-option>
+                    <a-select-option value="altdns_">{{ pageText('pages.subdomainMutationDiscoveryAltdns') }}</a-select-option>
+                    <a-select-option value="file_">{{ pageText('pages.directoryAndFileDisclosureFile') }}</a-select-option>
+                    <a-select-option value="black">{{ pageText('pages.globalBlocklistBlack') }}</a-select-option>
+                    <a-select-option value="port_">{{ pageText('pages.portScanPolicyPort') }}</a-select-option>
+                    <a-select-option value="dnsserver_">{{ pageText('pages.dnsResolversDnsserver') }}</a-select-option>
+                    <a-select-option value="username_">{{ pageText('pages.usernamesUsername') }}</a-select-option>
+                    <a-select-option value="password_">{{ pageText('pages.passwordsPassword') }}</a-select-option>
                   </a-select>
                 </a-form-item>
-                <a-form-item label="字典名称 (仅英文、数字、下划线)" required>
-                  <a-input v-model:value="createDictForm.customName" placeholder="例如: top100" />
+                <a-form-item :label="pageText('pages.dictionaryNameLettersNumbersAndUnderscoresOnly')" required>
+                  <a-input v-model:value="createDictForm.customName" :placeholder="pageText('pages.eGTop100')" />
                 </a-form-item>
-                <a-form-item label="选择字典文件 (.txt)" required>
+                <a-form-item :label="pageText('pages.dictionaryFileTxt')" required>
                   <a-upload :file-list="createDictForm.fileList" :before-upload="(f) => { createDictForm.fileList = [f]; return false; }" @remove="createDictForm.fileList = []" accept=".txt">
-                    <a-button><template #icon>📁</template> 点击选择文件</a-button>
+                    <a-button><template #icon>📁</template> {{ pageText('pages.selectFile') }}</a-button>
                   </a-upload>
                 </a-form-item>
               </a-form>
               <div style="text-align: right; margin-top: 24px;">
-                <a-button @click="handleCreateDictUploadCancel" style="margin-right: 8px;">取消</a-button>
-                <a-button type="primary" :loading="createDictLoading" :disabled="!isCreateDictValid || createDictForm.fileList.length === 0" @click="handleCreateDictUpload">开始上传并新建</a-button>
+                <a-button @click="handleCreateDictUploadCancel" class="page-inline-gap">{{ pageText('tasks.cancel') }}</a-button>
+                <a-button type="primary" :loading="createDictLoading" :disabled="!isCreateDictValid || createDictForm.fileList.length === 0" @click="handleCreateDictUpload">{{ pageText('pages.uploadAndCreate') }}</a-button>
               </div>
             </a-tab-pane>
           </a-tabs>
@@ -469,22 +469,20 @@
 
         <!-- 上传字典弹窗 -->
         <!-- 追加数据抽屉（合并手动输入与大文件上传） -->
-        <a-drawer v-model:open="appendDrawerVisible" title="追加字典数据" placement="right" width="450">
+        <a-drawer v-model:open="appendDrawerVisible" :title="pageText('pages.appendDictionaryEntries')" placement="right" width="450">
           <a-tabs v-model:activeKey="appendMode" style="margin-bottom: 16px;">
-            <a-tab-pane key="text" tab="手动粘贴">
-              <div style="margin-bottom: 12px; color: var(--arl-text-color); font-size: 13px;">请粘贴要追加的条目（每行一个）：</div>
-              <a-textarea v-model:value="newEntries" :rows="22" @paste="handlePasteNewEntries" placeholder="例如：
-admin
-root" style="font-family: monospace; font-size: 12px; margin-bottom: 24px;" />
+            <a-tab-pane key="text" :tab="pageText('pages.pasteText')">
+              <div class="page-compact-description">{{ pageText('pages.pasteEntriesToAppendOnePerLine') }}</div>
+              <a-textarea v-model:value="newEntries" :rows="22" @paste="handlePasteNewEntries" :placeholder="pageText('pages.eGAdminRoot')" class="page-code-preview" />
               <div style="display: flex; justify-content: flex-end; gap: 12px;">
-                <a-button @click="appendDrawerVisible = false">取消</a-button>
-                <a-button type="primary" @click="handleAppendAndClose" :loading="submitLoading" :disabled="!newEntries.trim()">提交保存</a-button>
+                <a-button @click="appendDrawerVisible = false">{{ pageText('tasks.cancel') }}</a-button>
+                <a-button type="primary" @click="handleAppendAndClose" :loading="submitLoading" :disabled="!newEntries.trim()">{{ pageText('pages.saveEntries') }}</a-button>
               </div>
             </a-tab-pane>
-            <a-tab-pane key="file" tab="文件上传">
+            <a-tab-pane key="file" :tab="pageText('pages.uploadFile')">
               <div>
                 <div style="margin-bottom: 16px; color: var(--arl-text-color); font-size: 13px;">
-                  支持上传数百万行的 TXT 文本，后台将自动去重并合并到当前字典中。
+                  {{ pageText('pages.uploadTxtFilesWithMillionsOfLinesTheSystem') }}
                 </div>
                 <a-upload-dragger
                   name="file"
@@ -496,9 +494,9 @@ root" style="font-family: monospace; font-size: 12px; margin-bottom: 24px;" />
                   <p class="ant-upload-drag-icon" style="font-size: 48px; margin-bottom: 16px;">
                     📄
                   </p>
-                  <p class="ant-upload-text">点击或将 TXT 文件拖拽到这里上传</p>
+                  <p class="ant-upload-text">{{ pageText('pages.clickOrDragATxtFileHere') }}</p>
                   <p class="ant-upload-hint">
-                    仅支持纯文本格式，每行一个词条
+                    {{ pageText('pages.plainTextOnlyOneEntryPerLine') }}
                   </p>
                 </a-upload-dragger>
               </div>
@@ -507,45 +505,43 @@ root" style="font-family: monospace; font-size: 12px; margin-bottom: 24px;" />
         </a-drawer>
 
         <!-- 搜索清理抽屉 -->
-        <a-drawer v-model:open="searchDrawerVisible" title="检索与清理" placement="right" width="450">
+        <a-drawer v-model:open="searchDrawerVisible" :title="pageText('pages.searchAndRemoveEntries')" placement="right" width="450">
           <div style="margin-bottom: 24px;">
-            <div style="margin-bottom: 8px; font-weight: 500; font-size: 14px;">🎯 精准检索</div>
+            <div class="page-form-section-title">{{ pageText('pages.exactSearch') }}</div>
             <a-input-search
               v-model:value="searchKeyword"
-              placeholder="输入关键词精确搜索条目"
+              :placeholder="pageText('pages.enterAKeywordToSearchForEntries')"
               @search="handleSearch"
               :loading="searchLoading"
             >
-              <template #enterButton><a-button type="primary">搜索</a-button></template>
+              <template #enterButton><a-button type="primary">{{ pageText('pages.search') }}</a-button></template>
             </a-input-search>
             
             <div v-if="searchResult !== null" style="margin-top: 12px;">
-              <div v-if="searchResult.length > 0" style="margin-bottom: 8px; color: #52c41a; font-size: 13px;">✅ 找到 {{ searchResult.length }} 条匹配项</div>
-              <div v-else style="margin-bottom: 8px; color: #ff4d4f; font-size: 13px;">❌ 未找到匹配条目</div>
+              <div v-if="searchResult.length > 0" class="page-success-detail">{{ pageText('pages.found') }} {{ searchResult.length }} {{ pageText('pages.matchingEntries') }}</div>
+              <div v-else class="page-error-detail">{{ pageText('pages.noMatchingEntries') }}</div>
               <div v-if="searchResult.length > 0" style="max-height: 300px; overflow-y: auto;">
                 <div v-for="(item, idx) in searchResult" :key="idx" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid var(--arl-border-color); background: var(--arl-bg-light); margin-bottom: 4px; border-radius: 4px;">
                   <span style="font-family: monospace; font-size: 12px; word-break: break-all; color: var(--arl-text-color);">{{ item }}</span>
-                  <a-button type="text" danger size="small" @click="handleDeleteSingle(item)" :loading="deleteLoading">删除</a-button>
+                  <a-button type="text" danger size="small" @click="handleDeleteSingle(item)" :loading="deleteLoading">{{ pageText('tasks.delete') }}</a-button>
                 </div>
               </div>
-              <div v-if="searchResult.length === 100" style="color: #faad14; font-size: 12px; margin-top: 8px;">* 仅显示前 100 条，请细化关键词</div>
+              <div v-if="searchResult.length === 100" class="page-warning-detail">{{ pageText('pages.onlyTheFirst100ResultsAreShownRefineYour') }}</div>
             </div>
           </div>
           
           <a-divider />
           
           <div>
-            <div style="margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #ff4d4f;">🗑️ 批量删除</div>
-            <div style="margin-bottom: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 12px;">输入要删除的准确条目，每行一个：</div>
-            <a-textarea v-model:value="batchDeleteEntries" :rows="10" placeholder="例如：
-admin123
-123456" style="font-family: monospace; font-size: 12px; margin-bottom: 16px;" />
-            <a-button danger block @click="handleDeleteBatchCustom" :loading="deleteLoading" :disabled="!batchDeleteEntries.trim()">执行批量删除</a-button>
+            <div class="page-danger-section-title">{{ pageText('pages.deleteEntriesInBulk') }}</div>
+            <div class="page-empty-detail">{{ pageText('pages.enterTheExactEntriesToDeleteOnePerLine') }}</div>
+            <a-textarea v-model:value="batchDeleteEntries" :rows="10" :placeholder="pageText('pages.eGAdmin123123456')" class="page-code-summary" />
+            <a-button danger block @click="handleDeleteBatchCustom" :loading="deleteLoading" :disabled="!batchDeleteEntries.trim()">{{ pageText('pages.deleteSubmittedEntries') }}</a-button>
           </div>
         </a-drawer>
       </a-tab-pane>
 
-      <a-tab-pane key="cdn" tab="CDN 特征与规则字典" force-render>
+      <a-tab-pane key="cdn" :tab="pageText('pages.cdnFingerprintsAndRules')" force-render>
         <a-spin :spinning="cdnLoading">
           <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> 
             
@@ -553,7 +549,7 @@ admin123
             <div style="width: 256px; flex-shrink: 0; border-right: 1px solid var(--arl-border-color); background: var(--arl-bg-white); display: flex; flex-direction: column;">
               <div style="padding: 16px; border-bottom: 1px solid var(--arl-border-color); min-height: 64px; box-sizing: border-box;">
                 <div style="display: flex; gap: 8px;">
-                  <a-input-search v-model:value="cdnSearchText" placeholder="搜索 CDN..." style="flex: 1; border-radius: 4px;" />
+                  <a-input-search v-model:value="cdnSearchText" :placeholder="pageText('pages.searchCdns')" class="page-search-field" />
                   <a-button 
                     v-if="isCdnDirty" 
                     type="primary" 
@@ -561,11 +557,11 @@ admin123
                     @click="saveCdnData" 
                     :loading="cdnSaveLoading" 
                     style="padding: 0 8px; background-color: #52c41a; border-color: #52c41a;" 
-                    title="有未保存的更改"
+                    :title="pageText('pages.unsavedChanges')"
                   >
                     <template #icon><span style="margin-right:0px;">💾</span></template>
                   </a-button>
-                  <a-button type="primary" @click="openCdnDrawer" style="padding: 0 8px;" title="添加CDN特征">
+                  <a-button type="primary" @click="openCdnDrawer" class="page-icon-padding" :title="pageText('pages.addCdnFingerprint')">
                     <template #icon><span style="margin-right:0px;">➕</span></template>
                   </a-button>
                 </div>
@@ -573,7 +569,7 @@ admin123
               <div class="hide-scrollbar" style="flex: 1; overflow-y: auto; padding: 12px 8px;">
                 <div v-if="filteredCdnList.length === 0" style="padding: 48px 24px; text-align: center; color: var(--arl-text-color); opacity: 0.65; display: flex; flex-direction: column; align-items: center; gap: 12px;">
                   <span style="font-size: 32px; opacity: 0.8;">📭</span>
-                  <span style="font-size: 13px; font-weight: 500;">未找到 CDN</span>
+                  <span class="page-label">{{ pageText('pages.cdnNotFound') }}</span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 4px;">
                   <div
@@ -605,24 +601,24 @@ admin123
                   <div class="health-icon-pulse">
                     <span style="font-size: 56px;">🌍</span>
                   </div>
-                  <h3 class="health-title">CDN 数据健康概览</h3>
+                  <h3 class="health-title">{{ pageText('pages.cdnDataOverview') }}</h3>
                   <div class="health-stats-container">
                     <div class="health-stat-card primary-stat">
                       <div class="stat-value">{{ cdnList.length }}</div>
-                      <div class="stat-label">总计 CDN 厂商</div>
+                      <div class="stat-label">{{ pageText('pages.cdnProviders') }}</div>
                     </div>
                     <div class="health-stat-card warning-stat">
                       <div class="stat-value">{{ totalCnameCount }}</div>
-                      <div class="stat-label">CNAME 规则总数</div>
+                      <div class="stat-label">{{ pageText('pages.cnameRules') }}</div>
                     </div>
                     <div class="health-stat-card danger-stat" style="background: rgba(245, 34, 45, 0.04); border: 1px solid rgba(245, 34, 45, 0.1);">
                       <div class="stat-value" style="color: #cf1322;">{{ totalIpCount }}</div>
-                      <div class="stat-label" style="color: #cf1322;">IP 段规则总数</div>
+                      <div class="stat-label page-danger-emphasis" >{{ pageText('pages.ipRangeRules') }}</div>
                     </div>
                   </div>
                   <div class="health-hint">
                     <span class="pulse-dot"></span>
-                    <span>状态良好，请在左侧选择特定 CDN 进行管理</span>
+                    <span>{{ pageText('pages.systemStatusIsHealthySelectACdnOnThe') }}</span>
                   </div>
                 </div>
               </div>
@@ -633,9 +629,9 @@ admin123
                    <div>
                      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
                        <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--arl-text-color);">{{ selectedCdn.name }}</h3>
-                       <a-tag color="cyan" style="margin: 0;">CDN特征</a-tag>
+                       <a-tag color="cyan" class="page-flush-tag">{{ pageText('pages.cdnFingerprints') }}</a-tag>
                      </div>
-                     <div style="color: var(--arl-text-color); opacity: 0.55; font-size: 12px;">包含 {{ (selectedCdn.cname_domain || []).length }} 条 CNAME，{{ (selectedCdn.ip_cidr || []).length }} 条 IP 段</div>
+                     <div class="page-secondary-help">{{ pageText('pages.cdnRuleCounts', { cnames: (selectedCdn.cname_domain || []).length, ips: (selectedCdn.ip_cidr || []).length }) }}</div>
                    </div>
                    <div style="display: flex; gap: 8px; align-items: center;">
                       <a-button 
@@ -646,12 +642,12 @@ admin123
                         class="breathing-btn"
                         style="background-color: #52c41a; border-color: #52c41a;"
                       >
-                        <template #icon><span style="margin-right:4px;">💾</span></template> 保存更改
+                        <template #icon><span class="page-icon-gap">💾</span></template> {{ pageText('pages.saveChanges') }}
                       </a-button>
-                      <a-popconfirm title="确定要删除该 CDN 吗？需保存全量更改后生效。" placement="bottomRight" @confirm="deleteSelectedCdn">
-                        <a-button danger><template #icon><span style="margin-right:4px;">🗑️</span></template> 删除特征</a-button>
+                      <a-popconfirm :title="pageText('pages.deleteThisCdnTheDeletionTakesEffectAfterSaving')" placement="bottomRight" @confirm="deleteSelectedCdn">
+                        <a-button danger><template #icon><span class="page-icon-gap">🗑️</span></template> {{ pageText('pages.deleteFingerprint') }}</a-button>
                       </a-popconfirm>
-                      <a-button type="primary" ghost @click="editSelectedCdn"><template #icon><span style="margin-right:4px;">✏️</span></template> 编辑特征</a-button>
+                      <a-button type="primary" ghost @click="editSelectedCdn"><template #icon><span class="page-icon-gap">✏️</span></template> {{ pageText('pages.editFingerprint') }}</a-button>
                    </div>
                 </div>
 
@@ -661,9 +657,9 @@ admin123
                   <!-- CNAME 规则 -->
                   <div class="native-code-wrapper" style="flex: none; display: flex; flex-direction: column; padding: 0;">
                     <div style="padding: 8px 16px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--arl-border-color); font-weight: 500; font-size: 13px; color: var(--arl-text-color); display: flex; justify-content: space-between; align-items: center;">
-                      <span>🌍 CNAME 规则 ({{ (selectedCdn.cname_domain || []).length }})</span>
-                      <a-button size="small" type="text" @click="() => copyTextList(selectedCdn.cname_domain, 'CNAME 规则')">
-                        📋 复制
+                      <span>{{ pageText('pages.cnameRulesLabel2') }}{{ (selectedCdn.cname_domain || []).length }})</span>
+                      <a-button size="small" type="text" @click="() => copyTextList(selectedCdn.cname_domain, pageText('pages.cnameRulesLabel3'))">
+                        {{ pageText('pages.copy') }}
                       </a-button>
                     </div>
                     <div style="display: flex; position: relative; padding: 16px;">
@@ -672,7 +668,7 @@ admin123
                       </div>
                       <div class="native-code-content" style="min-height: 40px;">
                         <div v-if="!(selectedCdn.cname_domain && selectedCdn.cname_domain.length > 0)" class="empty-code" style="padding-top: 0;">
-                          <span>/* 暂无 CNAME 规则 */</span>
+                          <span>{{ pageText('pages.noCnameRules') }}</span>
                         </div>
                         <pre v-else class="code-text">{{ selectedCdn.cname_domain.join('\n') }}</pre>
                       </div>
@@ -682,9 +678,9 @@ admin123
                   <!-- IP CIDR 规则 -->
                   <div class="native-code-wrapper" style="flex: none; display: flex; flex-direction: column; padding: 0;">
                     <div style="padding: 8px 16px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--arl-border-color); font-weight: 500; font-size: 13px; color: var(--arl-text-color); display: flex; justify-content: space-between; align-items: center;">
-                      <span>🔌 IP CIDR 规则 ({{ (selectedCdn.ip_cidr || []).length }})</span>
-                      <a-button size="small" type="text" @click="() => copyTextList(selectedCdn.ip_cidr, 'IP CIDR 规则')">
-                        📋 复制
+                      <span>{{ pageText('pages.ipCidrRules') }}{{ (selectedCdn.ip_cidr || []).length }})</span>
+                      <a-button size="small" type="text" @click="() => copyTextList(selectedCdn.ip_cidr, pageText('pages.ipCidrRulesLabel2'))">
+                        {{ pageText('pages.copy') }}
                       </a-button>
                     </div>
                     <div style="display: flex; position: relative; padding: 16px;">
@@ -693,7 +689,7 @@ admin123
                       </div>
                       <div class="native-code-content" style="min-height: 40px;">
                         <div v-if="!(selectedCdn.ip_cidr && selectedCdn.ip_cidr.length > 0)" class="empty-code" style="padding-top: 0;">
-                          <span>/* 暂无 IP CIDR 规则 */</span>
+                          <span>{{ pageText('pages.noIpCidrRules') }}</span>
                         </div>
                         <pre v-else class="code-text">{{ selectedCdn.ip_cidr.join('\n') }}</pre>
                       </div>
@@ -709,45 +705,45 @@ admin123
 
         <a-drawer
           v-model:open="cdnDrawerVisible"
-          :title="isEditingCdn ? '编辑CDN特征' : '添加CDN特征'"
+          :title="isEditingCdn ? pageText('pages.editCdnFingerprint') : pageText('pages.addCdnFingerprint')"
           placement="right"
           width="450"
           @close="resetCdnForm"
         >
           <div style="display: flex; flex-direction: column; height: 100%;">
             <div class="hide-scrollbar" style="flex: 1; overflow-y: auto; padding-right: 4px;">
-              <a-form :model="currentCdnForm" layout="vertical">
-                <a-form-item label="CDN名称" required>
-                  <a-input v-model:value="currentCdnForm.name" placeholder="例如：阿里云CDN" />
+              <a-form :label-wrap="true" :model="currentCdnForm" layout="vertical">
+                <a-form-item :label="pageText('pages.cdnName')" required>
+                  <a-input v-model:value="currentCdnForm.name" :placeholder="pageText('pages.eGAlibabaCloudCdn')" />
                 </a-form-item>
-                <a-form-item label="CNAME后缀">
-                  <a-textarea v-model:value="currentCdnForm.cnameText" :rows="8" placeholder="每行输入一个CNAME后缀，如: kunlunpi.com" />
+                <a-form-item :label="pageText('pages.cnameSuffixes')">
+                  <a-textarea v-model:value="currentCdnForm.cnameText" :rows="8" :placeholder="pageText('pages.oneCnameSuffixPerLineEGKunlunpiCom')" />
                 </a-form-item>
-                <a-form-item label="IP网段(CIDR)">
-                  <a-textarea v-model:value="currentCdnForm.ipText" :rows="8" placeholder="每行输入一个IP网段，如: 103.21.244.0/22" />
+                <a-form-item :label="pageText('pages.ipRangesCidr')">
+                  <a-textarea v-model:value="currentCdnForm.ipText" :rows="8" :placeholder="pageText('pages.oneIpRangePerLineEG10321')" />
                 </a-form-item>
               </a-form>
             </div>
             <div style="border-top: 1px solid var(--arl-border-color); padding-top: 16px; text-align: right; margin-top: 16px;">
-              <a-button @click="cdnDrawerVisible = false" style="margin-right: 8px;">取消</a-button>
-              <a-button type="primary" @click="submitCdnDrawer">确定保存</a-button>
+              <a-button @click="cdnDrawerVisible = false" class="page-inline-gap">{{ pageText('tasks.cancel') }}</a-button>
+              <a-button type="primary" @click="submitCdnDrawer">{{ pageText('pages.saveLabel2') }}</a-button>
             </div>
           </div>
         </a-drawer>
           </a-tab-pane>
         </a-tabs>
       </a-tab-pane>
-      <a-tab-pane key="performance" :tab="tabTitle('扫描与并发', isPerformanceDirty || isSecurityDirty)" force-render>
+      <a-tab-pane key="performance" :tab="tabTitle(pageText('pages.scanningAndConcurrency'), isPerformanceDirty || isSecurityDirty)" force-render>
         <a-tabs v-model:activeKey="scanSubTab" type="card" class="dict-sub-tabs" style="margin-bottom: 16px;">
-          <a-tab-pane key="performance" tab="任务队列并发" force-render>
+          <a-tab-pane key="performance" :tab="pageText('pages.taskQueueConcurrency')" force-render>
             <div style="max-width: 1000px; padding-bottom: 40px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <span style="color: var(--arl-text-color); opacity: 0.45;">
-                  控制任务队列的 Worker 进程数，决定「同时能跑几个任务」。
+                  {{ pageText('pages.setTheNumberOfWorkerProcessesInEachTask') }}
                 </span>
                 <div>
                   <a-button @click="fetchPerformanceConfig" :loading="performanceLoading" style="margin-right: 8px;">
-                    刷新状态
+                    {{ pageText('pages.refreshStatus') }}
                   </a-button>
                   <a-button
                     type="primary"
@@ -755,50 +751,41 @@ admin123
                     :loading="performanceSaveLoading"
                     :disabled="!isPerformanceDirty"
                   >
-                    {{ isPerformanceDirty ? '保存性能配置' : '性能配置无改动' }}
+                    {{ isPerformanceDirty ? pageText('pages.savePerformanceSettings') : pageText('pages.noPerformanceChanges') }}
                   </a-button>
                 </div>
               </div>
               <a-spin :spinning="performanceLoading">
-                <a-form layout="vertical">
+                <a-form :label-wrap="true" layout="vertical">
                   <!-- 语义分区说明：本页是「进程级队列并发」，与「高级扫描与环境」页的
                        「单任务内爆破线程数」是两套不同量级的指标，避免用户混淆调错 -->
                   <a-alert type="info" show-icon style="margin-bottom: 16px; border-radius: 6px;">
                     <template #message>
                       <div style="font-size: 13px; line-height: 1.8;">
-                        <strong>进程级队列并发</strong>：这里配的是 Celery Worker <strong>进程数</strong>，
-                        决定同时能处理几个任务。各队列单进程内存上限不同（重任务约 {{ (capacityInfo.queue_memory_caps_mb || {}).heavy || 488 }}MB，
-                        轻任务与 GitHub 约 {{ (capacityInfo.queue_memory_caps_mb || {}).light || 292 }}MB），
-                        推荐值按<strong>最坏情形峰值</strong>校验：即各队列同时逼近各自上限时的合计占用。
-                        <br />
-                        <strong style="color: #d46b08;">内存较小的机器（如 4GB 及以下）请保持 1</strong>：
-                        单个任务在峰值时可增长到进程上限，叠加 MongoDB / Web / Puppeteer 等常驻服务后，
-                        并发加到 2 即可能触发 OOM Killer。推荐值已按实测可用内存扣除常驻开销与突发余量。
-                        <br />
-                        若需调整<strong>单个任务内部</strong>的爆破线程数 / DNS 发包并发度（通常在数百到上千），
-                        请前往
-                        <a @click="goToBruteConcurrent">「扫描与并发 · 高级扫描与环境」</a>。
+                        <div>{{ pageText('pages.queueMemoryHelp', { heavy: (capacityInfo.queue_memory_caps_mb || {}).heavy || 488, light: (capacityInfo.queue_memory_caps_mb || {}).light || 292 }) }}</div>
+                        <div><strong class="page-warning-emphasis">{{ pageText('pages.smallMemoryQueueHelp') }}</strong></div>
+                        <div>{{ pageText('pages.perTaskConcurrencyHelp') }} <a @click="goToBruteConcurrent">{{ pageText('pages.scanningAndConcurrencyAdvancedScanningAndEnvironment') }}</a></div>
                       </div>
                     </template>
                   </a-alert>
                   <a-row :gutter="24">
                     <a-col :span="12">
-                      <a-card data-setting-anchor="performance" title="⚙️ 重任务 (Heavy Task) 调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #ff4d4f;">
+                      <a-card data-setting-anchor="performance" :title="pageText('pages.heavyTaskScheduling')" size="small" class="page-config-card-danger">
                         <a-form-item>
                           <template #label>
-                            <span>重任务并发数</span>
+                            <span>{{ pageText('pages.heavyTaskConcurrency') }}</span>
                             <a-tag v-if="runtimePerformance.runtime_heavy_concurrency !== null" color="blue" style="margin-left: 8px; font-size: 12px;">
-                              实时运行: {{ runtimePerformance.runtime_heavy_concurrency }} 进程
+                              {{ pageText('pages.runningProcessesCount', { count: runtimePerformance.runtime_heavy_concurrency }) }}
                             </a-tag>
-                            <a-tag v-else color="default" style="margin-left: 8px; font-size: 12px;">Worker 离线</a-tag>
+                            <a-tag v-else color="default" class="page-choice-gap">{{ pageText('pages.workerOffline') }}</a-tag>
                             <a-popover placement="right">
                               <template #content>
                                 <div style="max-width: 320px;">
-                                  <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 阻塞式长线任务：</div>
+                                  <div class="page-strong-heading">{{ pageText('pages.assignmentLongRunningTasks') }}</div>
                                   <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
-                                    <li>常规域名 / IP 扫描任务</li>
-                                    <li>风险巡航任务 (批量漏洞检测)</li>
-                                    <li>定时域名 / IP 监控任务</li>
+                                    <li>{{ pageText('pages.regularDomainIpScans') }}</li>
+                                    <li>{{ pageText('pages.riskScansBulkVulnerabilityChecks') }}</li>
+                                    <li>{{ pageText('pages.scheduledDomainIpMonitoring') }}</li>
                                   </ul>
                                 </div>
                               </template>
@@ -807,17 +794,17 @@ admin123
                           </template>
                           <a-input-number v-model:value="performanceForm.celery_heavy_concurrency" :min="1" :max="128" style="width: 100%" />
                           <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
-                            控制常规扫描、风险巡航等长线任务的并发数，每个并发进程对应一个独立 Worker 进程。
+                            {{ pageText('pages.controlConcurrencyForRegularScansRiskScansAndOther') }}
                           </div>
                           <div v-if="capacityInfo.heavy_recommended" class="arl-recommend-row">
                             <span>
-                              <span class="arl-recommend-label">推荐值</span>
+                              <span class="arl-recommend-label">{{ pageText('pages.recommended') }}</span>
                               <strong>{{ capacityInfo.heavy_recommended }}</strong>
                               <span class="arl-recommend-basis">
-                                （可用 {{ capacityInfo.available_memory_mb }} MB，扣除突发余量后预算 {{ capacityInfo.headroom_mb }} MB）
+                                {{ pageText('pages.queueMemoryBudget', { available: capacityInfo.available_memory_mb, budget: capacityInfo.headroom_mb }) }}
                               </span>
                             </span>
-                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'heavy')">回填</a-button>
+                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'heavy')">{{ pageText('pages.apply') }}</a-button>
                           </div>
                           <div class="arl-recommend-basis" style="margin-top: 4px;">{{ capacityInfo.basis }}</div>
                           <a-alert
@@ -828,9 +815,7 @@ admin123
                           >
                             <template #message>
                               <span style="font-size: 12px;">
-                                当前可用内存不足以支撑最小配置（各队列各 1 个进程，最坏峰值约
-                                {{ capacityInfo.peak_used_mb }} MB，超出预算 {{ capacityInfo.headroom_mb }} MB）。
-                                系统仍会以最小配置运行，但内存紧张时进程可能被内核回收，建议扩容内存或减少常驻服务。
+                                {{ pageText('pages.insufficientQueueMemory', { peak: capacityInfo.peak_used_mb, budget: capacityInfo.headroom_mb }) }}
                               </span>
                             </template>
                           </a-alert>
@@ -838,24 +823,24 @@ admin123
                       </a-card>
                     </a-col>
                     <a-col :span="12">
-                      <a-card title="⚡ 轻任务 (Light Task) 调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #52c41a;">
+                      <a-card :title="pageText('pages.lightTaskScheduling')" size="small" class="page-config-card-success">
                         <a-form-item>
                           <template #label>
-                            <span>轻任务并发数</span>
+                            <span>{{ pageText('pages.lightTaskConcurrency') }}</span>
                             <a-tag v-if="runtimePerformance.runtime_light_concurrency !== null" color="green" style="margin-left: 8px; font-size: 12px;">
-                              实时运行: {{ runtimePerformance.runtime_light_concurrency }} 进程
+                              {{ pageText('pages.runningProcessesCount', { count: runtimePerformance.runtime_light_concurrency }) }}
                             </a-tag>
-                            <a-tag v-else color="default" style="margin-left: 8px; font-size: 12px;">Worker 离线</a-tag>
+                            <a-tag v-else color="default" class="page-choice-gap">{{ pageText('pages.workerOffline') }}</a-tag>
                             <a-popover placement="right">
                               <template #content>
                                 <div style="max-width: 320px;">
-                                  <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 非阻塞单点 API 任务：</div>
+                                  <div class="page-strong-heading">{{ pageText('pages.assignmentSingleTargetApiTasks') }}</div>
                                   <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
-                                    <li>空间测绘查询 (FOFA 等)</li>
-                                    <li>更新单个站点信息 (截图/指纹)</li>
-                                    <li>Web 目录敏感信息单点提取 (WIH)</li>
-                                    <li>手动添加站点</li>
-                                    <li>任务数据强制同步重置</li>
+                                    <li>{{ pageText('pages.assetSearchQueriesFofaEtc') }}</li>
+                                    <li>{{ pageText('pages.updateAWebsiteScreenshotFingerprints') }}</li>
+                                    <li>{{ pageText('pages.singleTargetWebInfoHunterWihExtraction') }}</li>
+                                    <li>{{ pageText('pages.manuallyAddAWebsite') }}</li>
+                                    <li>{{ pageText('pages.forceTaskDataSynchronization') }}</li>
                                   </ul>
                                 </div>
                               </template>
@@ -864,15 +849,15 @@ admin123
                           </template>
                           <a-input-number v-model:value="performanceForm.celery_light_concurrency" :min="1" :max="256" style="width: 100%" />
                           <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
-                            走专用独立通道，不受重任务排队阻塞影响。轻任务是外网单点 API 调用，按带宽资源调整即可。
+                            {{ pageText('pages.usesADedicatedQueueAndDoesNotWaitFor') }}
                           </div>
                           <div v-if="capacityInfo.light_recommended" class="arl-recommend-row">
                             <span>
-                              <span class="arl-recommend-label">推荐值</span>
+                              <span class="arl-recommend-label">{{ pageText('pages.recommended') }}</span>
                               <strong>{{ capacityInfo.light_recommended }}</strong>
-                              <span class="arl-recommend-basis">（按峰值模型分配；轻任务单进程上限低于重任务，故可承载更多进程）</span>
+                              <span class="arl-recommend-basis">{{ pageText('pages.allocatedUsingThePeakMemoryModelLightTasksHave') }}</span>
                             </span>
-                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'light')">回填</a-button>
+                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'light')">{{ pageText('pages.apply') }}</a-button>
                           </div>
                         </a-form-item>
                       </a-card>
@@ -880,17 +865,17 @@ admin123
                   </a-row>
                   <a-row :gutter="24">
                     <a-col :span="12">
-                      <a-card title="🌍 外网情报侦察任务调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #1890ff;">
+                      <a-card :title="pageText('pages.externalIntelligenceTaskScheduling')" size="small" class="page-config-card-info">
                         <a-form-item>
                           <template #label>
-                            OSINT 任务并发数
+                            {{ pageText('pages.osintTaskConcurrency') }}
                             <a-popover placement="right">
                               <template #content>
                                 <div style="max-width: 320px;">
-                                  <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] 外网情报侦察任务：</div>
+                                  <div class="page-strong-heading">{{ pageText('pages.assignmentExternalIntelligenceTasks') }}</div>
                                   <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
-                                    <li>ICP 备案查询 (网站/APP/小程序)</li>
-                                    <li>天眼查 (TYC) 股权穿透与资产收集</li>
+                                    <li>{{ pageText('pages.icpRecordsWebsitesAppsMiniPrograms') }}</li>
+                                    <li>{{ pageText('pages.tianyanchaInvestmentRelationshipsAndAssetCollection') }}</li>
                                   </ul>
                                 </div>
                               </template>
@@ -899,36 +884,36 @@ admin123
                           </template>
                           <a-input-number v-model:value="performanceForm.osint_concurrency" :min="1" :max="128" style="width: 100%" />
                           <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
-                            控制 OSINT 模块对外部目标（如天眼查、工信部备案等）的并发请求数。受外网反爬策略约束，调高易触发接口熔断或 IP 封禁。修改后将在 10 秒内由后台看门狗自动热更新生效。
+                            {{ pageText('pages.controlConcurrentOsintRequestsToExternalServicesSuchAs') }}
                           </div>
                           <div v-if="capacityInfo.osint_recommended" class="arl-recommend-row">
                             <span>
-                              <span class="arl-recommend-label">推荐值</span>
+                              <span class="arl-recommend-label">{{ pageText('pages.recommended') }}</span>
                               <strong>{{ capacityInfo.osint_recommended }}</strong>
-                              <span class="arl-recommend-basis">（保持默认，避免触发外网反爬）</span>
+                              <span class="arl-recommend-basis">{{ pageText('pages.keepTheDefaultToReduceExternalAntiBotRestrictions') }}</span>
                             </span>
-                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'osint')">回填</a-button>
+                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'osint')">{{ pageText('pages.apply') }}</a-button>
                           </div>
                         </a-form-item>
                       </a-card>
                     </a-col>
                     <a-col :span="12">
-                      <a-card title="🐙 GitHub 监控任务调度" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #722ed1;">
+                      <a-card :title="pageText('pages.githubMonitoringScheduling')" size="small" class="page-config-card-purple">
                         <a-form-item>
                           <template #label>
-                            <span>GitHub 监控并发数</span>
+                            <span>{{ pageText('pages.githubMonitoringConcurrency') }}</span>
                             <a-tag v-if="runtimePerformance.runtime_github_concurrency !== null" color="purple" style="margin-left: 8px; font-size: 12px;">
-                              实时运行: {{ runtimePerformance.runtime_github_concurrency }} 进程
+                              {{ pageText('pages.runningProcessesCount', { count: runtimePerformance.runtime_github_concurrency }) }}
                             </a-tag>
-                            <a-tag v-else color="default" style="margin-left: 8px; font-size: 12px;">Worker 离线</a-tag>
+                            <a-tag v-else color="default" class="page-choice-gap">{{ pageText('pages.workerOffline') }}</a-tag>
                             <a-popover placement="right">
                               <template #content>
                                 <div style="max-width: 320px;">
-                                  <div style="font-weight: bold; margin-bottom: 8px;">[分配规则] GitHub 监控任务：</div>
+                                  <div class="page-strong-heading">{{ pageText('pages.assignmentGithubMonitoringTasks') }}</div>
                                   <ul style="padding-left: 18px; margin: 0; line-height: 1.8;">
-                                    <li>代码泄露关键字监控</li>
-                                    <li>CVE / 武器库更新追踪</li>
-                                    <li>黑客动态监控</li>
+                                    <li>{{ pageText('pages.codeLeakKeywordMonitoring') }}</li>
+                                    <li>{{ pageText('pages.cveSecurityToolUpdates') }}</li>
+                                    <li>{{ pageText('pages.researcherActivityMonitoring') }}</li>
                                   </ul>
                                 </div>
                               </template>
@@ -937,15 +922,15 @@ admin123
                           </template>
                           <a-input-number v-model:value="performanceForm.github_concurrency" :min="1" :max="64" style="width: 100%" />
                           <div style="margin-top: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 13px;">
-                            本队列走独立的 arlgithub 通道，与扫描任务互不阻塞。受 GitHub API 速率限制约束；该队列原先固定为 2 个进程且不随本页配置变化，现已纳入统一治理。
+                            {{ pageText('pages.usesTheDedicatedArlgithubQueueIndependentlyOfScanningTasks') }}
                           </div>
                           <div v-if="capacityInfo.github_recommended" class="arl-recommend-row">
                             <span>
-                              <span class="arl-recommend-label">推荐值</span>
+                              <span class="arl-recommend-label">{{ pageText('pages.recommended') }}</span>
                               <strong>{{ capacityInfo.github_recommended }}</strong>
-                              <span class="arl-recommend-basis">（按峰值模型分配，单进程上限 {{ (capacityInfo.queue_memory_caps_mb || {}).github || 292 }}MB）</span>
+                              <span class="arl-recommend-basis">{{ pageText('pages.queueProcessLimit', { limit: (capacityInfo.queue_memory_caps_mb || {}).github || 292 }) }}</span>
                             </span>
-                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'github')">回填</a-button>
+                            <a-button size="small" type="link" @click="applyRecommended(performanceForm, 'github')">{{ pageText('pages.apply') }}</a-button>
                           </div>
                         </a-form-item>
                       </a-card>
@@ -956,11 +941,11 @@ admin123
               </a-spin>
             </div>
           </a-tab-pane>
-          <a-tab-pane key="security" tab="安全策略 (IP / 域名禁扫)" force-render>
+          <a-tab-pane key="security" :tab="pageText('pages.securityPolicyIpDomainScanExclusions')" force-render>
             <div style="max-width: 1000px; padding-bottom: 40px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <span style="color: var(--arl-text-color); opacity: 0.45;">
-                  此处的配置项用于全局的安全限制，防止系统对指定范围的 IP 或域名发起扫描。保存后立即生效，无需重启。
+                  {{ pageText('pages.preventScanningSpecifiedIpsOrDomainsGloballySavedChanges') }}
                 </span>
                 <a-button
                   type="primary"
@@ -968,35 +953,35 @@ admin123
                   :loading="securitySaveLoading"
                   :disabled="!isSecurityDirty"
                 >
-                  {{ isSecurityDirty ? '保存安全策略' : '安全策略无改动' }}
+                  {{ isSecurityDirty ? pageText('pages.saveSecurityPolicy') : pageText('pages.noSecurityPolicyChanges') }}
                 </a-button>
               </div>
               <a-spin :spinning="securityLoading">
-                <a-form layout="vertical">
-                  <a-form-item data-setting-anchor="security" label="IP 黑名单 (支持 CIDR，如 127.0.0.0/8, 192.168.0.0/16，每行一个)">
-                    <a-textarea v-model:value="securityForm.blackIpsText" :rows="8" placeholder="例如：\n127.0.0.0/8\n10.0.0.0/8" />
+                <a-form :label-wrap="true" layout="vertical">
+                  <a-form-item data-setting-anchor="security" :label="pageText('pages.ipBlocklistSupportsCidrEG12700')">
+                    <a-textarea v-model:value="securityForm.blackIpsText" :rows="8" :placeholder="pageText('pages.eG1270008100')" />
                   </a-form-item>
               
-                  <a-form-item label="禁止扫描域名 (支持后缀匹配，如 gov.cn, edu.cn，每行一个)">
-                    <a-textarea v-model:value="securityForm.forbiddenDomainsText" :rows="8" placeholder="例如：\ngov.cn\nedu.cn" />
+                  <a-form-item :label="pageText('pages.excludedDomainsSuffixMatchingEGGovCnOr')">
+                    <a-textarea v-model:value="securityForm.forbiddenDomainsText" :rows="8" :placeholder="pageText('pages.eGGovCnEduCn')" />
                   </a-form-item>
                 </a-form>
               </a-spin>
             </div>
           </a-tab-pane>
-          <a-tab-pane key="system_general" tab="高级扫描与环境" force-render>
+          <a-tab-pane key="system_general" :tab="pageText('pages.advancedScanningAndEnvironment')" force-render>
             <div style="max-width: 1000px; padding-bottom: 40px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <span style="color: var(--arl-text-color); opacity: 0.45;">
-                  配置单个任务内部的执行参数：代理出口、默认端口列表与 DNS 爆破并发度。底部只读展示系统底层关键连接。
+                  {{ pageText('pages.configurePerTaskExecutionSettingsOutboundProxyDefaultPorts') }}
                 </span>
                 <a-button
                   type="primary"
                   :class="{ 'arl-dirty-btn': Object.keys(pendingByGroup.system_general).length > 0 }"
-                  @click="saveGeneralConfig('system_general', '高级配置已保存')"
+                  @click="saveGeneralConfig('system_general', pageText('pages.advancedConfigurationSaved'))"
                   :loading="generalSaveLoading"
                 >
-                  保存高级配置
+                  {{ pageText('pages.saveAdvancedConfiguration') }}
                   <a-badge
                     v-if="Object.keys(pendingByGroup.system_general).length > 0"
                     :count="Object.keys(pendingByGroup.system_general).length"
@@ -1006,46 +991,43 @@ admin123
                 </a-button>
               </div>
               <a-spin :spinning="generalLoading">
-                <a-form layout="vertical">
+                <a-form :label-wrap="true" layout="vertical">
                   <!-- 语义分区说明：本页的爆破并发度属于「单任务内」，与「任务队列并发」页的
                        进程数不是同一指标，避免用户跨页误填同量级数值 -->
                   <a-alert type="info" show-icon style="margin-bottom: 16px; border-radius: 6px;">
                     <template #message>
                       <div style="font-size: 13px; line-height: 1.8;">
-                        下方的<strong>爆破并发度</strong>作用于<strong>单个任务内部</strong>的 DNS 查询并发，
-                        常见取值为数百至上千，与
-                        <a @click="goToQueueConcurrency">「扫描与并发 · 任务队列并发」</a>
-                        的 Worker <strong>进程数</strong>（通常 1~128）不是同一指标，请勿按同一量级填写。
+                        {{ pageText('pages.dnsConcurrencyHelp') }} <a @click="goToQueueConcurrency">{{ pageText('pages.scanningAndConcurrencyTaskQueueConcurrency') }}</a>
                       </div>
                     </template>
                   </a-alert>
                   <a-row :gutter="24">
                     <a-col :span="12">
-                      <a-form-item data-setting-anchor="proxy" label="系统代理地址 (PROXY HTTP_URL)">
-                        <a-input v-model:value="generalForm.proxy_url" placeholder="例如：http://127.0.0.1:8080" />
+                      <a-form-item data-setting-anchor="proxy" :label="pageText('pages.systemProxyProxyHttpUrl')">
+                        <a-input v-model:value="generalForm.proxy_url" :placeholder="pageText('pages.eGHttp1270018080')" />
                       </a-form-item>
                     </a-col>
                     <a-col :span="12">
-                      <a-form-item data-setting-anchor="port_top_10" label="端口扫描前端测试选项 Top 10 WEB 端口串">
-                        <a-input v-model:value="generalForm.port_top_10" placeholder="以英文逗号分隔" />
+                      <a-form-item data-setting-anchor="port_top_10" :label="pageText('pages.top10WebPortsUsedByFrontendPortScan')">
+                        <a-input v-model:value="generalForm.port_top_10" :placeholder="pageText('pages.separateValuesWithCommas')" />
                       </a-form-item>
                     </a-col>
                   </a-row>
 
                   <a-row :gutter="24">
                     <a-col :span="12">
-                      <a-form-item data-setting-anchor="brute_concurrent" label="常规域名爆破 DNS 发包并发度">
+                      <a-form-item data-setting-anchor="brute_concurrent" :label="pageText('pages.dnsQueryConcurrencyForRegularSubdomainDiscovery')">
                         <a-input-number v-model:value="generalForm.domain_brute_concurrent" :min="1" style="width: 100%" />
                         <div class="arl-field-hint">
-                          单任务内的 DNS 查询并发度（对应 massdns <code>-s</code> 参数），非进程/线程数。调高会加重上游 DNS 与本地网络设备负担，常见区间 100~500。
+                          {{ pageText('pages.dnsQueryConcurrencyWithinOneTaskTheMassdns') }} <code>-s</code> {{ pageText('pages.optionRatherThanAProcessOrThreadCountHigher') }}
                         </div>
                       </a-form-item>
                     </a-col>
                     <a-col :span="12">
-                      <a-form-item label="DNS 智能生成 DNS 发包并发度">
+                      <a-form-item :label="pageText('pages.dnsQueryConcurrencyForSubdomainMutationDiscovery')">
                         <a-input-number v-model:value="generalForm.alt_dns_concurrent" :min="1" style="width: 100%" />
                         <div class="arl-field-hint">
-                          同上，用于 DNS 智能生成（altDNS）阶段。因其在内存中组合生成候选域名后集中查询，默认值高于常规爆破。
+                          {{ pageText('pages.usedDuringAltdnsDiscoveryItsDefaultIsHigherBecause') }}
                         </div>
                       </a-form-item>
                     </a-col>
@@ -1054,36 +1036,36 @@ admin123
 
                   <a-row :gutter="24">
                     <a-col :span="12">
-                      <a-form-item data-setting-anchor="auth" label="API 安全认证机制">
-                        <a-switch v-model:checked="generalForm.auth" checked-children="开启" un-checked-children="关闭" />
+                      <a-form-item data-setting-anchor="auth" :label="pageText('pages.apiAuthentication')">
+                        <a-switch v-model:checked="generalForm.auth" :checked-children="pageText('pages.on')" :un-checked-children="pageText('pages.off')" />
                       </a-form-item>
                     </a-col>
                     <a-col :span="12">
                       <a-form-item label="API Token (Swagger API Key)">
-                        <a-input-password v-model:value="generalForm.api_key" placeholder="API KEY (不带 API 认证时无须配置)" />
+                        <a-input-password v-model:value="generalForm.api_key" :placeholder="pageText('pages.apiKeyOnlyRequiredWhenApiAuthenticationIsEnabled')" />
                       </a-form-item>
                     </a-col>
                   </a-row>
 
-                  <a-form-item data-setting-anchor="infra" label="底层系统基础设施服务连接信息 (只读)">
+                  <a-form-item data-setting-anchor="infra" :label="pageText('pages.infrastructureServiceConnectionsReadOnly')">
                     <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 16px;">
                       <a-descriptions bordered size="small" :column="1">
-                        <a-descriptions-item label="Celery 消息队列 (Broker URL)">
+                        <a-descriptions-item :label="pageText('pages.celeryMessageQueueBrokerUrl')">
                           <code style="word-break: break-all;">{{ generalForm.celery_broker_url }}</code>
                         </a-descriptions-item>
-                        <a-descriptions-item label="MongoDB 数据库 (URI)">
+                        <a-descriptions-item :label="pageText('pages.mongodbUri')">
                           <code style="word-break: break-all;">{{ generalForm.mongo_url }}</code>
                         </a-descriptions-item>
-                        <a-descriptions-item label="MongoDB 默认数据库名 (DB)">
+                        <a-descriptions-item :label="pageText('pages.defaultMongodbDatabase')">
                           <code>{{ generalForm.mongo_db }}</code>
                         </a-descriptions-item>
-                        <a-descriptions-item label="GeoIP 城市位置库绝对路径">
+                        <a-descriptions-item :label="pageText('pages.absolutePathToGeoipCityDatabase')">
                           <code style="word-break: break-all;">{{ generalForm.geoip_city }}</code>
                         </a-descriptions-item>
-                        <a-descriptions-item label="GeoIP ASN数据绝对路径">
+                        <a-descriptions-item :label="pageText('pages.absolutePathToGeoipAsnDatabase')">
                           <code style="word-break: break-all;">{{ generalForm.geoip_asn }}</code>
                         </a-descriptions-item>
-                        <a-descriptions-item label="ip2region 离线高精库绝对路径">
+                        <a-descriptions-item :label="pageText('pages.absolutePathToIp2regionDatabase')">
                           <code style="word-break: break-all;">{{ generalForm.geoip_ip2region || '-' }}</code>
                         </a-descriptions-item>
                       </a-descriptions>
@@ -1095,19 +1077,19 @@ admin123
           </a-tab-pane>
         </a-tabs>
       </a-tab-pane>
-      <a-tab-pane key="message_push" :tab="tabTitle('通知与回调', Object.keys(pendingByGroup.message_push).length > 0)" force-render>
+      <a-tab-pane key="message_push" :tab="tabTitle(pageText('pages.notificationsAndCallbacks'), Object.keys(pendingByGroup.message_push).length > 0)" force-render>
         <div style="max-width: 1100px; padding-bottom: 40px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <span style="color: var(--arl-text-color); opacity: 0.45;">
-              此处的配置项用于监控任务结束后的结果推送以及自动化 Webhook 接口回调。
+              {{ pageText('pages.configureNotificationsAfterMonitoringTasksFinishAndAutomatedWebhook') }}
             </span>
             <a-button
               type="primary"
               :class="{ 'arl-dirty-btn': Object.keys(pendingByGroup.message_push).length > 0 }"
-              @click="saveGeneralConfig('message_push', '推送配置已保存')"
+              @click="saveGeneralConfig('message_push', pageText('pages.notificationConfigurationSaved'))"
               :loading="generalSaveLoading"
             >
-              保存推送配置
+              {{ pageText('pages.saveNotificationConfiguration') }}
               <a-badge
                 v-if="Object.keys(pendingByGroup.message_push).length > 0"
                 :count="Object.keys(pendingByGroup.message_push).length"
@@ -1118,18 +1100,18 @@ admin123
           </div>
 
           <a-spin :spinning="generalLoading">
-            <a-form layout="vertical">
+            <a-form :label-wrap="true" layout="vertical">
               
               <!-- 1. 订阅消息类型 -->
-              <a-card data-setting-anchor="push_options" title="🔔 订阅消息类型" size="small" style="margin-bottom: 16px; border-radius: 6px; border-left: 4px solid var(--arl-theme-color);">
+              <a-card data-setting-anchor="push_options" :title="pageText('pages.subscribedEvents')" size="small" class="page-config-card-theme">
                 <a-checkbox-group v-model:value="generalForm.push_options" style="width: 100%;">
                   <a-row>
-                    <a-col :span="6" style="margin-bottom: 8px;"><a-checkbox value="task_complete">资产侦察任务完成</a-checkbox></a-col>
-                    <a-col :span="6" style="margin-bottom: 8px;"><a-checkbox value="github_leak">GitHub 关键字告警</a-checkbox></a-col>
-                    <a-col :span="6" style="margin-bottom: 8px;"><a-checkbox value="github_cve">GitHub CVE 更新</a-checkbox></a-col>
-                    <a-col :span="6" style="margin-bottom: 8px;"><a-checkbox value="github_tools">GitHub 武器库更新</a-checkbox></a-col>
-                    <a-col :span="6"><a-checkbox value="github_hackers">GitHub 黑客动态监控</a-checkbox></a-col>
-                    <a-col :span="6"><a-checkbox value="asset_site">资产站点监控更新</a-checkbox></a-col>
+                    <a-col :span="6" class="page-form-spacing"><a-checkbox value="task_complete">{{ pageText('pages.assetDiscoveryTaskCompleted') }}</a-checkbox></a-col>
+                    <a-col :span="6" class="page-form-spacing"><a-checkbox value="github_leak">{{ pageText('pages.githubKeywordAlert') }}</a-checkbox></a-col>
+                    <a-col :span="6" class="page-form-spacing"><a-checkbox value="github_cve">{{ pageText('pages.githubCveUpdate') }}</a-checkbox></a-col>
+                    <a-col :span="6" class="page-form-spacing"><a-checkbox value="github_tools">{{ pageText('pages.githubSecurityToolUpdate') }}</a-checkbox></a-col>
+                    <a-col :span="6"><a-checkbox value="github_hackers">{{ pageText('pages.githubResearcherActivity') }}</a-checkbox></a-col>
+                    <a-col :span="6"><a-checkbox value="asset_site">{{ pageText('pages.websiteMonitoringUpdate') }}</a-checkbox></a-col>
                   </a-row>
                 </a-checkbox-group>
               </a-card>
@@ -1138,19 +1120,19 @@ admin123
               <a-row :gutter="16">
                 <!-- 钉钉 -->
                 <a-col :span="12">
-                  <a-card data-setting-anchor="im" title="💬 钉钉机器人" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 180px;">
+                  <a-card data-setting-anchor="im" :title="pageText('pages.dingtalkBot')" size="small" class="page-config-card-fixed-short">
                     <template #extra>
-                      <a-button type="link" size="small" @click="handleTestPush('dingding')" :loading="testPushLoading.dingding">测试发送</a-button>
+                      <a-button type="link" size="small" @click="handleTestPush('dingding')" :loading="testPushLoading.dingding">{{ pageText('pages.sendTest') }}</a-button>
                     </template>
                     <a-row :gutter="12">
                       <a-col :span="12">
                         <a-form-item label="Access Token" style="margin-bottom: 0;">
-                          <a-input v-model:value="generalForm.dingding.access_token" placeholder="钉钉 Token" size="small" />
+                          <a-input v-model:value="generalForm.dingding.access_token" :placeholder="pageText('pages.dingtalkToken')" size="small" />
                         </a-form-item>
                       </a-col>
                       <a-col :span="12">
-                        <a-form-item label="Secret (加签)" style="margin-bottom: 0;">
-                          <a-input-password v-model:value="generalForm.dingding.secret" placeholder="钉钉 Secret" size="small" />
+                        <a-form-item :label="pageText('pages.signingSecret')" class="page-flush-bottom">
+                          <a-input-password v-model:value="generalForm.dingding.secret" :placeholder="pageText('pages.dingtalkSecret')" size="small" />
                         </a-form-item>
                       </a-col>
                     </a-row>
@@ -1159,36 +1141,36 @@ admin123
 
                 <!-- 飞书 -->
                 <a-col :span="12">
-                  <a-card title="🕊️ 飞书机器人" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 180px;">
+                  <a-card :title="pageText('pages.feishuBot')" size="small" class="page-config-card-fixed-short">
                     <template #extra>
-                      <a-button type="link" size="small" @click="handleTestPush('feishu')" :loading="testPushLoading.feishu">测试发送</a-button>
+                      <a-button type="link" size="small" @click="handleTestPush('feishu')" :loading="testPushLoading.feishu">{{ pageText('pages.sendTest') }}</a-button>
                     </template>
                     <a-form-item label="Webhook URL" style="margin-bottom: 8px;">
-                      <a-input v-model:value="generalForm.feishu.webhook_url" placeholder="飞书 Webhook 地址" size="small" />
+                      <a-input v-model:value="generalForm.feishu.webhook_url" :placeholder="pageText('pages.feishuWebhookUrl')" size="small" />
                     </a-form-item>
-                    <a-form-item label="Secret (加签)" style="margin-bottom: 0;">
-                      <a-input-password v-model:value="generalForm.feishu.secret" placeholder="飞书 Secret" size="small" />
+                    <a-form-item :label="pageText('pages.signingSecret')" class="page-flush-bottom">
+                      <a-input-password v-model:value="generalForm.feishu.secret" :placeholder="pageText('pages.feishuSecret')" size="small" />
                     </a-form-item>
                   </a-card>
                 </a-col>
 
                 <!-- 企业微信 -->
                 <a-col :span="12">
-                  <a-card title="🏢 企业微信机器人" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 180px;">
+                  <a-card :title="pageText('pages.wecomBot')" size="small" class="page-config-card-fixed-short">
                     <template #extra>
-                      <a-button type="link" size="small" @click="handleTestPush('wxwork')" :loading="testPushLoading.wxwork">测试发送</a-button>
+                      <a-button type="link" size="small" @click="handleTestPush('wxwork')" :loading="testPushLoading.wxwork">{{ pageText('pages.sendTest') }}</a-button>
                     </template>
                     <a-form-item label="Webhook URL" style="margin-bottom: 0;">
-                      <a-input v-model:value="generalForm.wxwork.webhook_url" placeholder="企微 Webhook 地址" size="small" />
+                      <a-input v-model:value="generalForm.wxwork.webhook_url" :placeholder="pageText('pages.wecomWebhookUrl')" size="small" />
                     </a-form-item>
                   </a-card>
                 </a-col>
 
                 <!-- Telegram -->
                 <a-col :span="12">
-                  <a-card title="✈️ Telegram 机器人" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 180px;">
+                  <a-card :title="pageText('pages.telegramBot')" size="small" class="page-config-card-fixed-short">
                     <template #extra>
-                      <a-button type="link" size="small" @click="handleTestPush('telegram')" :loading="testPushLoading.telegram">测试发送</a-button>
+                      <a-button type="link" size="small" @click="handleTestPush('telegram')" :loading="testPushLoading.telegram">{{ pageText('pages.sendTest') }}</a-button>
                     </template>
                     <a-row :gutter="12">
                       <a-col :span="12">
@@ -1198,7 +1180,7 @@ admin123
                       </a-col>
                       <a-col :span="12">
                         <a-form-item label="Chat ID" style="margin-bottom: 0;">
-                          <a-input v-model:value="generalForm.telegram.chat_id" placeholder="接收方 Chat ID" size="small" />
+                          <a-input v-model:value="generalForm.telegram.chat_id" :placeholder="pageText('pages.recipientChatId')" size="small" />
                         </a-form-item>
                       </a-col>
                     </a-row>
@@ -1210,48 +1192,48 @@ admin123
               <a-row :gutter="16">
                 <!-- 全局 Webhook -->
                 <a-col :span="12">
-                  <a-card data-setting-anchor="webhook" title="🔗 系统全局 Webhook 回调" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 260px;">
+                  <a-card data-setting-anchor="webhook" :title="pageText('pages.globalWebhookCallback')" size="small" class="page-config-card-fixed-tall">
                     <template #extra>
-                      <a-button type="link" size="small" @click="handleTestPush('webhook')" :loading="testPushLoading.webhook">测试发送</a-button>
+                      <a-button type="link" size="small" @click="handleTestPush('webhook')" :loading="testPushLoading.webhook">{{ pageText('pages.sendTest') }}</a-button>
                     </template>
-                    <a-form-item label="回调 POST URL" style="margin-bottom: 12px;">
-                      <a-input v-model:value="generalForm.webhook_url" placeholder="接收 JSON 数据的接口 URL" size="small" />
+                    <a-form-item :label="pageText('pages.callbackPostUrl')" class="page-field-spacing">
+                      <a-input v-model:value="generalForm.webhook_url" :placeholder="pageText('pages.urlOfTheEndpointReceivingJsonData')" size="small" />
                     </a-form-item>
-                    <a-form-item label="身份校验 Token (Header)" style="margin-bottom: 0;">
-                      <a-input v-model:value="generalForm.webhook_token" placeholder="校验身份的 Token" size="small" />
+                    <a-form-item :label="pageText('pages.authenticationTokenHeader')" class="page-flush-bottom">
+                      <a-input v-model:value="generalForm.webhook_token" :placeholder="pageText('pages.tokenForAuthentication')" size="small" />
                     </a-form-item>
                   </a-card>
                 </a-col>
 
                 <!-- SMTP 邮件 -->
                 <a-col :span="12">
-                  <a-card title="✉️ SMTP 邮件推送" size="small" style="margin-bottom: 16px; border-radius: 6px; height: 260px;">
+                  <a-card :title="pageText('pages.smtpEmailNotifications')" size="small" class="page-config-card-fixed-tall">
                     <template #extra>
-                      <a-button type="link" size="small" @click="handleTestPush('email')" :loading="testPushLoading.email">测试发送</a-button>
+                      <a-button type="link" size="small" @click="handleTestPush('email')" :loading="testPushLoading.email">{{ pageText('pages.sendTest') }}</a-button>
                     </template>
                     <a-row :gutter="12">
                       <a-col :span="16">
-                        <a-form-item data-setting-anchor="email" label="SMTP 主机" style="margin-bottom: 8px;">
+                        <a-form-item data-setting-anchor="email" :label="pageText('pages.smtpHost')" class="page-form-spacing">
                           <a-input v-model:value="generalForm.email.host" placeholder="smtp.qq.com" size="small" />
                         </a-form-item>
                       </a-col>
                       <a-col :span="8">
-                        <a-form-item label="端口" style="margin-bottom: 8px;">
+                        <a-form-item :label="pageText('tasks.port')" class="page-form-spacing">
                           <a-input-number v-model:value="generalForm.email.port" style="width: 100%;" size="small" />
                         </a-form-item>
                       </a-col>
                       <a-col :span="12">
-                        <a-form-item label="发件人 (Username)" style="margin-bottom: 8px;">
-                          <a-input v-model:value="generalForm.email.username" placeholder="发信账号" size="small" />
+                        <a-form-item :label="pageText('pages.senderUsername')" class="page-form-spacing">
+                          <a-input v-model:value="generalForm.email.username" :placeholder="pageText('pages.senderAccount')" size="small" />
                         </a-form-item>
                       </a-col>
                       <a-col :span="12">
-                        <a-form-item label="授权码 (Password)" style="margin-bottom: 8px;">
-                          <a-input-password v-model:value="generalForm.email.password" placeholder="授权密码" size="small" />
+                        <a-form-item :label="pageText('pages.authorizationCodePassword')" class="page-form-spacing">
+                          <a-input-password v-model:value="generalForm.email.password" :placeholder="pageText('pages.authorizationPassword')" size="small" />
                         </a-form-item>
                       </a-col>
                       <a-col :span="24">
-                        <a-form-item label="收件人 (To, 多个用逗号分隔)" style="margin-bottom: 0;">
+                        <a-form-item :label="pageText('pages.recipientsToCommaSeparated')" class="page-flush-bottom">
                           <a-input v-model:value="generalForm.email.to" placeholder="receiver@test.com" size="small" />
                         </a-form-item>
                       </a-col>
@@ -1264,35 +1246,25 @@ admin123
           </a-spin>
         </div>
       </a-tab-pane>
-      <a-tab-pane key="system_backup" :tab="tabTitle('数据备份与恢复', false)" force-render>
+      <a-tab-pane key="system_backup" :tab="tabTitle(pageText('pages.backupTab'), false)" force-render>
         <div class="tab-content" style="padding: 20px;">
           <!-- 顶层操作看板 -->
-          <a-card data-setting-anchor="backup" title="系统全量数据备份与恢复" :bordered="false" style="max-width: 1050px; margin-bottom: 20px;">
+          <a-card data-setting-anchor="backup" :title="pageText('pages.backupTitle')" :bordered="false" style="max-width: 1050px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
               <div style="max-width: 620px;">
-                <div style="font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--arl-text-color);">
-                  📦 一键系统快照与新机原样恢复
-                </div>
-                <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65; line-height: 1.6;">
-                  备份 MongoDB 49 个核心数据集合（含所有资产测绘记录、扫描任务、策略配置、指纹规则与系统设置），支持包含/排除资产截图文件。在新构建的 ARL-Next 项目中导入此备份，系统将恢复至与备份时一致的状态。
-                </div>
+                <div style="font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--arl-text-color);">{{ pageText('pages.backupSnapshot') }}</div>
+                <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65; line-height: 1.6;">{{ pageText('pages.backupDescription') }}</div>
               </div>
 
               <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <a-button type="primary" @click="openCreateBackupModal" :loading="backupLoading">
-                  <template #icon><CloudUploadOutlined /></template>
-                  一键创建备份
-                </a-button>
+                  <template #icon><CloudUploadOutlined /></template>{{ pageText('pages.backupCreate') }}</a-button>
 
                 <a-button @click="openUploadBackupModal">
-                  <template #icon><UploadOutlined /></template>
-                  上传外部备份
-                </a-button>
+                  <template #icon><UploadOutlined /></template>{{ pageText('pages.backupUpload') }}</a-button>
 
                 <a-button @click="fetchBackupList" :loading="backupListLoading">
-                  <template #icon><ReloadOutlined /></template>
-                  刷新清单
-                </a-button>
+                  <template #icon><ReloadOutlined /></template>{{ pageText('pages.backupRefresh') }}</a-button>
               </div>
             </div>
 
@@ -1301,19 +1273,19 @@ admin123
               type="warning"
               show-icon
               style="margin-top: 16px; border-radius: 6px;"
-              :message="`系统检测到当前有 ${backupRunningTasks} 个进行中的扫描任务。执行恢复操作将重置数据库，建议等待任务完成后再行恢复。`"
+              :message="pageText('pages.backupRunningWarning', { count: backupRunningTasks })"
             />
           </a-card>
 
           <!-- 现存备份归档表格 -->
-          <a-card title="📁 服务器现存备份清单" :bordered="false" style="max-width: 1050px;">
+          <a-card :title="pageText('pages.backupArchives')" :bordered="false" style="max-width: 1050px;">
             <a-table
               :dataSource="backupList"
               :columns="backupColumns"
               rowKey="filename"
               :loading="backupListLoading"
               size="middle"
-              :pagination="{ pageSize: 10, showTotal: total => `共 ${total} 个备份归档` }"
+              :pagination="{ pageSize: 10, showTotal: total => pageText('pages.backupArchiveCount', { count: total }) }"
             >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'filename'">
@@ -1331,14 +1303,14 @@ admin123
 
                 <template v-else-if="column.key === 'include_screenshots'">
                   <a-tag :color="record.include_screenshots ? 'cyan' : 'orange'">
-                    {{ record.include_screenshots ? '全量 (含截图)' : '精简 (无截图)' }}
+                    {{ record.include_screenshots ? pageText('pages.backupFull') : pageText('pages.backupCompact') }}
                   </a-tag>
                 </template>
 
                 <template v-else-if="column.key === 'summary'">
                   <div v-if="record.summary && record.summary.task_assets !== undefined" style="font-size: 12px; line-height: 1.5;">
-                    <div>测绘资产: <b>{{ record.summary.task_assets }}</b> 条 | 资产组: <b>{{ record.summary.scope_assets || 0 }}</b> 条</div>
-                    <div style="opacity: 0.65;">历史任务: {{ record.summary.total_tasks || 0 }} 个 | 用户: {{ record.summary.total_users || 0 }} 个</div>
+                    <div>{{ pageText('pages.backupTaskAssets') }}: <b>{{ record.summary.task_assets }}</b> | {{ pageText('pages.backupScopeAssets') }}: <b>{{ record.summary.scope_assets || 0 }}</b></div>
+                    <div style="opacity: 0.65;">{{ pageText('pages.backupHistoryTasks') }}: {{ record.summary.total_tasks || 0 }} | {{ pageText('pages.backupUsers') }}: {{ record.summary.total_users || 0 }}</div>
                   </div>
                   <span v-else style="opacity: 0.4;">-</span>
                 </template>
@@ -1350,26 +1322,20 @@ admin123
                 <template v-else-if="column.key === 'action'">
                   <a-space>
                     <a-button type="link" size="small" @click="handleDownloadBackup(record.filename)">
-                      <template #icon><DownloadOutlined /></template>
-                      下载
-                    </a-button>
+                      <template #icon><DownloadOutlined /></template>{{ pageText('pages.backupDownload') }}</a-button>
 
                     <a-button type="link" danger size="small" @click="openRestoreModal(record)">
-                      <template #icon><CloudDownloadOutlined /></template>
-                      恢复
-                    </a-button>
+                      <template #icon><CloudDownloadOutlined /></template>{{ pageText('pages.backupRestore') }}</a-button>
 
                     <a-popconfirm
-                      title="确定彻底删除此备份文件吗？"
-                      ok-text="确认删除"
-                      cancel-text="取消"
+                      :title="pageText('pages.backupDeleteConfirm')"
+                      :ok-text="pageText('pages.backupConfirmDelete')"
+                      :cancel-text="pageText('pages.backupCancel')"
                       ok-type="danger"
                       @confirm="handleDeleteBackup(record.filename)"
                     >
                       <a-button type="link" danger size="small" style="opacity: 0.7;">
-                        <template #icon><DeleteOutlined /></template>
-                        删除
-                      </a-button>
+                        <template #icon><DeleteOutlined /></template>{{ pageText('pages.backupDelete') }}</a-button>
                     </a-popconfirm>
                   </a-space>
                 </template>
@@ -1378,35 +1344,35 @@ admin123
           </a-card>
         </div>
       </a-tab-pane>
-      <a-tab-pane key="system_update" :tab="tabTitle('系统版本与更新', false)" force-render>
+      <a-tab-pane key="system_update" :tab="tabTitle(pageText('pages.systemVersionAndUpdates'), false)" force-render>
         <div class="tab-content" style="padding: 20px;">
-          <a-card data-setting-anchor="update" title="系统更新管理" :bordered="false" style="max-width: 800px;">
+          <a-card data-setting-anchor="update" :title="pageText('pages.systemUpdateManagement')" :bordered="false" class="page-dialog-content">
             <a-descriptions bordered :column="1">
-              <a-descriptions-item label="当前本地版本">
-                <a-tag color="blue">{{ localVersion || '获取中...' }}</a-tag>
+              <a-descriptions-item :label="pageText('pages.currentVersionLabel2')">
+                <a-tag color="blue">{{ formatSystemVersion(localVersion) }}</a-tag>
               </a-descriptions-item>
-              <a-descriptions-item label="最新可用版本">
-                <a-tag :color="hasNewVersion ? 'red' : 'green'">{{ remoteVersion || '获取中...' }}</a-tag>
+              <a-descriptions-item :label="pageText('pages.latestAvailableVersion')">
+                <a-tag :color="hasNewVersion ? 'red' : 'green'">{{ formatSystemVersion(remoteVersion) }}</a-tag>
                 <span v-if="hasNewVersion" style="margin-left: 10px; color: #f5222d; font-weight: bold;">
-                  发现新版本！建议立即更新。
+                  {{ pageText('pages.newVersionAvailableAnUpdateIsRecommended') }}
                 </span>
                 <span v-else-if="remoteVersion" style="margin-left: 10px; color: #52c41a;">
-                  已是最新版本。
+                  {{ pageText('pages.alreadyUpToDate') }}
                 </span>
               </a-descriptions-item>
-              <a-descriptions-item v-if="hasNewVersion" label="更新日志">
+              <a-descriptions-item v-if="hasNewVersion" :label="pageText('pages.releaseNotes')">
                 <div class="markdown-release-notes hide-scrollbar" v-html="renderedReleaseNotes" style="max-height: 380px; overflow-y: auto; line-height: 1.6; font-size: 13px; background: rgba(0,0,0,0.02); padding: 12px 16px; border-radius: 6px; border: 1px solid var(--arl-border-color);"></div>
               </a-descriptions-item>
             </a-descriptions>
             
             <div style="margin-top: 20px; text-align: center;">
-              <a-popconfirm title="此操作将拉取最新镜像并重启系统容器，大概需要几分钟时间，请确认当前无正在执行的重要任务。确定执行更新吗？" @confirm="handleStartUpdateClick">
+              <a-popconfirm :title="pageText('pages.thisWillDownloadTheLatestImagesAndRestartSystem')" @confirm="handleStartUpdateClick">
                 <a-button type="primary" size="large" danger :loading="updateButtonLoading" :disabled="!hasNewVersion && !forceUpdateMode">
-                  一键系统更新
+                  {{ pageText('pages.updateSystem') }}
                 </a-button>
               </a-popconfirm>
               <div style="margin-top: 10px;">
-                <a-checkbox v-model:checked="forceUpdateMode">强制显示更新按钮</a-checkbox>
+                <a-checkbox v-model:checked="forceUpdateMode">{{ pageText('pages.forceShowUpdateButton') }}</a-checkbox>
               </div>
             </div>
 
@@ -1414,10 +1380,10 @@ admin123
             <a-divider style="margin: 20px 0 12px;" />
             <div style="text-align: center; font-size: 12px; color: var(--arl-text-color); opacity: 0.55;">
               <GithubOutlined style="margin-right: 4px;" />
-              <span>开源仓库：</span>
+              <span>{{ pageText('pages.sourceRepository') }}</span>
               <a href="https://github.com/owl234/ARL-Next" target="_blank" rel="noopener noreferrer">github.com/owl234/ARL-Next</a>
               <a-divider type="vertical" />
-              <a href="https://github.com/owl234/ARL-Next/releases" target="_blank" rel="noopener noreferrer">版本发布动态</a>
+              <a href="https://github.com/owl234/ARL-Next/releases" target="_blank" rel="noopener noreferrer">{{ pageText('pages.releaseHistory') }}</a>
             </div>
           </a-card>
         </div>
@@ -1436,15 +1402,15 @@ admin123
         <div style="display: flex; align-items: center; justify-content: space-between; padding-right: 24px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 18px;">🚀</span>
-            <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">ARL-Next 系统在线平滑升级</span>
+            <span class="page-sidebar-heading">{{ pageText('pages.arlNextOnlineSystemUpdate') }}</span>
           </div>
           <div style="display: flex; align-items: center; gap: 12px;">
             <div v-if="!updateFinished" class="update-heartbeat-badge">
               <span class="heartbeat-dot"></span>
-              <span>执行中</span>
+              <span>{{ pageText('pages.runningLabel2') }}</span>
             </div>
             <div style="font-family: monospace; font-size: 13px; font-weight: 600; color: var(--arl-text-color); background: rgba(0,0,0,0.04); padding: 2px 8px; border-radius: 4px;">
-              ⏱️ 耗时: {{ formattedElapsedTime }}
+              {{ pageText('pages.elapsed') }} {{ formattedElapsedTime }}
             </div>
           </div>
         </div>
@@ -1463,7 +1429,7 @@ admin123
       <div v-if="Object.keys(activeLayers).length > 0" class="update-layer-box">
         <div class="update-layer-header">
           <span style="font-size: 14px;">⚡</span>
-          <span style="font-weight: 600; font-size: 12px;">正在传输镜像分层 ({{ Object.keys(activeLayers).length }} 个活跃分层):</span>
+          <span class="page-small-heading">{{ pageText('pages.transferringImageLayers') }}{{ Object.keys(activeLayers).length }} {{ pageText('pages.activeLayers') }}</span>
         </div>
         <div class="update-layer-list">
           <div v-for="(statusText, layerId) in activeLayers" :key="layerId" class="layer-chip">
@@ -1479,17 +1445,17 @@ admin123
       </div>
 
       <div v-if="updateFinished" style="margin-top: 16px; text-align: center;">
-        <a-button v-if="!updateHasError" type="primary" size="large" @click="reloadPage" style="border-radius: 6px; padding: 0 32px; font-weight: 600;">🎉 更新完成，点击重新加载页面</a-button>
-        <a-button v-else type="default" size="large" @click="updateModalVisible = false" style="border-radius: 6px;">关闭窗口</a-button>
+        <a-button v-if="!updateHasError" type="primary" size="large" @click="reloadPage" class="page-primary-action">{{ pageText('pages.updateCompletedReloadThePage') }}</a-button>
+        <a-button v-else type="default" size="large" @click="updateModalVisible = false" class="page-rounded">{{ pageText('pages.closeWindow') }}</a-button>
       </div>
     </a-modal>
 
     <!-- 1. 创建备份 Modal -->
     <a-modal
       v-model:open="createBackupModalVisible"
-      title="📦 创建系统全量数据备份"
-      okText="确认立即备份"
-      cancelText="取消"
+      :title="pageText('pages.backupCreateTitle')"
+      :okText="pageText('pages.backupCreateConfirm')"
+      :cancelText="pageText('pages.backupCancel')"
       :confirmLoading="backupLoading"
       @ok="handleExecuteCreateBackup"
       width="560px"
@@ -1499,23 +1465,21 @@ admin123
           type="info"
           show-icon
           style="margin-bottom: 16px; border-radius: 6px;"
-          message="备份将导出 MongoDB 中的 49 个数据集合（含测绘资产、扫描任务、策略与系统配置）。"
+          :message="pageText('pages.backupCollections')"
         />
 
         <a-form layout="vertical">
-          <a-form-item label="备份内容选择">
+          <a-form-item :label="pageText('pages.backupContents')">
             <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 12px 16px; border-radius: 6px;">
               <a-checkbox v-model:checked="createBackupForm.includeScreenshots">
-                <span style="font-weight: 500;">打包站点资产截图 (tmp_screenshot)</span>
+                <span style="font-weight: 500;">{{ pageText('pages.backupScreenshots') }}</span>
               </a-checkbox>
-              <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6; margin-top: 6px; margin-left: 24px;">
-                勾选后将完整打包所有资产网站截图附件（体积通常增加数百 MB 至数 GB）；若取消勾选，仅备份结构化数据与规则配置，备份文件体积极小且生成极快。
-              </div>
+              <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6; margin-top: 6px; margin-left: 24px;">{{ pageText('pages.backupScreenshotsHint') }}</div>
             </div>
           </a-form-item>
 
-          <a-form-item label="备份备注说明 (可选)">
-            <a-input v-model:value="createBackupForm.note" placeholder="例如：新版发布前例行全量快照、迁移备份等" :maxLength="80" showCount />
+          <a-form-item :label="pageText('pages.backupNote')">
+            <a-input v-model:value="createBackupForm.note" :placeholder="pageText('pages.backupNotePlaceholder')" :maxLength="80" showCount />
           </a-form-item>
         </a-form>
       </div>
@@ -1524,7 +1488,7 @@ admin123
     <!-- 2. 上传备份 Modal -->
     <a-modal
       v-model:open="uploadBackupModalVisible"
-      title="📤 上传外部备份归档包"
+      :title="pageText('pages.backupUploadTitle')"
       :footer="null"
       width="580px"
     >
@@ -1533,7 +1497,7 @@ admin123
           type="info"
           show-icon
           style="margin-bottom: 16px; border-radius: 6px;"
-          message="请上传由本系统导出的 arl_backup_*.tar.gz 备份归档文件。上传成功后将显示在备份列表中，可随时进行一键恢复。"
+          :message="pageText('pages.backupUploadHint')"
         />
 
         <a-upload-dragger
@@ -1546,10 +1510,8 @@ admin123
           <p class="ant-upload-drag-icon">
             <InboxOutlined style="font-size: 48px; color: #1677ff;" />
           </p>
-          <p class="ant-upload-text" style="font-size: 15px; font-weight: 500;">点击或将备份包拖拽至此区域上传</p>
-          <p class="ant-upload-hint" style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6;">
-            支持 arl_backup_*.tar.gz 归档，底层已支持流式无缓冲高速传输
-          </p>
+          <p class="ant-upload-text" style="font-size: 15px; font-weight: 500;">{{ pageText('pages.backupUploadDrop') }}</p>
+          <p class="ant-upload-hint" style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6;">{{ pageText('pages.backupUploadFormat') }}</p>
         </a-upload-dragger>
       </div>
     </a-modal>
@@ -1557,9 +1519,9 @@ admin123
     <!-- 3. 恢复确认 Modal -->
     <a-modal
       v-model:open="restoreModalVisible"
-      title="⚠️ 确认执行系统数据全量覆盖恢复"
-      okText="确认覆盖恢复"
-      cancelText="取消"
+      :title="pageText('pages.backupRestoreTitle')"
+      :okText="pageText('pages.backupRestoreConfirm')"
+      :cancelText="pageText('pages.backupCancel')"
       okType="danger"
       :okButtonProps="{ disabled: restoreConfirmInput !== 'RESTORE' }"
       @ok="handleExecuteRestore"
@@ -1570,38 +1532,38 @@ admin123
           type="error"
           show-icon
           style="margin-bottom: 16px; border-radius: 6px;"
-          message="极高危操作：系统将执行 --drop 完全覆盖导入！"
-          description="恢复过程将清空当前目标数据库中所有集合的数据，并写入备份包中的数据，使其与备份时的状态 100% 保持一致。当前未保存的临时数据将被清除！"
+          :message="pageText('pages.backupDropWarning')"
+          :description="pageText('pages.backupDropDescription')"
         />
 
         <a-descriptions bordered size="small" :column="2" style="margin-bottom: 16px;">
-          <a-descriptions-item label="待恢复归档" :span="2">
+          <a-descriptions-item :label="pageText('pages.backupRestoreArchive')" :span="2">
             <span style="font-family: monospace; font-weight: 600;">{{ selectedRestoreBackup.filename }}</span>
           </a-descriptions-item>
-          <a-descriptions-item label="归档体积">
+          <a-descriptions-item :label="pageText('pages.backupArchiveSize')">
             {{ formatBytes(selectedRestoreBackup.size) }}
           </a-descriptions-item>
-          <a-descriptions-item label="包含截图">
-            {{ selectedRestoreBackup.include_screenshots ? '是' : '否' }}
+          <a-descriptions-item :label="pageText('pages.backupIncludesScreenshots')">
+            {{ selectedRestoreBackup.include_screenshots ? pageText('pages.backupYes') : pageText('pages.backupNo') }}
           </a-descriptions-item>
-          <a-descriptions-item label="创建时间" :span="2">
+          <a-descriptions-item :label="pageText('pages.backupCreatedAt')" :span="2">
             {{ formatDateTime(selectedRestoreBackup.created_at) }}
           </a-descriptions-item>
         </a-descriptions>
 
         <div v-if="backupRunningTasks > 0" style="margin-bottom: 16px; background: rgba(250, 173, 20, 0.08); border: 1px dashed #faad14; padding: 10px 14px; border-radius: 6px;">
           <a-checkbox v-model:checked="restoreForceCheck">
-            <span style="color: #d46b08; font-weight: 600;">强制终止当前正在进行的 {{ backupRunningTasks }} 个扫描任务并继续恢复</span>
+            <span style="color: #d46b08; font-weight: 600;">{{ pageText('pages.backupForceRestore', { count: backupRunningTasks }) }}</span>
           </a-checkbox>
         </div>
 
         <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 12px 14px; border-radius: 6px;">
           <div style="font-size: 13px; font-weight: 500; margin-bottom: 6px;">
-            防误操作验证：请输入大写 <span style="color: #ff4d4f; font-weight: bold; font-family: monospace;">RESTORE</span> 以激活确认按钮：
+            <i18n-t keypath="pages.backupRestoreVerification" tag="span"><template #word><span style="color: #ff4d4f; font-weight: bold; font-family: monospace;">RESTORE</span></template></i18n-t>
           </div>
           <a-input
             v-model:value="restoreConfirmInput"
-            placeholder="请输入 RESTORE"
+            :placeholder="pageText('pages.backupEnterRestore')"
             style="font-family: monospace; font-size: 14px;"
           />
         </div>
@@ -1621,16 +1583,16 @@ admin123
           <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 18px;">{{ progressAction === 'backup' ? '📦' : '🔄' }}</span>
             <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">
-              {{ progressAction === 'backup' ? 'ARL-Next 系统数据一键全量备份' : 'ARL-Next 系统数据覆盖恢复导入' }}
+              {{ progressAction === 'backup' ? pageText('pages.backupProgressTitle') : pageText('pages.backupRestoreProgressTitle') }}
             </span>
           </div>
           <div style="display: flex; align-items: center; gap: 12px;">
             <div v-if="!progressFinished" class="update-heartbeat-badge">
               <span class="heartbeat-dot"></span>
-              <span>执行中</span>
+              <span>{{ pageText('pages.backupInProgress') }}</span>
             </div>
             <div style="font-family: monospace; font-size: 13px; font-weight: 600; color: var(--arl-text-color); background: rgba(0,0,0,0.04); padding: 2px 8px; border-radius: 4px;">
-              ⏱️ 耗时: {{ progressElapsed }} 秒
+              {{ pageText('pages.backupElapsed', { seconds: progressElapsed }) }}
             </div>
           </div>
         </div>
@@ -1644,7 +1606,7 @@ admin123
             <span style="font-size: 13px; font-weight: 500; color: var(--arl-text-color);">
               {{ progressStage }}
               <span v-if="!progressFinished" style="font-size: 12px; opacity: 0.65; margin-left: 4px;">
-                (持续写入中 · 已耗时 {{ progressElapsed }}s)
+                {{ pageText('pages.backupWriting', { seconds: progressElapsed }) }}
               </span>
             </span>
           </div>
@@ -1666,20 +1628,16 @@ admin123
       <div v-if="progressFinished" style="margin-top: 16px; text-align: center;">
         <template v-if="!progressHasError">
           <div v-if="progressAction === 'restore'" style="display: flex; justify-content: center; gap: 12px;">
-            <a-button type="primary" size="large" @click="reloadPage" style="border-radius: 6px; padding: 0 32px; font-weight: 600;">
-              🎉 恢复成功！点击重新加载页面
-            </a-button>
+            <a-button type="primary" size="large" @click="reloadPage" style="border-radius: 6px; padding: 0 32px; font-weight: 600;">{{ pageText('pages.backupReload') }}</a-button>
           </div>
           <div v-else style="display: flex; justify-content: center; gap: 12px;">
             <a-button v-if="progressArchiveName" type="primary" size="large" @click="handleDownloadBackup(progressArchiveName)" style="border-radius: 6px;">
-              <template #icon><DownloadOutlined /></template>
-              立即下载此备份归档
-            </a-button>
-            <a-button size="large" @click="backupProgressModalVisible = false" style="border-radius: 6px;">完成并关闭</a-button>
+              <template #icon><DownloadOutlined /></template>{{ pageText('pages.backupDownloadNow') }}</a-button>
+            <a-button size="large" @click="backupProgressModalVisible = false" style="border-radius: 6px;">{{ pageText('pages.backupFinish') }}</a-button>
           </div>
         </template>
         <template v-else>
-          <a-button type="default" size="large" @click="backupProgressModalVisible = false" style="border-radius: 6px;">关闭窗口</a-button>
+          <a-button type="default" size="large" @click="backupProgressModalVisible = false" style="border-radius: 6px;">{{ pageText('pages.closeWindow') }}</a-button>
         </template>
       </div>
     </a-modal>
@@ -1687,6 +1645,7 @@ admin123
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 defineOptions({ name: 'SystemSettings' });
 import {
   InfoCircleOutlined, ExclamationCircleOutlined, GithubOutlined,
@@ -1699,6 +1658,8 @@ import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
 import { copyText } from '@/utils/clipboard';
 import { useRoute, onBeforeRouteLeave } from 'vue-router';
+
+const { t: pageText, locale: pageLocale } = useI18n({ useScope: 'global' });
 
 const reloadPage = () => {
   window.location.reload();
@@ -1782,9 +1743,9 @@ const handlePasteContent = (e) => {
   const pastedText = clipboardData.getData('text') || '';
   if (pastedText.length > 2 * 1024 * 1024) {
     e.preventDefault();
-    message.warning(`检测到粘贴了超大内容 (${(pastedText.length / 1024 / 1024).toFixed(1)} MB)，已阻断直接粘贴！在文本域渲染超大文本会导致浏览器卡死，请切换至【文件上传新建】Tab 进行上传！`, 6);
+    message.warning(pageText('pages.pasteBlockedContentIsTooLargeSizeMbRendering', { size: (pastedText.length / 1024 / 1024).toFixed(1) }), 6);
   } else if (pastedText.length > 500 * 1024) {
-    message.info(`检测到粘贴了较大内容 (${(pastedText.length / 1024 / 1024).toFixed(1)} MB)，点击【确定新建】时将自动启用后台流式导入。`);
+    message.info(pageText('pages.largeContentDetectedSizeMbCreatingTheDictionaryWill', { size: (pastedText.length / 1024 / 1024).toFixed(1) }));
   }
 };
 
@@ -1794,12 +1755,12 @@ const handlePasteNewEntries = (e) => {
   const pastedText = clipboardData.getData('text') || '';
   if (pastedText.length > 2 * 1024 * 1024) {
     e.preventDefault();
-    message.warning(`检测到粘贴了超大内容 (${(pastedText.length / 1024 / 1024).toFixed(1)} MB)，已阻断直接粘贴！在文本域渲染超大文本会导致浏览器卡顿，建议切换至【文件上传】Tab 进行上传！`, 6);
+    message.warning(pageText('pages.pasteBlockedContentIsTooLargeSizeMbRenderingThis', { size: (pastedText.length / 1024 / 1024).toFixed(1) }), 6);
   }
 };
 
 const startDictPolling = (taskId, targetName, apiBase, isBrute, isAppend = false) => {
-  const hideMsg = message.loading(`字典 ${targetName} 正在后台${isAppend ? '追加' : ''}导入中，您可以继续其他操作...`, 0);
+  const hideMsg = message.loading(pageText('pages.dictionaryNameModeImportRunningInTheBackgroundYou', { name: targetName, mode: isAppend ? pageText('pages.append') : '' }), 0);
   let pollCount = 0;
   const MAX_POLL_COUNT = 300; // 最多轮询 300 次 (10分钟)
   let lastUpdateTime = null;
@@ -1813,7 +1774,7 @@ const startDictPolling = (taskId, targetName, apiBase, isBrute, isAppend = false
       clearInterval(timer);
       activeDictPollTimers.value.delete(timer);
       hideMsg();
-      message.warning(`字典 ${targetName} 导入耗时较长，已停止前台轮询。任务仍在后台继续执行，请稍后刷新查看。`);
+      message.warning(pageText('pages.dictionaryNameIsTakingLongerToImportForegroundPolling', { name: targetName }));
       return;
     }
 
@@ -1836,7 +1797,7 @@ const startDictPolling = (taskId, targetName, apiBase, isBrute, isAppend = false
               clearInterval(timer);
               activeDictPollTimers.value.delete(timer);
               hideMsg();
-              message.warning(`字典 ${targetName} 导入长时间无心跳响应，可能已被中断，请刷新页面核验。`);
+              message.warning(pageText('pages.dictionaryNameImportHasNotReportedProgressForAn', { name: targetName }));
               return;
             }
           } else {
@@ -1849,7 +1810,7 @@ const startDictPolling = (taskId, targetName, apiBase, isBrute, isAppend = false
           clearInterval(timer);
           activeDictPollTimers.value.delete(timer);
           hideMsg();
-          message.success(`字典 ${targetName} ${isAppend ? '追加' : ''}导入完成！新增 ${data.inserted_lines} 条，忽略重复 ${data.ignored_lines} 条`);
+          message.success(pageText('pages.dictionaryNameModeImportCompletedAddedAddedDuplicatesSkipped', { name: targetName, mode: isAppend ? pageText('pages.append') : '', added: data.inserted_lines, duplicates: data.ignored_lines }));
           if (isBrute) {
             fetchBruteDictList(false);
           } else {
@@ -1862,7 +1823,7 @@ const startDictPolling = (taskId, targetName, apiBase, isBrute, isAppend = false
           clearInterval(timer);
           activeDictPollTimers.value.delete(timer);
           hideMsg();
-          message.error(`导入 ${targetName} 失败: ${data.message || '未知错误'}`);
+          message.error(pageText('pages.failedToImportNameReasonLabel2', { name: targetName, reason: data.message || pageText('tasks.unknownError') }));
         }
       } else if (statusRes.code === 404) {
         // 允许排队空窗期容错：Worker 启动消费前可能存在短暂 404
@@ -1871,14 +1832,14 @@ const startDictPolling = (taskId, targetName, apiBase, isBrute, isAppend = false
           clearInterval(timer);
           activeDictPollTimers.value.delete(timer);
           hideMsg();
-          message.warning(`导入任务状态已丢失 (${statusRes.message || '任务不存在'})，请刷新页面后确认。`);
+          message.warning(pageText('pages.importTaskStateWasLostReasonRefreshAndVerify', { reason: statusRes.message || pageText('pages.taskNotFound') }));
         }
       } else {
         // 任务不存在或状态异常
         clearInterval(timer);
         activeDictPollTimers.value.delete(timer);
         hideMsg();
-        message.warning(`导入任务状态异常 (${statusRes.message || '未知错误'})，请刷新页面后确认。`);
+        message.warning(pageText('pages.unexpectedImportTaskStateReasonRefreshAndVerifyThe', { reason: statusRes.message || pageText('tasks.unknownError') }));
       }
     } catch (e) {
       // 忽略轮询网络抖动
@@ -1908,7 +1869,7 @@ const handleCreateDictManual = async () => {
         timeout: 300000
       });
       if (res.code === 200) {
-        message.info(`字典内容较大 (约 ${lineCount + 1} 行)，已自动转入后台高性能流式通道导入...`);
+        message.info(pageText('pages.largeDictionaryAboutCountLinesUsingTheBackgroundStreaming', { count: lineCount + 1 }));
         const apiBase = createDictApiBase.value;
         const isBrute = isBruteCreatePrefix.value;
         createDictDrawerVisible.value = false;
@@ -1916,7 +1877,7 @@ const handleCreateDictManual = async () => {
         startDictPolling(res.task_id, targetName, apiBase, isBrute, false);
         return;
       } else {
-        message.error(res.message || '新建失败');
+        message.error(res.message || pageText('pages.failedToCreate'));
         return;
       }
     }
@@ -1926,7 +1887,7 @@ const handleCreateDictManual = async () => {
       content: rawContent
     });
     if (res.code === 200) {
-      message.success(`字典 ${targetName} 新建成功！`);
+      message.success(pageText('pages.dictionaryNameCreated', { name: targetName }));
       const isBrute = isBruteCreatePrefix.value;
       createDictDrawerVisible.value = false;
       resetCreateDictForm();
@@ -1936,10 +1897,10 @@ const handleCreateDictManual = async () => {
         fetchDictList();
       }
     } else {
-      message.error(res.message || '新建失败');
+      message.error(res.message || pageText('pages.failedToCreate'));
     }
   } catch (error) {
-    message.error('新建请求出错');
+    message.error(pageText('pages.dictionaryCreationRequestFailed'));
   } finally {
     createDictLoading.value = false;
   }
@@ -1947,7 +1908,7 @@ const handleCreateDictManual = async () => {
 
 const handleCreateDictUploadCancel = () => {
   if (createDictLoading.value) {
-    message.warning('正在上传中，请勿取消');
+    message.warning(pageText('pages.uploadInProgressPleaseWaitBeforeCanceling'));
     return;
   }
   createDictDrawerVisible.value = false;
@@ -1977,10 +1938,10 @@ const handleCreateDictUpload = async () => {
       resetCreateDictForm();
       startDictPolling(res.task_id, targetName, apiBase, isBrute, false);
     } else {
-      message.error(res.message || '上传失败');
+      message.error(res.message || pageText('pages.uploadFailedLabel2'));
     }
   } catch (error) {
-    message.error('上传请求出错');
+    message.error(pageText('pages.uploadRequestFailed'));
   } finally {
     createDictLoading.value = false;
   }
@@ -2019,10 +1980,10 @@ const handleLargeUpload = async (info) => {
       appendDrawerVisible.value = false;
       startDictPolling(res.task_id, targetName, apiBase, isBrute, true);
     } else {
-      message.error(res.message || '上传失败');
+      message.error(res.message || pageText('pages.uploadFailedLabel2'));
     }
   } catch (error) {
-    message.error('网络或服务器错误');
+    message.error(pageText('pages.networkOrServerError'));
   }
 };
 const searchDrawerVisible = ref(false);
@@ -2060,12 +2021,12 @@ const handleTestPush = async (type) => {
     });
     
     if (res.code === 200) {
-      message.success(res.message || '测试推送成功');
+      message.success(res.message || pageText('pages.testNotificationSent'));
     } else {
-      message.error(res.message || '测试推送失败');
+      message.error(res.message || pageText('pages.failedToSendTestNotification'));
     }
   } catch (error) {
-    message.error('测试请求发生异常，请检查网络');
+    message.error(pageText('pages.testRequestFailedCheckTheNetworkConnection'));
     console.error(error);
   } finally {
     testPushLoading[type] = false;
@@ -2162,57 +2123,57 @@ const unsavedCount = computed(() => {
 // 让用户不必记住设置项藏在哪个 Tab（这是 L1 定位成本的主要来源）。
 const SETTINGS_INDEX = [
   // 全局凭据总览（不在任何 Tab 内，锚点指向页面顶部的折叠条）
-  { tab: 'api_config', tabLabel: '全站总览', label: '凭据配置状态总览', anchor: 'credential_status',
-    desc: '一屏查看全部 12 项凭据的配置状态（跨多个 Tab）',
-    keywords: ['凭据', '配置状态', '已配置', '未配置', 'credential', 'token', '密钥', '总览'] },
+  { tab: 'api_config', get tabLabel() { return pageText('pages.globalOverview'); }, get label() { return pageText('pages.credentialConfigurationOverview'); }, anchor: 'credential_status',
+    get desc() { return pageText('pages.viewTheConfigurationStatusOfAll12CredentialsAcross'); },
+    keywords: ['凭据', '配置状态', '已配置', '未配置', 'credential', 'token', '密钥', '总览', "全站总览 / 凭据配置状态总览 / 一屏查看全部 12 项凭据的配置状态（跨多个 Tab）"] },
   // 资产测绘与情报
-  { tab: 'api_config', tabLabel: '资产测绘与情报', label: 'FOFA 空间测绘凭据', anchor: 'fofa',
-    desc: 'FOFA URL / KEY 与查询页数', keywords: ['fofa', '空间测绘', 'api key', '情报'] },
-  { tab: 'api_config', tabLabel: '资产测绘与情报', label: '天眼查企业测绘凭据', anchor: 'tyc',
-    desc: 'X-Tycid / X-Auth-Token，未配置时降级为工信部 ICP', keywords: ['天眼查', 'tyc', '股权穿透', '企业'] },
-  { tab: 'api_config', tabLabel: '资产测绘与情报', label: 'GitHub Token', anchor: 'github_token',
-    desc: '代码泄露监控与 CVE 追踪的硬依赖', keywords: ['github', 'token', 'pat', '监控', '泄露', 'cve'] },
-  { tab: 'api_config', tabLabel: '资产测绘与情报', label: '搜索引擎 Cookie', anchor: 'search_cookie',
-    desc: '360 搜索与必应搜索的反爬 Cookie', keywords: ['cookie', '360', '必应', 'bing', '搜索', '反爬'] },
-  { tab: 'api_config', tabLabel: '资产测绘与情报', label: '域名收集扩展插件', anchor: 'query_plugin',
-    desc: 'QUERY_PLUGIN 各数据源开关与凭据', keywords: ['插件', 'plugin', 'quake', 'hunter', 'virustotal', '扩展'] },
+  { tab: 'api_config', get tabLabel() { return pageText('pages.assetDiscoveryAndIntelligence'); }, get label() { return pageText('pages.fofaDiscoveryCredentials'); }, anchor: 'fofa',
+    get desc() { return pageText('pages.fofaUrlApiKeyAndQueryPageLimits'); }, keywords: ['fofa', '空间测绘', 'api key', '情报', "资产测绘与情报 / FOFA 空间测绘凭据 / FOFA URL / KEY 与查询页数"] },
+  { tab: 'api_config', get tabLabel() { return pageText('pages.assetDiscoveryAndIntelligence'); }, get label() { return pageText('pages.tianyanchaEnterpriseDiscoveryCredentials'); }, anchor: 'tyc',
+    get desc() { return pageText('pages.xTycidXAuthTokenFallsBackToMiit'); }, keywords: ['天眼查', 'tyc', '股权穿透', '企业', "资产测绘与情报 / 天眼查企业测绘凭据 / X-Tycid / X-Auth-Token，未配置时降级为工信部 ICP"] },
+  { tab: 'api_config', get tabLabel() { return pageText('pages.assetDiscoveryAndIntelligence'); }, label: 'GitHub Token', anchor: 'github_token',
+    get desc() { return pageText('pages.requiredForCodeLeakMonitoringAndCveTracking'); }, keywords: ['github', 'token', 'pat', '监控', '泄露', 'cve', "资产测绘与情报 / GitHub Token / 代码泄露监控与 CVE 追踪的硬依赖"] },
+  { tab: 'api_config', get tabLabel() { return pageText('pages.assetDiscoveryAndIntelligence'); }, get label() { return pageText('pages.searchEngineCookies'); }, anchor: 'search_cookie',
+    get desc() { return pageText('pages.cookiesUsedToAccess360SearchAndBingSearch'); }, keywords: ['cookie', '360', '必应', 'bing', '搜索', '反爬', "资产测绘与情报 / 搜索引擎 Cookie / 360 搜索与必应搜索的反爬 Cookie"] },
+  { tab: 'api_config', get tabLabel() { return pageText('pages.assetDiscoveryAndIntelligence'); }, get label() { return pageText('pages.domainCollectionPlugins'); }, anchor: 'query_plugin',
+    get desc() { return pageText('pages.queryPluginDataSourceSwitchesAndCredentials'); }, keywords: ['插件', 'plugin', 'quake', 'hunter', 'virustotal', '扩展', "资产测绘与情报 / 域名收集扩展插件 / QUERY_PLUGIN 各数据源开关与凭据"] },
   // 字典与规则库
-  { tab: 'dictionary', tabLabel: '字典与规则库', label: '通用文本字典', anchor: 'dict',
-    desc: '子域名 / 端口 / 目录 / 弱口令字典管理', keywords: ['字典', 'dict', '弱口令', '爆破', '子域名', '端口', '目录'] },
-  { tab: 'dictionary', tabLabel: '字典与规则库', label: 'CDN 特征与规则', anchor: 'cdn',
-    desc: 'CNAME 与 IP CIDR 特征库，用于 CDN 识别', keywords: ['cdn', 'cname', 'cidr', '特征', '规则'] },
+  { tab: 'dictionary', get tabLabel() { return pageText('pages.dictionariesAndRules'); }, get label() { return pageText('pages.textDictionaries'); }, anchor: 'dict',
+    get desc() { return pageText('pages.manageSubdomainPortDirectoryAndCredentialDictionaries'); }, keywords: ['字典', 'dict', '弱口令', '爆破', '子域名', '端口', '目录', "字典与规则库 / 通用文本字典 / 子域名 / 端口 / 目录 / 弱口令字典管理"] },
+  { tab: 'dictionary', get tabLabel() { return pageText('pages.dictionariesAndRules'); }, get label() { return pageText('pages.cdnFingerprintsAndRulesLabel2'); }, anchor: 'cdn',
+    get desc() { return pageText('pages.cnameAndIpCidrRulesForIdentifyingCdns'); }, keywords: ['cdn', 'cname', 'cidr', '特征', '规则', "字典与规则库 / CDN 特征与规则 / CNAME 与 IP CIDR 特征库，用于 CDN 识别"] },
   // 扫描与并发
-  { tab: 'performance', tabLabel: '扫描与并发 · 队列并发', label: '任务队列并发（Worker 进程数）', anchor: 'performance',
-    desc: '重任务 / 轻任务 / OSINT 的 Worker 进程数，受内存约束',
-    keywords: ['并发', '线程', '性能', '队列', 'celery', 'worker', '进程', '扩容', '缩容'] },
-  { tab: 'security', tabLabel: '扫描与并发 · 安全策略', label: '安全策略：IP 黑名单', anchor: 'security',
-    desc: '禁止扫描的 IP 段（含系统默认值）', keywords: ['黑名单', 'blacklist', 'ip', 'cidr', '禁止', '安全策略'] },
-  { tab: 'security', tabLabel: '扫描与并发 · 安全策略', label: '安全策略：禁止扫描域名', anchor: 'security',
-    desc: '按后缀匹配的禁扫域名（如 gov.cn）', keywords: ['禁止域名', '域名', '禁扫', '安全策略', 'gov.cn'] },
-  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: '系统代理地址', anchor: 'proxy',
-    desc: 'PROXY_URL，扫描流量出口代理', keywords: ['代理', 'proxy', '出口', 'http_url'] },
-  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: 'DNS 发包并发度（单任务内）', anchor: 'brute_concurrent',
-    desc: '常规爆破与 DNS 智能生成的 massdns 发包并发度，非进程数',
-    keywords: ['线程', '爆破', '并发', '并发度', 'dns', '域名', 'altdns', 'massdns', '发包'] },
-  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: '端口扫描 Top 10 端口串', anchor: 'port_top_10',
-    desc: '前端测试选项使用的默认端口列表', keywords: ['端口', 'port', 'top10', '扫描'] },
-  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: '基础服务连接信息', anchor: 'infra',
-    desc: '只读展示 Broker / MongoDB / GeoIP 路径', keywords: ['mongodb', 'broker', 'celery', 'geoip', '数据库', '基础设施'] },
+  { tab: 'performance', get tabLabel() { return pageText('pages.scanningAndConcurrencyQueueConcurrency'); }, get label() { return pageText('pages.taskQueueConcurrencyWorkerProcesses'); }, anchor: 'performance',
+    get desc() { return pageText('pages.memoryConstrainedWorkerProcessCountsForHeavyLightAnd'); },
+    keywords: ['并发', '线程', '性能', '队列', 'celery', 'worker', '进程', '扩容', '缩容', "扫描与并发 · 队列并发 / 任务队列并发（Worker 进程数） / 重任务 / 轻任务 / OSINT 的 Worker 进程数，受内存约束"] },
+  { tab: 'security', get tabLabel() { return pageText('pages.scanningAndConcurrencySecurityPolicy'); }, get label() { return pageText('pages.securityPolicyIpBlocklist'); }, anchor: 'security',
+    get desc() { return pageText('pages.ipRangesExcludedFromScanningIncludingSystemDefaults'); }, keywords: ['黑名单', 'blacklist', 'ip', 'cidr', '禁止', '安全策略', "扫描与并发 · 安全策略 / 安全策略：IP 黑名单 / 禁止扫描的 IP 段（含系统默认值）"] },
+  { tab: 'security', get tabLabel() { return pageText('pages.scanningAndConcurrencySecurityPolicy'); }, get label() { return pageText('pages.securityPolicyExcludedDomains'); }, anchor: 'security',
+    get desc() { return pageText('pages.domainSuffixesExcludedFromScanningEGGovCn'); }, keywords: ['禁止域名', '域名', '禁扫', '安全策略', 'gov.cn', "扫描与并发 · 安全策略 / 安全策略：禁止扫描域名 / 按后缀匹配的禁扫域名（如 gov.cn）"] },
+  { tab: 'system_general', get tabLabel() { return pageText('pages.scanningAndConcurrencyAdvancedScanning'); }, get label() { return pageText('pages.systemProxy'); }, anchor: 'proxy',
+    get desc() { return pageText('pages.proxyUrlOutboundProxyForScanningTraffic'); }, keywords: ['代理', 'proxy', '出口', 'http_url', "扫描与并发 · 高级扫描 / 系统代理地址 / PROXY_URL，扫描流量出口代理"] },
+  { tab: 'system_general', get tabLabel() { return pageText('pages.scanningAndConcurrencyAdvancedScanning'); }, get label() { return pageText('pages.dnsQueryConcurrencyWithinATask'); }, anchor: 'brute_concurrent',
+    get desc() { return pageText('pages.massdnsQueryConcurrencyForRegularAndMutationDiscoveryThis'); },
+    keywords: ['线程', '爆破', '并发', '并发度', 'dns', '域名', 'altdns', 'massdns', '发包', "扫描与并发 · 高级扫描 / DNS 发包并发度（单任务内） / 常规爆破与 DNS 智能生成的 massdns 发包并发度，非进程数"] },
+  { tab: 'system_general', get tabLabel() { return pageText('pages.scanningAndConcurrencyAdvancedScanning'); }, get label() { return pageText('pages.top10PortList'); }, anchor: 'port_top_10',
+    get desc() { return pageText('pages.defaultPortListUsedByFrontendTestOptions'); }, keywords: ['端口', 'port', 'top10', '扫描', "扫描与并发 · 高级扫描 / 端口扫描 Top 10 端口串 / 前端测试选项使用的默认端口列表"] },
+  { tab: 'system_general', get tabLabel() { return pageText('pages.scanningAndConcurrencyAdvancedScanning'); }, get label() { return pageText('pages.infrastructureConnections'); }, anchor: 'infra',
+    get desc() { return pageText('pages.readOnlyBrokerMongodbGeoipConnectionDetails'); }, keywords: ['mongodb', 'broker', 'celery', 'geoip', '数据库', '基础设施', "扫描与并发 · 高级扫描 / 基础服务连接信息 / 只读展示 Broker / MongoDB / GeoIP 路径"] },
   // 通知与系统
-  { tab: 'message_push', tabLabel: '通知与回调', label: '订阅消息类型', anchor: 'push_options',
-    desc: '选择哪些事件触发推送', keywords: ['订阅', '推送', '通知', '告警', '消息类型'] },
-  { tab: 'message_push', tabLabel: '通知与回调', label: '钉钉 / 飞书 / 企微 / Telegram 机器人', anchor: 'im',
-    desc: '即时通讯告警通道与测试发送', keywords: ['钉钉', 'dingding', '飞书', 'feishu', '企业微信', 'wxwork', 'telegram', '机器人', 'webhook'] },
-  { tab: 'message_push', tabLabel: '通知与回调', label: '系统全局 Webhook 回调', anchor: 'webhook',
-    desc: '任务完成后向外部接口 POST JSON', keywords: ['webhook', '回调', 'callback', 'post', '接口'] },
-  { tab: 'message_push', tabLabel: '通知与回调', label: 'SMTP 邮件推送', anchor: 'email',
-    desc: '邮件服务器、发件人与收件人配置', keywords: ['邮件', 'email', 'smtp', '推送'] },
-  { tab: 'system_general', tabLabel: '扫描与并发 · 高级扫描', label: 'API 安全认证机制', anchor: 'auth',
-    desc: 'Swagger API 认证开关与 API Token', keywords: ['api', '认证', 'auth', 'token', 'swagger', '安全'] },
-  { tab: 'system_backup', tabLabel: '数据备份与恢复', label: '系统全量数据备份与恢复', anchor: 'backup',
-    desc: 'MongoDB 资产测绘信息、任务、策略与系统配置一键全量快照与新机原样恢复', keywords: ['备份', '恢复', 'backup', 'restore', '导出', '导入', '快照', '全量备份', '迁移'] },
-  { tab: 'system_update', tabLabel: '系统版本与更新', label: '系统版本与更新', anchor: 'update',
-    desc: '版本比对、更新日志与一键更新', keywords: ['版本', '更新', '升级', 'update', 'version', 'changelog'] },
+  { tab: 'message_push', get tabLabel() { return pageText('pages.notificationsAndCallbacks'); }, get label() { return pageText('pages.subscribedEventTypes'); }, anchor: 'push_options',
+    get desc() { return pageText('pages.chooseWhichEventsSendNotifications'); }, keywords: ['订阅', '推送', '通知', '告警', '消息类型', "通知与回调 / 订阅消息类型 / 选择哪些事件触发推送"] },
+  { tab: 'message_push', get tabLabel() { return pageText('pages.notificationsAndCallbacks'); }, get label() { return pageText('pages.dingtalkFeishuWecomTelegramBots'); }, anchor: 'im',
+    get desc() { return pageText('pages.messagingNotificationChannelsAndTestDelivery'); }, keywords: ['钉钉', 'dingding', '飞书', 'feishu', '企业微信', 'wxwork', 'telegram', '机器人', 'webhook', "通知与回调 / 钉钉 / 飞书 / 企微 / Telegram 机器人 / 即时通讯告警通道与测试发送"] },
+  { tab: 'message_push', get tabLabel() { return pageText('pages.notificationsAndCallbacks'); }, get label() { return pageText('pages.globalWebhookCallbackLabel2'); }, anchor: 'webhook',
+    get desc() { return pageText('pages.postJsonToAnExternalEndpointWhenATask'); }, keywords: ['webhook', '回调', 'callback', 'post', '接口', "通知与回调 / 系统全局 Webhook 回调 / 任务完成后向外部接口 POST JSON"] },
+  { tab: 'message_push', get tabLabel() { return pageText('pages.notificationsAndCallbacks'); }, get label() { return pageText('pages.smtpEmailNotificationsLabel2'); }, anchor: 'email',
+    get desc() { return pageText('pages.mailServerSenderAndRecipientConfiguration'); }, keywords: ['邮件', 'email', 'smtp', '推送', "通知与回调 / SMTP 邮件推送 / 邮件服务器、发件人与收件人配置"] },
+  { tab: 'system_general', get tabLabel() { return pageText('pages.scanningAndConcurrencyAdvancedScanning'); }, get label() { return pageText('pages.apiAuthentication'); }, anchor: 'auth',
+    get desc() { return pageText('pages.swaggerApiAuthenticationAndApiToken'); }, keywords: ['api', '认证', 'auth', 'token', 'swagger', '安全', "扫描与并发 · 高级扫描 / API 安全认证机制 / Swagger API 认证开关与 API Token"] },
+  { tab: 'system_backup', get tabLabel() { return pageText('pages.backupTab'); }, get label() { return pageText('pages.backupTitle'); }, anchor: 'backup',
+    get desc() { return pageText('pages.backupIndexDescription'); }, keywords: ['备份', '恢复', 'backup', 'restore', '导出', '导入', '快照', '全量备份', '迁移'] },
+  { tab: 'system_update', get tabLabel() { return pageText('pages.systemVersionAndUpdates'); }, get label() { return pageText('pages.systemVersionAndUpdates'); }, anchor: 'update',
+    get desc() { return pageText('pages.versionComparisonReleaseNotesAndSystemUpdates'); }, keywords: ['版本', '更新', '升级', 'update', 'version', 'changelog', "系统版本与更新 / 系统版本与更新 / 版本比对、更新日志与一键更新"] },
 ];
 
 const settingsKeyword = ref('');
@@ -2321,24 +2282,24 @@ const tabTitle = (base, dirty) => (dirty ? `${base} ·` : base);
 const saveGeneralGroup = async (group, loadingRef, successText) => {
   const payload = pendingByGroup.value[group] || {};
   if (Object.keys(payload).length === 0) {
-    message.info('当前分组没有需要保存的改动');
+    message.info(pageText('pages.noUnsavedChangesInThisGroup'));
     return false;
   }
   loadingRef.value = true;
   try {
     const res = await request.post('/api/system_config/general', payload);
     if (res.code === 200) {
-      message.success(successText || `已保存 ${Object.keys(payload).length} 项变更`);
+      message.success(successText || pageText('pages.changesSavedCount', { count: Object.keys(payload).length }));
       // 仅把本组已提交的字段写回基线，其他分组的未保存改动继续保持脏状态
       Object.keys(payload).forEach((key) => {
         generalBaseline.value[key] = cloneDeep(payload[key]);
       });
       return true;
     }
-    message.error(res.message || '保存失败');
+    message.error(res.message || pageText('pages.failedToSaveLabel2'));
     return false;
   } catch (error) {
-    message.error('请求保存配置出错');
+    message.error(pageText('pages.failedToSaveConfigurationLabel2'));
     console.error(error);
     return false;
   } finally {
@@ -2350,15 +2311,15 @@ const saveGeneralGroup = async (group, loadingRef, successText) => {
 const CREDENTIAL_LABELS = [
   { key: 'github_token', label: 'GitHub Token', required: true },
   { key: 'fofa_key', label: 'FOFA KEY', required: false },
-  { key: 'tyc_id', label: '天眼查 ID', required: false },
-  { key: 'tyc_token', label: '天眼查 Token', required: false },
-  { key: 'so_search_cookie', label: '360 搜索 Cookie', required: false },
-  { key: 'bing_search_cookie', label: '必应搜索 Cookie', required: false },
-  { key: 'dingding_access_token', label: '钉钉机器人', required: false },
-  { key: 'feishu_webhook', label: '飞书机器人', required: false },
-  { key: 'wx_work_webhook', label: '企业微信机器人', required: false },
-  { key: 'tg_bot_token', label: 'Telegram 机器人', required: false },
-  { key: 'email_username', label: 'SMTP 邮件', required: false },
+  { key: 'tyc_id', get label() { return pageText('pages.tianyanchaId'); }, required: false },
+  { key: 'tyc_token', get label() { return pageText('pages.tianyanchaToken'); }, required: false },
+  { key: 'so_search_cookie', get label() { return pageText('pages.360SearchCookie'); }, required: false },
+  { key: 'bing_search_cookie', get label() { return pageText('pages.bingSearchCookie'); }, required: false },
+  { key: 'dingding_access_token', get label() { return pageText('pages.dingtalkBotLabel2'); }, required: false },
+  { key: 'feishu_webhook', get label() { return pageText('pages.feishuBotLabel2'); }, required: false },
+  { key: 'wx_work_webhook', get label() { return pageText('pages.wecomBotLabel2'); }, required: false },
+  { key: 'tg_bot_token', get label() { return pageText('pages.telegramBotLabel2'); }, required: false },
+  { key: 'email_username', get label() { return pageText('pages.smtpEmail'); }, required: false },
   { key: 'api_key', label: 'API Token', required: false },
 ];
 
@@ -2411,7 +2372,7 @@ const applyRecommended = (formRef, key) => {
   const rec = capacityInfo.value[`${key}_recommended`];
   if (rec) {
     formRef.value[key] = rec;
-    message.success(`已回填推荐值 ${rec}`);
+    message.success(pageText('pages.appliedRecommendedValueValue', { value: rec }));
   }
 };
 
@@ -2474,10 +2435,10 @@ const fetchGeneralConfig = async () => {
       await fetchMergedConfig();
       captureBaseline();
     } else {
-      message.error(res.message || '获取常规全局配置失败');
+      message.error(res.message || pageText('pages.failedToLoadGeneralSystemConfiguration'));
     }
   } catch (error) {
-    message.error('请求常规全局配置出错');
+    message.error(pageText('pages.generalSystemConfigurationRequestFailed'));
     console.error(error);
   } finally {
     generalLoading.value = false;
@@ -2495,20 +2456,20 @@ const bruteDictList = ref([]);  // [{name, size}, ...]
 
 // ======================= 字典元数据配置 =======================
 const ASSET_DICT_META = {
-  'domain_2w.txt':       { label: '子域名爆破主字典 (2万)', group: '🌍 子域名爆破' },
-  'altdnsdict.txt':      { label: '子域名智能生成辅助词',   group: '🧠 智能子域爆破' },
-  'dnsserver.txt':       { label: 'DNS 解析服务器列表',     group: '🌐 DNS 解析配置' },
-  'file_top_200.txt':    { label: 'Top 200 路径字典',       group: '📂 目录文件泄露' },
-  'file_top_2000.txt':   { label: 'Top 2000 路径字典',      group: '📂 目录文件泄露' },
+  'domain_2w.txt':       { get label() { return pageText('pages.mainSubdomainDictionary20000Entries'); }, group: '🌍 子域名爆破' },
+  'altdnsdict.txt':      { get label() { return pageText('pages.subdomainMutationWords'); },   group: '🧠 智能子域爆破' },
+  'dnsserver.txt':       { get label() { return pageText('pages.dnsResolverList'); },     group: '🌐 DNS 解析配置' },
+  'file_top_200.txt':    { get label() { return pageText('pages.top200Paths'); },       group: '📂 目录文件泄露' },
+  'file_top_2000.txt':   { get label() { return pageText('pages.top2000Paths'); },      group: '📂 目录文件泄露' },
 
-  'port_top100.txt':     { label: '常用 100 端口',          group: '🔌 端口扫描策略' },
-  'port_top1000.txt':    { label: '常用 1000 端口',         group: '🔌 端口扫描策略' },
-  'port_custom.txt':     { label: '自定义端口',             group: '🔌 端口扫描策略' },
-  'port_all.txt':        { label: '全端口 (1-65535)',       group: '🔌 端口扫描策略' },
+  'port_top100.txt':     { get label() { return pageText('pages.top100CommonPorts'); },          group: '🔌 端口扫描策略' },
+  'port_top1000.txt':    { get label() { return pageText('pages.top1000CommonPorts'); },         group: '🔌 端口扫描策略' },
+  'port_custom.txt':     { get label() { return pageText('tasks.customPorts'); },             group: '🔌 端口扫描策略' },
+  'port_all.txt':        { get label() { return pageText('tasks.allPorts165535'); },       group: '🔌 端口扫描策略' },
 
-  'blackdomain.txt':     { label: '根域名爆破拦截字典',     group: '🛡️ 全局黑名单拦截' },
-  'black_asset_site.txt':{ label: '恶意/干扰站点拦截字典',  group: '🛡️ 全局黑名单拦截' },
-  'blackhexie.txt':      { label: '敏感词汇过滤字典',       group: '🛡️ 全局黑名单拦截' },
+  'blackdomain.txt':     { get label() { return pageText('pages.rootDomainExclusionDictionary'); },     group: '🛡️ 全局黑名单拦截' },
+  'black_asset_site.txt':{ get label() { return pageText('pages.maliciousUnwantedWebsiteBlocklist'); },  group: '🛡️ 全局黑名单拦截' },
+  'blackhexie.txt':      { get label() { return pageText('pages.sensitiveWordFilterDictionary'); },       group: '🛡️ 全局黑名单拦截' },
 };
 
 const assetMenuGroups = computed(() => {
@@ -2572,6 +2533,18 @@ const bruteSvcGroups = computed(() => {
   return groups;
 });
 
+const formatDictionaryGroup = group => {
+  const keys = {
+    '🌍 子域名爆破': 'pages.dictionaryGroupDomains',
+    '🧠 智能子域爆破': 'pages.dictionaryGroupMutations',
+    '📂 目录文件泄露': 'pages.dictionaryGroupFiles',
+    '🔌 端口扫描策略': 'pages.dictionaryGroupPorts',
+    '🌐 DNS 解析配置': 'pages.dictionaryGroupDns',
+    '🛡️ 全局黑名单拦截': 'pages.dictionaryGroupBlocklist'
+  };
+  return keys[group] ? pageText(keys[group]) : group;
+};
+
 const treeData = computed(() => {
   const data = [];
   // 资产字典分组
@@ -2586,7 +2559,7 @@ const treeData = computed(() => {
           is_builtin: item.is_builtin
         };
       });
-      data.push({ title: group, key: `group_asset_${group}`, selectable: false, children });
+      data.push({ title: formatDictionaryGroup(group), key: `group_asset_${group}`, selectable: false, children });
     }
   });
   // 弱口令字典分组（将所有协议合并到一个大组，极大提升简洁度）
@@ -2596,13 +2569,13 @@ const treeData = computed(() => {
       items.forEach(item => {
         // 自动将 username_/password_ 翻译为友好的中文前缀
         let friendlyPrefix = '';
-        if (item.name.startsWith('username_')) friendlyPrefix = '账号字典';
-        else if (item.name.startsWith('password_')) friendlyPrefix = '密码字典';
-        else if (item.name.includes('common_')) friendlyPrefix = '通用弱口令';
+        if (item.name.startsWith('username_')) friendlyPrefix = pageText('pages.usernameDictionary');
+        else if (item.name.startsWith('password_')) friendlyPrefix = pageText('pages.passwordDictionary');
+        else if (item.name.includes('common_')) friendlyPrefix = pageText('pages.commonCredentialDictionary');
 
         // 通用弱口令组内直接显示文件名，避免 "[通用弱口令] 通用弱口令" 冗余
         const mainTitle = svc === '通用弱口令'
-          ? (friendlyPrefix === '通用弱口令' ? item.name : `${friendlyPrefix || item.name}`)
+          ? (item.name.includes('common_') ? item.name : `${friendlyPrefix || item.name}`)
           : `[${svc}] ${friendlyPrefix || item.name}`;
 
         npocChildren.push({
@@ -2615,7 +2588,7 @@ const treeData = computed(() => {
     }
   });
   if (npocChildren.length > 0) {
-    data.push({ title: '🔑 弱口令字典', key: 'group_brute_all', children: npocChildren });
+    data.push({ title: pageText('pages.credentialDictionariesLabel2'), key: 'group_brute_all', children: npocChildren });
   }
   return data;
 });
@@ -2651,12 +2624,12 @@ const handleDeleteBatchCustom = () => {
   if (!batchDeleteEntries.value.trim()) return;
   const entryCount = batchDeleteEntries.value.split('\n').map(x => x.trim()).filter(Boolean).length;
   Modal.confirm({
-    title: '批量删除字典条目确认',
+    title: pageText('pages.deleteDictionaryEntries'),
     icon: createVNode(ExclamationCircleOutlined),
-    content: `确认从当前字典中删除提交的 ${entryCount} 条条目吗？未匹配的条目不生效。`,
-    okText: '确认删除',
+    content: pageText('pages.deleteTheSubmittedEntriesCountFromTheCurrentDictionary', { count: entryCount }),
+    okText: pageText('tasks.confirmDeletion'),
     okButtonProps: { danger: true },
-    cancelText: '取 消',
+    cancelText: pageText('assets.cancel'),
     onOk: async () => {
       const ok = await deleteEntries(batchDeleteEntries.value);
       if (ok) {
@@ -2680,7 +2653,16 @@ const handleCategorySelect = ({ key }) => {
 const unifiedSelectedKeys = ref([]);
 const unifiedSelectedType = ref('');  // 'asset' | 'brute'
 const unifiedSelectedName = ref('');
-const unifiedSelectedDesc = ref('');
+const unifiedSelectedDesc = computed(() => {
+  const name = unifiedSelectedName.value;
+  if (unifiedSelectedType.value === 'asset') {
+    return ASSET_DICT_META[name]?.label || pageText('pages.assetDiscoveryDictionary');
+  }
+  if (unifiedSelectedType.value === 'brute') {
+    return name.startsWith('username_') ? pageText('pages.usernameDictionaryCredentialChecks') : pageText('pages.passwordDictionaryCredentialChecks');
+  }
+  return '';
+});
 
 const unifiedSelectedIsBuiltin = computed(() => {
   if (!unifiedSelectedName.value) return false;
@@ -2713,20 +2695,17 @@ const handleUnifiedSelect = (selectedKeys, info) => {
     const name = key.slice(7);
     unifiedSelectedType.value = 'asset';
     unifiedSelectedName.value = name;
-    unifiedSelectedDesc.value = ASSET_DICT_META[name] ? ASSET_DICT_META[name].label : '资产发现字典';
     selectedDict.value = name;
     fetchPreview(name);
   } else if (key && key.startsWith('brute__')) {
     const name = key.slice(7);
     unifiedSelectedType.value = 'brute';
     unifiedSelectedName.value = name;
-    unifiedSelectedDesc.value = name.startsWith('username_') ? '账号字典（用于弱口令爆破）' : '密码字典（用于弱口令爆破）';
     selectedDict.value = name;
     fetchPreview(name);
   } else {
     unifiedSelectedType.value = '';
     unifiedSelectedName.value = '';
-    unifiedSelectedDesc.value = '';
     selectedDict.value = null;
   }
 };
@@ -2759,9 +2738,9 @@ const handleDownloadDict = async () => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
-    message.success(`字典 ${selectedDict.value} 导出成功！`);
+    message.success(pageText('pages.dictionaryNameExported', { name: selectedDict.value }));
   } catch (e) {
-    let errMsg = '导出字典失败';
+    let errMsg = pageText('pages.failedToExportDictionary');
     if (e.response && e.response.data instanceof Blob) {
       try {
         const text = await e.response.data.text();
@@ -2778,14 +2757,14 @@ const handleDownloadDict = async () => {
 
 const copyPreviewContent = async () => {
   if (!previewContent.value) {
-    message.warning('当前没有可复制的内容');
+    message.warning(pageText('pages.noContentToCopy'));
     return;
   }
   const ok = await copyText(previewContent.value);
   if (ok) {
-    message.success('预览内容已成功复制到剪贴板！');
+    message.success(pageText('pages.previewCopiedToClipboard'));
   } else {
-    message.error('复制失败，请手动选择复制');
+    message.error(pageText('pages.copyFailedSelectAndCopyTheTextManually'));
   }
 };
 
@@ -2807,10 +2786,10 @@ const fetchDictList = async (showLoading = true) => {
     if (res.code === 200) {
       dictList.value = res.data || [];
     } else {
-      message.error(res.message || '获取字典列表失败');
+      message.error(res.message || pageText('pages.failedToLoadDictionaryList'));
     }
   } catch (error) {
-    message.error('请求字典列表出错');
+    message.error(pageText('pages.dictionaryListRequestFailed'));
     console.error(error);
   } finally {
     if (showLoading) loading.value = false;
@@ -2829,10 +2808,10 @@ const fetchPreview = async (name) => {
       previewContent.value = res.data.lines.join('\n');
       totalLines.value = res.data.total;
     } else {
-      message.error(res.message || '获取预览失败');
+      message.error(res.message || pageText('pages.failedToLoadPreview'));
     }
   } catch (error) {
-    message.error('请求预览内容出错');
+    message.error(pageText('pages.previewRequestFailed'));
     console.error(error);
   } finally {
     loading.value = false;
@@ -2842,7 +2821,7 @@ const fetchPreview = async (name) => {
 // 搜索功能（自动路由）
 const handleSearch = async () => {
   if (!searchKeyword.value.trim()) {
-    message.warning('请输入搜索关键词');
+    message.warning(pageText('pages.enterASearchKeyword'));
     return;
   }
   searchLoading.value = true;
@@ -2853,15 +2832,15 @@ const handleSearch = async () => {
     if (res.code === 200) {
       searchResult.value = res.data.matches;
       if (res.data.matches.length > 0) {
-        message.success(`找到 ${res.data.matches.length} 条匹配项！`);
+        message.success(pageText('pages.matchingEntriesCount', { count: res.data.matches.length }));
       } else {
-        message.info('未找到包含该关键词的条目。');
+        message.info(pageText('pages.noEntriesContainThisKeyword'));
       }
     } else {
-      message.error(res.message || '搜索失败');
+      message.error(res.message || pageText('pages.searchFailed'));
     }
   } catch (error) {
-    message.error('请求搜索出错');
+    message.error(pageText('pages.searchRequestFailed'));
     console.error(error);
   } finally {
     searchLoading.value = false;
@@ -2874,7 +2853,7 @@ const handleAppend = async () => {
 
   const contentSize = new Blob([newEntries.value]).size;
   if (contentSize > 2 * 1024 * 1024) {
-    message.warning('追加文本超过 2MB，单次文本框提交可能导致浏览器卡顿或请求超时，请切换至【文件上传】标签页进行高效导入');
+    message.warning(pageText('pages.appendedTextExceeds2MbSubmittingItThroughThe'));
     return false;
   }
 
@@ -2883,13 +2862,13 @@ const handleAppend = async () => {
   if (selectedDict.value && selectedDict.value.startsWith('port_')) {
     const invalidPorts = lines.filter(p => !/^\d+$/.test(p) || parseInt(p) < 1 || parseInt(p) > 65535);
     if (invalidPorts.length > 0) {
-      message.error(`校验失败：包含无效端口号 (如 ${invalidPorts[0]})，请输入 1-65535 之间的纯数字`);
+      message.error(pageText('pages.invalidPortNumberEGPortEnterIntegersFrom', { port: invalidPorts[0] }));
       return false;
     }
   } else if (selectedDict.value && selectedDict.value.includes('domain')) {
     const invalidDomains = lines.filter(d => /[\s,;!@#%^&*()<>{}\[\]]/.test(d));
     if (invalidDomains.length > 0) {
-       message.error(`校验失败：子域名字典包含非法字符 (如空格或特殊符号)`);
+       message.error(pageText('pages.theSubdomainDictionaryContainsInvalidCharactersSuchAsSpaces'));
        return false;
     }
   }
@@ -2901,18 +2880,18 @@ const handleAppend = async () => {
       content: newEntries.value
     });
     if (res.code === 200) {
-      message.success(`保存成功！共提交 ${res.data.total_submitted} 项，实际追加新条目 ${res.data.added} 项。`);
+      message.success(pageText('pages.savedSubmittedSubmittedNewEntriesAddedAdded', { submitted: res.data.total_submitted, added: res.data.added }));
       newEntries.value = '';
       fetchDictList();
       fetchBruteDictList();
       fetchPreview(selectedDict.value);
       return true;
     } else {
-      message.error(res.message || '保存失败');
+      message.error(res.message || pageText('pages.failedToSaveLabel2'));
       return false;
     }
   } catch (error) {
-    message.error('请求保存出错');
+    message.error(pageText('pages.saveRequestFailed'));
     console.error(error);
     return false;
   } finally {
@@ -2925,12 +2904,12 @@ const handleAppend = async () => {
 const handleDeleteSingle = (item) => {
   if (!item) return false;
   Modal.confirm({
-    title: '删除字典条目确认',
+    title: pageText('pages.deleteDictionaryEntry'),
     icon: createVNode(ExclamationCircleOutlined),
-    content: `确认从当前字典中删除条目「${item}」吗？`,
-    okText: '确认删除',
+    content: pageText('pages.deleteEntryEntryFromTheCurrentDictionary', { entry: item }),
+    okText: pageText('tasks.confirmDeletion'),
     okButtonProps: { danger: true },
-    cancelText: '取 消',
+    cancelText: pageText('assets.cancel'),
     onOk: async () => {
       const ok = await deleteEntries(item);
       if (ok && searchResult.value) {
@@ -2947,12 +2926,12 @@ const handleDeleteDict = () => {
   if (!selectedDict.value) return;
   const targetName = selectedDict.value;
   Modal.confirm({
-    title: '删除字典文件确认',
+    title: pageText('pages.deleteDictionaryFile'),
     icon: createVNode(ExclamationCircleOutlined),
-    content: `确认删除字典文件「${targetName}」及其全部条目吗？此操作不可恢复。`,
-    okText: '确认删除',
+    content: pageText('pages.permanentlyDeleteDictionaryNameAndAllItsEntriesThis', { name: targetName }),
+    okText: pageText('tasks.confirmDeletion'),
     okButtonProps: { danger: true },
-    cancelText: '取 消',
+    cancelText: pageText('assets.cancel'),
     onOk: () => executeDeleteDict(targetName)
   });
 };
@@ -2964,7 +2943,7 @@ const executeDeleteDict = async (targetName) => {
       name: targetName
     });
     if (res.code === 200) {
-      message.success(`字典 ${targetName} 删除成功！`);
+      message.success(pageText('pages.dictionaryNameDeleted', { name: targetName }));
       // 重置选中状态
       unifiedSelectedKeys.value = [];
       selectedDict.value = '';
@@ -2979,10 +2958,10 @@ const executeDeleteDict = async (targetName) => {
       }
       unifiedSelectedType.value = '';
     } else {
-      message.error(res.message || '删除失败');
+      message.error(res.message || pageText('tasks.deletionFailedLabel'));
     }
   } catch (error) {
-    message.error('请求删除出错');
+    message.error(pageText('pages.deleteRequestFailed'));
     console.error(error);
   } finally {
     loading.value = false;
@@ -2999,17 +2978,17 @@ const deleteEntries = async (content) => {
       content: content
     });
     if (res.code === 200) {
-      message.success(`删除成功！尝试删除 ${res.data.total_submitted} 项，实际成功删除 ${res.data.deleted} 项。`);
+      message.success(pageText('pages.deletionCompletedSubmittedSubmittedDeletedDeleted', { submitted: res.data.total_submitted, deleted: res.data.deleted }));
       fetchDictList();
       fetchBruteDictList();
       fetchPreview(selectedDict.value);
       return true;
     } else {
-      message.error(res.message || '删除失败');
+      message.error(res.message || pageText('tasks.deletionFailedLabel'));
       return false;
     }
   } catch (error) {
-    message.error('请求删除出错');
+    message.error(pageText('pages.deleteRequestFailed'));
     console.error(error);
     return false;
   } finally {
@@ -3050,16 +3029,16 @@ const totalIpCount = computed(() => {
   return cdnList.value.reduce((acc, curr) => acc + (curr.ip_cidr || []).length, 0);
 });
 
-const copyTextList = async (list, label = '内容') => {
+const copyTextList = async (list, label = pageText('tasks.content')) => {
   if (!list || !list.length) {
-    message.warning(`${label}暂无数据`);
+    message.warning(pageText('pages.noDataForType', { type: label }));
     return;
   }
   const ok = await copyText(list.join('\n'));
   if (ok) {
-    message.success(`${label}已复制到剪贴板！`);
+    message.success(pageText('pages.typeCopiedToClipboard', { type: label }));
   } else {
-    message.error('复制失败，请手动选择复制');
+    message.error(pageText('pages.copyFailedSelectAndCopyTheTextManually'));
   }
 };
 
@@ -3097,7 +3076,7 @@ const deleteSelectedCdn = () => {
   if (index > -1) {
     cdnList.value.splice(index, 1);
     selectedCdnName.value = '';
-    message.success('已删除，请记得保存全量更改');
+    message.success(pageText('pages.deletedLocallySaveAllChangesToApply'));
   }
 };
 
@@ -3107,7 +3086,7 @@ const resetCdnForm = () => {
 
 const submitCdnDrawer = () => {
   if (!currentCdnForm.name.trim()) {
-    message.warning('请输入 CDN 名称');
+    message.warning(pageText('pages.enterACdnName'));
     return;
   }
   const cname_domain = currentCdnForm.cnameText.split('\n').map(s => s.trim()).filter(s => s);
@@ -3124,13 +3103,13 @@ const submitCdnDrawer = () => {
     return false;
   });
   if (invalidCidr.length > 0) {
-    message.error(`IP 格式不合法 (如 ${invalidCidr[0]})，应为 IPv4 地址或 CIDR 网段，例如 1.1.1.1 或 103.21.244.0/22`);
+    message.error(pageText('pages.invalidIpEGIpUseAnIpv4Address', { ip: invalidCidr[0] }));
     return;
   }
   // CNAME 后缀校验：不允许空白与路径分隔符
   const invalidCname = cname_domain.filter(d => /[\s/\\]/.test(d));
   if (invalidCname.length > 0) {
-    message.error(`CNAME 后缀格式不合法 (如 ${invalidCname[0]})，应为纯域名后缀`);
+    message.error(pageText('pages.invalidCnameSuffixEGSuffixUseADomain', { suffix: invalidCname[0] }));
     return;
   }
 
@@ -3143,7 +3122,7 @@ const submitCdnDrawer = () => {
     selectedCdnName.value = currentCdnForm.name.trim();
   } else {
     if (cdnList.value.find(c => c.name === currentCdnForm.name.trim())) {
-      message.warning('该 CDN 名称已存在');
+      message.warning(pageText('pages.thisCdnNameAlreadyExists'));
       return;
     }
     cdnList.value.unshift({
@@ -3166,10 +3145,10 @@ const fetchCdnList = async () => {
       cdnList.value = res.data || [];
       originalCdnList.value = JSON.parse(JSON.stringify(cdnList.value));
     } else {
-      message.error(res.message || '获取CDN列表失败');
+      message.error(res.message || pageText('pages.failedToLoadCdnList'));
     }
   } catch (error) {
-    message.error('请求CDN列表出错');
+    message.error(pageText('pages.cdnListRequestFailed'));
     console.error(error);
   } finally {
     cdnLoading.value = false;
@@ -3184,14 +3163,14 @@ const saveCdnData = async () => {
       data: cdnList.value
     });
     if (res.code === 200) {
-      message.success('全量保存成功！');
+      message.success(pageText('pages.allChangesSaved'));
       originalCdnList.value = JSON.parse(JSON.stringify(cdnList.value));
       fetchCdnList(); // 重新拉取确认
     } else {
-      message.error(res.message || '保存失败');
+      message.error(res.message || pageText('pages.failedToSaveLabel2'));
     }
   } catch (error) {
-    message.error('请求保存出错');
+    message.error(pageText('pages.saveRequestFailed'));
     console.error(error);
   } finally {
     cdnSaveLoading.value = false;
@@ -3212,10 +3191,10 @@ const fetchSecurityPolicy = async () => {
       securityForm.value.forbiddenDomainsText = (res.data.forbidden_domains || []).join('\n');
       securityBaseline.value = cloneDeep(securityForm.value);
     } else {
-      message.error(res.message || '获取安全策略失败');
+      message.error(res.message || pageText('pages.failedToLoadSecurityPolicy'));
     }
   } catch (error) {
-    message.error('请求安全策略出错');
+    message.error(pageText('pages.securityPolicyRequestFailed'));
     console.error(error);
   } finally {
     securityLoading.value = false;
@@ -3234,13 +3213,13 @@ const saveSecurityPolicy = async () => {
     });
     
     if (res.code === 200) {
-      message.success('安全策略更新成功！');
+      message.success(pageText('pages.securityPolicyUpdated'));
       fetchSecurityPolicy(); // 重新拉取确认
     } else {
-      message.error(res.message || '保存失败');
+      message.error(res.message || pageText('pages.failedToSaveLabel2'));
     }
   } catch (error) {
-    message.error('请求保存安全策略出错');
+    message.error(pageText('pages.failedToSaveSecurityPolicy'));
     console.error(error);
   } finally {
     securitySaveLoading.value = false;
@@ -3267,10 +3246,10 @@ const fetchPerformanceConfig = async () => {
       runtimePerformance.value.runtime_github_concurrency = res.data.runtime_github_concurrency ?? null;
       performanceBaseline.value = cloneDeep(performanceForm.value);
     } else {
-      message.error(res.message || '获取性能配置失败');
+      message.error(res.message || pageText('pages.failedToLoadPerformanceSettings'));
     }
   } catch (error) {
-    message.error('请求性能配置出错');
+    message.error(pageText('pages.performanceSettingsRequestFailed'));
     console.error(error);
   } finally {
     performanceLoading.value = false;
@@ -3288,13 +3267,13 @@ const savePerformanceConfig = async () => {
     });
     
     if (res.code === 200) {
-      message.success(res.message || '性能配置更新成功！', 5);
+      message.success(res.message || pageText('pages.performanceSettingsUpdated'), 5);
       fetchPerformanceConfig();
     } else {
-      message.error(res.message || '保存失败');
+      message.error(res.message || pageText('pages.failedToSaveLabel2'));
     }
   } catch (error) {
-    message.error('请求保存性能配置出错');
+    message.error(pageText('pages.failedToSavePerformanceSettings'));
     console.error(error);
   } finally {
     performanceSaveLoading.value = false;
@@ -3311,16 +3290,20 @@ const fetchBruteDictList = async (showLoading = true) => {
     if (res.code === 200) {
       bruteDictList.value = res.data || [];
     } else {
-      message.error(res.message || '获取弱口令字典列表失败');
+      message.error(res.message || pageText('pages.failedToLoadCredentialDictionaries'));
     }
   } catch (error) {
-    message.error('请求弱口令字典列表出错');
+    message.error(pageText('pages.credentialDictionaryRequestFailed'));
     console.error(error);
   } finally {
     if (showLoading) bruteLoading.value = false;
   }
 };
 
+const formatSystemVersion = (version) => {
+  if (!version) return pageText('pages.loadingLabel2');
+  return version === '未知版本' ? pageText('pages.unknownVersion') : version;
+};
 const localVersion = ref('');
 const remoteVersion = ref('');
 const releaseNotes = ref('');
@@ -3342,7 +3325,8 @@ const updateOfflineNotices = ref('');
 const updateElapsedSeconds = ref(0);
 const updateTimer = ref(null);
 const activeLayers = ref({});
-const currentStageTitle = ref('正在准备更新环境...');
+const currentStageKey = ref('pages.preparingTheUpdateEnvironment');
+const currentStageTitle = computed(() => pageText(currentStageKey.value));
 
 const formattedElapsedTime = computed(() => {
   const mins = Math.floor(updateElapsedSeconds.value / 60);
@@ -3401,11 +3385,11 @@ const handleStartUpdateClick = async () => {
     const runningCount = res.code === 200 && res.data ? (res.data.running_count || 0) : 0;
     if (runningCount > 0) {
       Modal.confirm({
-        title: '⚠️ 正在运行的任务告警',
-        content: `系统检测到当前有 ${runningCount} 个正在执行的扫描任务。执行系统更新将重启后台 Worker 容器并中断这些任务（重启后任务将标记为中断状态）。是否确认继续更新？`,
-        okText: '确认强制中断并更新',
+        title: pageText('pages.scanningTasksAreRunning'),
+        content: pageText('pages.thereAreCountRunningScanningTasksUpdatingTheSystem', { count: runningCount }),
+        okText: pageText('pages.interruptTasksAndUpdate'),
         okType: 'danger',
-        cancelText: '取消并等待任务完成',
+        cancelText: pageText('pages.cancelAndWaitForTasksToFinish'),
         onOk: () => {
           startUpdate();
         }
@@ -3432,9 +3416,9 @@ const stopUpdateTimers = () => {
 };
 
 // 🛠️ 统一收尾更新流程：停止双定时器、清空分层芯片，并落定终态（标题/进度/成败标记）
-const finishUpdate = (stageTitle, { progress = null, hasError = false } = {}) => {
+const finishUpdate = (stageKey, { progress = null, hasError = false } = {}) => {
   stopUpdateTimers();
-  currentStageTitle.value = stageTitle;
+  currentStageKey.value = stageKey;
   if (progress !== null) updateProgress.value = progress;
   updateFinished.value = true;
   updateHasError.value = hasError;
@@ -3447,7 +3431,7 @@ const startUpdate = async () => {
   try {
     const res = await request.post('/api/system_config/request_update_token');
     if (res.code !== 200) {
-      message.error(res.message || '获取更新令牌失败');
+      message.error(res.message || pageText('pages.failedToObtainUpdateToken'));
       updateButtonLoading.value = false;
       return;
     }
@@ -3456,14 +3440,14 @@ const startUpdate = async () => {
     updateModalVisible.value = true;
     updateHasError.value = false;
     updateOfflineNotices.value = '';
-    updateLogs.value = '⏳ 正在触发更新服务...\n';
+    updateLogs.value = pageText('pages.startingTheUpdateService');
     updateProgress.value = 10;
     updateFinished.value = false;
     updateButtonLoading.value = false;
     logByteOffset.value = 0;
     activeLayers.value = {};
     updateElapsedSeconds.value = 0;
-    currentStageTitle.value = '正在准备更新环境...';
+    currentStageKey.value = 'pages.preparingTheUpdateEnvironment';
 
     // 启动秒级耗时计数器（先统一停止可能残留的定时器并清空分层状态）
     stopUpdateTimers();
@@ -3476,13 +3460,13 @@ const startUpdate = async () => {
     try {
       const triggerRes = await fetch(triggerUrl);
       if (!triggerRes.ok) {
-        updateLogs.value += '[ERROR] 触发更新失败，服务返回异常状态码。\n';
-        finishUpdate('❌ 触发更新失败', { hasError: true });
+        updateLogs.value += pageText('pages.errorUpdateRequestFailedTheServiceReturnedAnUnexpected');
+        finishUpdate('pages.failedToStartUpdate', { hasError: true });
         return;
       }
     } catch (e) {
-      updateLogs.value += '[ERROR] 无法连接到更新服务，请检查网络。\n';
-      finishUpdate('❌ 无法连接更新服务', { hasError: true });
+      updateLogs.value += pageText('pages.errorCannotConnectToTheUpdateServiceCheckThe');
+      finishUpdate('pages.cannotConnectToUpdateService', { hasError: true });
       return;
     }
 
@@ -3497,16 +3481,16 @@ const startUpdate = async () => {
         const logRes = await fetch(pollUrl);
         if (!logRes.ok) {
           if (logRes.status === 401) {
-            finishUpdate('🎉 系统更新成功！安全防护已生效', { progress: 100 });
-            updateLogs.value += '\n[DONE] 🎉 系统更新成功！\n🔒 检测到基础安全防护 (Basic Auth) 已生效。\n👉 请手动刷新页面，并在弹出的提示框中输入密码重新登录。';
+            finishUpdate('pages.systemUpdatedBasicAuthProtectionIsActive', { progress: 100 });
+            updateLogs.value += pageText('pages.doneSystemUpdatedBasicAuthProtectionIsActiveRefresh');
             scrollToBottom();
-            message.success('🎉 系统更新成功！请手动刷新页面。', 8);
+            message.success(pageText('pages.systemUpdatedRefreshThePage'), 8);
             return;
           }
           // 502 可能是网关重启，不报错，仅记录
-          if (!updateOfflineNotices.value.includes('等待网络恢复')) {
-            updateOfflineNotices.value = '⏳ 网关重启中或服务暂时不可达，正在等待网络恢复...\n';
-            updateLogs.value += '⏳ 网关重启中或服务暂时不可达，正在等待网络恢复...\n';
+          if (updateOfflineNotices.value !== 'network') {
+            updateOfflineNotices.value = 'network';
+            updateLogs.value += pageText('pages.gatewayRestartingOrServiceTemporarilyUnavailableWaitingForThe');
             scrollToBottom();
           }
           return;
@@ -3531,37 +3515,37 @@ const startUpdate = async () => {
           // 动态解析阶段与进度（终态达成后锁定，规避日志延迟写入引起标题回跳与闪烁）
           if (!updateFinished.value) {
             if (updateLogs.value.includes('正在拉取核心镜像')) {
-              currentStageTitle.value = '阶段 1/3: 正在拉取核心镜像以提取基础架构';
+              currentStageKey.value = 'pages.stage13PullingTheCoreImageToExtract';
               updateProgress.value = Math.max(updateProgress.value, 20);
             }
             if (updateLogs.value.includes('核心镜像拉取完成') || updateLogs.value.includes('基础架构同步完毕')) {
-              currentStageTitle.value = '阶段 1/3: 基础架构提取完毕，准备多服务部署';
+              currentStageKey.value = 'pages.stage13InfrastructureExtractedPreparingServiceDeployment';
               updateProgress.value = Math.max(updateProgress.value, 35);
             }
             if (updateLogs.value.includes('正在为当前运行版本创建稳定备份快照')) {
-              currentStageTitle.value = '阶段 2/3: 正在为当前运行版本创建稳定快照';
+              currentStageKey.value = 'pages.stage23CreatingAStableSnapshotOfThe';
               updateProgress.value = Math.max(updateProgress.value, 45);
             }
             if (updateLogs.value.includes('正在从阿里云镜像库极速拉取最新构建')) {
-              currentStageTitle.value = '阶段 2/3: 正在从阿里云镜像库极速拉取最新构建';
+              currentStageKey.value = 'pages.stage23PullingTheLatestImagesFromThe';
               updateProgress.value = Math.max(updateProgress.value, 60);
             }
             if (updateLogs.value.includes('所有微服务镜像拉取完成') || updateLogs.value.includes('正在启动生产多服务容器组')) {
-              currentStageTitle.value = '阶段 3/3: 正在启动生产多服务容器组并检测健康状态';
+              currentStageKey.value = 'pages.stage33StartingServiceContainersAndCheckingTheir';
               updateProgress.value = Math.max(updateProgress.value, 80);
             }
             if (updateLogs.value.includes('后端服务已完全就绪')) {
-              currentStageTitle.value = '阶段 3/3: 后端服务与数据库已完全就绪';
+              currentStageKey.value = 'pages.stage33BackendServicesAndDatabaseAreReady';
               updateProgress.value = Math.max(updateProgress.value, 95);
             }
           }
 
           if (data.done) {
-            finishUpdate('🎉 系统更新与部署已全部完成！', { progress: 100 });
-            message.success('🎉 系统更新成功！请点击下方按钮重新加载页面。', 5);
+            finishUpdate('pages.systemUpdateAndDeploymentCompleted', { progress: 100 });
+            message.success(pageText('pages.systemUpdatedSelectReloadBelowToRefreshThePage'), 5);
           } else if (data.error) {
-            finishUpdate('❌ 系统更新遇到错误', { hasError: true });
-            message.error('❌ 系统更新遇到错误，请查看日志！', 8);
+            finishUpdate('pages.systemUpdateFailed', { hasError: true });
+            message.error(pageText('pages.systemUpdateFailedCheckTheLogs'), 8);
           }
         } else {
           // 纯文本兜底
@@ -3569,25 +3553,25 @@ const startUpdate = async () => {
           updateLogs.value = logText;
           scrollToBottom();
           if (logText.includes('[DONE]')) {
-            finishUpdate('🎉 系统更新成功！', { progress: 100 });
-            message.success('🎉 系统更新成功！', 5);
+            finishUpdate('pages.systemUpdated', { progress: 100 });
+            message.success(pageText('pages.systemUpdated'), 5);
           } else if (logText.includes('[ERROR]')) {
-            finishUpdate('❌ 系统更新遇到错误', { hasError: true });
-            message.error('❌ 系统更新遇到错误！', 8);
+            finishUpdate('pages.systemUpdateFailed', { hasError: true });
+            message.error(pageText('pages.systemUpdateFailedLabel2'), 8);
           }
         }
       } catch (err) {
         // 网络请求失败（容器重启时）忽略错误，继续轮询
-        if (!updateOfflineNotices.value.includes('等待容器恢复')) {
-          updateOfflineNotices.value = '⏳ 网络暂时断开，正在等待容器恢复...\n';
-          updateLogs.value += '⏳ 网络暂时断开，正在等待容器恢复...\n';
+        if (updateOfflineNotices.value !== 'container') {
+          updateOfflineNotices.value = 'container';
+          updateLogs.value += pageText('pages.networkDisconnectedWaitingForContainersToRecover');
           scrollToBottom();
         }
       }
     }, 1200);
     
   } catch (e) {
-    message.error('启动更新失败');
+    message.error(pageText('pages.failedToStartUpdateLabel2'));
     console.error(e);
     updateButtonLoading.value = false;
     stopUpdateTimers();
@@ -3648,12 +3632,12 @@ const formatDateTime = (iso) => {
 };
 
 const backupColumns = [
-  { title: '备份归档名称', dataIndex: 'filename', key: 'filename', width: 280 },
-  { title: '文件大小', dataIndex: 'size', key: 'size', width: 110 },
-  { title: '截图包含', dataIndex: 'include_screenshots', key: 'include_screenshots', width: 130 },
-  { title: '核心资产总览', key: 'summary' },
-  { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 160 },
-  { title: '操作', key: 'action', width: 200, align: 'center' }
+  { get title() { return pageText('pages.backupArchiveName'); }, dataIndex: 'filename', key: 'filename', width: 280 },
+  { get title() { return pageText('pages.backupSize'); }, dataIndex: 'size', key: 'size', width: 110 },
+  { get title() { return pageText('pages.backupScreenshotColumn'); }, dataIndex: 'include_screenshots', key: 'include_screenshots', width: 130 },
+  { get title() { return pageText('pages.backupSummary'); }, key: 'summary' },
+  { get title() { return pageText('pages.backupCreatedAt'); }, dataIndex: 'created_at', key: 'created_at', width: 160 },
+  { get title() { return pageText('pages.backupActions'); }, key: 'action', width: 200, align: 'center' }
 ];
 
 const fetchBackupList = async () => {
@@ -3664,10 +3648,10 @@ const fetchBackupList = async () => {
       backupList.value = res.data.items || [];
       backupRunningTasks.value = res.data.running_tasks || 0;
     } else {
-      message.error(res.message || '获取备份清单失败');
+      message.error(res.message || pageText('pages.backupListFailed'));
     }
   } catch (e) {
-    message.error('获取备份列表网络异常');
+    message.error(pageText('pages.backupListNetworkError'));
   } finally {
     backupListLoading.value = false;
   }
@@ -3690,10 +3674,10 @@ const handleExecuteCreateBackup = async () => {
       createBackupModalVisible.value = false;
       startProgressTracking('backup');
     } else {
-      message.error(res.message || '启动备份任务失败');
+      message.error(res.message || pageText('pages.backupStartFailed'));
     }
   } catch (e) {
-    message.error(e.response?.data?.message || '启动备份任务异常');
+    message.error(e.response?.data?.message || pageText('pages.backupStartError'));
   } finally {
     backupLoading.value = false;
   }
@@ -3717,16 +3701,16 @@ const handleCustomUploadBackup = async ({ file, onSuccess, onError, onProgress }
       }
     });
     if (res.code === 200) {
-      message.success('备份包上传并校验成功！');
+      message.success(pageText('pages.backupUploadSuccess'));
       onSuccess(res.data, file);
       uploadBackupModalVisible.value = false;
       fetchBackupList();
     } else {
-      message.error(res.message || '备份包上传失败');
+      message.error(res.message || pageText('pages.backupUploadFailed'));
       onError(new Error(res.message));
     }
   } catch (err) {
-    const errText = err.response?.data?.message || '上传网络异常或文件超出限制';
+    const errText = err.response?.data?.message || pageText('pages.backupUploadError');
     message.error(errText);
     onError(err);
   }
@@ -3750,10 +3734,10 @@ const handleExecuteRestore = async () => {
       restoreModalVisible.value = false;
       startProgressTracking('restore', selectedRestoreBackup.value.filename);
     } else {
-      message.error(res.message || '启动数据恢复失败');
+      message.error(res.message || pageText('pages.backupRestoreFailed'));
     }
   } catch (e) {
-    message.error(e.response?.data?.message || '启动数据恢复异常');
+    message.error(e.response?.data?.message || pageText('pages.backupRestoreError'));
   }
 };
 
@@ -3772,13 +3756,13 @@ const handleDeleteBackup = async (filename) => {
   try {
     const res = await request.delete(`/api/backup/delete/${encodeURIComponent(filename)}`);
     if (res.code === 200) {
-      message.success('备份文件已成功删除');
+      message.success(pageText('pages.backupDeleted'));
       fetchBackupList();
     } else {
-      message.error(res.message || '删除备份失败');
+      message.error(res.message || pageText('pages.backupDeleteFailed'));
     }
   } catch (e) {
-    message.error('删除备份请求异常');
+    message.error(pageText('pages.backupDeleteError'));
   }
 };
 
@@ -3825,9 +3809,9 @@ const startProgressTracking = (action, archiveName = '', isResume = false) => {
   progressAction.value = action || 'backup';
   if (!isResume) {
     progressPercent.value = 5;
-    progressStage.value = action === 'backup' ? '正在准备全量备份...' : '正在准备覆盖恢复...';
+    progressStage.value = action === 'backup' ? pageText('pages.backupPreparing') : pageText('pages.backupRestorePreparing');
     progressElapsed.value = 0;
-    progressLogs.value = ['⏳ 正在连接底层引擎...'];
+    progressLogs.value = [pageText('pages.backupConnecting')];
   }
   progressFinished.value = false;
   progressHasError.value = false;
@@ -3881,13 +3865,13 @@ const startProgressTracking = (action, archiveName = '', isResume = false) => {
           progressFinished.value = true;
           progressHasError.value = false;
           progressPercent.value = 100;
-          progressStage.value = (d.action || action) === 'backup' ? '🎉 系统全量备份已生成！' : '🎉 数据覆盖恢复全部完成！';
+          progressStage.value = (d.action || action) === 'backup' ? pageText('pages.backupCompleted') : pageText('pages.backupRestoreCompleted');
           stopProgressTracking();
           fetchBackupList();
         } else if (d.status === 'error') {
           progressFinished.value = true;
           progressHasError.value = true;
-          progressStage.value = `❌ 执行失败: ${d.error || '未知错误'}`;
+          progressStage.value = pageText('pages.backupExecutionFailed', { error: d.error || pageText('pages.backupUnknownError') });
           stopProgressTracking();
           fetchBackupList();
         }
@@ -3955,7 +3939,7 @@ watch(activeKey, (newVal) => {
 onDeactivated(() => {
   // 组件被 keep-alive 缓存，切走时改动仍在内存中，这里只做显式提醒不做阻断
   if (hasUnsavedChanges.value) {
-    message.warning(`本页有 ${unsavedCount.value} 项配置改动尚未保存，请返回保存后再离开。`, 5);
+    message.warning(pageText('pages.thereAreCountUnsavedConfigurationChangesSaveThemBefore', { count: unsavedCount.value }), 5);
   }
   createDictDrawerVisible.value = false;
   appendDrawerVisible.value = false;
@@ -3983,12 +3967,12 @@ onBeforeRouteLeave(() => {
   if (!hasUnsavedChanges.value) return true;
   return new Promise((resolve) => {
     Modal.confirm({
-      title: '存在未保存的配置改动',
+      title: pageText('pages.unsavedConfigurationChangesLabel2'),
       icon: createVNode(ExclamationCircleOutlined),
-      content: `当前有 ${unsavedCount.value} 项配置尚未保存，离开本页后这些改动将丢失。`,
-      okText: '放弃改动并离开',
+      content: pageText('pages.thereAreCountUnsavedConfigurationChangesLeavingThisPage', { count: unsavedCount.value }),
+      okText: pageText('pages.discardChangesAndLeave'),
       okType: 'danger',
-      cancelText: '留在本页',
+      cancelText: pageText('tasks.stayOnThisPage'),
       onOk: () => resolve(true),
       onCancel: () => resolve(false),
     });
@@ -4570,4 +4554,58 @@ onBeforeRouteLeave(() => {
   color: var(--arl-text-color);
   opacity: 0.85;
 }
+
+.page-small-text { font-size: 12px; }
+.page-config-card { margin-bottom: 16px; border-radius: 6px; }
+.page-flush-bottom { margin-bottom: 0; }
+.page-config-card-min-height { margin-bottom: 16px; border-radius: 6px; min-height: 190px; }
+.page-field-spacing { margin-bottom: 12px; }
+.page-config-card-fixed { margin-bottom: 16px; border-radius: 6px; height: 190px; }
+.page-rounded { border-radius: 6px; }
+.page-panel-heading { font-weight: 600; font-size: 14px; color: var(--arl-text-color); }
+.page-search-field { flex: 1; border-radius: 4px; }
+.page-icon-padding { padding: 0 8px; }
+.page-label { font-size: 13px; font-weight: 500; }
+.page-quiet-help { font-size: 12px; opacity: 0.7; }
+.page-tiny-tag { margin: 0; font-size: 10px; line-height: 16px; padding: 0 4px; border-radius: 2px; }
+.page-dictionary-summary { color: var(--arl-text-color); opacity: 0.55; font-size: 12px; font-family: 'Fira Code', monospace; }
+.page-icon-gap { margin-right:4px; }
+.page-muted-label { font-size: 12px; opacity: 0.65; color: var(--arl-text-color); }
+.page-small-icon-gap { margin-right:2px; }
+.page-description { margin-bottom: 16px; color: var(--arl-text-color); font-size: 13px; }
+.page-inline-gap { margin-right: 8px; }
+.page-compact-description { margin-bottom: 12px; color: var(--arl-text-color); font-size: 13px; }
+.page-code-preview { font-family: monospace; font-size: 12px; margin-bottom: 24px; }
+.page-form-section-title { margin-bottom: 8px; font-weight: 500; font-size: 14px; }
+.page-success-detail { margin-bottom: 8px; color: #52c41a; font-size: 13px; }
+.page-error-detail { margin-bottom: 8px; color: #ff4d4f; font-size: 13px; }
+.page-warning-detail { color: #faad14; font-size: 12px; margin-top: 8px; }
+.page-danger-section-title { margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #ff4d4f; }
+.page-empty-detail { margin-bottom: 8px; color: var(--arl-text-color); opacity: 0.45; font-size: 12px; }
+.page-code-summary { font-family: monospace; font-size: 12px; margin-bottom: 16px; }
+.page-danger-emphasis { color: #cf1322; }
+.page-flush-tag { margin: 0; }
+.page-secondary-help { color: var(--arl-text-color); opacity: 0.55; font-size: 12px; }
+.page-warning-emphasis { color: #d46b08; }
+.page-config-card-danger { margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #ff4d4f; }
+.page-choice-gap { margin-left: 8px; font-size: 12px; }
+.page-strong-heading { font-weight: bold; margin-bottom: 8px; }
+.page-config-card-success { margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #52c41a; }
+.page-config-card-info { margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #1890ff; }
+.page-config-card-purple { margin-bottom: 16px; border-radius: 6px; border-left: 4px solid #722ed1; }
+.page-config-card-theme { margin-bottom: 16px; border-radius: 6px; border-left: 4px solid var(--arl-theme-color); }
+.page-form-spacing { margin-bottom: 8px; }
+.page-config-card-fixed-short { margin-bottom: 16px; border-radius: 6px; height: 180px; }
+.page-config-card-fixed-tall { margin-bottom: 16px; border-radius: 6px; height: 260px; }
+.page-dialog-content { max-width: 800px; }
+.page-sidebar-heading { font-weight: 600; font-size: 15px; color: var(--arl-text-color); }
+.page-small-heading { font-weight: 600; font-size: 12px; }
+.page-primary-action { border-radius: 6px; padding: 0 32px; font-weight: 600; }
+
+.page-english .page-config-card-fixed,
+.page-english .page-config-card-fixed-short,
+.page-english .page-config-card-fixed-tall { height: auto; min-height: 190px; }
+.page-english .arl-cred-summary { flex-wrap: wrap; row-gap: 8px; }
+.page-english .arl-cred-item { flex-wrap: wrap; gap: 6px; }
+.page-english :deep(.ant-card-head-title) { white-space: normal; line-height: 1.5; padding: 12px 0; }
 </style>

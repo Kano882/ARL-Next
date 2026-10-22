@@ -1,7 +1,9 @@
+import pages from './pages.zh-CN.js';
 import assets from './assets.zh-CN.js';
 import tasks from './tasks.zh-CN.js';
 
 export default {
+  pages,
   assets,
   tasks,
   language: { select: '界面语言' },
