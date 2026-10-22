@@ -1,4 +1,6 @@
 export default {
+  "quickAppName": "快应用名称",
+  "quickAppIcpNumber": "快应用备案号",
   "networkRequestFailed": "网络请求异常",
   "failedToCreateTask": "任务下发失败",
   "fofaTaskCreated": "FOFA 任务下发成功！",

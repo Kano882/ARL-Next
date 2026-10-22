@@ -6,7 +6,14 @@ from openpyxl import Workbook
 from bson import ObjectId
 import re
 from collections import Counter
-from openpyxl.writer.excel import save_virtual_workbook
+try:
+    from openpyxl.writer.excel import save_virtual_workbook
+except ImportError:
+    from io import BytesIO
+    def save_virtual_workbook(workbook):
+        buf = BytesIO()
+        workbook.save(buf)
+        return buf.getvalue()
 from openpyxl.styles import Font
 from app.utils import get_logger, auth
 from app import utils

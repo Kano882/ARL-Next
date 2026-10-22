@@ -1,4 +1,6 @@
 export default {
+  "quickAppName": "Quick app name",
+  "quickAppIcpNumber": "Quick app ICP number",
   "networkRequestFailed": "Network request failed",
   "failedToCreateTask": "Failed to create task",
   "fofaTaskCreated": "FOFA task created",
