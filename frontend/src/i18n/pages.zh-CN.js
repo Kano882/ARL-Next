@@ -1223,5 +1223,17 @@ export default {
   "backupCreatedAt": "创建时间",
   "backupFinish": "完成并关闭",
   "backupActions": "操作",
-  "backupUnknownError": "未知错误"
+  "backupUnknownError": "未知错误",
+  "screensaverResumeHint": "正在监控资产，点击任意位置恢复界面。",
+  "poweredByArlNext": "由 ARL-Next 提供支持",
+  "maxPagesPlaceholder": "最大页数",
+  "pageSizePlaceholder": "每页条数",
+  "authEmailPlaceholder": "认证邮箱",
+  "authKeyPlaceholder": "认证密钥",
+  "fingerCategoryCdn": "CDN",
+  "fingerCategoryServer": "服务器",
+  "fingerCategoryFrontend": "前端",
+  "fingerCategoryFramework": "框架",
+  "fingerCategoryApplication": "应用",
+  "fingerCategoryWeb": "网站"
 };

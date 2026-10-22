@@ -201,8 +201,8 @@ const copySingleEndpoint = async (item) => {
 const columns = [
   { get title() { return taskText('tasks.no'); }, key: 'index', width: 65, align: 'center' },
   { get title() { return taskText('tasks.ipPort'); }, key: 'ip_port', width: 220 },
-  { title: 'Product', key: 'product', dataIndex: 'product', ellipsis: true },
-  { title: 'Version', key: 'version', dataIndex: 'version', width: 140, ellipsis: true },
+  { get title() { return taskText('tasks.product'); }, key: 'product', dataIndex: 'product', ellipsis: true },
+  { get title() { return taskText('tasks.version'); }, key: 'version', dataIndex: 'version', width: 140, ellipsis: true },
   { get title() { return taskText('tasks.actions'); }, key: 'action', width: 80, align: 'center' }
 ];
 </script>

@@ -481,7 +481,7 @@
                     <span class="rank-badge" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</span>
                     <span class="finger-name" :title="item.name">{{ item.name }}</span>
                     <span class="finger-category-tag" :class="getFingerCategory(item.name).toLowerCase()">
-                      {{ getFingerCategory(item.name) }}
+                      {{ formatFingerCategory(getFingerCategory(item.name)) }}
                     </span>
                   </div>
                   <a-tooltip :title="pageText('pages.barLengthsAreRelativeToTheMostCommonFingerprint')">
@@ -831,6 +831,14 @@ const getFingerCategory = (name) => {
   if (n.includes('tomcat') || n.includes('jboss') || n.includes('weblogic') || n.includes('sunlogin')) return 'App';
   return 'Web';
 };
+
+// 分类标识继续用于样式选择，显示名称单独响应语言切换。
+const fingerCategoryKeys = {
+  CDN: 'pages.fingerCategoryCdn', Server: 'pages.fingerCategoryServer',
+  Front: 'pages.fingerCategoryFrontend', Frame: 'pages.fingerCategoryFramework',
+  App: 'pages.fingerCategoryApplication', Web: 'pages.fingerCategoryWeb'
+};
+const formatFingerCategory = (category) => pageText(fingerCategoryKeys[category] || fingerCategoryKeys.Web);
 
 // 指纹占比进度条宽度 (相对于 TOP1)
 const maxFingerCount = computed(() => {

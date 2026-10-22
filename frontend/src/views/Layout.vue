@@ -131,7 +131,7 @@
           </router-view>
         </div>
         <div :style="{ textAlign: 'center', padding: '16px 0', color: isDarkMode ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.45)', fontSize: '12px' }">
-          Powered by ARL-Next
+          {{ pageText('pages.poweredByArlNext') }}
         </div>
       </a-layout-content>
     </a-layout>
@@ -249,7 +249,7 @@
         <DeploymentUnitOutlined class="screensaver-icon" />
         <span>ARL-Next OS</span>
       </div>
-      <div class="screensaver-tip">Monitoring assets... Click anywhere to resume.</div>
+      <div class="screensaver-tip">{{ pageText('pages.screensaverResumeHint') }}</div>
     </div>
   </div>
 </template>

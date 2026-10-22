@@ -500,3 +500,55 @@ test('GitHub 页面完整初始化后，五个分页控件继续共享每页条�
   assert.notEqual(state.schedulerColumns[0].title, title);
   assert.deepEqual(calls, []);
 });
+
+test('所有前端组件的固定模板文字和属性均无遗漏中文', () => {
+  const untranslated = [];
+  const files = fs.readdirSync(new URL('../src/', import.meta.url), { recursive: true }).filter(file => file.endsWith('.vue'));
+  for (const file of files) {
+    const { descriptor } = parse(fs.readFileSync(new URL(`../src/${file.replaceAll('\\', '/')}`, import.meta.url), 'utf8'));
+    const visit = node => {
+      const text = node.type === 2 ? node.content : node.type === 6 ? node.value?.content : '';
+      if (/\p{Script=Han}/u.test(text || '')) untranslated.push(`${file}:${node.loc.start.line} ${text.trim()}`);
+      for (const child of [...(node.children || []), ...(node.props || [])]) visit(child);
+    };
+    if (descriptor.template) visit(descriptor.template.ast);
+  }
+  assert.deepEqual(untranslated, []);
+});
+
+test('补齐的筛选和表头切换语言时保持字段、运算符、选项值和接口路径', () => {
+  const identity = value => JSON.parse(JSON.stringify(value, (key, item) => ['title', 'label', 'exportName', 'tabName', 'placeholder'].includes(key) ? undefined : item));
+  for (const file of ['views/TaskDetail.vue', 'views/AssetSearch.vue', 'views/GroupAssetsDetail.vue']) {
+    i18n.global.locale.value = 'zh-CN';
+    const config = component(file, { taskText: pageText, assetText: pageText }).read('tabConfig');
+    const before = identity(config);
+    const fields = config.site.searchFields.filter(field => ['http_server', 'favicon.hash'].includes(field.key));
+    assert.equal(fields.length, 2);
+    const chinese = fields.map(field => field.label);
+    assert.ok(chinese.every(label => /\p{Script=Han}/u.test(label)));
+    i18n.global.locale.value = 'en-US';
+    assert.deepEqual(plain(fields.map(field => field.label)), ['Web server', 'Favicon hash']);
+    assert.deepEqual(identity(config), before);
+    if (file.endsWith('TaskDetail.vue')) {
+      assert.equal(config.site.cols.find(column => column.key === 'headers').title, 'Headers');
+      assert.equal(config.service.cols.find(column => column.key === 'product').title, 'Product');
+    }
+  }
+});
+
+test('指纹分类显示随语言变化，分类标识和查看全部的真实数量保持一致', () => {
+  const page = component('views/Dashboard.vue');
+  const category = page.read('getFingerCategory');
+  page.read('fingerCategoryKeys');
+  const label = page.read('formatFingerCategory');
+  const names = ['cloudflare', 'nginx', 'Vue', 'spring', 'tomcat', '用户自定义指纹'];
+  const classes = names.map(name => category(name).toLowerCase());
+  assert.deepEqual(classes, ['cdn', 'server', 'front', 'frame', 'app', 'web']);
+  assert.equal(label(category('nginx')), '服务器');
+  assert.equal(pageText('tasks.viewAllTotal', { count: 4 }), '查看全部（共 4 项） >>');
+  i18n.global.locale.value = 'en-US';
+  assert.equal(label(category('nginx')), 'Server');
+  assert.equal(label(category('Vue')), 'Frontend');
+  assert.equal(pageText('tasks.viewAllTotal', { count: 4 }), 'View all (total: 4) >>');
+  assert.deepEqual(names.map(name => category(name).toLowerCase()), classes);
+});

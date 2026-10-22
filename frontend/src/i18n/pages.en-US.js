@@ -1223,5 +1223,17 @@ export default {
   "backupCreatedAt": "Created at",
   "backupFinish": "Finish and close",
   "backupActions": "Actions",
-  "backupUnknownError": "Unknown error"
+  "backupUnknownError": "Unknown error",
+  "screensaverResumeHint": "Monitoring assets... Click anywhere to resume.",
+  "poweredByArlNext": "Powered by ARL-Next",
+  "maxPagesPlaceholder": "Max pages",
+  "pageSizePlaceholder": "Page size",
+  "authEmailPlaceholder": "Auth email",
+  "authKeyPlaceholder": "Auth key",
+  "fingerCategoryCdn": "CDN",
+  "fingerCategoryServer": "Server",
+  "fingerCategoryFrontend": "Frontend",
+  "fingerCategoryFramework": "Framework",
+  "fingerCategoryApplication": "Application",
+  "fingerCategoryWeb": "Web"
 };

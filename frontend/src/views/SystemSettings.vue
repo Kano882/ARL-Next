@@ -193,11 +193,11 @@
                           size="small" 
                         />
                         <div v-if="pluginName === 'hunter_qax'" style="margin-top: 8px; display: flex; gap: 8px;">
-                          <a-input-number v-model:value="conf.max_page" placeholder="Max Page" size="small" style="flex: 1;" />
-                          <a-input-number v-model:value="conf.page_size" placeholder="Page Size" size="small" style="flex: 1;" />
+                          <a-input-number v-model:value="conf.max_page" :placeholder="pageText('pages.maxPagesPlaceholder')" size="small" class="page-flex-input" />
+                          <a-input-number v-model:value="conf.page_size" :placeholder="pageText('pages.pageSizePlaceholder')" size="small" class="page-flex-input" />
                         </div>
                         <div v-if="pluginName === 'certspotter'" style="margin-top: 8px;">
-                          <a-input-number v-model:value="conf.max_page" placeholder="Max Page" size="small" style="width: 100%;" />
+                          <a-input-number v-model:value="conf.max_page" :placeholder="pageText('pages.maxPagesPlaceholder')" size="small" class="page-full-width-input" />
                         </div>
                         <a-input 
                           v-if="conf.hasOwnProperty('quake_token')" 
@@ -207,8 +207,8 @@
                           style="margin-top: 8px;"
                         />
                         <div v-if="pluginName === 'passivetotal'" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
-                          <a-input v-model:value="conf.auth_email" placeholder="Auth Email" size="small" />
-                          <a-input v-model:value="conf.auth_key" placeholder="Auth Key" size="small" />
+                          <a-input v-model:value="conf.auth_email" :placeholder="pageText('pages.authEmailPlaceholder')" size="small" />
+                          <a-input v-model:value="conf.auth_key" :placeholder="pageText('pages.authKeyPlaceholder')" size="small" />
                         </div>
                       </div>
                     </a-col>
@@ -583,7 +583,7 @@
                       <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;">
                         <span class="dict-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">{{ item.name }}</span>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <span class="dict-subtitle">{{ (item.cname_domain || []).length }} CNAME, {{ (item.ip_cidr || []).length }} IPs</span>
+                          <span class="dict-subtitle">{{ pageText('pages.cdnRuleCounts', { cnames: (item.cname_domain || []).length, ips: (item.ip_cidr || []).length }) }}</span>
                         </div>
                       </div>
                     </div>
@@ -3981,6 +3981,8 @@ onBeforeRouteLeave(() => {
 </script>
 
 <style scoped>
+.page-flex-input { flex: 1; }
+.page-full-width-input { width: 100%; }
 /* ================== 设置项搜索样式 (P2) ================== */
 .arl-settings-search {
   display: flex;
