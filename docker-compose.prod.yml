@@ -46,6 +46,7 @@ services:
       - arl_poc_plugins:/code/backend/ARL-NPoC/xing/plugins
       - arl_poc_dicts:/code/backend/ARL-NPoC/xing/dicts
       - arl_geoip:/code/backend/GeoLite2
+      - arl_backups:/code/backend/data/backups
     environment:
       - TZ=Asia/Shanghai
       - DEBIAN_FRONTEND=noninteractive
@@ -95,6 +96,7 @@ services:
       - arl_poc_plugins:/code/backend/ARL-NPoC/xing/plugins
       - arl_poc_dicts:/code/backend/ARL-NPoC/xing/dicts
       - arl_geoip:/code/backend/GeoLite2
+      - arl_backups:/code/backend/data/backups
     environment:
       - TZ=Asia/Shanghai
       - DEBIAN_FRONTEND=noninteractive
@@ -201,3 +203,5 @@ volumes:
   # GeoIP 数据库命名卷：由宿主机 start-prod.sh 经 tools/fetch_geoip.py 预填充
   # （ip2region 直链+校验 / GeoLite2 需 MAXMIND_LICENSE_KEY），库文件不再随镜像分发
   arl_geoip:
+  # 数据一键全量备份命名卷：持久化备份包归档，容器重新拉取重建不丢失历史备份
+  arl_backups:

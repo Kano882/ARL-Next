@@ -179,17 +179,28 @@ jobs:
           import re, sys
 
           tag = '$TAG'
-          notes = ''
-          try:
-              with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
-                  content = f.read()
-              pattern = rf'##\s*\[?{re.escape(tag)}\]?.*?\n(.*?)(?=\n##\s*\[?v|\Z)'
-              match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
-              if match:
-                  notes = match.group(1).strip()
-                  notes = re.sub(r'\n---+\s*$', '', notes).strip()
-          except Exception as e:
-              print(f'Error reading CHANGELOG.md: {e}')
+
+          def extract(path):
+              try:
+                  with open(path, 'r', encoding='utf-8') as f:
+                      content = f.read()
+                  pattern = rf'##\s*\[?{re.escape(tag)}\]?.*?\n(.*?)(?=\n##\s*\[?v|\Z)'
+                  match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+                  if match:
+                      section = match.group(1).strip()
+                      return re.sub(r'\n---+\s*$', '', section).strip()
+              except Exception as e:
+                  print(f'Error reading {path}: {e}')
+              return ''
+
+          # Bilingual release: 中文为源, 英文对称; 缺任一节时回退到另一节, 保证老 Tag 不落空
+          # Bilingual release: Chinese first, English mirror; fall back when either section is missing
+          notes_zh = extract('CHANGELOG.md')
+          notes_en = extract('CHANGELOG_en.md')
+          if notes_zh and notes_en:
+              notes = notes_zh + '\n\n---\n\n' + notes_en
+          else:
+              notes = notes_zh or notes_en
 
           if notes:
               print(f'Found changelog section for {tag}')
