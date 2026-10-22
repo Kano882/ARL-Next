@@ -121,6 +121,44 @@ ARL-Next 将资产数据分为**任务临时成果**与**资产组归档资产**
 > - 按资产组查询时，入参必须指定目标资产组的 `scope_id`；
 > - 两个命名空间对应不同的 MongoDB 底层持久化集合与联合索引，字段定义与筛选维度请以 `/api/doc` 最新说明为准。
 
+### WIH 接口候选（静态识别）
+
+在当前生效的 `WIH_RULE_PATH` 规则文件中新增或启用以下规则，然后运行已有的 WIH 任务：
+
+```yaml
+rules:
+  # 保留其他已有规则，仅新增或修改这一项。
+  - id: api_endpoint
+    enabled: true
+```
+
+此规则默认关闭，不替代已有的 `path`、URL 或敏感信息规则。启用后复用已下载的页面内联脚本和外部 JS，不请求候选接口，不提交请求体、凭据或探测载荷。
+
+- 支持静态字符串参数的 `fetch`、`window.fetch`、`globalThis.fetch`、`axios(config)`、`axios(url, config)`、`axios.request(...)` 和 `axios.get/post/put/patch/delete/head/options(...)`。
+- Fetch 相对地址按页面实际响应地址及首个 `<base href>` 补全，外部 JS 位于 CDN 时也不使用 CDN 目录。Axios 按调用内明确的 `baseURL` 拼接，保留 `/v1` 等路径前缀；未能确定基址时保留原始路径，`api_request.url` 为 `null`。未知方法记为 `UNKNOWN`。
+- 不执行动态表达式，不推断变量、字符串拼接、带插值的模板、Axios 实例别名、运行时 defaults 或拦截器。无法静态确认的表达式不会被标为完整接口；原有 WIH 规则继续按原方式提取。
+- 每个站点最多新增 200 条候选；每段脚本最多处理 100,000 个词法单元，单个调用最多处理 512 个词法单元，单个字符串最多解码 8,192 个源字符。达到上限只停止附加接口提取，不停止原有 WIH 扫描。该提取器是有明确语法范围的静态分析，并非完整 JavaScript 解析器。
+
+结果复用 `/api/wih/`（任务）和 `/api/asset_wih/`（资产组），可按 `record_type__eq=api_endpoint` 筛选，再用 `content=POST` 或路径片段缩小范围。`content` 包含方法、补全后的地址及原始路径，`source` 保留来源和脚本内行号；内联脚本行号相对于提取后的脚本文本。示例：
+
+```json
+{
+  "record_type": "api_endpoint",
+  "content": "GET https://app.example.test/api/users [path: /api/users]",
+  "site": "https://app.example.test/",
+  "source": "https://cdn.example.test/app.js [script:line 12]",
+  "risk_level": "LOW",
+  "api_request": {
+    "method": "GET", "path": "/api/users", "url": "https://app.example.test/api/users",
+    "client": "fetch", "line": 12, "verified": false
+  }
+}
+```
+
+`verified: false` 表示尚未请求接口或验证漏洞；`LOW` 为现有 WIH 分类中的低风险候选。`api_request` 为可选附加信息，历史记录无需回填，旧记录的序列化和去重标识保持原样。同一方法、原始路径和补全地址的候选复用现有站点级去重，保留首次来源，不合并不同方法。
+
+列表和对应的 `/export/` 共用筛选参数；单项、任务批量及资产组批量 WIH 文本导出均保留接口候选的来源，其他类型的导出格式保持原样。
+
 ### 全局维度计数接口
 
 `GET /api/asset_overview/count` 一次性返回上述各资产维度的**全库总量**，用于客户端渲染维度页签的数量徽标，避免为每个维度单独发起一次计数请求。

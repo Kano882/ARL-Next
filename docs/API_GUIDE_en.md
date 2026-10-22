@@ -121,6 +121,42 @@ ARL-Next separates reconnaissance outputs into **Task-Specific Outputs** and **A
 > - Group-level queries require a valid `scope_id`;
 > - These namespaces map to separate underlying MongoDB collections and indexing schemes. Consult `/api/doc` for exact query fields and filtering options.
 
+### WIH API candidates (static discovery)
+
+Add or enable the following entry in the active `WIH_RULE_PATH` file, keeping the other rules, then run an existing WIH task:
+
+```yaml
+rules:
+  - id: api_endpoint
+    enabled: true
+```
+
+This rule is disabled by default. It supplements existing path, URL and sensitive-information rules using already downloaded inline scripts and external JavaScript. It never requests candidate endpoints or submits bodies, credentials or test payloads.
+
+Supported calls with static string arguments are `fetch`, `window.fetch`, `globalThis.fetch`, `axios(config)`, `axios(url, config)`, `axios.request(...)` and the `get/post/put/patch/delete/head/options` Axios methods. Fetch URLs use the final document response URL and first `<base href>`, never the CDN script directory. Axios uses an explicit per-call `baseURL` with Axios concatenation semantics, preserving prefixes such as `/v1`. An unknown base keeps the original path with `api_request.url: null`; an unknown method is `UNKNOWN`.
+
+Variable evaluation, concatenation, interpolated templates, Axios instance aliases, runtime defaults and interceptors are outside this stage. Unsupported expressions are not reported as resolved endpoints. Existing WIH matching continues unchanged. The lexical extractor is not a full JavaScript parser. Limits are 200 additional candidates per site, 100,000 tokens per script 512 tokens per call and 8,192 source characters per string literal; reaching a limit never stops the existing WIH scan.
+
+Results use `/api/wih/` for tasks and `/api/asset_wih/` for asset groups. Filter by `record_type__eq=api_endpoint`, then `content=POST` or a path fragment. The `content` field includes the method, resolved URL when available and original path. The `source` field includes the script URL and line; inline-script line numbers are relative to the extracted script text. For example:
+
+```json
+{
+  "record_type": "api_endpoint",
+  "content": "GET https://app.example.test/api/users [path: /api/users]",
+  "site": "https://app.example.test/",
+  "source": "https://cdn.example.test/app.js [script:line 12]",
+  "risk_level": "LOW",
+  "api_request": {
+    "method": "GET", "path": "/api/users", "url": "https://app.example.test/api/users",
+    "client": "fetch", "line": 12, "verified": false
+  }
+}
+```
+
+These are unverified request candidates, not confirmed vulnerabilities. The optional `api_request` metadata requires no backfill; legacy serialization and deduplication identifiers are unchanged. Candidates with the same method, original path and resolved URL use existing site-level deduplication and retain the first source. Different methods remain distinct.
+
+List and `/export/` endpoints share filters. Single, task-batch and asset-group-batch WIH text exports preserve the candidate source. Export formats for existing record types remain unchanged.
+
 ### Global Dimension Counts
 
 `GET /api/asset_overview/count` returns the **global totals** for every asset dimension listed above in a single response. It is intended for rendering per-tab count badges without issuing one count request per dimension.
