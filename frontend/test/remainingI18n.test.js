@@ -45,6 +45,64 @@ function component(file, initial = {}) {
 }
 function resolve(messages, key) { return key.split('.').reduce((value, part) => value?.[part], messages); }
 
+test('备份和恢复切换语言后保持请求参数、强制恢复选项和进度跟踪动作', async () => {
+  for (const locale of ['zh-CN', 'en-US']) {
+    i18n.global.locale.value = locale;
+    const calls = [], tracking = [];
+    const page = component('views/SystemSettings.vue', {
+      request: { async post(url, payload) { calls.push({ url, payload: plain(payload) }); return { code: 200 }; } },
+      createBackupForm: reactive({ includeScreenshots: false, note: ' fixture note ' }),
+      backupLoading: ref(false), createBackupModalVisible: ref(true),
+      selectedRestoreBackup: ref({ filename: 'arl_backup_fixture.tar.gz' }),
+      restoreForceCheck: ref(true), backupRunningTasks: ref(2), restoreModalVisible: ref(true),
+      startProgressTracking: (...args) => tracking.push(args),
+    });
+    await page.read('handleExecuteCreateBackup')();
+    await page.read('handleExecuteRestore')();
+    assert.deepEqual(calls, [
+      { url: '/api/backup/create', payload: { include_screenshots: false, note: 'fixture note' } },
+      { url: '/api/backup/restore', payload: { filename: 'arl_backup_fixture.tar.gz', force: true } },
+    ]);
+    assert.deepEqual(tracking, [['backup'], ['restore', 'arl_backup_fixture.tar.gz']]);
+    assert.equal(page.context.backupLoading.value, false);
+    assert.equal(page.context.createBackupModalVisible.value, false);
+    assert.equal(page.context.restoreModalVisible.value, false);
+    assert.match(page.descriptor.template.content, /disabled: restoreConfirmInput !== 'RESTORE'/);
+  }
+});
+
+test('备份进度恢复保留已有进度，忽略空闲状态和更低百分比', async () => {
+  const timers = [], replies = [
+    { status: 'idle', percent: 0 }, { status: 'backing_up', percent: 20 },
+    { status: 'success', percent: 100, action: 'backup' },
+  ];
+  let stopped = 0, refreshed = 0;
+  const page = component('views/SystemSettings.vue', {
+    request: { async get(url) { assert.equal(url, '/api/backup/status'); return { code: 200, data: replies.shift() }; } },
+    progressAction: ref('backup'), progressPercent: ref(42), progressStage: ref('fixture backend stage'),
+    progressElapsed: ref(17), progressLogs: ref(['fixture backend log']), progressFinished: ref(false),
+    progressHasError: ref(false), progressArchiveName: ref('arl_backup_fixture.tar.gz'),
+    backupProgressModalVisible: ref(false), progressPollTimer: null, progressElapsedTimer: null,
+    setInterval: (callback) => { timers.push(callback); return timers.length; },
+    stopProgressTracking: () => { stopped += 1; }, scrollBackupTerminal() {},
+    fetchBackupList: () => { refreshed += 1; },
+  });
+  page.read('startProgressTracking')('backup', 'arl_backup_fixture.tar.gz', true);
+  assert.equal(page.context.progressPercent.value, 42);
+  assert.equal(page.context.progressElapsed.value, 17);
+  assert.deepEqual(plain(page.context.progressLogs.value), ['fixture backend log']);
+  await timers[1]();
+  assert.equal(page.context.progressPercent.value, 42);
+  await timers[1]();
+  assert.equal(page.context.progressPercent.value, 42);
+  await timers[1]();
+  assert.equal(page.context.progressPercent.value, 100);
+  assert.equal(page.context.progressFinished.value, true);
+  assert.equal(page.context.progressHasError.value, false);
+  assert.equal(stopped, 2);
+  assert.equal(refreshed, 1);
+});
+
 // Execute the original methods with isolated requests; no live backend is contacted.
 test('第四阶段语言包可完整渲染，英文无遗漏中文，全部具名参数保留', () => {
   assert.deepEqual(Object.keys(zh.pages), Object.keys(en.pages));
@@ -107,6 +165,7 @@ test('已创建的管理表格、选项和设置索引切换语言后更新标�
     ['views/PocList.vue', 'columns'], ['components/NucleiManage.vue', 'customColumns'],
     ['components/NucleiManage.vue', 'communityColumns'], ['components/NucleiManage.vue', 'blacklistColumns'],
     ['views/Fingerprint.vue', 'columns'], ['views/Policy.vue', 'columns'],
+    ['views/SystemSettings.vue', 'backupColumns'],
     ['views/PolicyDetail.vue', 'nucleiSeverityOptions'], ['views/SystemSettings.vue', 'SETTINGS_INDEX'],
   ];
   for (const [file, name] of cases) {

@@ -68,6 +68,46 @@ server {
         add_header Expires 0;
     }
 
+    # 2.1 专用超大备份包上传直传 (解除 200MB 限制并关闭缓冲流式直传)
+    location ^~ /api/backup/upload {
+        auth_basic off;
+        proxy_pass http://arl-web:5000/api/backup/upload;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Port $server_port;
+
+        client_max_body_size 5120m;
+        client_body_timeout 1800s;
+        send_timeout 1800s;
+        proxy_read_timeout 1800s;
+        proxy_send_timeout 1800s;
+        proxy_request_buffering off;
+    }
+
+    # 2.2 专用超大备份包下载直传 (关闭缓冲实现零等待流式响应)
+    location ^~ /api/backup/download/ {
+        auth_basic off;
+        proxy_pass http://arl-web:5000/api/backup/download/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Port $server_port;
+
+        proxy_buffering off;
+        send_timeout 1800s;
+        proxy_read_timeout 1800s;
+        proxy_send_timeout 1800s;
+    }
+
     # 2. 动态 API 反向代理 (使用 ^~ 阻止正则匹配劫持以 .jpg/.png 结尾的截图 API)
     location ^~ /api/ {
         auth_basic off;

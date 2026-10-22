@@ -52,10 +52,10 @@
         <a-tab-pane key="web" :tab="taskText('tasks.websiteIcpRecordsCount', { count: queryCounts.web })"></a-tab-pane>
         <a-tab-pane key="app" :tab="`APP - ${queryCounts.app}`"></a-tab-pane>
         <a-tab-pane key="mapp" :tab="taskText('tasks.miniProgramsCount', { count: queryCounts.mapp })"></a-tab-pane>
-        <a-tab-pane key="wechat" :tab="taskText('tasks.officialAccountsCount', { count: queryCounts.wechat })"></a-tab-pane>
-        <a-tab-pane key="weibo" :tab="taskText('tasks.weiboAccountsCount', { count: queryCounts.weibo })"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="wechat" :tab="taskText('tasks.officialAccountsCount', { count: queryCounts.wechat })"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="weibo" :tab="taskText('tasks.weiboAccountsCount', { count: queryCounts.weibo })"></a-tab-pane>
         <a-tab-pane key="kapp" :tab="taskText('tasks.quickAppsCount', { count: queryCounts.kapp })"></a-tab-pane>
-        <a-tab-pane key="invest" :tab="taskText('tasks.investmentsCountLabel', { count: queryCounts.invest })"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="invest" :tab="taskText('tasks.investmentsCountLabel', { count: queryCounts.invest })"></a-tab-pane>
         <a-tab-pane key="log" :tab="taskText('tasks.executionLogs')"></a-tab-pane>
       </a-tabs>
 
@@ -123,6 +123,18 @@
           </template>
           <template v-else-if="column.key === 'serviceName' || column.key === 'name'">
             {{ record.serviceName || record.name || '-' }}
+          </template>
+          <template v-else-if="column.key === 'serviceLicence' || column.key === 'serviceFilingNumber'">
+            {{ record.serviceLicence || record.serviceFilingNumber || record.liscense || '-' }}
+          </template>
+          <template v-else-if="column.key === 'unitName' || column.key === 'companyName'">
+            {{ record.unitName || record.companyName || '-' }}
+          </template>
+          <template v-else-if="column.key === 'mainLicence'">
+            {{ record.mainLicence || record.liscense || '-' }}
+          </template>
+          <template v-else-if="column.key === 'updateRecordTime' || column.key === 'examineDate'">
+            {{ record.updateRecordTime || record.examineDate || '-' }}
           </template>
           <template v-else-if="column.key === 'raw'">
             <a-popover :title="taskText('tasks.rawData')" trigger="click" placement="left">
@@ -267,6 +279,13 @@ const taskStatusColor = computed(() => {
 const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
 
+const getAvailableTabs = (type = taskType.value) => {
+  if (type === 'icp') {
+    return ['web', 'app', 'mapp', 'kapp', 'log'];
+  }
+  return ['web', 'app', 'mapp', 'wechat', 'weibo', 'kapp', 'invest', 'log'];
+};
+
 const validTabs = ['web', 'app', 'mapp', 'kapp', 'invest', 'wechat', 'weibo', 'log'];
 const activeTab = ref(route.query?.tab && validTabs.includes(route.query.tab) ? route.query.tab : 'web');
 const queryCounts = reactive({
@@ -307,13 +326,16 @@ const sortState = reactive({
 });
 
 const getDefaultSortForTab = (tab) => {
+  if (tab === 'kapp') {
+    return { field: 'updateRecordTime', order: 'descend' };
+  }
   const isTyc = taskType.value === 'tyc';
   if (isTyc) {
     if (tab === 'web' || tab === 'mapp') {
       return { field: 'examineDate', order: 'descend' };
     }
   } else {
-    if (['web', 'app', 'mapp', 'kapp'].includes(tab)) {
+    if (['web', 'app', 'mapp'].includes(tab)) {
       return { field: 'updateRecordTime', order: 'descend' };
     }
   }
@@ -394,6 +416,16 @@ const mobileIcpColumns = [
   { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
+const kappColumns = [
+  { get title() { return taskText('tasks.quickAppName'); }, dataIndex: 'serviceName', key: 'serviceName', width: 200 },
+  { get title() { return taskText('tasks.quickAppIcpNumber'); }, dataIndex: 'serviceLicence', key: 'serviceLicence', width: 200 },
+  { get title() { return taskText('tasks.organizationName'); }, dataIndex: 'unitName', key: 'unitName', width: 220 },
+  { get title() { return taskText('tasks.primaryIcpNumber'); }, dataIndex: 'mainLicence', key: 'mainLicence', width: 180 },
+  { get title() { return taskText('tasks.approvalType'); }, dataIndex: 'contentTypeName', key: 'contentTypeName', width: 150 },
+  { get title() { return taskText('tasks.reviewDate'); }, dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
+];
+
 const genericColumns = [
   { get title() { return taskText('tasks.name'); }, dataIndex: 'filterName', key: 'filterName', width: 200 },
   { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
@@ -405,6 +437,7 @@ const dynamicColumns = computed(() => {
   if (activeTab.value === 'invest') cols = investColumns;
   else if (activeTab.value === 'wechat') cols = wechatColumns;
   else if (activeTab.value === 'weibo') cols = weiboColumns;
+  else if (activeTab.value === 'kapp') cols = kappColumns;
   else if (isTyc) {
     if (activeTab.value === 'web') cols = webColumns;
     else if (activeTab.value === 'mapp') cols = mappColumns;
@@ -412,7 +445,7 @@ const dynamicColumns = computed(() => {
     else cols = genericColumns;
   } else {
     if (activeTab.value === 'web') cols = baseIcpColumns;
-    else if (['app', 'mapp', 'kapp'].includes(activeTab.value)) cols = mobileIcpColumns;
+    else if (['app', 'mapp'].includes(activeTab.value)) cols = mobileIcpColumns;
     else cols = genericColumns;
   }
 
@@ -683,6 +716,11 @@ const reloadEnterpriseTaskData = () => {
   assetList.value = [];
   syncEnterpriseQueryCounts(route.query);
 
+  const allowed = getAvailableTabs(taskType.value);
+  if (!allowed.includes(activeTab.value)) {
+    activeTab.value = 'web';
+  }
+
   if (taskId.value) {
     if (activeTab.value === 'log') {
       startSyslogTimer();
@@ -704,7 +742,8 @@ watch(taskId, () => {
 
 watch(() => route.query?.tab, (newTab) => {
   if (!route.path.startsWith('/taskList/taskDetail')) return;
-  if (newTab && validTabs.includes(newTab) && newTab !== activeTab.value) {
+  const allowed = getAvailableTabs(taskType.value);
+  if (newTab && allowed.includes(newTab) && newTab !== activeTab.value) {
     activeTab.value = newTab;
     onTabChange(newTab);
   }

@@ -803,5 +803,6 @@ from .assetStatFinger import ns as asset_stat_finger_ns
 from .assetOverview import ns as asset_overview_ns
 from .mcp import ns as mcp_ns
 from .nuclei import ns as nuclei_ns
+from .backup import ns as backup_ns
 
 

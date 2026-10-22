@@ -93,6 +93,7 @@ test('已创建的任务表格、计划表格和企业结果列名随语言切�
     ['views/TaskList.vue', 'enterpriseColumns'], ['views/TaskList.vue', 'columns'],
     ['views/PlanningTasks.vue', 'columns'], ['views/PlanningTasks.vue', 'monitorColumns'],
     ['components/EnterpriseTaskDetailPanel.vue', 'webColumns'], ['components/ServiceDetailModal.vue', 'columns'],
+    ['components/EnterpriseTaskDetailPanel.vue', 'kappColumns'],
   ];
   for (const [file, name] of cases) {
     i18n.global.locale.value = 'zh-CN';
