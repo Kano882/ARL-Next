@@ -33,7 +33,7 @@ function pageFixture(name, tab = 'site') {
   const calls = [];
   const notices = [];
   const context = vm.createContext({
-    reactive: value => value, computed, buildAssetFilterParams, taskText,
+    reactive: value => value, computed, buildAssetFilterParams, taskText, assetText: taskText,
     serviceEngineType: ref('nmap'), columns: ref([]), lastFetchedPage: 1, lastFetchedSize: 20,
     activeTab: ref(tab), searchForm: ref(tab === 'site' ? { status: ['403', '200'], title: 'admin' } : { status_code: ['403', '200'], title: 'admin' }),
     pagination: { current: 2, pageSize: 20, total: 2 }, taskId: ref('task-a'), scope_id: ref('scope-a'), targetName: ref('fixture'),

@@ -1,6 +1,8 @@
+import assets from './assets.zh-CN.js';
 import tasks from './tasks.zh-CN.js';
 
 export default {
+  assets,
   tasks,
   language: { select: '界面语言' },
   common: { cancel: '取消', unknownError: '未知错误' },

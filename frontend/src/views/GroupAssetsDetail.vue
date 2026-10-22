@@ -4,10 +4,10 @@
     <div ref="heroRef" class="arl-hero-card hero-sticky-card">
       <div class="hero-unified-bar">
         <!-- 左侧：返回 + 标题 + 分组标签 + 类型 + 测绘状态 (去重) -->
-        <div class="hero-left-section">
-          <a-button type="text" class="hero-back-btn" @click="handleBack" title="返回资产组列表">
+        <div class="hero-left-section" :class="{ 'hero-left-section-en': assetLocale === 'en-US' }">
+          <a-button type="text" class="hero-back-btn" @click="handleBack" :title="assetText('assets.backToAssetGroupList')">
             <template #icon><arrow-left-outlined /></template>
-            <span>返回资产组</span>
+            <span>{{ assetText('assets.backToAssetGroups') }}</span>
           </a-button>
 
           <div class="hero-title-wrapper">
@@ -29,10 +29,10 @@
               <a-tooltip placement="bottom">
                 <template #title>
                   <div style="font-size: 12px; line-height: 1.6;">
-                    <div>关联主体: {{ scopeEnterpriseName || targetName }}</div>
-                    <div v-if="taskTarget && taskTarget.startsWith('TYC_')">主体编号: {{ taskTarget }}</div>
-                    <div v-if="taskTypeLabel">任务类型: {{ taskTypeLabel }}</div>
-                    <div v-if="taskStatusLabel">测绘状态: {{ taskStatusLabel }}</div>
+                    <div>{{ assetText('assets.linkedOrganization') }} {{ scopeEnterpriseName || targetName }}</div>
+                    <div v-if="taskTarget && taskTarget.startsWith('TYC_')">{{ assetText('assets.organizationId') }} {{ taskTarget }}</div>
+                    <div v-if="taskTypeLabel">{{ assetText('tasks.taskType') }} {{ taskTypeLabel }}</div>
+                    <div v-if="taskStatusLabel">{{ assetText('assets.discoveryStatus') }} {{ taskStatusLabel }}</div>
                   </div>
                 </template>
                 <span v-if="scopeEnterpriseName && scopeEnterpriseName !== targetName" class="hero-enterprise-label">
@@ -44,18 +44,18 @@
                 </span>
               </a-tooltip>
               <a-tag v-if="scopeUpdatingTaskId" color="processing" class="hero-mini-tag">
-                <sync-outlined :spin="true" style="margin-right: 3px;" /> 测绘更新中
+                <sync-outlined :spin="true" class="asset-status-icon" /> {{ assetText('assets.updatingDiscovery') }}
               </a-tag>
               <a-tag v-else-if="taskStatusLabel" :color="taskStatusColor" class="hero-mini-tag">
                 {{ taskStatusLabel }}
               </a-tag>
-              <a-badge v-if="scopeHasIncrement" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+              <a-badge v-if="scopeHasIncrement" :count="assetText('tasks.newAssets')" class="asset-increment-badge" />
             </template>
             <template v-else>
-              <a-tooltip title="尚未关联企业主体，点击可立即拉取工商与数字资产" placement="bottom">
+              <a-tooltip :title="assetText('assets.noOrganizationLinkedClickToRetrieveCompanyRecords')" placement="bottom">
                 <span class="hero-unbound-label" @click="openBindModal" style="cursor: pointer;">
                   <link-outlined style="margin-right: 4px;" />
-                  未关联主体
+                  {{ assetText('assets.noOrganizationLinked') }}
                 </span>
               </a-tooltip>
             </template>
@@ -69,10 +69,10 @@
               class="capsule-btn"
               :class="{ active: currentView === 'osint' }"
               @click="currentView = 'osint'"
-              title="切换至企业生态资产视角"
+              :title="assetText('assets.switchToEnterpriseOsintAssets')"
             >
               <bank-outlined class="capsule-icon" />
-              <span>企业生态资产 (OSINT)</span>
+              <span>{{ assetText('assets.enterpriseAssetsOsint') }}</span>
               <span class="capsule-count" v-if="osintTotalCount > 0">{{ osintTotalCount }}</span>
               <span v-if="scopeHasIncrement" class="capsule-dot"></span>
             </button>
@@ -80,10 +80,10 @@
               class="capsule-btn"
               :class="{ active: currentView === 'asm' }"
               @click="currentView = 'asm'"
-              title="切换至网络暴露面视角"
+              :title="assetText('assets.switchToNetworkExposureAssets')"
             >
               <global-outlined class="capsule-icon" />
-              <span>网络暴露面 (ASM)</span>
+              <span>{{ assetText('assets.networkExposureAsm') }}</span>
               <span class="capsule-count" v-if="asmTotalCount > 0">{{ asmTotalCount }}</span>
             </button>
           </div>
@@ -94,8 +94,8 @@
       <!-- 2. 网络暴露面 (ASM) 专属控制与筛选区 (吸附于 Hero 头部正下方) -->
       <div v-show="currentView === 'asm'" ref="asmControlRef" class="asm-control-box" :style="{ top: heroHeight + 'px' }">
         <div class="scope-hint-line">
-          <span class="scope-hint-tag">本资产组范围</span>
-          <span>仅展示该资产组纳管范围内的资产；查看全库资产请前往「资产搜索」</span>
+          <span class="scope-hint-tag">{{ assetText('assets.thisAssetGroup') }}</span>
+          <span>{{ assetText('assets.thisViewShowsOnlyAssetsManagedByThis') }}</span>
         </div>
         <!-- 维度 Tabs 导航 (带数量徽标与平滑滚动) -->
         <a-tabs v-model:activeKey="activeTab" type="card" size="small" class="arl-detail-tabs asm-tabs-nav">
@@ -113,10 +113,10 @@
 
         <!-- 系统服务识别引擎筛选控制条 -->
         <div v-if="activeTab === 'service'" style="margin-top: 8px; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; background: var(--arl-bg-light); padding: 8px 14px; border-radius: 6px; border: 1px solid var(--arl-border-color);">
-          <span style="font-weight: 600; font-size: 13px; color: var(--arl-text-color);">识别引擎：</span>
+          <span class="asset-option-heading">{{ assetText('tasks.detectionEngine') }}</span>
           <a-radio-group v-model:value="serviceEngineType" button-style="solid" size="small" @change="onServiceEngineChange">
-            <a-radio-button value="nmap">端口服务 (Nmap) ({{ asmCounts.service || 0 }})</a-radio-button>
-            <a-radio-button value="npoc">Python 插件服务 ({{ asmCounts.npoc_service || 0 }})</a-radio-button>
+            <a-radio-button value="nmap">{{ assetText('assets.portServiceCount', { count: asmCounts.service || 0 }) }}</a-radio-button>
+            <a-radio-button value="npoc">{{ assetText('assets.pluginServiceCount', { count: asmCounts.npoc_service || 0 }) }}</a-radio-button>
           </a-radio-group>
         </div>
 
@@ -124,36 +124,36 @@
         <div class="asm-toolbar-container">
           <div class="toolbar-row">
             <div class="toolbar-left">
-              <span class="toolbar-title-text">{{ tabConfig[effectiveTab]?.tabName || '资产' }}维度</span>
+              <span class="toolbar-title-text">{{ assetText('assets.categoryHeading', { category: tabConfig[effectiveTab]?.tabName || assetText('tasks.assets') }) }}</span>
               <span class="toolbar-meta-count">
-                共 <b class="font-mono">{{ effectiveTab === 'service' ? asmCounts.service : (effectiveTab === 'npoc_service' ? asmCounts.npoc_service : (asmCounts[activeTab] || 0)) }}</b> 条记录
+                {{ assetText('assets.recordCount', { count: effectiveTab === 'service' ? asmCounts.service : (effectiveTab === 'npoc_service' ? asmCounts.npoc_service : (asmCounts[activeTab] || 0)) }) }}
               </span>
             </div>
 
             <div class="toolbar-right">
               <a-button v-if="activeTab === 'site'" type="primary" size="small" @click="openAddSiteModal">
                 <template #icon><plus-outlined /></template>
-                添加站点
+                {{ assetText('assets.addWebsite') }}
               </a-button>
               <a-button v-if="activeTab === 'domain'" type="primary" size="small" @click="openAddDomainModal">
                 <template #icon><plus-outlined /></template>
-                添加子域名
+                {{ assetText('assets.addSubdomain') }}
               </a-button>
               <a-button v-if="activeTab !== 'ip' && tabConfig[effectiveTab]?.exportUrl" size="small" @click="handleExport">
                 <template #icon><download-outlined /></template>
-                导出{{ tabConfig[effectiveTab].tabName }}
+                {{ assetText('tasks.exportAssetType', { type: tabConfig[effectiveTab].tabName }) }}
               </a-button>
               <template v-if="activeTab === 'ip'">
-                <a-button size="small" @click="handleIPExport('port')">导出端口</a-button>
-                <a-button size="small" @click="handleIPExport('domain')">导出域名</a-button>
+                <a-button size="small" @click="handleIPExport('port')">{{ assetText('assets.exportPorts') }}</a-button>
+                <a-button size="small" @click="handleIPExport('domain')">{{ assetText('assets.exportDomains') }}</a-button>
                 <a-button type="primary" ghost size="small" @click="handleIPExport('ip')">
                   <template #icon><download-outlined /></template>
-                  导出 IP
+                  {{ assetText('assets.exportIps') }}
                 </a-button>
               </template>
               <a-button v-if="activeTab === 'site'" type="dashed" danger size="small" @click="openRiskModal">
                 <template #icon><bug-outlined /></template>
-                风险巡航
+                {{ assetText('assets.riskScan') }}
               </a-button>
 
               <!-- 高级筛选折叠展开切换按钮 -->
@@ -165,7 +165,7 @@
                 @click="isAdvancedFilterOpen = !isAdvancedFilterOpen"
               >
                 <template #icon><filter-outlined /></template>
-                {{ isAdvancedFilterOpen ? '收起筛选' : '高级筛选' }}
+                {{ isAdvancedFilterOpen ? assetText('tasks.hideFilters') : assetText('tasks.advancedFilters') }}
                 <a-badge
                   v-if="activeFilterCount > 0"
                   :count="activeFilterCount"
@@ -180,15 +180,15 @@
           <!-- 可折叠展开的紧凑多字段栅格筛选卡片 -->
           <transition name="fade-slide">
             <div v-show="isAdvancedFilterOpen" v-if="tabConfig[effectiveTab]?.searchFields?.length" class="asm-filter-card">
-            <a-form :model="searchForm" class="filter-grid-form">
+            <a-form :label-wrap="true" :model="searchForm" class="filter-grid-form">
               <a-row :gutter="[12, 6]">
                 <a-col
                   v-for="field in tabConfig[effectiveTab].searchFields.filter(f => !f.hidden)"
                   :key="field.key"
-                  :xs="24" :sm="12" :md="8" :lg="6"
+                  :xs="24" :sm="12" :md="assetLocale === 'en-US' ? 12 : 8" :lg="assetLocale === 'en-US' ? 8 : 6"
                 >
                   <div class="filter-field-cell">
-                    <span class="filter-field-label" :title="field.label">{{ field.label }}</span>
+                    <span class="filter-field-label" :class="{ 'filter-field-label-en': assetLocale === 'en-US' }" :title="field.label">{{ field.label }}</span>
                     <div class="filter-field-widget">
                       <!-- 下拉选择 -->
                       <HttpStatusFilter
@@ -199,7 +199,7 @@
                       <a-select
                         v-else-if="field.type === 'select'"
                         v-model:value="searchForm[field.key]"
-                        :placeholder="`请选择${field.label}`"
+                        :placeholder="assetText('tasks.selectField', { field: field.label })"
                         style="width: 100%;"
                         size="small"
                         allowClear
@@ -212,7 +212,7 @@
                       <a-range-picker
                         v-else-if="field.type === 'dateRange'"
                         v-model:value="searchForm[field.key]"
-                        :placeholder="['开始日期', '结束日期']"
+                        :placeholder="[assetText('tasks.startDate'), assetText('tasks.endDate')]"
                         style="width: 100%;"
                         size="small"
                         @change="onSearch"
@@ -225,7 +225,7 @@
                       >
                         <a-input
                           v-model:value="searchForm[field.key]"
-                          :placeholder="field.placeholder || `请输入${field.label}`"
+                          :placeholder="field.placeholder || assetText('tasks.enterField', { field: field.label })"
                           :bordered="false"
                           size="small"
                           class="operator-text-input"
@@ -241,10 +241,10 @@
                           v-model:value="field.operator"
                           :bordered="false"
                           size="small"
-                          class="operator-op-select"
+                          class="operator-op-select" :class="{ 'operator-op-select-en': assetLocale === 'en-US' }"
                           @change="onSearch"
                         >
-                          <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op }}</a-select-option>
+                          <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ formatAssetFilterOperator(op) }}</a-select-option>
                         </a-select>
                       </div>
 
@@ -252,7 +252,7 @@
                       <a-input
                         v-else
                         v-model:value="searchForm[field.key]"
-                        :placeholder="field.placeholder || `请输入${field.label}`"
+                        :placeholder="field.placeholder || assetText('tasks.enterField', { field: field.label })"
                         style="width: 100%;"
                         size="small"
                         allowClear
@@ -272,18 +272,18 @@
                 <div class="filter-badge-status">
                   <template v-if="activeFilterCount > 0">
                     <span class="active-indicator-dot"></span>
-                    <span>已应用 <b class="font-mono" style="color: var(--arl-theme-color);">{{ activeFilterCount }}</b> 项筛选条件</span>
+                    <span>{{ assetText('assets.filtersApplied', { count: activeFilterCount }) }}</span>
                   </template>
-                  <span v-else class="filter-idle-text">支持回车或点击放大镜图标快速检索</span>
+                  <span v-else class="filter-idle-text">{{ assetText('assets.pressEnterOrClickTheSearchIconTo') }}</span>
                 </div>
                 <div class="filter-action-btns">
                   <a-button size="small" @click="resetSearch">
                     <template #icon><redo-outlined /></template>
-                    重 置
+                    {{ assetText('tasks.reset') }}
                   </a-button>
                   <a-button type="primary" size="small" @click="onSearch">
                     <template #icon><search-outlined /></template>
-                    查 询
+                    {{ assetText('tasks.search') }}
                   </a-button>
                 </div>
               </div>
@@ -321,14 +321,14 @@
                 <a :href="record.site || record.url" target="_blank" style="font-weight: 500; word-break: break-all;">
                   {{ record.site || record.url }}
                 </a>
-                <a-tooltip title="复制站点">
+                <a-tooltip :title="assetText('assets.copyWebsite')">
                   <a-button type="text" size="small" class="cell-copy-btn" @click.stop="handleCopyText(record.site || record.url)">
                     <copy-outlined style="font-size: 11px; opacity: 0.65;" />
                   </a-button>
                 </a-tooltip>
               </div>
               <a-button type="link" size="small" class="chain-action-btn" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="openChainDrawer(record.hostname || record.site)">
-                <compass-outlined />画像
+                <compass-outlined />{{ assetText('assets.profile') }}
               </a-button>
             </div>
             <div class="mt5" style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
@@ -337,11 +337,11 @@
                 v-if="getTags(record).includes('待测试')"
                 class="tag-pending-test"
               >
-                待测试
+                {{ assetText('assets.toTest') }}
                 <a-popconfirm
-                  title="确定移除「待测试」标签吗？"
-                  ok-text="确认"
-                  cancel-text="取消"
+                  :title="assetText('assets.removeTheToTestTag')"
+                  :ok-text="assetText('assets.confirm')"
+                  :cancel-text="assetText('tasks.cancel')"
                   @confirm="handleDeleteTag(record, '待测试')"
                 >
                   <span class="ant-tag-close-icon" @click.stop>
@@ -355,11 +355,11 @@
                 v-if="getTags(record).includes('入口')"
                 style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);"
               >
-                入口
+                {{ assetText('tasks.entryPoint') }}
                 <a-popconfirm
-                  title="确定移除「入口」标签吗？"
-                  ok-text="确认"
-                  cancel-text="取消"
+                  :title="assetText('tasks.removeTheEntryPointTag')"
+                  :ok-text="assetText('assets.confirm')"
+                  :cancel-text="assetText('tasks.cancel')"
                   @confirm="handleDeleteTag(record, '入口')"
                 >
                   <span class="ant-tag-close-icon" @click.stop>
@@ -376,9 +376,9 @@
                 >
                   {{ t }}
                   <a-popconfirm
-                    :title="`确定移除「${t}」标签吗？`"
-                    ok-text="确认"
-                    cancel-text="取消"
+                    :title="assetText('tasks.removeTagTag', { tag: t })"
+                    :ok-text="assetText('assets.confirm')"
+                    :cancel-text="assetText('tasks.cancel')"
                     @confirm="handleDeleteTag(record, t)"
                   >
                     <span class="ant-tag-close-icon" @click.stop>
@@ -387,7 +387,7 @@
                   </a-popconfirm>
                 </a-tag>
               </template>
-              <span class="add-tag" @click="openTagModal(record)" style="cursor: pointer;">添加标签</span>
+              <span class="add-tag asset-clickable" @click="openTagModal(record)" >{{ assetText('tasks.addTag') }}</span>
             </div>
           </div>
         </template>
@@ -442,7 +442,7 @@
               <template #title><div v-for="(ip, i) in record.ips" :key="'all-ip-'+i">{{ ip }}</div></template>
               <div style="cursor: pointer;">
                 <div v-for="(ip, i) in record.ips.slice(0, 5)" :key="i">{{ ip }}</div>
-                <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 2px;">...等 {{ record.ips.length }} 个</div>
+                <div class="asset-field-hint">{{ assetText('tasks.andMore') }} {{ record.ips.length }} {{ assetText('tasks.itemsLabel') }}</div>
               </div>
             </a-tooltip>
             <div v-else><div v-for="(ip, i) in record.ips" :key="i">{{ ip }}</div></div>
@@ -454,14 +454,14 @@
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-weight: 500; font-family: monospace;">{{ record.ip }}</span>
-              <a-tooltip title="复制 IP">
+              <a-tooltip :title="assetText('assets.copyIp')">
                 <a-button type="text" size="small" class="cell-copy-btn" @click.stop="handleCopyText(record.ip)">
                   <copy-outlined style="font-size: 11px; opacity: 0.65;" />
                 </a-button>
               </a-tooltip>
             </div>
             <a-button type="link" size="small" class="chain-action-btn" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="openChainDrawer(record.ip)">
-              <compass-outlined />画像
+              <compass-outlined />{{ assetText('assets.profile') }}
             </a-button>
           </div>
         </template>
@@ -477,7 +477,7 @@
             <div v-if="Array.isArray(record.domain)" style="display: flex; flex-direction: column; gap: 2px;">
               <div v-for="(dom, i) in record.domain" :key="i" style="display: flex; align-items: center; gap: 4px;">
                 <span style="font-family: monospace;">{{ dom }}</span>
-                <a-tooltip title="复制域名">
+                <a-tooltip :title="assetText('assets.copyDomain')">
                   <a-button type="text" size="small" class="cell-copy-btn" @click.stop="handleCopyText(dom)">
                     <copy-outlined style="font-size: 11px; opacity: 0.65;" />
                   </a-button>
@@ -486,24 +486,24 @@
             </div>
             <div v-else style="display: flex; align-items: center; gap: 6px;">
               <span style="font-weight: 500;">{{ record.domain }}</span>
-              <a-tooltip title="复制域名">
+              <a-tooltip :title="assetText('assets.copyDomain')">
                 <a-button type="text" size="small" class="cell-copy-btn" @click.stop="handleCopyText(record.domain)">
                   <copy-outlined style="font-size: 11px; opacity: 0.65;" />
                 </a-button>
               </a-tooltip>
             </div>
             <a-button v-if="!Array.isArray(record.domain)" type="link" size="small" class="chain-action-btn" style="padding: 0; height: auto; font-size: 12px; flex-shrink: 0;" @click="openChainDrawer(record.domain)">
-              <compass-outlined />画像
+              <compass-outlined />{{ assetText('assets.profile') }}
             </a-button>
           </div>
         </template>
 
         <template v-else-if="column.key === 'ip_cdn_tag'">
           <a-tag v-if="record.is_cdn || record.cdn_name" color="blue">
-            {{ record.cdn_name || 'CDN节点' }}
+            {{ record.cdn_name || assetText('tasks.cdnNode') }}
           </a-tag>
           <a-tag v-else color="green">
-            独立源站
+            {{ assetText('tasks.originServer') }}
           </a-tag>
         </template>
 
@@ -528,39 +528,39 @@
                   </a>
                 </div>
               </template>
-              <a-badge :count="`+${record.sites.length - 1} 站点`" :number-style="{ backgroundColor: '#1890ff', color: '#fff', cursor: 'pointer', borderRadius: '4px', padding: '0 6px', fontSize: '12px' }" />
+              <a-badge :count="assetText('tasks.countWebsites', { count: record.sites.length - 1 })" class="asset-site-count" />
             </a-popover>
           </div>
         </template>
 
-      
+
         <template v-else-if="column.key === 'cert_detail'">
           <div v-if="record.cert" class="cert-grid-container">
             <a-row :gutter="[16, 4]">
               <!-- 左列：基础信息 -->
               <a-col :xs="24" :sm="14">
                 <div class="cert-micro-row">
-                  <span class="cert-micro-label">主题名称：</span>
+                  <span class="cert-micro-label">{{ assetText('assets.subject') }}</span>
                   <span class="cert-micro-val font-mono" :title="record.cert.subject_dn">{{ record.cert.subject_dn || '-' }}</span>
                 </div>
                 <div class="cert-micro-row">
-                  <span class="cert-micro-label">签发者：</span>
+                  <span class="cert-micro-label">{{ assetText('assets.issuer') }}</span>
                   <span class="cert-micro-val" :title="record.cert.issuer_dn">{{ record.cert.issuer_dn || '-' }}</span>
                 </div>
                 <div class="cert-micro-row">
-                  <span class="cert-micro-label">备用名称：</span>
+                  <span class="cert-micro-label">{{ assetText('assets.alternativeNames') }}</span>
                   <span class="cert-micro-val font-mono" :title="record.cert.extensions?.subjectAltName">{{ record.cert.extensions?.subjectAltName || '-' }}</span>
                 </div>
                 <div class="cert-micro-row">
-                  <span class="cert-micro-label">有效时间：</span>
-                  <span class="cert-micro-val">{{ record.cert.validity?.start || '-' }} 至 {{ record.cert.validity?.end || '-' }}</span>
+                  <span class="cert-micro-label">{{ assetText('assets.validity') }}</span>
+                  <span class="cert-micro-val">{{ record.cert.validity?.start || '-' }} {{ assetText('tasks.to') }} {{ record.cert.validity?.end || '-' }}</span>
                 </div>
               </a-col>
 
               <!-- 右列：指纹与序列号 -->
               <a-col :xs="24" :sm="10">
                 <div class="cert-micro-row">
-                  <span class="cert-micro-label">序列号：</span>
+                  <span class="cert-micro-label">{{ assetText('assets.serialNumber') }}</span>
                   <span class="cert-micro-val font-mono" :title="record.cert.serial_number">{{ record.cert.serial_number || '-' }}</span>
                 </div>
                 <div class="cert-micro-row">
@@ -592,7 +592,7 @@
                 style="padding: 0; height: auto; font-size: 12px;"
                 @click="openServiceDetailModal(record)"
               >
-                查看全部 (共 {{ record.service_info.length }} 项) &gt;&gt;
+                {{ assetText('tasks.viewAllTotal') }} {{ record.service_info.length }} {{ assetText('assets.itemsText') }}
               </a-button>
             </div>
           </div>
@@ -643,13 +643,13 @@
 
       <template #emptyText>
         <div class="empty-default-box">
-          <a-empty description="暂无资产数据" />
+          <a-empty :description="assetText('assets.noAssetData')" />
         </div>
       </template>
     </a-table>
 
     <!-- 指纹统计关联站点弹窗 -->    <!-- 指纹统计关联站点弹窗 -->
-    <a-modal v-model:open="fingerModalVisible" :title="`指纹关联站点：${currentFingerName}`" :footer="null" width="800px">
+    <a-modal v-model:open="fingerModalVisible" :title="assetText('tasks.websitesWithFingerprintName', { name: currentFingerName })" :footer="null" width="800px">
       <a-table
         :dataSource="fingerModalData"
         :columns="fingerModalColumns"
@@ -692,15 +692,15 @@
     </a-modal>
 
     <!-- 添加标签弹窗 -->
-    <a-modal v-model:open="tagVisible" title="添加标签" @ok="submitTag" :confirmLoading="tagSubmitLoading" width="400px" okText="确 定" cancelText="取 消">
+    <a-modal v-model:open="tagVisible" :title="assetText('tasks.addTag')" @ok="submitTag" :confirmLoading="tagSubmitLoading" width="400px" :okText="assetText('tasks.confirm')" :cancelText="assetText('assets.cancel')">
       <div style="margin-top: 20px;">
-        <a-input v-model:value="newTagValue" placeholder="请输入标签名称" />
+        <a-input v-model:value="newTagValue" :placeholder="assetText('tasks.enterATagName')" />
       </div>
     </a-modal>
 
 
     <div v-if="tabConfig[effectiveTab]" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px; margin-top: 10px;">
-      <div style="color: var(--arl-text-color); opacity: 0.65; font-size: 12px;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+      <div class="asset-summary-caption">{{ assetText('tasks.paginationSummary', { pages: Math.ceil(pagination.total / pagination.pageSize) || 1, total: pagination.total }) }}</div>
       <a-pagination size="small" :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
     </div>
 
@@ -709,18 +709,18 @@
       <div v-if="hasSelected" class="arl-floating-action-bar">
         <div class="floating-info">
           <check-circle-filled style="color: var(--arl-theme-color); font-size: 16px;" />
-          <span>已选中 <b style="color: var(--arl-theme-color); margin: 0 4px;">{{ selectedRowKeys.length }}</b> 项资产</span>
+          <span>{{ assetText('tasks.selected') }} <b class="asset-selection-number">{{ selectedRowKeys.length }}</b> {{ assetText('assets.assets') }}</span>
         </div>
         <div class="floating-actions">
           <a-button danger size="middle" @click="handleBatchDelete">
             <template #icon><delete-outlined /></template>
-            批量删除
+            {{ assetText('tasks.deleteSelected') }}
           </a-button>
           <a-button v-if="activeTab === 'site'" type="primary" size="middle" @click="openRiskModal">
             <template #icon><bug-outlined /></template>
-            下发风险巡航 ({{ selectedRowKeys.length }})
+            {{ assetText('assets.riskScanCount', { count: selectedRowKeys.length }) }}
           </a-button>
-          <a-button size="middle" @click="selectedRowKeys = []">取消选择</a-button>
+          <a-button size="middle" @click="selectedRowKeys = []">{{ assetText('tasks.clearSelection') }}</a-button>
         </div>
       </div>
     </transition>
@@ -743,52 +743,52 @@
       @refreshed="(newTid) => { if (newTid) { boundIcpTaskId = newTid; scopeUpdatingTaskId = ''; fetchBoundTaskDetail(newTid); fetchScopeMeta(); } }"
     />
     <div v-else class="osint-unbound-box">
-      <a-empty description="尚未关联企业主体" />
+      <a-empty :description="assetText('assets.noOrganizationLinked')" />
     </div>
   </div>
 
-    <a-modal v-model:open="addSiteVisible" title="添加站点" @ok="submitAddSite" :confirmLoading="addSiteLoading" width="520px" okText="确 定" cancelText="取 消" destroyOnClose>
-      <a-form ref="addSiteFormRef" :model="addSiteForm" :rules="addSiteRules" :label-col="{ span: 4 }" :wrapper-col="{ span: 19 }" style="margin-top: 20px;">
-        <a-form-item label="站点" name="site">
-          <a-textarea v-model:value="addSiteForm.site" :rows="4" placeholder="会对站点进行探测，获取标题、headers, finger等信息。示例：https://www.freebuf.com/" />
+    <a-modal v-model:open="addSiteVisible" :title="assetText('assets.addWebsite')" @ok="submitAddSite" :confirmLoading="addSiteLoading" width="520px" :okText="assetText('tasks.confirm')" :cancelText="assetText('assets.cancel')" destroyOnClose>
+      <a-form :label-wrap="true" ref="addSiteFormRef" :model="addSiteForm" :rules="addSiteRules" :label-col="{ span: assetLocale === 'en-US' ? 6 : 4 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 17 : 19 }" class="asset-risk-form">
+        <a-form-item :label="assetText('tasks.websites')" name="site">
+          <a-textarea v-model:value="addSiteForm.site" :rows="4" :placeholder="assetText('assets.theWebsiteWillBeScannedForItsTitle')" />
         </a-form-item>
-        <a-form-item label="策略" name="policy_id">
-          <a-select v-model:value="addSiteForm.policy_id" placeholder="请选择策略">
+        <a-form-item :label="assetText('tasks.policy')" name="policy_id">
+          <a-select v-model:value="addSiteForm.policy_id" :placeholder="assetText('tasks.selectAPolicy')">
             <a-select-option v-for="p in policies" :key="p._id" :value="p._id">{{ p.name }}</a-select-option>
           </a-select>
         </a-form-item>
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="riskModalVisible" title="添加风险巡航任务" @ok="submitRiskTask" :confirmLoading="riskLoading" width="520px" okText="确 定" cancelText="取 消" destroyOnClose>
-      <a-form ref="riskFormRef" :model="riskForm" :rules="riskRules" :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
+    <a-modal v-model:open="riskModalVisible" :title="assetText('tasks.addRiskScanningTask')" @ok="submitRiskTask" :confirmLoading="riskLoading" width="520px" :okText="assetText('tasks.confirm')" :cancelText="assetText('assets.cancel')" destroyOnClose>
+      <a-form :label-wrap="true" ref="riskFormRef" :model="riskForm" :rules="riskRules" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
 
-        <a-form-item label="策略名称" name="policy_id">
-          <a-select v-model:value="riskForm.policy_id" placeholder="请选择策略" @change="handleRiskPolicyChange">
+        <a-form-item :label="assetText('tasks.policyName')" name="policy_id">
+          <a-select v-model:value="riskForm.policy_id" :placeholder="assetText('tasks.selectAPolicy')" @change="handleRiskPolicyChange">
             <a-select-option v-for="p in policies" :key="p._id" :value="p._id">
               {{ p.name }} (PoC : {{ getPocCount(p) }})
             </a-select-option>
           </a-select>
         </a-form-item>
 
-        <a-form-item label="任务名称" name="name">
-          <a-input v-model:value="riskForm.name" placeholder="请输入任务名称" allowClear />
+        <a-form-item :label="assetText('assets.taskName')" name="name">
+          <a-input v-model:value="riskForm.name" :placeholder="assetText('tasks.enterATaskName')" allowClear />
         </a-form-item>
 
-        <a-form-item label="目标" style="margin-bottom: 0;">
-          <span style="color: var(--arl-text-color); opacity: 0.65;">选择目标数 {{ currentTargetCount }}</span>
+        <a-form-item :label="assetText('tasks.target')" class="asset-flush-bottom">
+          <span class="asset-muted">{{ assetText('assets.selectedTargets') }} {{ currentTargetCount }}</span>
         </a-form-item>
 
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="addDomainVisible" title="添加子域名" @ok="submitAddDomain" :confirmLoading="addDomainLoading" width="520px" okText="确 定" cancelText="取 消" destroyOnClose>
-      <a-form ref="addDomainFormRef" :model="addDomainForm" :rules="addDomainRules" :label-col="{ span: 4 }" :wrapper-col="{ span: 19 }" style="margin-top: 20px;">
-        <a-form-item label="子域名" name="domain">
-          <a-textarea v-model:value="addDomainForm.domain" :rows="4" placeholder="会对子域名自动下发侦察任务，获取子域名关联的ip、站点等信息。示例：live.freebuf.com" />
+    <a-modal v-model:open="addDomainVisible" :title="assetText('assets.addSubdomain')" @ok="submitAddDomain" :confirmLoading="addDomainLoading" width="520px" :okText="assetText('tasks.confirm')" :cancelText="assetText('assets.cancel')" destroyOnClose>
+      <a-form :label-wrap="true" ref="addDomainFormRef" :model="addDomainForm" :rules="addDomainRules" :label-col="{ span: assetLocale === 'en-US' ? 6 : 4 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 17 : 19 }" class="asset-risk-form">
+        <a-form-item :label="assetText('tasks.subdomains')" name="domain">
+          <a-textarea v-model:value="addDomainForm.domain" :rows="4" :placeholder="assetText('assets.aDiscoveryTaskWillRetrieveIpsWebsitesAnd')" />
         </a-form-item>
-        <a-form-item label="策略" name="policy_id">
-          <a-select v-model:value="addDomainForm.policy_id" placeholder="请选择策略">
+        <a-form-item :label="assetText('tasks.policy')" name="policy_id">
+          <a-select v-model:value="addDomainForm.policy_id" :placeholder="assetText('tasks.selectAPolicy')">
             <a-select-option v-for="p in policies" :key="p._id" :value="p._id">{{ p.name }}</a-select-option>
           </a-select>
         </a-form-item>
@@ -798,35 +798,35 @@
     <!-- 绑定企业主体弹窗 -->
     <a-modal
       v-model:open="bindModalVisible"
-      :title="boundIcpTaskId ? '重新绑定企业主体' : '绑定企业主体'"
+      :title="boundIcpTaskId ? assetText('assets.changeLinkedOrganization') : assetText('assets.linkOrganization')"
       @ok="handleBindSubmit"
       :confirmLoading="bindLoading"
       width="540px"
       wrapClassName="arl-theme-modal"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
-        <a-form-item label="绑定方式">
+      <a-form :label-wrap="true" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+        <a-form-item :label="assetText('assets.linkMethod')">
           <a-radio-group v-model:value="bindMode">
-            <a-radio value="existing">选择已有测绘任务</a-radio>
-            <a-radio value="new">发起新企业测绘</a-radio>
+            <a-radio value="existing">{{ assetText('assets.selectAnExistingDiscoveryTask') }}</a-radio>
+            <a-radio value="new">{{ assetText('assets.startNewEnterpriseDiscovery') }}</a-radio>
           </a-radio-group>
         </a-form-item>
 
         <template v-if="bindMode === 'existing'">
-          <a-form-item label="企业测绘" required>
+          <a-form-item :label="assetText('tasks.enterpriseOsint')" required>
             <a-select
               v-model:value="selectedBindTaskId"
-              placeholder="请选择已有的企业测绘任务"
+              :placeholder="assetText('assets.selectAnExistingEnterpriseDiscoveryTask')"
               show-search
               option-filter-prop="label"
               :options="completedIcpTasks.map(t => ({
                 value: t._id,
                 label: t.task_type === 'tyc'
-                  ? `${t.name || t.target} [全景双轨: ${t.gid || (t.target ? t.target.replace(/^TYC_/, '') : '')}]`
-                  : `${t.target || t.name} [官方备案]`
+                  ? assetText('assets.nameCombinedDiscoveryTarget', { name: t.name || t.target, target: t.gid || (t.target ? t.target.replace(/^TYC_/, '') : '') })
+                  : assetText('assets.nameOfficialIcpRecords', { name: t.target || t.name })
               }))"
             />
           </a-form-item>
@@ -834,13 +834,13 @@
 
         <template v-else>
           <a-form-item
-            label="企业目标"
+            :label="assetText('tasks.targetOrganization')"
             required
-            tooltip="支持粘贴天眼查企业链接（如 https://www.tianyancha.com/company/25174642）、纯数字 GID 或企业工商注册全称"
+            :tooltip="assetText('assets.pasteATianyanchaCompanyUrlSuchAsHttps')"
           >
             <a-input
               v-model:value="newEnterpriseTarget"
-              placeholder="可直接粘贴天眼查链接、GID 或企业工商全称"
+              :placeholder="assetText('assets.pasteATianyanchaUrlGidOrFullRegistered')"
               allowClear
               @pressEnter="handleBindSubmit"
             >
@@ -849,10 +849,10 @@
               </template>
             </a-input>
             <div v-if="parsedBindGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
-              <check-circle-outlined /> <span>按天眼查 GID 解析: <b>{{ parsedBindGid }}</b> (将在提交后校验并执行全景双轨穿透)</span>
+              <check-circle-outlined /> <span>{{ assetText('tasks.parsedTianyanchaGid') }} <b>{{ parsedBindGid }}</b> {{ assetText('tasks.theGidWillBeVerifiedAndCombinedDiscovery') }}</span>
             </div>
             <div v-else-if="newEnterpriseTarget.trim().length >= 2" style="margin-top: 4px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
-              <safety-certificate-outlined /> <span>已识别企业工商主体 (来源：工信部 ICP 备案)</span>
+              <safety-certificate-outlined /> <span>{{ assetText('assets.registeredOrganizationIdentifiedSourceOfficialMiitIcpRecords') }}</span>
             </div>
           </a-form-item>
         </template>
@@ -878,6 +878,7 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 defineOptions({ name: 'GroupAssetsDetail' });
 
 import { ref, onMounted, reactive, watch, computed, createVNode, onUnmounted, onDeactivated, nextTick } from 'vue';
@@ -959,7 +960,7 @@ onUnmounted(() => {
 import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
 import HttpStatusFilter from '../components/HttpStatusFilter.vue';
-import { buildAssetFilterParams } from '../utils/assetFilters';
+import { buildAssetFilterParams, formatAssetFilterOperator } from '../utils/assetFilters';
 import { formatGeo } from '../utils/formatGeo';
 import { message, Modal } from 'ant-design-vue';
 import * as echarts from 'echarts';
@@ -997,6 +998,8 @@ import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { formatTaskStatus, formatTaskStatusColor } from '../constants/taskStatus';
 import { createTabStateCache } from '../utils/useTabStateCache';
 
+const { t: assetText, locale: assetLocale } = useI18n({ useScope: 'global' });
+
 const route = useRoute();
 const router = useRouter();
 
@@ -1009,7 +1012,7 @@ const scopeEnterpriseName = ref('');
 const targetName = computed(() => {
   const t = route.query.targetName;
   if (!t || /^[0-9a-fA-F]{24}$/.test(t) || t === '未知资产') {
-    return scopeEnterpriseName.value || t || '企业资产';
+    return scopeEnterpriseName.value || (t === '未知资产' ? assetText('assets.unknownAsset') : t) || assetText('assets.enterpriseAssets');
   }
   return t;
 });
@@ -1049,23 +1052,28 @@ const scopeType = ref('');
 const scopeDomainList = ref([]);
 const boundTaskRecord = ref({});
 const taskTarget = ref('');
-const taskTypeLabel = ref('');
-const taskStatusLabel = ref('');
+const taskTypeLabel = computed(() => {
+  const type = boundTaskRecord.value.task_type;
+  if (type === 'tyc') return assetText('tasks.combinedSources');
+  if (type === 'icp') return assetText('tasks.officialIcpRecordsLabel');
+  return boundIcpTaskId.value ? assetText('tasks.enterpriseOsint') : '';
+});
+const taskStatusLabel = computed(() => boundTaskRecord.value.status ? formatTaskStatus(boundTaskRecord.value.status) : '');
 const taskStatusColor = ref('default');
 const osintTotalCount = ref(0);
 
 const asmTabList = [
-  { key: 'site', label: '站点' },
-  { key: 'domain', label: '子域名' },
+  { key: 'site', get label() { return assetText('tasks.websites'); } },
+  { key: 'domain', get label() { return assetText('tasks.subdomains'); } },
   { key: 'ip', label: 'IP' },
-  { key: 'cert', label: 'SSL证书' },
-  { key: 'service', label: '服务' },
-  { key: 'fileleak', label: '文件泄露' },
-  { key: 'url', label: 'URL信息' },
-  { key: 'cip', label: 'C段' },
-  { key: 'stat_finger', label: '指纹统计' },
+  { key: 'cert', get label() { return assetText('assets.sslCertificates'); } },
+  { key: 'service', get label() { return assetText('tasks.services'); } },
+  { key: 'fileleak', get label() { return assetText('tasks.fileDisclosure'); } },
+  { key: 'url', get label() { return assetText('tasks.urls'); } },
+  { key: 'cip', get label() { return assetText('tasks.cClassNetworks'); } },
+  { key: 'stat_finger', get label() { return assetText('tasks.fingerprintStatistics'); } },
   { key: 'wih', label: 'WIH' },
-  { key: 'vuln', label: '风险' },
+  { key: 'vuln', get label() { return assetText('tasks.risks'); } },
   { key: 'nuclei_result', label: 'nuclei' }
 ];
 
@@ -1104,7 +1112,7 @@ const activeFilterCount = computed(() => {
 const handleCopyText = async (text) => {
   if (!text) return;
   const ok = await copyText(String(text).trim());
-  if (ok) message.success(`已复制: ${text}`);
+  if (ok) message.success(assetText('assets.copiedValue', { value: text }));
 };
 
 const chainDrawerVisible = ref(false);
@@ -1142,8 +1150,6 @@ const handleOsintLoaded = (payload) => {
   if (!payload) return;
   boundTaskRecord.value = payload.task || {};
   taskTarget.value = payload.taskTarget || '';
-  taskTypeLabel.value = payload.taskTypeLabel || '';
-  taskStatusLabel.value = payload.taskStatusLabel || '';
   taskStatusColor.value = payload.taskStatusColor || 'default';
   osintTotalCount.value = payload.totalCount || 0;
 };
@@ -1156,8 +1162,6 @@ const fetchBoundTaskDetail = async (taskId) => {
       const task = res.items[0];
       boundTaskRecord.value = task;
       taskTarget.value = task.target || '';
-      taskTypeLabel.value = task.task_type === 'tyc' ? '全景双轨' : '官方备案';
-      taskStatusLabel.value = formatTaskStatus(task.status);
       taskStatusColor.value = formatTaskStatusColor(task.status);
       const stats = task.statistic || {};
       osintTotalCount.value = (
@@ -1268,15 +1272,15 @@ const executeBindExisting = async () => {
       task_id: selectedBindTaskId.value
     });
     if (res && res.code === 200) {
-      message.success(boundIcpTaskId.value ? '重新绑定企业主体成功' : '绑定企业主体成功');
+      message.success(boundIcpTaskId.value ? assetText('assets.linkedOrganizationUpdated') : assetText('assets.organizationLinked'));
       bindModalVisible.value = false;
       fetchScopeMeta();
       currentView.value = 'osint';
     } else {
-      message.error(res.message || '绑定失败');
+      message.error(res.message || assetText('assets.failedToLinkOrganization'));
     }
   } catch (err) {
-    message.error('网络请求失败');
+    message.error(assetText('assets.networkRequestFailed'));
   } finally {
     bindLoading.value = false;
   }
@@ -1285,12 +1289,12 @@ const executeBindExisting = async () => {
 const executeBindNew = async () => {
   const targetVal = newEnterpriseTarget.value.trim();
   if (!targetVal) {
-    message.warning('请输入天眼查企业链接、GID 或企业工商全称');
+    message.warning(assetText('assets.enterATianyanchaCompanyUrlGidOrFull'));
     return;
   }
   const parsed = parseBindTargetInput(targetVal);
   if (!parsed.gid && !parsed.isName) {
-    message.warning('未能识别有效目标，请输入天眼查链接、ID 或企业工商注册全称');
+    message.warning(assetText('tasks.noValidTargetRecognizedEnterATianyanchaUrl'));
     return;
   }
   bindLoading.value = true;
@@ -1322,15 +1326,15 @@ const executeBindNew = async () => {
           task_id: newTaskId
         });
       }
-      message.success('已成功发起企业全景测绘并绑定');
+      message.success(assetText('assets.enterpriseDiscoveryStartedAndLinked'));
       bindModalVisible.value = false;
       fetchScopeMeta();
       currentView.value = 'osint';
     } else {
-      message.error(createRes.message || '创建测绘任务失败');
+      message.error(createRes.message || assetText('assets.failedToCreateDiscoveryTask'));
     }
   } catch (err) {
-    message.error('网络请求失败');
+    message.error(assetText('assets.networkRequestFailed'));
   } finally {
     bindLoading.value = false;
   }
@@ -1339,16 +1343,16 @@ const executeBindNew = async () => {
 const handleBindSubmit = async () => {
   if (bindMode.value === 'existing') {
     if (!selectedBindTaskId.value) {
-      message.warning('请选择要绑定的测绘任务');
+      message.warning(assetText('assets.selectADiscoveryTaskToLink'));
       return;
     }
     // 若已绑定主体且用户选择了不同的测绘任务，弹出二次确认
     if (boundIcpTaskId.value && selectedBindTaskId.value !== boundIcpTaskId.value) {
       Modal.confirm({
-        title: '确认更换企业主体？',
-        content: '检测到您正在更换绑定的企业主体，此操作将同步切换本资产组关联的企业工商与全域数字资产画像。',
-        okText: '确认更换',
-        cancelText: '取消',
+        title: assetText('assets.changeLinkedOrganizationLabel'),
+        content: assetText('assets.changingTheLinkedOrganizationAlsoReplacesTheCompany'),
+        okText: assetText('assets.changeOrganization'),
+        cancelText: assetText('tasks.cancel'),
         onOk: () => {
           executeBindExisting();
         }
@@ -1360,10 +1364,10 @@ const handleBindSubmit = async () => {
     // 若已绑定主体，用户选择发起新测绘并绑定，也弹出二次确认
     if (boundIcpTaskId.value) {
       Modal.confirm({
-        title: '确认发起并更换企业主体？',
-        content: '当前资产组已关联企业主体，发起新测绘后将自动切换为新主体画像，是否继续？',
-        okText: '确认发起',
-        cancelText: '取消',
+        title: assetText('assets.startDiscoveryAndChangeLinkedOrganization'),
+        content: assetText('assets.thisAssetGroupAlreadyHasALinkedOrganization'),
+        okText: assetText('assets.startDiscovery'),
+        cancelText: assetText('tasks.cancel'),
         onOk: () => {
           executeBindNew();
         }
@@ -1470,7 +1474,7 @@ const syncTagState = (targetId, newTags) => {
 
 const submitTag = async () => {
   if (!newTagValue.value.trim()) {
-    message.warning('标签内容不能为空');
+    message.warning(assetText('assets.tagContentCannotBeEmpty'));
     return;
   }
   tagSubmitLoading.value = true;
@@ -1482,7 +1486,7 @@ const submitTag = async () => {
       tag: tag
     });
     if (res.code === 200) {
-      message.success('添加标签成功');
+      message.success(assetText('tasks.tagAdded'));
       tagVisible.value = false;
       if (currentTagRecord.value) {
         if (!Array.isArray(currentTagRecord.value.tag)) {
@@ -1497,10 +1501,10 @@ const submitTag = async () => {
       tabCache.invalidateMemoryCache('site');
       fetchData(); // 重新加载数据
     } else {
-      message.error(res.message || '添加标签失败');
+      message.error(res.message || assetText('tasks.failedToAddTag'));
     }
   } catch (error) {
-    message.error('请求异常');
+    message.error(assetText('tasks.requestFailed'));
   } finally {
     tagSubmitLoading.value = false;
   }
@@ -1515,17 +1519,17 @@ const handleDeleteTag = async (record, tag) => {
       tag: tag
     });
     if (res.code === 200) {
-      message.success(`已移除标签「${tag}」`);
+      message.success(assetText('tasks.removedTagTag', { tag: tag }));
       const currentTags = Array.isArray(record.tag) ? record.tag : (record.tag ? [record.tag] : []);
       record.tag = currentTags.filter(t => t !== tag);
       syncTagState(targetId, record.tag);
       tabCache.invalidateMemoryCache(activeTab.value);
       tabCache.invalidateMemoryCache('site');
     } else {
-      message.error(res.message || '删除标签失败');
+      message.error(res.message || assetText('tasks.failedToDeleteTag'));
     }
   } catch (error) {
-    message.error('请求异常');
+    message.error(assetText('tasks.requestFailed'));
   }
 };
 
@@ -1536,10 +1540,10 @@ const fingerModalData = ref([]);
 const fingerModalLoading = ref(false);
 
 const fingerModalColumns = [
-  { title: '序号', key: 'index', width: 60, align: 'center' },
-  { title: '站点 URL', key: 'site', width: 300 },
-  { title: '标题', key: 'title', dataIndex: 'title', width: 200 },
-  { title: '状态码', key: 'status', dataIndex: 'status', width: 100 }
+  { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+  { get title() { return assetText('tasks.websiteUrl'); }, key: 'site', width: 300 },
+  { get title() { return assetText('tasks.title'); }, key: 'title', dataIndex: 'title', width: 200 },
+  { get title() { return assetText('tasks.statusCode'); }, key: 'status', dataIndex: 'status', width: 100 }
 ];
 
 const openFingerModal = async (fingerName) => {
@@ -1559,7 +1563,7 @@ const openFingerModal = async (fingerName) => {
     fingerModalData.value = res.items || res.data?.items || [];
   } catch (error) {
     console.error('Fetch finger sites failed:', error);
-    message.error('获取关联站点失败');
+    message.error(assetText('tasks.failedToLoadAssociatedWebsites'));
   } finally {
     fingerModalLoading.value = false;
   }
@@ -1591,52 +1595,52 @@ const tabConfig = reactive({
   site: {
     url: '/asset_site/', // 🚨 核心修复：加了 asset_ 前缀
     exportUrl: '/asset_site/export/', // 🚨 绑定抓包里的导出 URL
-    tabName: '站点',
+    get tabName() { return assetText('tasks.websites'); },
     searchFields: [
-      { label: '站点', key: 'site', operator: '=' },
-      { label: '标题', key: 'title', operator: '=' },
+      { get label() { return assetText('tasks.websites'); }, key: 'site', operator: '=' },
+      { get label() { return assetText('tasks.title'); }, key: 'title', operator: '=' },
       { label: 'Web Server', key: 'http_server', operator: '=' },
-      { label: '状态码', key: 'status', type: 'httpStatus' },
+      { get label() { return assetText('tasks.statusCode'); }, key: 'status', type: 'httpStatus' },
       // 🚨 补充丢失的 4 个字段
-      { label: '标头', key: 'headers', operator: '=' },
-      { label: '指纹', key: 'finger', operator: '=' },
+      { get label() { return assetText('tasks.headers'); }, key: 'headers', operator: '=' },
+      { get label() { return assetText('tasks.fingerprints'); }, key: 'finger', operator: '=' },
       { label: 'favicon hash', key: 'favicon.hash', operator: '=' },
-      { label: '标签', key: 'tag', operator: '=' },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('tasks.tags'); }, key: 'tag', operator: '=' },
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 50, align: 'center' },
-      { title: '站点', dataIndex: 'site', key: 'site', width: 260 },
-      { title: '状态码', dataIndex: 'status', key: 'status', width: 75, align: 'center' },
-      { title: '标题', dataIndex: 'title', key: 'title', width: 200 },
-      { title: 'headers', key: 'headers', width: 360 },
-      { title: '指纹', key: 'finger', width: 200 },
-      { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 160, align: 'center' },
-      { title: '截图', key: 'screenshot', width: 250 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 50, align: 'center' },
+      { get title() { return assetText('tasks.websites'); }, dataIndex: 'site', key: 'site', width: 260 },
+      { get title() { return assetText('tasks.statusCode'); }, dataIndex: 'status', key: 'status', width: 75, align: 'center' },
+      { get title() { return assetText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 200 },
+      { get title() { return assetText('tasks.headers'); }, key: 'headers', width: 360 },
+      { get title() { return assetText('tasks.fingerprints'); }, key: 'finger', width: 200 },
+      { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'update_date', key: 'update_date', width: 160, align: 'center' },
+      { get title() { return assetText('tasks.screenshot'); }, key: 'screenshot', width: 250 }
     ]
   },
   domain: {
     url: '/asset_domain/',
     exportUrl: '/asset_domain/export/',
-    tabName: '子域名',
+    get tabName() { return assetText('tasks.subdomains'); },
     // 🚨 修复：严格对齐截图中的 6 个搜索框顺序和文案
     searchFields: [
-      { label: '域名', key: 'domain', operator: '=' },
-      { label: '记录值', key: 'record', operator: '=' },
-      { label: '类型', key: 'type', operator: '=' }, // 调整到第 3 位
+      { get label() { return assetText('tasks.domains'); }, key: 'domain', operator: '=' },
+      { get label() { return assetText('tasks.recordValue'); }, key: 'record', operator: '=' },
+      { get label() { return assetText('tasks.type'); }, key: 'type', operator: '=' }, // 调整到第 3 位
       { label: 'IP', key: 'ips', operator: '=' },    // 调整到第 4 位
-      { label: '来源', key: 'source', operator: '=' },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('tasks.source'); }, key: 'source', operator: '=' },
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
       // ... cols 保持不变，上一轮猜得完全正确 ...
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '域名', dataIndex: 'domain', key: 'domain', width: 220 },
-      { title: '解析类型', dataIndex: 'type', key: 'type', width: 100 },
-      { title: '记录值', key: 'record', width: 280 },
-      { title: '关联IP', key: 'ips', width: 280 },
-      { title: '来源', dataIndex: 'source', key: 'source', width: 150 },
-      { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.domains'); }, dataIndex: 'domain', key: 'domain', width: 220 },
+      { get title() { return assetText('tasks.dnsRecordType'); }, dataIndex: 'type', key: 'type', width: 100 },
+      { get title() { return assetText('tasks.recordValue'); }, key: 'record', width: 280 },
+      { get title() { return assetText('tasks.associatedIps'); }, key: 'ips', width: 280 },
+      { get title() { return assetText('tasks.source'); }, dataIndex: 'source', key: 'source', width: 150 },
+      { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'update_date', key: 'update_date', width: 180 }
     ]
   },
   ip: {
@@ -1644,24 +1648,24 @@ const tabConfig = reactive({
     tabName: 'IP',
     // 🚨 修复：完美对齐截图的 7 个搜索字段，首个为下拉框
     searchFields: [
-      { label: 'IP类别', key: 'ip_type', type: 'select', options: [{label: 'PUBLIC', value: 'PUBLIC'}, {label: 'PRIVATE', value: 'PRIVATE'}] },
+      { get label() { return assetText('tasks.ipType'); }, key: 'ip_type', type: 'select', options: [{label: 'PUBLIC', value: 'PUBLIC'}, {label: 'PRIVATE', value: 'PRIVATE'}] },
       { label: 'IP', key: 'ip', operator: '=' },
-      { label: '端口', key: 'port_info.port_id', operator: '=' },
-      { label: '操作系统', key: 'os_info.name', operator: '=' }, // ARL 默认 OS 字段名
-      { label: '域名', key: 'domain', operator: '=' },
-      { label: 'CDN', key: 'cdn_name', operator: '=', placeholder: '输入厂商或独立源站' },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('tasks.port'); }, key: 'port_info.port_id', operator: '=' },
+      { get label() { return assetText('tasks.operatingSystem'); }, key: 'os_info.name', operator: '=' }, // ARL 默认 OS 字段名
+      { get label() { return assetText('tasks.domains'); }, key: 'domain', operator: '=' },
+      { label: 'CDN', key: 'cdn_name', operator: '=', get placeholder() { return assetText('tasks.enterACdnProviderOrOriginServer'); } },
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
       { title: 'IP', dataIndex: 'ip', key: 'ip', width: 160 },
-      { title: '操作系统', key: 'os_info', width: 150 },
-      { title: '开放端口', key: 'port_info', width: 200 },
-      { title: '关联域名', key: 'domain', width: 250 },
-      { title: 'CDN状态', key: 'ip_cdn_tag', width: 150 },
-      { title: 'Geo', key: 'geo_city', width: 180 },
-      { title: 'AS', key: 'geo_asn', width: 280 },
-      { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.operatingSystem'); }, key: 'os_info', width: 150 },
+      { get title() { return assetText('tasks.openPorts'); }, key: 'port_info', width: 200 },
+      { get title() { return assetText('tasks.associatedDomains'); }, key: 'domain', width: 250 },
+      { get title() { return assetText('tasks.cdnStatus'); }, key: 'ip_cdn_tag', width: 150 },
+      { get title() { return assetText('assets.location'); }, key: 'geo_city', width: 180 },
+      { get title() { return assetText('assets.asOrganization'); }, key: 'geo_asn', width: 280 },
+      { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'update_date', key: 'update_date', width: 180 }
     ]
   },
   wih: {
@@ -1671,195 +1675,195 @@ const tabConfig = reactive({
     // 🚨 完美对齐截图的 4 个搜索框，记录类型带下拉选择
     searchFields: [
       {
-        label: '记录类型',
+        get label() { return assetText('tasks.recordType'); },
         key: 'record_type',
         operator: '等于',
         hasOperatorSelect: true,
         operators: ['等于', '不等于']
       },
-      { label: '内容', key: 'content', operator: '=' },
-      { label: '来源 JS', key: 'source', operator: '=' },
-      { label: '来源站点', key: 'site', operator: '=' }
+      { get label() { return assetText('tasks.content'); }, key: 'content', operator: '=' },
+      { get label() { return assetText('tasks.sourceJs'); }, key: 'source', operator: '=' },
+      { get label() { return assetText('tasks.sourceWebsite'); }, key: 'site', operator: '=' }
     ],
     // 🚨 完美对齐抓包数据的列，特别是 source 键名
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '记录类型', dataIndex: 'record_type', key: 'record_type', width: 120 },
-      { title: '内容', dataIndex: 'content', key: 'content', width: 250 },
-      { title: '来源 JS', dataIndex: 'source', key: 'source', width: 450 }, // 绑定 source
-      { title: '来源站点', dataIndex: 'site', key: 'wih_site', width: 250 },
-      { title: '更新时间', dataIndex: 'update_date', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.recordType'); }, dataIndex: 'record_type', key: 'record_type', width: 120 },
+      { get title() { return assetText('tasks.content'); }, dataIndex: 'content', key: 'content', width: 250 },
+      { get title() { return assetText('tasks.sourceJs'); }, dataIndex: 'source', key: 'source', width: 450 }, // 绑定 source
+      { get title() { return assetText('tasks.sourceWebsite'); }, dataIndex: 'site', key: 'wih_site', width: 250 },
+      { get title() { return assetText('assets.updatedAtLabel'); }, dataIndex: 'update_date', key: 'update_date', width: 180 }
     ]
   },
   cert: {
     url: '/asset_cert/',
     exportUrl: '/asset_cert/export/',
-    tabName: 'SSL证书',
+    get tabName() { return assetText('assets.sslCertificates'); },
     searchFields: [
-      { label: 'IP字段', key: 'ip', operator: '=' },
-      { label: '签发者名称', key: 'cert.issuer_dn', operator: '=' },
-      { label: '主题名称', key: 'cert.subject_dn', operator: '=' },
+      { get label() { return assetText('tasks.ipFields'); }, key: 'ip', operator: '=' },
+      { get label() { return assetText('tasks.issuer'); }, key: 'cert.issuer_dn', operator: '=' },
+      { get label() { return assetText('tasks.subject'); }, key: 'cert.subject_dn', operator: '=' },
       { label: 'SHA-1', key: 'cert.fingerprint.sha1', operator: '=' },
-      { label: '使用者备用名称', key: 'cert.extensions.subjectAltName', operator: '=' },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('tasks.subjectAlternativeNames'); }, key: 'cert.extensions.subjectAltName', operator: '=' },
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: 'HOST', key: 'host', width: 180 },
-      { title: 'CERT', key: 'cert_detail', width: 900 },
-      { title: '更新时间', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.host'); }, key: 'host', width: 180 },
+      { get title() { return assetText('tasks.sslCertificateInformation'); }, key: 'cert_detail', width: 900 },
+      { get title() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', width: 180 }
     ]
   },
   service: {
     url: '/asset_service/',
-    tabName: '服务',
+    get tabName() { return assetText('tasks.services'); },
     searchFields: [
-      { label: '服务', key: 'service_name', operator: '=' },
+      { get label() { return assetText('tasks.services'); }, key: 'service_name', operator: '=' },
       { label: 'IP', key: 'service_info.ip', operator: '=' },
-      { label: '端口', key: 'service_info.port_id', operator: '=' },
-      { label: '产品', key: 'service_info.product', operator: '=' },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('tasks.port'); }, key: 'service_info.port_id', operator: '=' },
+      { get label() { return assetText('tasks.product'); }, key: 'service_info.product', operator: '=' },
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '服务', dataIndex: 'service_name', key: 'service_name', width: 150, align: 'center' },
-      { title: 'IP端口', key: 'ip_port', width: 300 },
-      { title: 'Product', key: 'product', width: 250 },
-      { title: '更新时间', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.services'); }, dataIndex: 'service_name', key: 'service_name', width: 150, align: 'center' },
+      { get title() { return assetText('tasks.ipPort'); }, key: 'ip_port', width: 300 },
+      { get title() { return assetText('tasks.product'); }, key: 'product', width: 250 },
+      { get title() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', width: 180 }
     ]
   },
   fileleak: {
     url: '/asset_fileleak/',
-    tabName: '文件泄露',
+    get tabName() { return assetText('tasks.fileDisclosure'); },
     searchFields: [
       { label: 'URL', key: 'url', operator: '=' },
-      { label: '标题', key: 'title', operator: '=' },
-      { label: '状态码', key: 'status_code', type: 'httpStatus' },
-      { label: 'body 长度', key: 'content_length', operator: '=' },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('tasks.title'); }, key: 'title', operator: '=' },
+      { get label() { return assetText('tasks.statusCode'); }, key: 'status_code', type: 'httpStatus' },
+      { get label() { return assetText('tasks.bodyLength'); }, key: 'content_length', operator: '=' },
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
       { title: 'URL', key: 'fileleak_url', width: 500 },
-      { title: '标题', dataIndex: 'title', key: 'title', width: 250 },
-      { title: '状态码', dataIndex: 'status_code', key: 'status_code', width: 100, align: 'center' },
-      { title: 'body 长度', dataIndex: 'content_length', key: 'content_length', width: 120, align: 'center' },
-      { title: '更新时间', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 250 },
+      { get title() { return assetText('tasks.statusCode'); }, dataIndex: 'status_code', key: 'status_code', width: 100, align: 'center' },
+      { get title() { return assetText('tasks.bodyLength'); }, dataIndex: 'content_length', key: 'content_length', width: 120, align: 'center' },
+      { get title() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', width: 180 }
     ]
   },
   url: {
     url: '/asset_url/',
     exportUrl: '/asset_url/export/',
-    tabName: 'URL信息',
+    get tabName() { return assetText('tasks.urls'); },
     searchFields: [
       { label: 'URL', key: 'url', operator: '=' },
-      { label: '标题', key: 'title', operator: '=' },
-      { label: '状态码', key: 'status_code', type: 'httpStatus' },
-      { label: 'body 长度', key: 'content_length', operator: '=' },
-      { label: '来源', key: 'source', operator: '=' },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('tasks.title'); }, key: 'title', operator: '=' },
+      { get label() { return assetText('tasks.statusCode'); }, key: 'status_code', type: 'httpStatus' },
+      { get label() { return assetText('tasks.bodyLength'); }, key: 'content_length', operator: '=' },
+      { get label() { return assetText('tasks.source'); }, key: 'source', operator: '=' },
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
       { title: 'URL', key: 'url_link', width: 450 },
-      { title: '标题', dataIndex: 'title', key: 'title', width: 200 },
-      { title: '状态码', dataIndex: 'status_code', key: 'status_code', width: 100, align: 'center' },
-      { title: 'body 长度', dataIndex: 'content_length', key: 'content_length', width: 120, align: 'center' },
-      { title: '来源', dataIndex: 'source', key: 'source', width: 150 },
-      { title: '更新时间', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 200 },
+      { get title() { return assetText('tasks.statusCode'); }, dataIndex: 'status_code', key: 'status_code', width: 100, align: 'center' },
+      { get title() { return assetText('tasks.bodyLength'); }, dataIndex: 'content_length', key: 'content_length', width: 120, align: 'center' },
+      { get title() { return assetText('tasks.source'); }, dataIndex: 'source', key: 'source', width: 150 },
+      { get title() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', width: 180 }
     ]
   },
   vuln: {
     url: '/asset_vuln/',
-    tabName: '风险',
+    get tabName() { return assetText('tasks.risks'); },
     searchFields: [
-      { label: '漏洞名称', key: 'vul_name', operator: '=' },
-      { label: '类别', key: 'vul_category', operator: '=' },
-      { label: '应用名', key: 'app_name', operator: '=' },
-      { label: '目标', key: 'target', operator: '=' }
+      { get label() { return assetText('tasks.vulnerabilityName'); }, key: 'vul_name', operator: '=' },
+      { get label() { return assetText('tasks.category'); }, key: 'vul_category', operator: '=' },
+      { get label() { return assetText('tasks.applicationName'); }, key: 'app_name', operator: '=' },
+      { get label() { return assetText('tasks.target'); }, key: 'target', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '漏洞名称', dataIndex: 'vul_name', key: 'vul_name', width: 250 },
-      { title: '类别', dataIndex: 'vul_category', key: 'vul_category', width: 120 },
-      { title: '应用名', dataIndex: 'app_name', key: 'app_name', width: 150 },
-      { title: '目标', dataIndex: 'target', key: 'target', width: 200 },
-      { title: '凭证', key: 'verify_data', width: 350 },
-      { title: '发现时间', dataIndex: 'insert_time', key: 'insert_time', width: 160 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.vulnerabilityName'); }, dataIndex: 'vul_name', key: 'vul_name', width: 250 },
+      { get title() { return assetText('tasks.category'); }, dataIndex: 'vul_category', key: 'vul_category', width: 120 },
+      { get title() { return assetText('tasks.applicationName'); }, dataIndex: 'app_name', key: 'app_name', width: 150 },
+      { get title() { return assetText('tasks.target'); }, dataIndex: 'target', key: 'target', width: 200 },
+      { get title() { return assetText('tasks.credentials'); }, key: 'verify_data', width: 350 },
+      { get title() { return assetText('tasks.discoveredAt'); }, dataIndex: 'insert_time', key: 'insert_time', width: 160 }
     ]
   },
   npoc_service: {
     url: '/asset_npoc_service/',
-    tabName: 'Python 插件服务',
+    get tabName() { return assetText('assets.pythonPluginServicesLabel'); },
     searchFields: [
-      { label: '协议', key: 'scheme', operator: '=' },
-      { label: '主机', key: 'host', operator: '=' },
-      { label: '端口', key: 'port', operator: '=' },
-      { label: '目标', key: 'target', operator: '=' }
+      { get label() { return assetText('tasks.protocol'); }, key: 'scheme', operator: '=' },
+      { get label() { return assetText('tasks.host'); }, key: 'host', operator: '=' },
+      { get label() { return assetText('tasks.port'); }, key: 'port', operator: '=' },
+      { get label() { return assetText('tasks.target'); }, key: 'target', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '协议', dataIndex: 'scheme', key: 'scheme', width: 150 },
-      { title: '主机', dataIndex: 'host', key: 'host', width: 200 },
-      { title: '端口', dataIndex: 'port', key: 'port', width: 100, align: 'center' },
-      { title: '目标', dataIndex: 'target', key: 'target', width: 250 },
-      { title: '保存时间', dataIndex: 'insert_time', key: 'insert_time', width: 180 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.protocol'); }, dataIndex: 'scheme', key: 'scheme', width: 150 },
+      { get title() { return assetText('tasks.host'); }, dataIndex: 'host', key: 'host', width: 200 },
+      { get title() { return assetText('tasks.port'); }, dataIndex: 'port', key: 'port', width: 100, align: 'center' },
+      { get title() { return assetText('tasks.target'); }, dataIndex: 'target', key: 'target', width: 250 },
+      { get title() { return assetText('tasks.savedAt'); }, dataIndex: 'insert_time', key: 'insert_time', width: 180 }
     ]
   },
   cip: {
     url: '/asset_cip/',
     exportUrl: '/asset_cip/export/',
-    tabName: 'C段',
+    get tabName() { return assetText('tasks.cClassNetworks'); },
     searchFields: [
-      { label: 'C段', key: 'cidr_ip', operator: '=' },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('tasks.cClassNetworks'); }, key: 'cidr_ip', operator: '=' },
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: 'C段', dataIndex: 'cidr_ip', key: 'cidr_ip', width: 300 },
-      { title: 'IP数', key: 'ip_count_col', width: 150, align: 'center' },
-      { title: '域名数', key: 'domain_count_col', width: 150, align: 'center' },
-      { title: '更新时间', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.cClassNetworks'); }, dataIndex: 'cidr_ip', key: 'cidr_ip', width: 300 },
+      { get title() { return assetText('tasks.ipCount'); }, key: 'ip_count_col', width: 150, align: 'center' },
+      { get title() { return assetText('tasks.domainCount'); }, key: 'domain_count_col', width: 150, align: 'center' },
+      { get title() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', width: 180 }
     ]
   },
   nuclei_result: {
     url: '/asset_nuclei_result/',
     tabName: 'nuclei',
     searchFields: [
-      { label: '模版ID', key: 'template_id', operator: '=' },
-      { label: '目标', key: 'target', operator: '=' },
-      { label: '漏洞URL', key: 'vuln_url', operator: '=' },
-      { label: '漏洞名称', key: 'vuln_name', operator: '=' }
+      { get label() { return assetText('tasks.templateId'); }, key: 'template_id', operator: '=' },
+      { get label() { return assetText('tasks.target'); }, key: 'target', operator: '=' },
+      { get label() { return assetText('tasks.vulnerableUrl'); }, key: 'vuln_url', operator: '=' },
+      { get label() { return assetText('tasks.vulnerabilityName'); }, key: 'vuln_name', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '模版ID', dataIndex: 'template_id', key: 'template_id', width: 180 },
-      { title: '目标', dataIndex: 'target', key: 'target', width: 200 },
-      { title: '漏洞URL', key: 'nuclei_vuln_url', width: 300 },
-      { title: '漏洞名称', dataIndex: 'vuln_name', key: 'vul_name', width: 200 },
-      { title: '漏洞等级', dataIndex: 'vuln_severity', key: 'vul_severity', width: 100, align: 'center' },
-      { title: '保存时间', dataIndex: 'insert_time', key: 'insert_time', width: 160 },
-      { title: '验证命令', key: 'verify_command', width: 350 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return assetText('tasks.templateId'); }, dataIndex: 'template_id', key: 'template_id', width: 180 },
+      { get title() { return assetText('tasks.target'); }, dataIndex: 'target', key: 'target', width: 200 },
+      { get title() { return assetText('tasks.vulnerableUrl'); }, key: 'nuclei_vuln_url', width: 300 },
+      { get title() { return assetText('tasks.vulnerabilityName'); }, dataIndex: 'vuln_name', key: 'vul_name', width: 200 },
+      { get title() { return assetText('tasks.severity'); }, dataIndex: 'vuln_severity', key: 'vul_severity', width: 100, align: 'center' },
+      { get title() { return assetText('tasks.savedAt'); }, dataIndex: 'insert_time', key: 'insert_time', width: 160 },
+      { get title() { return assetText('tasks.verificationCommand'); }, key: 'verify_command', width: 350 }
     ]
   },
   stat_finger: {
     url: '/asset_stat_finger/',
-    tabName: '指纹统计',
+    get tabName() { return assetText('tasks.fingerprintStatistics'); },
     searchFields: [
-      { 
-        label: 'finger', 
-        key: 'name', 
+      {
+        get label() { return assetText('tasks.fingerprints'); },
+        key: 'name',
         operator: '模糊匹配',
         hasOperatorSelect: true,
         operators: ['模糊匹配', '精确匹配']
       },
-      { label: '更新时间', key: 'update_date', type: 'dateRange' }
+      { get label() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', type: 'dateRange' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 80, align: 'center' },
-      { title: 'finger', key: 'finger_name', width: 500 },
-      { title: '数量', dataIndex: 'cnt', key: 'cnt', width: 200 },
-      { title: '更新时间', key: 'update_date', width: 180 }
+      { get title() { return assetText('tasks.no'); }, key: 'index', width: 80, align: 'center' },
+      { get title() { return assetText('tasks.fingerprints'); }, key: 'finger_name', width: 500 },
+      { get title() { return assetText('tasks.count'); }, dataIndex: 'cnt', key: 'cnt', width: 200 },
+      { get title() { return assetText('assets.updatedAtLabel'); }, key: 'update_date', width: 180 }
     ]
   }
 });
@@ -1900,7 +1904,7 @@ const fetchData = async () => {
     }
   } catch (error) {
     if (effectiveTab.value === currentReqTab) {
-      message.error('加载数据失败');
+      message.error(assetText('assets.failedToLoadData'));
     }
   } finally {
     if (effectiveTab.value === currentReqTab) {
@@ -1948,12 +1952,12 @@ const handleTableChange = (page, pageSize) => {
 // ================= 批量删除功能 (兼容所有 Tab) =================
 const handleBatchDelete = () => {
   Modal.confirm({
-    title: '批量删除确认',
+    title: assetText('tasks.deleteSelectedRecords'),
     icon: createVNode(ExclamationCircleOutlined),
-    content: `确定要从当前分组中删除选中的 ${selectedRowKeys.value.length} 条资产吗？删除后不可恢复。`,
-    okText: '确 定',
+    content: assetText('assets.permanentlyDeleteTheSelectedAssetsCountFromThis', { count: selectedRowKeys.value.length }),
+    okText: assetText('tasks.confirm'),
     okType: 'danger',
-    cancelText: '取 消',
+    cancelText: assetText('assets.cancel'),
     onOk: async () => {
       try {
         const config = tabConfig[effectiveTab.value];
@@ -1968,7 +1972,7 @@ const handleBatchDelete = () => {
         });
 
         if (res.code === 200) {
-          message.success('批量删除成功！');
+          message.success(assetText('tasks.assetsDeletedCount', { count: selectedRowKeys.value.length }));
 
           // 如果删光了当前页的数据且不在第一页，自动回退一页
           if (dataSource.value.length === selectedRowKeys.value.length && pagination.current > 1) {
@@ -1979,10 +1983,10 @@ const handleBatchDelete = () => {
           tabCache.invalidateMemoryCache(effectiveTab.value);
           fetchData(); // 🚨 完美对齐抓包里的第二个请求：自动刷新表格数据
         } else {
-          message.error('删除失败: ' + res.message);
+          message.error(assetText('tasks.deletionFailed') + res.message);
         }
       } catch (error) {
-        message.error('请求异常，删除失败');
+        message.error(assetText('assets.requestFailedAssetGroupWasNotDeleted'));
       }
     }
   });
@@ -2090,7 +2094,7 @@ const handleExport = async () => {
   if (!config || !config.exportUrl) return;
 
   try {
-    message.loading({ content: `正在生成导出文件...`, key: 'export_data' });
+    message.loading({ content: assetText('tasks.generatingExportFile'), key: 'export_data' });
 
     // 🚨 动态映射真实的 tabIndex
     const tabIndexMap = { site: 0, domain: 1, ip: 2, cert: 3, service: 4, fileleak: 5, url: 6, cip: 7, stat_finger: 8, wih: 9, vuln: 10, npoc_service: 11, nuclei_result: 12 };
@@ -2123,9 +2127,9 @@ const handleExport = async () => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
 
-    message.success({ content: `导出成功！`, key: 'export_data', duration: 2 });
+    message.success({ content: assetText('assets.exportCompleted'), key: 'export_data', duration: 2 });
   } catch (error) {
-    message.error({ content: `导出异常`, key: 'export_data', duration: 2 });
+    message.error({ content: assetText('assets.exportFailed'), key: 'export_data', duration: 2 });
   }
 };
 
@@ -2140,10 +2144,10 @@ const handleIPExport = async (type) => {
   // 🚨 完美映射抓包里的 3 个真实 API 路径
   if (type === 'port') {
     exportUrl = '/asset_ip/export/';
-    typeName = 'IP端口';
+    typeName = assetText('tasks.ipPort');
   } else if (type === 'domain') {
     exportUrl = '/asset_ip/export_domain/';
-    typeName = '域名';
+    typeName = assetText('tasks.domains');
   } else if (type === 'ip') {
     exportUrl = '/asset_ip/export_ip/';
     typeName = 'IP';
@@ -2152,7 +2156,7 @@ const handleIPExport = async (type) => {
   if (!exportUrl) return;
 
   try {
-    message.loading({ content: `正在打包生成文件...`, key: 'export_ip_data' });
+    message.loading({ content: assetText('assets.preparingExportFile'), key: 'export_ip_data' });
 
     // 🚨 完美对齐 Payload，并自动带上当前所有的搜索过滤条件
     const params = {
@@ -2179,9 +2183,9 @@ const handleIPExport = async (type) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
 
-    message.success({ content: `导出 ${typeName} 成功！`, key: 'export_ip_data', duration: 2 });
+    message.success({ content: assetText('assets.typeExportCompleted', { type: typeName }), key: 'export_ip_data', duration: 2 });
   } catch (error) {
-    message.error({ content: `导出异常，请重试`, key: 'export_ip_data', duration: 2 });
+    message.error({ content: assetText('assets.exportFailedTryAgain'), key: 'export_ip_data', duration: 2 });
   }
 };
 
@@ -2194,8 +2198,8 @@ const policies = ref([]);
 
 const addSiteForm = reactive({ site: '', policy_id: undefined });
 const addSiteRules = {
-  site: [{ required: true, message: '请输入站点' }],
-  policy_id: [{ required: true, message: '请选择策略' }]
+  site: [{ required: true, get message() { return assetText('assets.enterAWebsite'); } }],
+  policy_id: [{ required: true, get message() { return assetText('tasks.selectAPolicy'); } }]
 };
 
 const openAddSiteModal = async () => {
@@ -2221,17 +2225,17 @@ const submitAddSite = async () => {
 
     // 🚨 完美还原抓包：正常成功是 200，如果资产不在范围内是 802
     if (res.code === 200) {
-      message.success('添加站点成功！');
+      message.success(assetText('assets.websiteAdded'));
       addSiteVisible.value = false;
       tabCache.invalidateAllMemoryCaches();
       fetchData(); // 刷新表格
     } else if (res.code === 802) {
       message.error(res.message); // 弹出 "任务目标不在资产组中"
     } else {
-      message.error('添加失败: ' + res.message);
+      message.error(assetText('assets.failedToAddTask') + res.message);
     }
   } catch (e) {
-    message.error('请求异常');
+    message.error(assetText('tasks.requestFailed'));
   } finally {
     addSiteLoading.value = false;
   }
@@ -2247,8 +2251,8 @@ const selectedRiskTargets = ref([]); // 保存勾选选中的具体目标列表
 
 const riskForm = reactive({ name: '', policy_id: undefined });
 const riskRules = {
-  name: [{ required: true, message: '请输入任务名称' }],
-  policy_id: [{ required: true, message: '请选择策略' }]
+  name: [{ required: true, get message() { return assetText('tasks.enterATaskName'); } }],
+  policy_id: [{ required: true, get message() { return assetText('tasks.selectAPolicy'); } }]
 };
 // 统计目标数量
 const getPocCount = (policy) => {
@@ -2258,7 +2262,7 @@ const getPocCount = (policy) => {
 // 1. 打开弹窗：智能区分勾选目标 vs 全量筛选结果集
 const openRiskModal = async () => {
   try {
-    message.loading({ content: '正在准备巡航目标...', key: 'risk_task' });
+    message.loading({ content: assetText('assets.preparingRiskScanTargets'), key: 'risk_task' });
 
     // 复用之前的 policies 拉取逻辑，没有才去拉
     if (policies.value.length === 0) {
@@ -2274,7 +2278,7 @@ const openRiskModal = async () => {
         .filter(Boolean);
 
       if (selectedSites.length === 0) {
-        message.warning({ content: '选中的记录中未包含有效的站点目标', key: 'risk_task' });
+        message.warning({ content: assetText('assets.theSelectedRecordsContainNoValidWebsiteTargets'), key: 'risk_task' });
         return;
       }
 
@@ -2282,7 +2286,7 @@ const openRiskModal = async () => {
       currentResultSetId.value = '';
       currentTargetCount.value = selectedSites.length;
 
-      message.success({ content: `成功锁定选中的 ${selectedSites.length} 条资产准备下发`, key: 'risk_task' });
+      message.success({ content: assetText('assets.selectedAssetsReadyForScanningCount', { count: selectedSites.length }), key: 'risk_task' });
     } else {
       // 🎯 未勾选：根据当前搜索与资产组条件打包全量结果集
       selectedRiskTargets.value = [];
@@ -2291,12 +2295,12 @@ const openRiskModal = async () => {
 
       // 发起结果集保存请求
       const setRes = await request.get('/asset_site/save_result_set/', { params });
-      if (setRes.code !== 200) throw new Error('生成结果集失败');
+      if (setRes.code !== 200) throw new Error(assetText('assets.failedToCreateResultSet'));
 
       currentResultSetId.value = setRes.data.result_set_id;
       currentTargetCount.value = setRes.data.result_total || 0;
 
-      message.success({ content: `成功锁定 ${setRes.data.result_total} 条资产准备下发`, key: 'risk_task' });
+      message.success({ content: assetText('assets.assetsReadyForScanningCount', { count: setRes.data.result_total }), key: 'risk_task' });
     }
 
     // 初始化弹窗数据
@@ -2304,7 +2308,7 @@ const openRiskModal = async () => {
     riskForm.policy_id = undefined;
     riskModalVisible.value = true;
   } catch (e) {
-    message.error({ content: '准备下发任务失败', key: 'risk_task' });
+    message.error({ content: assetText('assets.failedToPrepareScanningTask'), key: 'risk_task' });
   }
 };
 
@@ -2340,13 +2344,13 @@ const submitRiskTask = async () => {
     const res = await request.post('/task/policy/', payload);
 
     if (res.code === 200) {
-      message.success('风险巡航任务下发成功！');
+      message.success(assetText('assets.riskScanTaskCreated'));
       riskModalVisible.value = false;
       if (selectedRiskTargets.value.length > 0) {
         selectedRowKeys.value = [];
       }
     } else {
-      message.error('下发失败: ' + (res.message || '未知错误'));
+      message.error(assetText('tasks.failedToCreateTaskLabel') + (res.message || assetText('tasks.unknownError')));
     }
   } catch (e) {
     console.warn('请求异常', e);
@@ -2362,8 +2366,8 @@ const addDomainFormRef = ref();
 
 const addDomainForm = reactive({ domain: '', policy_id: undefined });
 const addDomainRules = {
-  domain: [{ required: true, message: '请输入子域名' }],
-  policy_id: [{ required: true, message: '请选择策略' }]
+  domain: [{ required: true, get message() { return assetText('assets.enterASubdomain'); } }],
+  policy_id: [{ required: true, get message() { return assetText('tasks.selectAPolicy'); } }]
 };
 
 const openAddDomainModal = async () => {
@@ -2390,17 +2394,17 @@ const submitAddDomain = async () => {
 
     // 🚨 完美拦截原版状态码：成功是 200，越界是 701
     if (res.code === 200) {
-      message.success('添加子域名成功！');
+      message.success(assetText('assets.subdomainAdded'));
       addDomainVisible.value = false;
       tabCache.invalidateAllMemoryCaches();
       fetchData(); // 自动刷新当前页面的域名列表
     } else if (res.code === 701) {
       message.error(res.message); // 原汁原味抛出：域名不在给定的资产范围中
     } else {
-      message.error('添加失败: ' + res.message);
+      message.error(assetText('assets.failedToAddTask') + res.message);
     }
   } catch (e) {
-    message.error('请求异常');
+    message.error(assetText('tasks.requestFailed'));
   } finally {
     addDomainLoading.value = false;
   }
@@ -2422,6 +2426,12 @@ onDeactivated(() => {
 </script>
 
 <style scoped>
+.hero-left-section-en { flex-wrap: wrap; row-gap: 6px; overflow: visible; }
+.filter-field-label.filter-field-label-en { width: 112px; white-space: normal; overflow: visible; text-overflow: clip; }
+.asset-increment-badge :deep(.ant-badge-count) { background-color: #52c41a; font-size: 10px; }
+.asset-site-count :deep(.ant-badge-count) { background-color: #1890ff; color: #fff; cursor: pointer; border-radius: 4px; padding: 0 6px; font-size: 12px; }
+
+.operator-op-select-en { width: 130px !important; min-width: 130px; }
 
 /* 全库 / 资产组范围的显式标注：两页 tab 结构一致，需明确各自数据范围避免误读 */
 .scope-hint-line {
@@ -3238,4 +3248,14 @@ div:hover > .chain-action-btn {
   background: color-mix(in srgb, var(--arl-theme-color) 4%, var(--arl-bg-white)) !important;
 }
 
+
+.asset-status-icon { margin-right: 3px; }
+.asset-option-heading { font-weight: 600; font-size: 13px; color: var(--arl-text-color); }
+.asset-clickable { cursor: pointer; }
+.asset-field-hint { color: var(--arl-text-color); opacity: 0.45; margin-top: 2px; }
+.asset-summary-caption { color: var(--arl-text-color); opacity: 0.65; font-size: 12px; }
+.asset-selection-number { color: var(--arl-theme-color); margin: 0 4px; }
+.asset-risk-form { margin-top: 20px; }
+.asset-flush-bottom { margin-bottom: 0; }
+.asset-muted { color: var(--arl-text-color); opacity: 0.65; }
 </style>

@@ -26,17 +26,17 @@
       <div class="sidebar-header">
         <div style="display: flex; align-items: center; gap: 8px;">
           <ApartmentOutlined style="font-size: 16px; color: var(--arl-theme-color);" />
-          <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">资产组视图</span>
+          <span class="asset-sidebar-heading">{{ assetText('assets.assetGroupView') }}</span>
           <span class="sidebar-total-badge">{{ groupList.length }}</span>
         </div>
-        <a-tooltip title="新建集团">
+        <a-tooltip :title="assetText('assets.newOrganizationGroup')">
           <a-button type="text" size="small" class="sidebar-add-btn" @click="openAddEnterpriseGroupModal">
             <plus-outlined />
           </a-button>
         </a-tooltip>
       </div>
       <div class="sidebar-search-container">
-        <a-input v-model:value="groupSearchKey" placeholder="搜索集团..." allowClear size="small">
+        <a-input v-model:value="groupSearchKey" :placeholder="assetText('assets.searchOrganizationGroups')" allowClear size="small">
           <template #prefix><search-outlined style="color: var(--arl-text-color); opacity: 0.35;" /></template>
         </a-input>
       </div>
@@ -50,14 +50,14 @@
         >
           <a-menu-item key="all">
             <template #icon><appstore-outlined /></template>
-            全部资产组
+            {{ assetText('assets.allAssetGroups') }}
           </a-menu-item>
           <a-menu-item key="unassigned">
             <template #icon><inbox-outlined /></template>
-            未分组
+            {{ assetText('assets.ungrouped') }}
           </a-menu-item>
         </a-menu>
-        
+
         <div class="sidebar-group-divider"></div>
 
         <!-- 可拖拽自定义集团列表容器 -->
@@ -71,7 +71,7 @@
             @click="handleGroupSwitch(group._id)"
           >
             <div style="display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;">
-              <a-tooltip :title="groupSearchKey ? '搜索筛选中已禁用排序' : '按住拖动调整顺序'" placement="left" :mouseEnterDelay="0.4">
+              <a-tooltip :title="groupSearchKey ? assetText('assets.sortingIsDisabledWhileFilteringSearchResults') : assetText('assets.dragToReorder')" placement="left" :mouseEnterDelay="0.4">
                 <span
                   class="group-drag-handle"
                   :class="{ 'group-drag-handle-disabled': !!groupSearchKey }"
@@ -96,8 +96,8 @@
                 <span class="group-action-icon" @click.stop><more-outlined /></span>
                 <template #overlay>
                   <a-menu @click="(e) => handleGroupAction(e, group)">
-                    <a-menu-item key="edit">重命名</a-menu-item>
-                    <a-menu-item key="delete" style="color: #ff4d4f;">删除</a-menu-item>
+                    <a-menu-item key="edit">{{ assetText('assets.rename') }}</a-menu-item>
+                    <a-menu-item key="delete" class="asset-danger">{{ assetText('tasks.delete') }}</a-menu-item>
                   </a-menu>
                 </template>
               </a-dropdown>
@@ -106,16 +106,16 @@
         </div>
 
         <div v-if="groupSearchKey && filteredGroupList.length === 0" style="padding: 24px 16px; text-align: center; color: var(--arl-text-color); opacity: 0.5; font-size: 12px;">
-          <div>未找到匹配集团</div>
-          <a-button type="link" size="small" style="font-size: 11px; padding: 0; margin-top: 4px;" @click="groupSearchKey = ''">清空搜索</a-button>
+          <div>{{ assetText('assets.noMatchingOrganizationGroups') }}</div>
+          <a-button type="link" size="small" class="asset-clear-search" @click="groupSearchKey = ''">{{ assetText('assets.clearSearch') }}</a-button>
         </div>
       </div>
     </div>
 
     <!-- 侧边栏折叠把手（展开态：垂直居中悬浮在 Fixed 侧边栏右边缘） -->
-    <div 
-      v-if="!isSidebarCollapsed" 
-      @click="isSidebarCollapsed = true" 
+    <div
+      v-if="!isSidebarCollapsed"
+      @click="isSidebarCollapsed = true"
       :style="{
         position: 'fixed',
         top: '50%',
@@ -136,15 +136,15 @@
         transition: 'left 0.2s ease, background 0.2s'
       }"
       class="sidebar-collapse-handle"
-      title="收起集团分组"
+      :title="assetText('assets.collapseOrganizationGroups')"
     >
       <left-outlined style="font-size: 10px; color: var(--arl-text-color); opacity: 0.65;" />
     </div>
 
     <!-- 侧边栏展开把手（收起态：细条垂直居中，高度撑满） -->
-    <div 
-      v-if="isSidebarCollapsed" 
-      @click="isSidebarCollapsed = false" 
+    <div
+      v-if="isSidebarCollapsed"
+      @click="isSidebarCollapsed = false"
       :style="{
         position: 'fixed',
         top: '80px',
@@ -163,14 +163,14 @@
         zIndex: 15
       }"
       class="sidebar-expand-handle"
-      title="展开集团分组"
+      :title="assetText('assets.expandOrganizationGroups')"
     >
       <right-outlined style="font-size: 11px; color: var(--arl-text-color); opacity: 0.65;" />
-      <span style="writing-mode: vertical-lr; font-size: 11px; letter-spacing: 2px; color: var(--arl-text-color); opacity: 0.65;">集团</span>
+      <span class="asset-sidebar-handle">{{ assetText('assets.organizationGroups') }}</span>
     </div>
 
     <!-- 右侧主工作区 (现代化一体卡片容器) -->
-    <div 
+    <div
       :style="{
         marginLeft: isSidebarCollapsed ? '34px' : '248px',
         transition: 'margin-left 0.25s ease',
@@ -187,7 +187,7 @@
           <div class="scope-header-top">
             <div class="scope-title-area">
               <a-breadcrumb v-if="isSidebarCollapsed">
-                <a-breadcrumb-item>资产组</a-breadcrumb-item>
+                <a-breadcrumb-item>{{ assetText('tasks.assetGroup') }}</a-breadcrumb-item>
                 <a-breadcrumb-item>
                   <a-dropdown :getPopupContainer="getBodyContainer">
                     <span class="group-switch-trigger">
@@ -195,8 +195,8 @@
                     </span>
                     <template #overlay>
                       <a-menu :selectedKeys="[activeGroupId]" @click="handleGroupSwitch">
-                        <a-menu-item key="all">全部资产组</a-menu-item>
-                        <a-menu-item key="unassigned">未分组</a-menu-item>
+                        <a-menu-item key="all">{{ assetText('assets.allAssetGroups') }}</a-menu-item>
+                        <a-menu-item key="unassigned">{{ assetText('assets.ungrouped') }}</a-menu-item>
                         <a-menu-divider />
                         <a-menu-item v-for="g in groupList" :key="g._id">{{ g.name }}</a-menu-item>
                       </a-menu>
@@ -206,7 +206,7 @@
               </a-breadcrumb>
               <div v-else class="scope-title-wrap">
                 <span class="scope-title-text">{{ currentGroupName }}</span>
-                <span class="scope-total-tag" v-if="pagination.total !== undefined">共 {{ pagination.total }} 个资产组</span>
+                <span class="scope-total-tag" v-if="pagination.total !== undefined">{{ assetText('assets.assetGroupCount', { count: pagination.total }) }}</span>
               </div>
             </div>
             <div class="scope-header-actions" style="display: flex; align-items: center; gap: 12px;">
@@ -214,16 +214,16 @@
               <a-popover v-if="runningReconTasks.length > 0" placement="bottomRight">
                 <template #title>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 600;">企业全景测绘建组队列 ({{ runningReconTasks.length }})</span>
+                    <span class="asset-bold-label">{{ assetText('assets.enterpriseQueueCount', { count: runningReconTasks.length }) }}</span>
                     <a-button type="link" size="small" style="padding: 0; font-size: 11px; height: auto;" @click="clearAllRunningReconTasks">
-                      清空队列
+                      {{ assetText('assets.clearQueue') }}
                     </a-button>
                   </div>
                 </template>
                 <template #content>
                   <div style="min-width: 280px; max-width: 360px;">
-                    <div 
-                      v-for="t in runningReconTasks" 
+                    <div
+                      v-for="t in runningReconTasks"
                       :key="t.taskId"
                       style="padding: 8px 0; border-bottom: 1px solid var(--arl-border-color); display: flex; justify-content: space-between; align-items: center; gap: 10px;"
                     >
@@ -232,17 +232,17 @@
                           {{ t.name || t.target }}
                         </div>
                         <div style="font-size: 11px; color: var(--arl-text-color); opacity: 0.65; margin-top: 2px;">
-                          天眼查与工商双轨穿透 · 自动建组托管中
+                          {{ assetText('assets.tianyanchaAndOfficialRecordsDiscoveryAutomaticAssetGroup') }}
                         </div>
                       </div>
                       <div style="display: flex; align-items: center; gap: 6px;">
                         <a-tag color="processing" style="margin: 0; font-size: 11px;">
-                          <sync-outlined spin /> 测绘中
+                          <sync-outlined spin /> {{ assetText('assets.discovering') }}
                         </a-tag>
-                        <a-tooltip title="停止追踪并移出队列">
-                          <close-outlined 
+                        <a-tooltip :title="assetText('assets.stopTrackingAndRemoveFromQueue')">
+                          <close-outlined
                             style="cursor: pointer; color: #8c8c8c; font-size: 12px; padding: 2px; transition: color 0.2s;"
-                            @click.stop="dismissPendingReconTask(t.taskId)" 
+                            @click.stop="dismissPendingReconTask(t.taskId)"
                           />
                         </a-tooltip>
                       </div>
@@ -250,35 +250,35 @@
                   </div>
                 </template>
                 <a-tag color="processing" style="cursor: pointer; padding: 4px 10px; border-radius: 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;">
-                  <sync-outlined spin /> <b>{{ runningReconTasks.length }}</b> 个企业全景测绘中
+                  <sync-outlined spin /> {{ assetText('assets.runningEnterpriseCount', { count: runningReconTasks.length }) }}
                 </a-tag>
               </a-popover>
 
               <a-button type="primary" @click="openAddModal" class="header-action-btn">
-                <PlusOutlined /> 新建资产组
+                <PlusOutlined /> {{ assetText('tasks.createAnAssetGroup') }}
               </a-button>
             </div>
           </div>
 
           <!-- 筛选表单栏 -->
           <div class="scope-filter-toolbar">
-            <a-form :model="searchForm" layout="inline" class="scope-filter-form" @submit.prevent>
-              <a-form-item label="资产组名称">
-                <a-input v-model:value="searchForm.name" placeholder="输入名称搜索" style="width: 170px;" allowClear @pressEnter="onSearch" />
+            <a-form :label-wrap="true" :model="searchForm" layout="inline" class="scope-filter-form" @submit.prevent>
+              <a-form-item :label="assetText('tasks.assetGroupName')">
+                <a-input v-model:value="searchForm.name" :placeholder="assetText('assets.searchByName')" class="asset-width-170" allowClear @pressEnter="onSearch" />
               </a-form-item>
-              <a-form-item label="资产范围">
-                <a-input v-model:value="searchForm.scope" placeholder="输入域名/IP搜索" style="width: 175px;" allowClear @pressEnter="onSearch" />
+              <a-form-item :label="assetText('assets.assetScope')">
+                <a-input v-model:value="searchForm.scope" :placeholder="assetText('assets.searchDomainsOrIps')" class="asset-width-175" allowClear @pressEnter="onSearch" />
               </a-form-item>
-              <a-form-item label="资产范围ID">
-                <a-input v-model:value="searchForm._id" placeholder="输入ID搜索" style="width: 170px;" allowClear @pressEnter="onSearch" />
+              <a-form-item :label="assetText('tasks.assetScopeId')">
+                <a-input v-model:value="searchForm._id" :placeholder="assetText('assets.searchById')" class="asset-width-170" allowClear @pressEnter="onSearch" />
               </a-form-item>
               <a-form-item class="filter-actions-item">
                 <a-space size="small">
                   <a-button type="primary" @click="onSearch">
-                    <SearchOutlined /> 查 询
+                    <SearchOutlined /> {{ assetText('tasks.search') }}
                   </a-button>
                   <a-button @click="resetSearch">
-                    <ReloadOutlined /> 重 置
+                    <ReloadOutlined /> {{ assetText('tasks.reset') }}
                   </a-button>
                 </a-space>
               </a-form-item>
@@ -289,36 +289,36 @@
           <div class="scope-batch-toolbar">
             <div class="batch-buttons-group">
               <a-button :disabled="!hasSelected" @click="openBatchMoveModal">
-                <FolderOpenOutlined /> 批量移动至集团
+                <FolderOpenOutlined /> {{ assetText('assets.moveSelectedToOrganizationGroup') }}
               </a-button>
               <a-button danger :disabled="!hasSelected" @click="handleBatchDelete">
-                <DeleteOutlined /> 批量删除
+                <DeleteOutlined /> {{ assetText('tasks.deleteSelected') }}
               </a-button>
               <a-dropdown :disabled="!hasSelected" :getPopupContainer="getBodyContainer">
                 <template #overlay>
                   <a-menu @click="handleBatchExport">
-                    <a-menu-item key="asset_domain">域名批量导出</a-menu-item>
-                    <a-menu-item key="asset_ip">IP 批量导出</a-menu-item>
-                    <a-menu-item key="asset_site">站点批量导出</a-menu-item>
-                    <a-menu-item key="asset_wih">WIH批量导出</a-menu-item>
+                    <a-menu-item key="asset_domain">{{ assetText('tasks.exportSelectedDomains') }}</a-menu-item>
+                    <a-menu-item key="asset_ip">{{ assetText('tasks.exportSelectedIps') }}</a-menu-item>
+                    <a-menu-item key="asset_site">{{ assetText('tasks.exportSelectedWebsites') }}</a-menu-item>
+                    <a-menu-item key="asset_wih">{{ assetText('assets.exportWihRecordsInBatch') }}</a-menu-item>
                   </a-menu>
                 </template>
                 <a-button>
-                  批量导出 <DownOutlined />
+                  {{ assetText('tasks.exportSelected') }} <DownOutlined />
                 </a-button>
               </a-dropdown>
             </div>
 
             <div v-if="hasSelected" class="selection-indicator">
               <InfoCircleOutlined style="color: var(--arl-theme-color);" />
-              <span>已勾选 <strong>{{ selectedRowKeys.length }}</strong> 项</span>
-              <a-button type="link" size="small" @click="selectedRowKeys = []" style="padding: 0 4px;">取消选择</a-button>
+              <span>{{ assetText('assets.selected') }} <strong>{{ selectedRowKeys.length }}</strong> {{ assetText('assets.items') }}</span>
+              <a-button type="link" size="small" @click="selectedRowKeys = []" class="asset-inline-action">{{ assetText('tasks.clearSelection') }}</a-button>
             </div>
           </div>
 
         </div>
 
-        <a-table 
+        <a-table
           :sticky="stickyConfig"
           :row-selection="{ selectedRowKeys: selectedRowKeys, onChange: onSelectChange, preserveSelectedRowKeys: true }"
           :loading="loading"
@@ -337,7 +337,7 @@
               <div class="group-name-cell">
                 <div class="group-name-title-row">
                   <a class="group-name-title" @click="goToDetail(record)">{{ record.name }}</a>
-                  <a-badge v-if="record.has_increment" count="增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+                  <a-badge v-if="record.has_increment" :count="assetText('assets.newAssets')" class="asset-increment-badge" />
                 </div>
                 <div v-if="record.enterprise_name" class="enterprise-tag-row">
                   <a-tag color="cyan" size="small" class="enterprise-osint-tag" @click.stop="goToOsintDetail(record)">
@@ -359,9 +359,9 @@
                 <!-- 顶行：前两个核心主域 + 总数胶囊 -->
                 <div class="scope-compact-header">
                   <div class="scope-compact-tags">
-                    <span 
-                      v-for="(item, idx) in (record.scope_array || []).slice(0, 2)" 
-                      :key="idx" 
+                    <span
+                      v-for="(item, idx) in (record.scope_array || []).slice(0, 2)"
+                      :key="idx"
                       class="scope-compact-domain"
                       :title="item"
                     >
@@ -369,18 +369,18 @@
                       {{ item }}
                     </span>
                   </div>
-                  <a-popover 
-                    v-if="(record.scope_array || []).length > 0" 
-                    placement="bottomLeft" 
+                  <a-popover
+                    v-if="(record.scope_array || []).length > 0"
+                    placement="bottomLeft"
                     :getPopupContainer="getBodyContainer"
                     trigger="hover"
                   >
                     <template #content>
                       <div class="scope-popover-panel">
                         <div class="scope-popover-header">
-                          <span class="scope-popover-title">种子目标清单 ({{ (record.scope_array || []).length }})</span>
+                          <span class="scope-popover-title">{{ assetText('assets.seedTargetCount', { count: (record.scope_array || []).length }) }}</span>
                           <a-button type="link" size="small" class="scope-popover-copy-btn" @click="copyText((record.scope_array || []).join('\n'))">
-                            <copy-outlined /> 复制全部
+                            <copy-outlined /> {{ assetText('assets.copyAll') }}
                           </a-button>
                         </div>
                         <div class="scope-popover-list">
@@ -392,27 +392,27 @@
                           >
                             <template #title>
                               <div style="font-size: 12px; line-height: 1.6; padding: 2px;">
-                                <div><b>目标:</b> {{ item }}</div>
-                                <div><b>状态:</b> {{ getDomainStatusLabel(record, item) }}</div>
+                                <div><b>{{ assetText('assets.target') }}</b> {{ item }}</div>
+                                <div><b>{{ assetText('assets.status') }}</b> {{ getDomainStatusLabel(record, item) }}</div>
                                 <template v-if="record.domain_status?.[item]?.sync_source === 'icp'">
-                                  <div style="color: #69c0ff;"><b>来源:</b> 企业资产查询</div>
-                                  <div v-if="record.domain_status?.[item]?.task_name"><b>关联任务:</b> {{ record.domain_status[item].task_name }}</div>
-                                  <div v-if="record.domain_status?.[item]?.sync_time"><b>同步时间:</b> {{ record.domain_status[item].sync_time }}</div>
+                                  <div class="asset-source-label"><b>{{ assetText('assets.source') }}</b> {{ assetText('assets.enterpriseAssetQuery') }}</div>
+                                  <div v-if="record.domain_status?.[item]?.task_name"><b>{{ assetText('assets.relatedTask') }}</b> {{ record.domain_status[item].task_name }}</div>
+                                  <div v-if="record.domain_status?.[item]?.sync_time"><b>{{ assetText('assets.syncedAt') }}</b> {{ record.domain_status[item].sync_time }}</div>
                                   <div v-if="record.domain_status?.[item]?.task_id" style="margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 4px;">
                                     <a style="color: #40a9ff; font-weight: 500;" @click="goToReconDetail(record.domain_status[item].task_id)">
-                                      查看企业资产任务详情 &rarr;
+                                      {{ assetText('assets.viewEnterpriseTaskDetails') }}
                                     </a>
                                   </div>
                                 </template>
                                 <div v-else-if="record.domain_status?.[item]?.sync_time">
-                                  <b>更新时间:</b> {{ record.domain_status[item].sync_time }}
+                                  <b>{{ assetText('assets.updatedAt') }}</b> {{ record.domain_status[item].sync_time }}
                                 </div>
                               </div>
                             </template>
                             <div class="scope-popover-item">
                               <div class="scope-popover-item-main">
                                 <span class="domain-status-dot" :class="'status-' + getDomainStatus(record, item)"></span>
-                                <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" style="color: var(--arl-theme-color); margin-right: 3px; font-size: 11px;" title="来自企业资产同步">⚑</span>
+                                <span v-if="record.domain_status?.[item]?.sync_source === 'icp'" class="asset-sync-marker" :title="assetText('assets.syncedFromEnterpriseAssets')">⚑</span>
                                 <span class="scope-popover-item-text">{{ item }}</span>
                               </div>
                               <span class="scope-popover-item-status" :class="'text-' + getDomainStatus(record, item)">
@@ -424,10 +424,10 @@
                       </div>
                     </template>
                     <span class="scope-compact-count-badge">
-                      共 {{ (record.scope_array || []).length }} 个
+                      {{ assetText('assets.targetCount', { count: (record.scope_array || []).length }) }}
                     </span>
                   </a-popover>
-                  <span v-else style="color: var(--arl-text-color); opacity: 0.45; font-size: 12px;">无目标</span>
+                  <span v-else class="asset-no-targets">{{ assetText('assets.noTargets') }}</span>
                 </div>
 
                 <!-- 底行：微型健康进度条与覆盖率 -->
@@ -435,37 +435,37 @@
                   <a-tooltip placement="top">
                     <template #title>
                       <div style="line-height: 1.8; font-size: 12px;">
-                        <div>总种子数: <strong>{{ record.domain_stat.total }}</strong></div>
-                        <div v-if="record.domain_stat.scanning > 0">探测中: <strong style="color: #1890ff;">{{ record.domain_stat.scanning }}</strong></div>
-                        <div>已探测: <strong style="color: #52c41a;">{{ record.domain_stat.probed }}</strong> ({{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}%)</div>
-                        <div v-if="record.domain_stat.unprobed > 0">待探测: <strong style="color: #faad14;">{{ record.domain_stat.unprobed }}</strong></div>
-                        <div v-if="record.domain_stat.error > 0">探测异常: <strong style="color: #ff4d4f;">{{ record.domain_stat.error }}</strong></div>
+                        <div>{{ assetText('assets.seedTargetsLabel') }} <strong>{{ record.domain_stat.total }}</strong></div>
+                        <div v-if="record.domain_stat.scanning > 0">{{ assetText('assets.scanning') }} <strong class="asset-info">{{ record.domain_stat.scanning }}</strong></div>
+                        <div>{{ assetText('assets.scanned') }} <strong class="asset-success">{{ record.domain_stat.probed }}</strong> ({{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}%)</div>
+                        <div v-if="record.domain_stat.unprobed > 0">{{ assetText('assets.notScanned') }} <strong class="asset-warning">{{ record.domain_stat.unprobed }}</strong></div>
+                        <div v-if="record.domain_stat.error > 0">{{ assetText('assets.scanErrors') }} <strong class="asset-danger">{{ record.domain_stat.error }}</strong></div>
                       </div>
                     </template>
                     <div class="scope-mini-progress-bar">
-                      <div 
-                        class="progress-seg probed" 
+                      <div
+                        class="progress-seg probed"
                         :style="{ width: ((record.domain_stat.probed / record.domain_stat.total) * 100) + '%' }"
                       ></div>
-                      <div 
-                        v-if="record.domain_stat.scanning > 0" 
-                        class="progress-seg scanning" 
+                      <div
+                        v-if="record.domain_stat.scanning > 0"
+                        class="progress-seg scanning"
                         :style="{ width: ((record.domain_stat.scanning / record.domain_stat.total) * 100) + '%' }"
                       ></div>
-                      <div 
-                        v-if="record.domain_stat.error > 0" 
-                        class="progress-seg error" 
+                      <div
+                        v-if="record.domain_stat.error > 0"
+                        class="progress-seg error"
                         :style="{ width: ((record.domain_stat.error / record.domain_stat.total) * 100) + '%' }"
                       ></div>
-                      <div 
-                        v-if="record.domain_stat.unprobed > 0" 
-                        class="progress-seg unprobed" 
+                      <div
+                        v-if="record.domain_stat.unprobed > 0"
+                        class="progress-seg unprobed"
                         :style="{ width: ((record.domain_stat.unprobed / record.domain_stat.total) * 100) + '%' }"
                       ></div>
                     </div>
                   </a-tooltip>
                   <span class="scope-compact-progress-text">
-                    {{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}% 覆盖
+                    {{ Math.round((record.domain_stat.probed / record.domain_stat.total) * 100) }}{{ assetText('assets.coverage') }}
                   </span>
                 </div>
               </div>
@@ -474,7 +474,7 @@
             <template v-else-if="column.key === 'scope_id'">
               <div style="display: flex; align-items: center; gap: 8px;">
                 <a class="scope-id-text" @click="goToDetail(record)">{{ record._id }}</a>
-                <a-tooltip title="复制资产组 ID">
+                <a-tooltip :title="assetText('assets.copyAssetGroupId')">
                   <copy-outlined
                     class="copy-id-icon"
                     @click="copyText(record._id)"
@@ -486,25 +486,25 @@
             <template v-else-if="column.key === 'action'">
               <div class="table-actions-container">
                 <a-button type="link" size="small" class="grid-action-btn btn-theme" @click="goToDetail(record)">
-                  <RightCircleOutlined />进入
+                  <RightCircleOutlined />{{ assetText('assets.open') }}
                 </a-button>
                 <a-button type="link" size="small" class="grid-action-btn" @click="openEditGroupModal(record)">
-                  <EditOutlined />编辑
+                  <EditOutlined />{{ assetText('assets.edit') }}
                 </a-button>
                 <a-dropdown :getPopupContainer="getBodyContainer">
                   <a-button type="link" size="small" class="grid-action-btn">
-                    <ScheduleOutlined />调度 <DownOutlined style="font-size: 10px;" />
+                    <ScheduleOutlined />{{ assetText('assets.schedule') }} <DownOutlined class="asset-small-caption" />
                   </a-button>
                   <template #overlay>
                     <a-menu>
                       <a-menu-item key="monitor" @click="openAddMonitorModal(record)">
-                        <DashboardOutlined style="color: #1890ff; margin-right: 6px;" />资产监控扫描
+                        <DashboardOutlined class="asset-info-icon" />{{ assetText('assets.assetMonitoringScan') }}
                       </a-menu-item>
                       <a-menu-item key="site" @click="openAddSiteMonitorModal(record)">
-                        <GlobalOutlined style="color: #52c41a; margin-right: 6px;" />站点存活监控
+                        <GlobalOutlined class="asset-success-icon" />{{ assetText('assets.websiteAvailabilityMonitoring') }}
                       </a-menu-item>
                       <a-menu-item key="wih" @click="openAddWihMonitorModal(record)">
-                        <RadarChartOutlined style="color: #722ed1; margin-right: 6px;" />WIH 监控
+                        <RadarChartOutlined class="asset-purple-icon" />{{ assetText('assets.wihMonitoring') }}
                       </a-menu-item>
                     </a-menu>
                   </template>
@@ -515,9 +515,9 @@
                   size="small"
                   class="grid-action-btn btn-success"
                   @click="openSyncIncrement(record)"
-                  title="发现新增资产，点击同步入库"
+                  :title="assetText('assets.newAssetsFoundClickToSync')"
                 >
-                  <SyncOutlined />增量
+                  <SyncOutlined />{{ assetText('assets.newAssets') }}
                 </a-button>
                 <a-button
                   v-else-if="!record.synced_icp_task_id"
@@ -526,12 +526,12 @@
                   class="grid-action-btn"
                   style="color: #fa8c16;"
                   @click="openBindEnterprise(record)"
-                  title="尚未绑定企业主体，点击关联"
+                  :title="assetText('assets.noOrganizationLinkedClickToLinkOne')"
                 >
-                  <LinkOutlined />绑定
+                  <LinkOutlined />{{ assetText('assets.link') }}
                 </a-button>
                 <a-button type="link" danger size="small" class="grid-action-btn btn-danger" @click="handleSingleDelete(record)">
-                  <DeleteOutlined />删除
+                  <DeleteOutlined />{{ assetText('tasks.delete') }}
                 </a-button>
               </div>
             </template>
@@ -540,15 +540,15 @@
         </a-table>
 
         <div class="table-pagination-footer">
-          <div class="pagination-summary">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
-          <a-pagination 
-            :pageSizeOptions="$pageSizeOptions" 
-            v-model:current="pagination.current" 
-            v-model:pageSize="pagination.pageSize" 
-            :total="pagination.total" 
-            show-size-changer 
-            @change="handleTableChange" 
-            @showSizeChange="handleTableChange" 
+          <div class="pagination-summary">{{ assetText('tasks.paginationSummary', { pages: Math.ceil(pagination.total / pagination.pageSize) || 1, total: pagination.total }) }}</div>
+          <a-pagination
+            :pageSizeOptions="$pageSizeOptions"
+            v-model:current="pagination.current"
+            v-model:pageSize="pagination.pageSize"
+            :total="pagination.total"
+            show-size-changer
+            @change="handleTableChange"
+            @showSizeChange="handleTableChange"
           />
         </div>
       </div>
@@ -556,55 +556,55 @@
     <!-- 新建资产组弹窗 -->
     <a-modal
       v-model:open="addModalVisible"
-      title="新建资产组"
+      :title="assetText('tasks.createAnAssetGroup')"
       :width="creationMode === 'wizard' && wizardStep === 2 ? '780px' : '640px'"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
       :footer="creationMode === 'wizard' && wizardStep === 1 ? null : (creationMode === 'wizard' ? null : undefined)"
       @ok="handleAddSubmit"
       :confirmLoading="addLoading"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
       <div style="margin-bottom: 20px; text-align: center;">
         <a-radio-group v-model:value="creationMode" button-style="solid" size="middle">
-          <a-radio-button value="wizard">🏢 企业全景测绘建组</a-radio-button>
-          <a-radio-button value="manual">✍️ 手工录入资产</a-radio-button>
+          <a-radio-button value="wizard">{{ assetText('assets.discoverEnterpriseAndCreateAssetGroup') }}</a-radio-button>
+          <a-radio-button value="manual">{{ assetText('assets.enterAssetsManually') }}</a-radio-button>
         </a-radio-group>
       </div>
 
       <!-- 手工录入模式 -->
-      <a-form
+      <a-form :label-wrap="true"
         v-if="creationMode === 'manual'"
         ref="addFormRef"
         :model="addForm"
         :rules="addRules"
-        :label-col="{ style: { width: '110px' } }"
-        :wrapper-col="{ style: { width: 'calc(100% - 110px)' } }"
+        :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '110px' } }"
+        :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 110px)' } }"
         style="margin-top: 10px;"
       >
-        <a-form-item label="所属集团" name="group_id">
-          <a-select v-model:value="addForm.group_id" placeholder="请选择所属集团（可选）" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
+        <a-form-item :label="assetText('tasks.parentOrganization')" name="group_id">
+          <a-select v-model:value="addForm.group_id" :placeholder="assetText('tasks.selectAParentOrganizationOptional')" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
             <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
           </a-select>
         </a-form-item>
 
-        <a-form-item label="资产组名称" name="name">
-          <a-input v-model:value="addForm.name" placeholder="请输入资产组名称" allowClear />
+        <a-form-item :label="assetText('tasks.assetGroupName')" name="name">
+          <a-input v-model:value="addForm.name" :placeholder="assetText('tasks.enterAnAssetGroupName')" allowClear />
         </a-form-item>
 
-        <a-form-item label="资产范围" name="scope">
+        <a-form-item :label="assetText('assets.assetScope')" name="scope">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.65;">输入目标或从已有任务导入</span>
+            <span class="asset-muted-caption">{{ assetText('assets.enterTargetsOrImportFromAnExistingTask') }}</span>
             <a-button type="link" size="small" style="padding: 0; height: auto;" @click="openIcpImportModal('add')">
-              <cloud-download-outlined /> 从企业资产任务导入
+              <cloud-download-outlined /> {{ assetText('assets.importFromEnterpriseTask') }}
             </a-button>
           </div>
           <a-textarea
             v-model:value="addForm.scope"
             :rows="5"
-            placeholder="请输入资产范围（支持同时混填 IP、CIDR 与域名，如: 1.1.1.1, baidu.com, 192.168.1.0/24），多个请用逗号或换行分隔"
+            :placeholder="assetText('assets.enterIpsCidrRangesOrDomainsSuchAs')"
             style="font-family: monospace; font-size: 13px;"
           />
         </a-form-item>
@@ -615,7 +615,7 @@
         <!-- Stage 1: 全景测绘建组表单 -->
         <div v-if="wizardStep === 1">
           <a-spin :spinning="wizardLoading" :tip="wizardLoadingTip">
-            <a-form
+            <a-form :label-wrap="true"
               ref="wizardFormRef"
               :model="wizardForm"
               :label-col="{ style: { width: '120px' } }"
@@ -630,21 +630,21 @@
               >
                 <template #message>
                   <span style="color: var(--arl-text-color); line-height: 1.5;">
-                    输入天眼查企业链接或纯数字 GID，系统将穿透投资控股树，并联动工信部 ICP 双轨查重；建组后由当前页面自动纳管入库。
+                    {{ assetText('assets.enterATianyanchaCompanyUrlOrNumericGid') }}
                   </span>
                 </template>
               </a-alert>
 
               <!-- 输入目标: 企业目标 (支持链接与纯数字ID) -->
               <a-form-item
-                label="企业目标"
+                :label="assetText('tasks.targetOrganization')"
                 required
                 :validateStatus="wizardTargetError ? 'error' : ''"
                 :help="wizardTargetError"
               >
                 <a-input
                   v-model:value="wizardForm.target"
-                  placeholder="可粘贴天眼查链接（如 company/25174642）、GID 或企业工商全称"
+                  :placeholder="assetText('assets.pasteATianyanchaUrlSuchAsCompany25174642')"
                   allowClear
                   @change="onTycTargetChange"
                   @pressEnter="startWizardRecon"
@@ -654,31 +654,31 @@
                   </template>
                 </a-input>
                 <div v-if="parsedTycGid" style="margin-top: 4px; font-size: 12px; color: var(--ant-primary-color); display: flex; align-items: center; gap: 4px;">
-                  <check-circle-outlined /> <span>按天眼查 GID 解析: <b>{{ parsedTycGid }}</b> (将在提交后校验并执行全景双轨穿透)</span>
+                  <check-circle-outlined /> <span>{{ assetText('tasks.parsedTianyanchaGid') }} <b>{{ parsedTycGid }}</b> {{ assetText('tasks.theGidWillBeVerifiedAndCombinedDiscovery') }}</span>
                 </div>
                 <div v-else-if="isWizardCompanyName" style="margin-top: 4px; font-size: 12px; color: #722ed1; display: flex; align-items: center; gap: 4px;">
-                  <safety-certificate-outlined /> <span>已识别企业工商主体: <b>{{ wizardForm.target.trim() }}</b> (来源：工信部 ICP 备案)</span>
+                  <safety-certificate-outlined /> <span>{{ assetText('assets.registeredOrganizationIdentified') }} <b>{{ wizardForm.target.trim() }}</b> {{ assetText('tasks.sourceMiitIcpRecords') }}</span>
                 </div>
               </a-form-item>
 
               <!-- 资产组名称 (选填，留空自动生成) -->
               <a-form-item
-                label="资产组名称"
-                tooltip="留空将默认采用企业官方工商全称或 TYC_公司ID 自动命名"
+                :label="assetText('tasks.assetGroupName')"
+                :tooltip="assetText('assets.leaveBlankToUseTheOfficialRegisteredCompany')"
               >
                 <a-input
                   v-model:value="wizardForm.name"
-                  placeholder="选填，留空将自动根据企业工商全称命名"
+                  :placeholder="assetText('assets.optionalDefaultsToTheRegisteredCompanyName')"
                   allowClear
                   @pressEnter="startWizardRecon"
                 />
               </a-form-item>
 
               <!-- 所属集团 (选填) -->
-              <a-form-item label="所属集团">
+              <a-form-item :label="assetText('tasks.parentOrganization')">
                 <a-select
                   v-model:value="wizardForm.group_id"
-                  placeholder="请选择所属集团（可选）"
+                  :placeholder="assetText('tasks.selectAParentOrganizationOptional')"
                   allowClear
                   show-search
                   option-filter-prop="label"
@@ -691,21 +691,21 @@
               <!-- 自动化托管与探测偏好 -->
               <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 12px 14px; margin-bottom: 16px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                  <span style="font-weight: 500; font-size: 13px;">⚡ 自动化建组与探测偏好</span>
+                  <span class="asset-section-caption">{{ assetText('assets.automaticGroupCreationAndDiscoveryPreferences') }}</span>
                 </div>
                 <div style="margin-bottom: 10px;">
                   <a-checkbox v-model:checked="wizardAutoSync">
-                    <b>测绘完成后自动纳管建组</b>
+                    <b>{{ assetText('assets.createAndManageAnAssetGroupAfterDiscovery') }}</b>
                     <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7; margin-left: 6px;">
-                      (测绘完成后由后端自动检索并建组入库，无需保持本页面打开)
+                      {{ assetText('assets.theServerCreatesTheGroupAfterDiscoveryYou') }}
                     </span>
                   </a-checkbox>
                 </div>
                 <div>
                   <a-checkbox v-model:checked="wizardAutoScan">
-                    <b>建组后立即发起主动探测扫描</b>
+                    <b>{{ assetText('assets.startActiveScanningAfterCreatingTheGroup') }}</b>
                     <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7; margin-left: 6px;">
-                      (对新发现网站域名自动下发端口与指纹探测)
+                      {{ assetText('assets.queuePortScanningAndFingerprintDetectionForNewly') }}
                     </span>
                   </a-checkbox>
                 </div>
@@ -713,20 +713,20 @@
                 <div v-if="wizardAutoScan" style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--arl-border-color);">
                   <a-row :gutter="12">
                     <a-col :span="12">
-                      <a-form-item label="扫描策略" :label-col="{ style: { width: '80px' } }" :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }" style="margin-bottom: 0;" required>
+                      <a-form-item :label="assetText('tasks.scanPolicy')" :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '80px' } }" :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 80px)' } }" class="asset-flush-bottom" required>
                         <a-select
                           v-model:value="wizardPolicyId"
-                          placeholder="请选择扫描策略"
+                          :placeholder="assetText('tasks.selectAScanPolicy')"
                           size="small"
                           :options="policyList.map(p => ({ value: p._id, label: p.name }))"
                         />
                       </a-form-item>
                     </a-col>
                     <a-col :span="12">
-                      <a-form-item label="任务类型" :label-col="{ style: { width: '80px' } }" :wrapper-col="{ style: { width: 'calc(100% - 80px)' } }" style="margin-bottom: 0;">
+                      <a-form-item :label="assetText('tasks.taskTypeLabel')" :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '80px' } }" :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 80px)' } }" class="asset-flush-bottom">
                         <a-radio-group v-model:value="wizardTaskType" size="small">
-                          <a-radio-button value="oneshot">一次性扫描</a-radio-button>
-                          <a-radio-button value="periodic">周期监控</a-radio-button>
+                          <a-radio-button value="oneshot">{{ assetText('assets.oneTimeScan') }}</a-radio-button>
+                          <a-radio-button value="periodic">{{ assetText('assets.recurringMonitoring') }}</a-radio-button>
                         </a-radio-group>
                       </a-form-item>
                     </a-col>
@@ -737,16 +737,16 @@
               <!-- 高级测绘参数（常驻平铺展示） -->
               <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 12px 14px; margin-bottom: 20px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                  <span style="font-weight: 500; font-size: 13px;">⚙️ 高级测绘参数</span>
+                  <span class="asset-section-caption">{{ assetText('tasks.advancedDiscoverySettings') }}</span>
                 </div>
                 <a-row :gutter="16">
                   <a-col :span="12">
                     <a-form-item
-                      label="投资层级"
-                      :label-col="{ style: { width: '90px' } }"
-                      :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                      :label="assetText('tasks.investmentDepthLabel')"
+                      :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '90px' } }"
+                      :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
                       style="margin-bottom: 8px;"
-                      tooltip="穿透控股子公司与参股公司的递归深度 (1~20)。层级越高，天眼查 API 调用量与执行耗时增长越明显，且会消耗付费查询额度，请按需设置"
+                      :tooltip="assetText('tasks.recursiveDepthForSubsidiariesAndInvesteeCompanies1')"
                     >
                       <a-input-number
                         v-model:value="wizardForm.depth"
@@ -754,20 +754,20 @@
                         :max="20"
                         size="small"
                         style="width: 110px;"
-                        addon-after="层"
+                        :addon-after="assetText('tasks.levels')"
                       />
                       <div v-if="wizardForm.depth > 1" class="depth-cost-hint">
-                        已设置为 {{ wizardForm.depth }} 层，将递归查询下属企业，API 调用量与付费额度消耗相应增加
+                        {{ assetText('tasks.investmentDepthHint', { depth: wizardForm.depth }) }}
                       </div>
                     </a-form-item>
                   </a-col>
                   <a-col :span="12">
                     <a-form-item
-                      label="控股比例"
-                      :label-col="{ style: { width: '90px' } }"
-                      :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                      :label="assetText('tasks.minimumOwnershipLabel')"
+                      :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '90px' } }"
+                      :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
                       style="margin-bottom: 8px;"
-                      tooltip="对外投资的最小持股比例 (1~100%)"
+                      :tooltip="assetText('tasks.minimumOwnershipShareForInvestments1100')"
                     >
                       <a-input-number
                         v-model:value="wizardForm.invest_ratio"
@@ -782,24 +782,24 @@
                 </a-row>
 
                 <a-form-item
-                  label="ICP 双轨查重"
-                  :label-col="{ style: { width: '90px' } }"
-                  :wrapper-col="{ style: { width: 'calc(100% - 90px)' } }"
+                  :label="assetText('tasks.icpCrossCheck')"
+                  :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '90px' } }"
+                  :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
                   style="margin-bottom: 0;"
-                  tooltip="调用工信部 ICP 备案数据接口进行双轨校对与兜底补全"
+                  :tooltip="assetText('tasks.crossCheckAgainstOfficialMiitIcpRecordsAnd')"
                 >
                   <a-switch v-model:checked="wizardForm.enable_icp" size="small" />
                   <span style="font-size: 12px; margin-left: 8px; color: var(--arl-text-color); opacity: 0.7;">
-                    {{ wizardForm.enable_icp ? '已启用（推荐）' : '已关闭' }}
+                    {{ wizardForm.enable_icp ? assetText('tasks.enabledRecommended') : assetText('assets.disabled') }}
                   </span>
                 </a-form-item>
               </div>
 
               <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
-                <a-button @click="addModalVisible = false">取 消</a-button>
+                <a-button @click="addModalVisible = false">{{ assetText('assets.cancel') }}</a-button>
                 <a-button type="primary" :loading="wizardLoading" @click="startWizardRecon">
                   <template #icon><rocket-outlined /></template>
-                  {{ wizardAutoSync ? '🚀 开始全景测绘并自动建组' : '开始全景测绘并解析 →' }}
+                  {{ wizardAutoSync ? assetText('assets.discoverEnterpriseAndCreateAssetGroupAutomatically') : assetText('assets.startEnterpriseDiscovery') }}
                 </a-button>
               </div>
             </a-form>
@@ -812,19 +812,19 @@
             <a-alert
               type="success"
               show-icon
-              :message="`企业测绘检索完成！共发现 ${wizardDomains.length} 个网站域名`"
-              :description="`所属集团：${getGroupName(wizardForm.group_id) || '未分组'} | 资产组名称：${wizardForm.name.trim() || (wizardForm.target.trim() ? 'TYC_' + wizardForm.target.trim() : '未命名')}`"
+              :message="assetText('assets.enterpriseDiscoveryCompletedWebsiteDomainsFoundCount', { count: wizardDomains.length })"
+              :description="assetText('assets.organizationGroupGroupAssetGroupNameName', { group: getGroupName(wizardForm.group_id) || assetText('assets.ungrouped'), name: wizardForm.name.trim() || (wizardForm.target.trim() ? 'TYC_' + wizardForm.target.trim() : assetText('assets.unnamed')) })"
             />
           </div>
 
           <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <div style="display: flex; gap: 6px; align-items: center;">
-              <a-input v-model:value="wizardDomainSearch" placeholder="过滤域名..." size="small" style="width: 160px;" allowClear />
-              <a-button size="small" @click="selectAllWizardDomains">全选</a-button>
-              <a-button size="small" @click="selectedWizardDomains = []">取消全选</a-button>
+              <a-input v-model:value="wizardDomainSearch" :placeholder="assetText('tasks.filterDomains')" size="small" class="asset-width-160" allowClear />
+              <a-button size="small" @click="selectAllWizardDomains">{{ assetText('tasks.selectAll') }}</a-button>
+              <a-button size="small" @click="selectedWizardDomains = []">{{ assetText('tasks.clearThisCategory') }}</a-button>
             </div>
             <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7;">
-              已勾选 <b style="color: var(--arl-theme-color);">{{ selectedWizardDomains.length }}</b> / {{ wizardDomains.length }} 项
+              {{ assetText('assets.selected') }} <b class="asset-theme-text">{{ selectedWizardDomains.length }}</b> / {{ wizardDomains.length }} {{ assetText('assets.items') }}
             </span>
           </div>
 
@@ -835,33 +835,33 @@
               </a-checkbox>
             </div>
             <div v-if="filteredWizardDomains.length === 0" style="text-align: center; color: #bfbfbf; padding: 16px; font-size: 12px;">
-              未发现匹配的域名
+              {{ assetText('assets.noMatchingDomainsFound') }}
             </div>
           </div>
 
           <div style="background: var(--arl-bg-light); padding: 12px; border-radius: 6px; border: 1px solid var(--arl-border-color); margin-bottom: 20px;">
-            <a-form-item label="自动探测" style="margin-bottom: 8px;">
-              <a-checkbox v-model:checked="wizardAutoScan">立即对勾选域名发起主动探测扫描</a-checkbox>
+            <a-form-item :label="assetText('assets.automaticDiscovery')" class="asset-form-spacing">
+              <a-checkbox v-model:checked="wizardAutoScan">{{ assetText('assets.runActiveDiscoveryOnTheSelectedDomainsNow') }}</a-checkbox>
             </a-form-item>
             <template v-if="wizardAutoScan">
-              <a-form-item label="任务类型" style="margin-bottom: 8px;">
+              <a-form-item :label="assetText('tasks.taskTypeLabel')" class="asset-form-spacing">
                 <a-radio-group v-model:value="wizardTaskType">
-                  <a-radio value="oneshot">一次性扫描</a-radio>
-                  <a-radio value="periodic">周期性监控</a-radio>
+                  <a-radio value="oneshot">{{ assetText('assets.oneTimeScan') }}</a-radio>
+                  <a-radio value="periodic">{{ assetText('assets.recurringMonitoring') }}</a-radio>
                 </a-radio-group>
               </a-form-item>
-              <a-form-item label="扫描策略" style="margin-bottom: 0;" required>
-                <a-select v-model:value="wizardPolicyId" placeholder="请选择扫描策略" :options="policyList.map(p => ({ value: p._id, label: p.name }))" />
+              <a-form-item :label="assetText('tasks.scanPolicy')" class="asset-flush-bottom" required>
+                <a-select v-model:value="wizardPolicyId" :placeholder="assetText('tasks.selectAScanPolicy')" :options="policyList.map(p => ({ value: p._id, label: p.name }))" />
               </a-form-item>
             </template>
           </div>
 
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <a-button @click="wizardStep = 1">&larr; 返回修改</a-button>
+            <a-button @click="wizardStep = 1">{{ assetText('assets.goBack') }}</a-button>
             <div style="display: flex; gap: 8px;">
-              <a-button @click="addModalVisible = false">取 消</a-button>
+              <a-button @click="addModalVisible = false">{{ assetText('assets.cancel') }}</a-button>
               <a-button type="primary" :loading="wizardSubmitting" :disabled="selectedWizardDomains.length === 0" @click="submitWizardSync">
-                确认建组并入库 ({{ selectedWizardDomains.length }} 项)
+                {{ assetText('assets.createGroupWithCount', { count: selectedWizardDomains.length }) }}
               </a-button>
             </div>
           </div>
@@ -872,67 +872,67 @@
     <!-- 编辑资产组弹窗 -->
     <a-modal
       v-model:open="editGroupModalVisible"
-      title="编辑资产组"
+      :title="assetText('assets.editAssetGroup')"
       @ok="handleEditGroupSubmit"
       :confirmLoading="editGroupLoading"
       width="640px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="保 存"
-      cancelText="取 消"
+      :okText="assetText('assets.save')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form
+      <a-form :label-wrap="true"
         ref="editGroupFormRef"
         :model="editGroupForm"
         :rules="editGroupRules"
-        :label-col="{ span: 4 }"
-        :wrapper-col="{ span: 19 }"
+        :label-col="{ span: assetLocale === 'en-US' ? 6 : 4 }"
+        :wrapper-col="{ span: assetLocale === 'en-US' ? 17 : 19 }"
         style="margin-top: 20px;"
       >
-        <a-form-item label="所属集团" name="group_id">
-          <a-select v-model:value="editGroupForm.group_id" placeholder="请选择所属集团（可选）" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
+        <a-form-item :label="assetText('tasks.parentOrganization')" name="group_id">
+          <a-select v-model:value="editGroupForm.group_id" :placeholder="assetText('tasks.selectAParentOrganizationOptional')" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
             <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
           </a-select>
         </a-form-item>
 
-        <a-form-item label="资产组名称" name="name">
-          <a-input v-model:value="editGroupForm.name" placeholder="请输入资产组名称" />
+        <a-form-item :label="assetText('tasks.assetGroupName')" name="name">
+          <a-input v-model:value="editGroupForm.name" :placeholder="assetText('tasks.enterAnAssetGroupName')" />
         </a-form-item>
 
-        <a-form-item label="资产范围" name="scope">
+        <a-form-item :label="assetText('assets.assetScope')" name="scope">
           <!-- 提前告知剔除范围的级联后果，避免用户仅在点击保存后才被动获知 -->
           <div style="background: rgba(250, 173, 20, 0.12); border: 1px solid rgba(250, 173, 20, 0.3); border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 12px; color: #faad14; line-height: 1.5;">
-            ⚠️ 移除资产范围将同时级联清理该范围内已发现的子域名、IP、站点与 WIH 资产，且不可恢复；保存前会再次确认。
+            {{ assetText('assets.removingTargetsAlsoPermanentlyDeletesTheirDiscoveredSubdomains') }}
           </div>
           <!-- 模式切换与统计栏 -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.85;">
-              <span>共 <strong style="color: var(--arl-theme-color, #1890ff);">{{ editGroupScopeList.length }}</strong> 个有效目标</span>
+              <span>{{ assetText('assets.total') }} <strong class="asset-theme-fallback">{{ editGroupScopeList.length }}</strong> {{ assetText('assets.validTargets') }}</span>
               <span v-if="editGroupMode === 'visual' && editGroupSearchKeyword.trim()" style="margin-left: 6px;">
-                (匹配到 <strong style="color: #52c41a;">{{ filteredScopeList.length }}</strong> 个)
+                {{ assetText('assets.matched') }} <strong class="asset-success">{{ filteredScopeList.length }}</strong> {{ assetText('assets.message') }}
               </span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <a-button 
-                type="link" 
-                size="small" 
-                style="padding: 0; height: auto;" 
+              <a-button
+                type="link"
+                size="small"
+                class="asset-text-action"
                 @click="openIcpImportModal('edit')"
               >
-                <cloud-download-outlined style="margin-right: 4px;" />从企业资产导入
+                <cloud-download-outlined class="asset-inline-icon" />{{ assetText('assets.importEnterpriseAssets') }}
               </a-button>
-              <a-button 
-                type="link" 
-                size="small" 
-                style="padding: 0; height: auto;" 
+              <a-button
+                type="link"
+                size="small"
+                class="asset-text-action"
                 @click="toggleEditGroupMode"
               >
                 <template v-if="editGroupMode === 'visual'">
-                  <file-text-outlined style="margin-right: 4px;" />纯文本批量模式
+                  <file-text-outlined class="asset-inline-icon" />{{ assetText('assets.bulkTextMode') }}
                 </template>
                 <template v-else>
-                  <tags-outlined style="margin-right: 4px;" />可视化标签模式
+                  <tags-outlined class="asset-inline-icon" />{{ assetText('assets.tagMode') }}
                 </template>
               </a-button>
             </div>
@@ -944,7 +944,7 @@
             <div style="display: flex; gap: 8px; margin-bottom: 8px;">
               <a-input
                 v-model:value="editGroupSearchKeyword"
-                placeholder="搜索资产 (支持域名/IP模糊过滤)"
+                :placeholder="assetText('assets.searchAssetsByDomainOrIp')"
                 allowClear
                 size="middle"
                 style="flex: 1;"
@@ -956,14 +956,14 @@
 
               <a-popconfirm
                 v-if="editGroupSearchKeyword.trim() && filteredScopeList.length > 0"
-                :title="`确定批量移除匹配到的 ${filteredScopeList.length} 个资产范围吗？`"
-                ok-text="删除"
-                cancel-text="取消"
+                :title="assetText('assets.removeAllMatchingScopeTargetsCount', { count: filteredScopeList.length })"
+                :ok-text="assetText('tasks.delete')"
+                :cancel-text="assetText('tasks.cancel')"
                 ok-type="danger"
                 @confirm="removeFilteredScopes"
               >
                 <a-button danger size="middle">
-                  <delete-outlined /> 删除筛选结果 ({{ filteredScopeList.length }})
+                  <delete-outlined /> {{ assetText('assets.deleteFilteredCount', { count: filteredScopeList.length }) }}
                 </a-button>
               </a-popconfirm>
             </div>
@@ -972,13 +972,13 @@
             <div style="display: flex; gap: 8px; margin-bottom: 10px;">
               <a-input
                 v-model:value="editGroupNewInput"
-                placeholder="追加新资产（支持多行/逗号批量粘贴，回车快速添加）"
+                :placeholder="assetText('assets.addAssetsPasteMultipleLinesOrCommaSeparated')"
                 size="middle"
                 @pressEnter="addScopesFromInput"
                 style="flex: 1;"
               />
               <a-button type="primary" size="middle" @click="addScopesFromInput">
-                <plus-outlined /> 添加
+                <plus-outlined /> {{ assetText('assets.add') }}
               </a-button>
             </div>
 
@@ -996,7 +996,7 @@
                 </a-tag>
               </template>
               <div v-else class="arl-scope-empty-hint">
-                {{ editGroupSearchKeyword.trim() ? '未找到匹配的资产' : '暂无资产，请在上方输入添加' }}
+                {{ editGroupSearchKeyword.trim() ? assetText('assets.noMatchingAssets') : assetText('assets.noAssetsYetAddThemAbove') }}
               </div>
             </div>
           </div>
@@ -1006,12 +1006,12 @@
             <a-textarea
               v-model:value="editGroupForm.scope"
               :rows="7"
-              placeholder="请输入资产范围（支持同时混填 IP 与域名），多个请用逗号或换行分隔"
+              :placeholder="assetText('assets.enterIpsOrDomainsSeparatedByCommasOr')"
               style="font-family: monospace; font-size: 13px;"
             />
             <div style="margin-top: 6px; font-size: 12px; color: var(--arl-text-color); opacity: 0.65; display: flex; justify-content: space-between; align-items: center;">
-              <span>当前共 <strong style="color: #1890ff;">{{ parseScopeList(editGroupForm.scope).length }}</strong> 个有效目标</span>
-              <a-button type="link" size="small" style="padding: 0; height: auto;" @click="formatEditGroupScopes">格式化规整</a-button>
+              <span>{{ assetText('assets.totalLabel') }} <strong class="asset-info">{{ parseScopeList(editGroupForm.scope).length }}</strong> {{ assetText('assets.validTargets') }}</span>
+              <a-button type="link" size="small" class="asset-text-action" @click="formatEditGroupScopes">{{ assetText('assets.formatAndDeduplicate') }}</a-button>
             </div>
           </div>
         </a-form-item>
@@ -1026,43 +1026,43 @@
       width="560px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
       <template #title>
-        添加监控任务
-        <a-tooltip title="将对资产组已发现域名与本次新发现域名取并集后执行策略，当前结果仅展示资产组的增量更新（新增及变动数据）。">
+        {{ assetText('assets.addMonitoringTask') }}
+        <a-tooltip :title="assetText('assets.thePolicyRunsAgainstTheUnionOfExisting')">
           <QuestionCircleOutlined style="font-size: 14px; color: #8c8c8c; cursor: pointer; margin-left: 4px;" />
         </a-tooltip>
       </template>
-      <a-form ref="addMonitorFormRef" :model="addMonitorForm" :rules="addMonitorRules" :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
+      <a-form :label-wrap="true" ref="addMonitorFormRef" :model="addMonitorForm" :rules="addMonitorRules" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
 
-        <a-form-item label="范围" name="domains">
+        <a-form-item :label="assetText('assets.scope')" name="domains">
           <div style="margin-bottom: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
-            <a-button size="small" @click="selectAllDomains">全选 ({{ (currentRecord?.scope_array || []).length }})</a-button>
-            <a-button 
-              size="small" 
-              type="primary" 
-              ghost 
+            <a-button size="small" @click="selectAllDomains">{{ assetText('assets.selectAllCount', { count: (currentRecord?.scope_array || []).length }) }}</a-button>
+            <a-button
+              size="small"
+              type="primary"
+              ghost
               @click="selectUnprobedDomains"
               :style="{ borderColor: unprobedDomainList.length > 0 ? '#faad14' : '', color: unprobedDomainList.length > 0 ? '#d48806' : '' }"
             >
-              仅选未探测域名 ({{ unprobedDomainList.length }})
+              {{ assetText('assets.selectUnscannedCount', { count: unprobedDomainList.length }) }}
             </a-button>
-            <a-button size="small" @click="selectProbedDomains">仅选已探测 ({{ probedDomainList.length }})</a-button>
-            <a-button size="small" @click="clearDomains">清空</a-button>
+            <a-button size="small" @click="selectProbedDomains">{{ assetText('assets.selectScannedCount', { count: probedDomainList.length }) }}</a-button>
+            <a-button size="small" @click="clearDomains">{{ assetText('assets.clear') }}</a-button>
           </div>
-          <a-select mode="multiple" v-model:value="addMonitorForm.domains" placeholder="请选择范围" style="width: 100%;">
+          <a-select mode="multiple" v-model:value="addMonitorForm.domains" :placeholder="assetText('assets.selectTargets')" class="asset-full-width">
             <a-select-option v-for="item in currentRecord?.scope_array || []" :key="item" :value="item">
               <span style="display: flex; justify-content: space-between; align-items: center;">
                 <span>{{ item }}</span>
-                <span :style="{ 
-                  fontSize: '11px', 
+                <span :style="{
+                  fontSize: '11px',
                   marginLeft: '8px',
-                  color: getDomainStatus(currentRecord, item) === 'unprobed' ? '#faad14' : 
-                         getDomainStatus(currentRecord, item) === 'scanning' ? '#1890ff' : 
-                         getDomainStatus(currentRecord, item) === 'error' ? '#ff4d4f' : '#52c41a' 
+                  color: getDomainStatus(currentRecord, item) === 'unprobed' ? '#faad14' :
+                         getDomainStatus(currentRecord, item) === 'scanning' ? '#1890ff' :
+                         getDomainStatus(currentRecord, item) === 'error' ? '#ff4d4f' : '#52c41a'
                 }">
                   [{{ getDomainStatusLabel(currentRecord, item) }}]
                 </span>
@@ -1071,22 +1071,22 @@
           </a-select>
         </a-form-item>
 
-        <a-form-item label="任务类型" name="task_type">
+        <a-form-item :label="assetText('tasks.taskTypeLabel')" name="task_type">
           <a-radio-group v-model:value="addMonitorForm.task_type">
-            <a-radio value="periodic">周期性监控</a-radio>
-            <a-radio value="oneshot">一次性扫描</a-radio>
+            <a-radio value="periodic">{{ assetText('assets.recurringMonitoring') }}</a-radio>
+            <a-radio value="oneshot">{{ assetText('assets.oneTimeScan') }}</a-radio>
           </a-radio-group>
         </a-form-item>
 
-        <a-form-item label="运行间隔" name="interval_hours" v-if="addMonitorForm.task_type === 'periodic'">
+        <a-form-item :label="assetText('tasks.runInterval')" name="interval_hours" v-if="addMonitorForm.task_type === 'periodic'">
           <div style="display: flex; align-items: center; gap: 8px;">
             <a-input-number v-model:value="addMonitorForm.interval_hours" :min="1" style="width: 100%;" />
-            <span>小时</span>
+            <span>{{ assetText('tasks.hours') }}</span>
           </div>
         </a-form-item>
 
-        <a-form-item label="策略" name="policy_id">
-          <a-select v-model:value="addMonitorForm.policy_id" placeholder="请选择策略">
+        <a-form-item :label="assetText('tasks.policy')" name="policy_id">
+          <a-select v-model:value="addMonitorForm.policy_id" :placeholder="assetText('tasks.selectAPolicy')">
             <a-select-option v-for="p in policies" :key="p._id" :value="p._id">{{ p.name }}</a-select-option>
           </a-select>
         </a-form-item>
@@ -1097,21 +1097,21 @@
     <!-- 添加站点监控任务 -->
     <a-modal
       v-model:open="addSiteMonitorVisible"
-      title="添加站点监控任务"
+      :title="assetText('assets.addWebsiteMonitoringTask')"
       @ok="submitAddSiteMonitor"
       :confirmLoading="addSiteMonitorLoading"
       width="560px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form ref="addSiteMonitorFormRef" :model="addSiteMonitorForm" :rules="addSiteMonitorRules" :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
-        <a-form-item label="运行间隔" name="interval_hours">
+      <a-form :label-wrap="true" ref="addSiteMonitorFormRef" :model="addSiteMonitorForm" :rules="addSiteMonitorRules" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+        <a-form-item :label="assetText('tasks.runInterval')" name="interval_hours">
           <div style="display: flex; align-items: center; gap: 8px;">
             <a-input-number v-model:value="addSiteMonitorForm.interval_hours" :min="1" style="width: 100%;" />
-            <span>小时</span>
+            <span>{{ assetText('tasks.hours') }}</span>
           </div>
         </a-form-item>
       </a-form>
@@ -1120,21 +1120,21 @@
     <!-- 添加WIH监控任务 -->
     <a-modal
       v-model:open="addWihMonitorVisible"
-      title="添加WIH监控任务"
+      :title="assetText('assets.addWihMonitoringTask')"
       @ok="submitAddWihMonitor"
       :confirmLoading="addWihMonitorLoading"
       width="560px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form ref="addWihMonitorFormRef" :model="addWihMonitorForm" :rules="addWihMonitorRules" :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
-        <a-form-item label="运行间隔" name="interval_hours">
+      <a-form :label-wrap="true" ref="addWihMonitorFormRef" :model="addWihMonitorForm" :rules="addWihMonitorRules" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+        <a-form-item :label="assetText('tasks.runInterval')" name="interval_hours">
           <div style="display: flex; align-items: center; gap: 8px;">
             <a-input-number v-model:value="addWihMonitorForm.interval_hours" :min="1" style="width: 100%;" />
-            <span>小时</span>
+            <span>{{ assetText('tasks.hours') }}</span>
           </div>
         </a-form-item>
 
@@ -1145,22 +1145,22 @@
     <!-- 新建/重命名集团弹窗 -->
     <a-modal
       v-model:open="enterpriseGroupModalVisible"
-      :title="enterpriseGroupForm.isEdit ? '重命名集团' : '新建集团'"
+      :title="enterpriseGroupForm.isEdit ? assetText('assets.renameOrganizationGroup') : assetText('assets.newOrganizationGroup')"
       @ok="submitEnterpriseGroup"
       :confirmLoading="enterpriseGroupLoading"
       width="480px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form :model="enterpriseGroupForm" layout="vertical" style="margin-top: 16px;">
-        <a-form-item label="集团名称" required>
-          <a-input v-model:value="enterpriseGroupForm.name" placeholder="请输入集团名称" />
+      <a-form :label-wrap="true" :model="enterpriseGroupForm" layout="vertical" class="asset-modal-spacing">
+        <a-form-item :label="assetText('assets.organizationGroupName')" required>
+          <a-input v-model:value="enterpriseGroupForm.name" :placeholder="assetText('assets.enterAnOrganizationGroupName')" />
         </a-form-item>
-        <a-form-item label="描述" v-if="!enterpriseGroupForm.isEdit">
-          <a-textarea v-model:value="enterpriseGroupForm.description" placeholder="请输入描述（可选）" :rows="3" />
+        <a-form-item :label="assetText('assets.description')" v-if="!enterpriseGroupForm.isEdit">
+          <a-textarea v-model:value="enterpriseGroupForm.description" :placeholder="assetText('assets.enterADescriptionOptional')" :rows="3" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -1168,21 +1168,21 @@
     <!-- 批量移动至集团弹窗 -->
     <a-modal
       v-model:open="batchMoveModalVisible"
-      title="批量移动至集团"
+      :title="assetText('assets.moveSelectedToOrganizationGroup')"
       @ok="submitBatchMove"
       :confirmLoading="batchMoveLoading"
       width="480px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form layout="vertical" style="margin-top: 16px;">
-        <p>已选择 <strong>{{ selectedRowKeys.length }}</strong> 个资产组。</p>
-        <a-form-item label="目标集团" required>
-          <a-select v-model:value="batchMoveTargetGroupId" placeholder="请选择目标集团" :getPopupContainer="(trigger) => trigger.parentNode">
-            <a-select-option value="unassigned">取消分组 (移至未分组)</a-select-option>
+      <a-form :label-wrap="true" layout="vertical" class="asset-modal-spacing">
+        <p>{{ assetText('assets.selected') }} <strong>{{ selectedRowKeys.length }}</strong> {{ assetText('assets.assetGroupsLabel') }}</p>
+        <a-form-item :label="assetText('assets.destinationOrganizationGroup')" required>
+          <a-select v-model:value="batchMoveTargetGroupId" :placeholder="assetText('assets.selectADestinationOrganizationGroup')" :getPopupContainer="(trigger) => trigger.parentNode">
+            <a-select-option value="unassigned">{{ assetText('assets.removeGroupingMoveToUngrouped') }}</a-select-option>
             <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
           </a-select>
         </a-form-item>
@@ -1192,7 +1192,7 @@
     <!-- 从企业资产任务导入弹窗 -->
     <a-modal
       v-model:open="icpImportModalVisible"
-      title="从企业资产查询导入资产"
+      :title="assetText('assets.importAssetsFromEnterpriseQuery')"
       :footer="null"
       width="720px"
       wrapClassName="arl-theme-modal"
@@ -1202,14 +1202,14 @@
       <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <a-input
           v-model:value="icpImportSearchKey"
-          placeholder="搜索任务名称或目标企业..."
+          :placeholder="assetText('assets.searchTaskNameOrTargetOrganization')"
           allowClear
           style="width: 280px;"
         >
           <template #prefix><search-outlined style="color: #bfbfbf;" /></template>
         </a-input>
         <span style="font-size: 12px; color: var(--arl-text-color); opacity: 0.65;">
-          展示已完成的企业资产/ICP查询任务
+          {{ assetText('assets.showsCompletedEnterpriseAssetAndIcpQueryTasks') }}
         </span>
       </div>
 
@@ -1223,7 +1223,7 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'statistic'">
-            <span>{{ (record.statistic?.web_cnt !== undefined ? record.statistic.web_cnt : (record.statistic?.asset_cnt || 0)) }} 个网站</span>
+            <span>{{ assetText('assets.websiteCount', { count: record.statistic?.web_cnt !== undefined ? record.statistic.web_cnt : (record.statistic?.asset_cnt || 0) }) }}</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-button
@@ -1232,7 +1232,7 @@
               :loading="importingTaskId === record._id"
               @click="handleImportFromTask(record)"
             >
-              导入该任务资产
+              {{ assetText('assets.importAssetsFromThisTask') }}
             </a-button>
           </template>
         </template>
@@ -1249,23 +1249,23 @@
     <!-- 列表操作栏：绑定企业主体弹窗 -->
     <a-modal
       v-model:open="bindScopeModalVisible"
-      title="资产组绑定企业主体"
+      :title="assetText('assets.linkOrganizationToAssetGroup')"
       @ok="submitBindScopeEnterprise"
       :confirmLoading="bindScopeLoading"
       width="540px"
       wrapClassName="arl-theme-modal"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }" style="margin-top: 20px;">
-        <a-form-item label="当前资产组">
+      <a-form :label-wrap="true" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+        <a-form-item :label="assetText('assets.currentAssetGroup')">
           <span style="font-weight: 500;">{{ currentBindingScope?.name }}</span>
         </a-form-item>
-        <a-form-item label="企业测绘" required>
+        <a-form-item :label="assetText('tasks.enterpriseOsint')" required>
           <a-select
             v-model:value="selectedBindScopeTaskId"
-            placeholder="请选择已完成的企业测绘任务"
+            :placeholder="assetText('assets.selectACompletedEnterpriseDiscoveryTask')"
             show-search
             option-filter-prop="label"
             :options="completedIcpTasks.map(t => ({
@@ -1285,6 +1285,7 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
 defineOptions({ name: 'AssetScope' });
 
 import { ref, reactive, computed, createVNode, watch, onActivated, onDeactivated, onUnmounted, onMounted, nextTick } from 'vue';
@@ -1309,12 +1310,12 @@ import request from '../utils/request';
 import { message, Modal, notification, Button } from 'ant-design-vue';
 import { h } from 'vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
-import { 
-  SearchOutlined, 
-  DownOutlined, 
-  ExclamationCircleOutlined, 
-  QuestionCircleOutlined, 
-  PlusOutlined, 
+import {
+  SearchOutlined,
+  DownOutlined,
+  ExclamationCircleOutlined,
+  QuestionCircleOutlined,
+  PlusOutlined,
   DeleteOutlined,
   BankOutlined,
   SyncOutlined,
@@ -1334,6 +1335,8 @@ import {
 import { useRoute, useRouter } from 'vue-router';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { copyText as copyToClipboard } from '../utils/clipboard';
+
+const { t: assetText, locale: assetLocale } = useI18n({ useScope: 'global' });
 
 const getBodyContainer = () => document.body;
 
@@ -1361,13 +1364,13 @@ const onSelectChange = (keys) => { selectedRowKeys.value = keys; };
 // 表格列定义
 const columns = computed(() => {
   const baseColumns = [
-    { title: '资产组名称', key: 'name', width: 220, sorter: true },
-    { title: '种子目标与覆盖度', key: 'scope_and_stat', minWidth: 260 },
-    { title: '组 ID', key: 'scope_id', width: 150 },
-    { title: '操作', key: 'action', width: 250, fixed: 'right' }
+    { title: assetText('tasks.assetGroupName'), key: 'name', width: 220, sorter: true },
+    { title: assetText('assets.seedTargetsAndCoverage'), key: 'scope_and_stat', minWidth: 260 },
+    { title: assetText('assets.groupId'), key: 'scope_id', width: 150 },
+    { title: assetText('tasks.actions'), key: 'action', width: 250, fixed: 'right' }
   ];
   if (activeGroupId.value === 'all') {
-    baseColumns.splice(1, 0, { title: '所属集团', key: 'group_name', width: 120 });
+    baseColumns.splice(1, 0, { title: assetText('tasks.parentOrganization'), key: 'group_name', width: 120 });
   }
   return baseColumns;
 });
@@ -1380,10 +1383,10 @@ const getDomainStatus = (record, domain) => {
 
 const getDomainStatusLabel = (record, domain) => {
   const st = getDomainStatus(record, domain);
-  if (st === 'probed') return '已探测';
-  if (st === 'scanning') return '探测中';
-  if (st === 'error') return '探测异常';
-  return '未探测';
+  if (st === 'probed') return assetText('assets.scannedLabel');
+  if (st === 'scanning') return assetText('assets.scanningLabel');
+  if (st === 'error') return assetText('assets.scanError');
+  return assetText('assets.notScannedLabel');
 };
 
 const getDomainTagStyle = (record, domain) => {
@@ -1399,7 +1402,7 @@ const getDomainTooltip = (record, domain) => {
   const meta = record?.domain_status?.[domain] || {};
   const statusLabel = getDomainStatusLabel(record, domain);
   const time = meta.last_probe_time || meta.sync_time || '-';
-  return `域名: ${domain} | 状态: ${statusLabel} | 更新: ${time}`;
+  return assetText('assets.domainDomainStatusStatusUpdatedTime', { domain: domain, status: statusLabel, time: time });
 };
 
 // 解析文本中的目标数组（去重去空小写）
@@ -1422,9 +1425,9 @@ const parseScopeList = (text) => {
 const copyText = async (text) => {
   const ok = await copyToClipboard(text);
   if (ok) {
-    message.success('复制成功');
+    message.success(assetText('assets.copied'));
   } else {
-    message.error('复制失败，请手动选取复制');
+    message.error(assetText('tasks.copyFailedPleaseSelectAndCopyManually'));
   }
 };
 
@@ -1478,7 +1481,7 @@ const fetchData = async (silent = false) => {
   if (!silent) {
     loading.value = true;
   }
-  
+
   const fetchContextId = activeGroupId.value;
   currentFetchContextId = fetchContextId;
 
@@ -1488,7 +1491,7 @@ const fetchData = async (silent = false) => {
       if (searchForm.value[key]) params[key] = searchForm.value[key];
     }
     const res = await request.get('/asset_scope/', { params });
-    
+
     // 竞态防御：如果上下文 ID 已变更，说明已经切换了集团，直接丢弃本次请求结果
     if (currentFetchContextId !== fetchContextId) return;
 
@@ -1502,7 +1505,7 @@ const fetchData = async (silent = false) => {
     }
   } catch (error) {
     if (currentFetchContextId === fetchContextId) {
-      message.error('加载资产组失败');
+      message.error(assetText('assets.failedToLoadAssetGroups'));
     }
   } finally {
     if (currentFetchContextId === fetchContextId) {
@@ -1534,10 +1537,10 @@ const filteredGroupList = computed(() => {
 });
 
 const currentGroupName = computed(() => {
-  if (activeGroupId.value === 'all') return '全部资产组';
-  if (activeGroupId.value === 'unassigned') return '未分组';
+  if (activeGroupId.value === 'all') return assetText('assets.allAssetGroups');
+  if (activeGroupId.value === 'unassigned') return assetText('assets.ungrouped');
   const g = groupList.value.find(x => x._id === activeGroupId.value);
-  return g ? g.name : '未知分组';
+  return g ? g.name : assetText('assets.unknownOrganizationGroup');
 });
 
 // Sortable 拖拽排序逻辑
@@ -1564,7 +1567,7 @@ const initSortable = () => {
     onEnd: (evt) => {
       const { oldIndex, newIndex, item, from } = evt;
       if (oldIndex === newIndex || oldIndex == null || newIndex == null) return;
-      
+
       // 记录首轮拖动前的原始快照（用于故障原子回滚）
       if (!originalListSnapshot) {
         originalListSnapshot = [...groupList.value];
@@ -1579,11 +1582,11 @@ const initSortable = () => {
           from.insertBefore(item, from.children[oldIndex]);
         }
       }
-      
+
       // 乐观重排前端响应式数据
       const movedItem = groupList.value.splice(oldIndex, 1)[0];
       groupList.value.splice(newIndex, 0, movedItem);
-      
+
       // 防抖触发持久化保存
       triggerSaveOrder();
     }
@@ -1603,13 +1606,13 @@ const triggerSaveOrder = () => {
           g.sort_order = idx;
         });
       } else {
-        message.error(res.message || '排序保存失败，已自动恢复');
+        message.error(res.message || assetText('assets.failedToSaveTheOrderThePreviousOrder'));
         if (rollbackSnapshot) {
           groupList.value = rollbackSnapshot;
         }
       }
     } catch (err) {
-      message.error('网络请求异常，排序已自动恢复');
+      message.error(assetText('assets.networkRequestFailedThePreviousOrderWasRestored'));
       if (rollbackSnapshot) {
         groupList.value = rollbackSnapshot;
       }
@@ -1640,11 +1643,11 @@ const fetchGroups = async () => {
 const handleGroupSwitch = (info) => {
   const newKey = (info && typeof info === 'object' && info.key) ? info.key : info;
   if (newKey === activeGroupId.value) return;
-  
+
   if (selectedRowKeys.value.length > 0) {
     Modal.confirm({
-      title: '切换分组提示',
-      content: `您当前已勾选 ${selectedRowKeys.value.length} 个资产组尚未处理。切换左侧视图将取消这些勾选，是否继续？`,
+      title: assetText('assets.switchOrganizationGroup'),
+      content: assetText('assets.youHaveSelectedCountAssetGroupsSwitchingViews', { count: selectedRowKeys.value.length }),
       onOk: () => {
         selectedRowKeys.value = [];
         activeGroupId.value = newKey;
@@ -1672,32 +1675,32 @@ const handleGroupAction = (e, group) => {
   } else if (e.key === 'delete') {
     if (group.scope_count > 0) {
       Modal.warning({
-        title: '无法删除集团',
-        content: `集团【${group.name}】下仍有关联的 ${group.scope_count} 个资产组，禁止删除。请先将下属资产组批量划转至其他集团或移至未分组后再进行删除。`,
-        okText: '知道了'
+        title: assetText('assets.cannotDeleteOrganizationGroup'),
+        content: assetText('assets.organizationGroupNameStillContainsCountAssetGroups', { name: group.name, count: group.scope_count }),
+        okText: assetText('assets.gotIt')
       });
       return;
     }
     Modal.confirm({
-      title: '删除集团确认',
-      content: `确定要删除空集团【${group.name}】吗？删除后该操作不可恢复。`,
+      title: assetText('assets.deleteOrganizationGroup'),
+      content: assetText('assets.permanentlyDeleteEmptyOrganizationGroupNameThisCannot', { name: group.name }),
       okType: 'danger',
-      okText: '确 定',
-      cancelText: '取 消',
+      okText: assetText('tasks.confirm'),
+      cancelText: assetText('assets.cancel'),
       onOk: async () => {
         try {
           const res = await request.post('/asset_group/delete/', { _id: group._id });
           if (res.code === 200) {
-            message.success('删除集团成功');
+            message.success(assetText('assets.organizationGroupDeleted'));
             if (activeGroupId.value === group._id) {
               activeGroupId.value = 'all'; // Fallback focus
             }
             fetchGroups();
           } else {
-            message.error(res.message || '删除失败');
+            message.error(res.message || assetText('tasks.deletionFailedLabel'));
           }
         } catch(err) {
-          message.error('请求异常');
+          message.error(assetText('tasks.requestFailed'));
         }
       }
     });
@@ -1719,7 +1722,7 @@ const openAddEnterpriseGroupModal = () => {
 
 const submitEnterpriseGroup = async () => {
   if (!enterpriseGroupForm.name) {
-    message.warning('请输入集团名称');
+    message.warning(assetText('assets.enterAnOrganizationGroupName'));
     return;
   }
   enterpriseGroupLoading.value = true;
@@ -1731,14 +1734,14 @@ const submitEnterpriseGroup = async () => {
       res = await request.post('/asset_group/', { name: enterpriseGroupForm.name, description: enterpriseGroupForm.description });
     }
     if (res.code === 200) {
-      message.success(enterpriseGroupForm.isEdit ? '重命名成功' : '新建集团成功');
+      message.success(enterpriseGroupForm.isEdit ? assetText('assets.renamed') : assetText('assets.organizationGroupCreated'));
       enterpriseGroupModalVisible.value = false;
       fetchGroups();
     } else {
-      message.error(res.message || '操作失败');
+      message.error(res.message || assetText('tasks.operationFailedLabel'));
     }
   } catch(err) {
-    message.error('请求异常');
+    message.error(assetText('tasks.requestFailed'));
   } finally {
     enterpriseGroupLoading.value = false;
   }
@@ -1756,7 +1759,7 @@ const openBatchMoveModal = () => {
 
 const submitBatchMove = async () => {
   if (!batchMoveTargetGroupId.value) {
-    message.warning('请选择目标集团');
+    message.warning(assetText('assets.selectADestinationOrganizationGroup'));
     return;
   }
   batchMoveLoading.value = true;
@@ -1766,16 +1769,16 @@ const submitBatchMove = async () => {
       group_id: batchMoveTargetGroupId.value === 'unassigned' ? '' : batchMoveTargetGroupId.value
     });
     if (res.code === 200) {
-      message.success('批量移动成功');
+      message.success(assetText('assets.selectedGroupsMoved'));
       batchMoveModalVisible.value = false;
       selectedRowKeys.value = [];
       fetchData();
       fetchGroups();
     } else {
-      message.error(res.message || '移动失败');
+      message.error(res.message || assetText('assets.failedToMoveAssetGroups'));
     }
   } catch(err) {
-    message.error('请求异常');
+    message.error(assetText('tasks.requestFailed'));
   } finally {
     batchMoveLoading.value = false;
   }
@@ -1833,15 +1836,15 @@ const addForm = reactive({
 });
 
 const addRules = {
-  name: [{ required: true, message: '请输入资产组名称', trigger: 'blur' }],
-  scope: [{ required: true, message: '请输入资产范围', trigger: 'blur' }]
+  name: [{ required: true, get message() { return assetText('tasks.enterAnAssetGroupName'); }, trigger: 'blur' }],
+  scope: [{ required: true, get message() { return assetText('assets.enterAssetScopeTargets'); }, trigger: 'blur' }]
 };
 
 // 新建资产组模式与向导状态
 const creationMode = ref('wizard'); // 'wizard' | 'manual'
 const wizardStep = ref(1);
 const wizardLoading = ref(false);
-const wizardLoadingTip = ref('正在发起企业测绘...');
+const wizardLoadingTip = computed(() => assetText('assets.startingEnterpriseDiscovery'));
 const wizardTaskId = ref('');
 const wizardDomains = ref([]);
 const selectedWizardDomains = ref([]);
@@ -1939,8 +1942,8 @@ const loadPendingReconTasks = () => {
         if (expired.length > 0) {
           notification.warning({
             key: 'recon_expired_notice',
-            message: `有 ${expired.length} 个企业全景测绘任务已超出自动追踪时限`,
-            description: '自动纳管建组已改由后端执行，不依赖本页面。此处仅停止本页面的进度展示，请前往任务管理查看最终结果。',
+            message: assetText('assets.enterpriseDiscoveryTasksNoLongerTrackedAutomaticallyCount', { count: expired.length }),
+            description: assetText('assets.theServerNowCreatesAndManagesGroupsIndependently'),
             duration: 10
           });
         }
@@ -1979,7 +1982,7 @@ const clearAllRunningReconTasks = () => {
   pendingReconTasks.value = [];
   savePendingReconTasks();
   stopReconPoller();
-  message.success('已清空后台企业测绘建组队列');
+  message.success(assetText('assets.enterpriseDiscoveryGroupQueueCleared'));
 };
 
 const runningReconTasks = computed(() => {
@@ -2026,8 +2029,8 @@ const pollRunningReconTasks = async () => {
             dismissPendingReconTask(task.taskId);
             notification.warning({
               key: `recon_stop_${task.taskId}`,
-              message: `企业全景测绘已手动停止：${task.name || task.target}`,
-              description: '任务已被停止，系统不会自动建组或纳管资产。',
+              message: assetText('assets.enterpriseDiscoveryStoppedManuallyName', { name: task.name || task.target }),
+              description: assetText('assets.theTaskWasStoppedNoAssetGroupWill'),
               duration: 6
             });
             continue;
@@ -2039,8 +2042,8 @@ const pollRunningReconTasks = async () => {
             dismissPendingReconTask(task.taskId);
             notification.error({
               key: `recon_err_${task.taskId}`,
-              message: `企业全景测绘执行异常：${task.name || task.target}`,
-              description: taskObj.error_msg || '测绘任务执行发生错误，您可前往任务管理查看详细执行日志。'
+              message: assetText('assets.enterpriseDiscoveryFailedName', { name: task.name || task.target }),
+              description: taskObj.error_msg || assetText('assets.theDiscoveryTaskFailedCheckItsExecutionLogs')
             });
             continue;
           }
@@ -2065,8 +2068,8 @@ const pollRunningReconTasks = async () => {
                 dismissPendingReconTask(task.taskId);
                 notification.warning({
                   key: `recon_done_${task.taskId}`,
-                  message: `企业全景测绘未发现网站域名：${task.name || task.target}`,
-                  description: '已完成企业关系与备案检索，但在工信部与天眼查未发现可纳管的网站域名。',
+                  message: assetText('assets.noWebsiteDomainsFoundByEnterpriseDiscoveryName', { name: task.name || task.target }),
+                  description: assetText('assets.companyRelationshipsAndIcpRecordsWereQueriedBut'),
                   duration: 6
                 });
               } else {
@@ -2085,16 +2088,16 @@ const pollRunningReconTasks = async () => {
                 if (syncRes.code === 200) {
                   notification.success({
                     key: `recon_done_${task.taskId}`,
-                    message: `🎉 企业资产组已自动创建完成`,
-                    description: `企业【${targetName}】已成功建组并纳管 ${domainList.length} 个网站域名${task.autoScan ? '，已同步下发主动探测扫描' : ''}！`,
+                    message: assetText('assets.enterpriseAssetGroupCreatedAutomatically'),
+                    description: assetText('assets.assetGroupCreatedForNameWithCountWebsite', { name: targetName, count: domainList.length, details: task.autoScan ? assetText('assets.activeDiscoveryTasksHaveAlsoBeenQueued') : '' }),
                     duration: 8
                   });
                   fetchData();
                 } else {
                   notification.error({
                     key: `recon_done_${task.taskId}`,
-                    message: `自动建组失败：${targetName}`,
-                    description: syncRes.message || '资产导入异常'
+                    message: assetText('assets.automaticGroupCreationFailedName', { name: targetName }),
+                    description: syncRes.message || assetText('assets.assetImportFailed')
                   });
                 }
               }
@@ -2102,8 +2105,8 @@ const pollRunningReconTasks = async () => {
               // 用户显式取消了自动成组，保留手动确认
               notification.success({
                 key: `recon_done_${task.taskId}`,
-                message: `企业全景测绘已完成：${task.name || task.target}`,
-                description: `共发现 ${domainList.length} 个网站域名资产，可立即挑选入库并激活资产组。`,
+                message: assetText('assets.enterpriseDiscoveryCompletedName', { name: task.name || task.target }),
+                description: assetText('assets.websiteDomainsFoundCountSelectDomainsToSave', { count: domainList.length }),
                 btn: () => h(
                   Button,
                   {
@@ -2114,7 +2117,7 @@ const pollRunningReconTasks = async () => {
                       resumeWizardFromCompletedTask(task);
                     }
                   },
-                  { default: () => '立即挑选建组 →' }
+                  { default: () => assetText('assets.selectDomainsAndCreateGroup') }
                 ),
                 duration: 0
               });
@@ -2177,19 +2180,19 @@ const startWizardRecon = async () => {
   const customName = (wizardForm.name || '').trim();
 
   if (!rawTarget) {
-    wizardTargetError.value = '请输入天眼查企业链接、GID 或企业工商全称';
+    wizardTargetError.value = assetText('assets.enterATianyanchaCompanyUrlGidOrFull');
     return;
   }
 
   const parsed = parseTycInput(rawTarget);
   if (!parsed.gid && !parsed.isName) {
-    wizardTargetError.value = '未能识别有效目标，请输入企业主页链接、ID 或企业工商注册全称';
+    wizardTargetError.value = assetText('assets.noValidTargetRecognizedEnterACompanyUrl');
     return;
   }
 
   // 校验自动扫描策略
   if (wizardAutoScan.value && !wizardPolicyId.value) {
-    message.warning('已勾选自动探测，请选择扫描策略');
+    message.warning(assetText('assets.automaticDiscoveryIsEnabledSelectAScanPolicy'));
     return;
   }
 
@@ -2215,7 +2218,7 @@ const startWizardRecon = async () => {
       }
       const taskRes = await request.post('/icp/tyc_task', payload);
       if (!taskRes || taskRes.code !== 200) {
-        message.error(taskRes?.message || '发起企业全景测绘失败');
+        message.error(taskRes?.message || assetText('assets.failedToStartEnterpriseDiscovery'));
         wizardLoading.value = false;
         return;
       }
@@ -2233,7 +2236,7 @@ const startWizardRecon = async () => {
       };
       const taskRes = await request.post('/icp/task', payload);
       if (!taskRes || taskRes.code !== 200) {
-        message.error(taskRes?.message || '发起企业全景测绘失败');
+        message.error(taskRes?.message || assetText('assets.failedToStartEnterpriseDiscovery'));
         wizardLoading.value = false;
         return;
       }
@@ -2269,22 +2272,22 @@ const startWizardRecon = async () => {
     // 弹出通知
     notification.info({
       key: `recon_start_${taskId}`,
-      message: '企业全景测绘建组任务已提交后台',
+      message: assetText('assets.enterpriseDiscoveryAndGroupCreationQueued'),
       description: wizardAutoSync.value
-        ? `目标【${taskName}】全景测绘已下发。系统将检索并纳管资产，完成后由后端自动创建资产组并导入资产。`
-        : `目标【${taskName}】全景测绘已下发，完成后将通知您挑选域名建组。`,
+        ? assetText('assets.enterpriseDiscoveryQueuedForTargetTheServerWill', { target: taskName })
+        : assetText('assets.enterpriseDiscoveryQueuedForTargetYouWillBe', { target: taskName }),
       duration: 4.5
     });
 
   } catch (err) {
-    message.error('请求网络错误');
+    message.error(assetText('assets.networkRequestFailed'));
     wizardLoading.value = false;
   }
 };
 
 const submitWizardSync = async () => {
   if (selectedWizardDomains.value.length === 0) {
-    message.warning('请至少勾选一个入库域名');
+    message.warning(assetText('assets.selectAtLeastOneDomainToSave'));
     return;
   }
   wizardSubmitting.value = true;
@@ -2300,7 +2303,7 @@ const submitWizardSync = async () => {
     };
     const res = await request.post(`/icp/sync/${wizardTaskId.value}`, payload);
     if (res.code === 200) {
-      message.success('资产组创建成功并已导入资产');
+      message.success(assetText('assets.assetGroupCreatedAndAssetsImported'));
       addModalVisible.value = false;
       if (activeResumeTaskId.value) {
         dismissPendingReconTask(activeResumeTaskId.value);
@@ -2310,10 +2313,10 @@ const submitWizardSync = async () => {
       }
       fetchData();
     } else {
-      message.error(res.message || '入库失败');
+      message.error(res.message || assetText('assets.failedToSaveAssets'));
     }
   } catch (err) {
-    message.error('网络请求失败');
+    message.error(assetText('assets.networkRequestFailed'));
   } finally {
     wizardSubmitting.value = false;
   }
@@ -2331,10 +2334,10 @@ const openSyncIncrement = async (record) => {
       currentIncrementTask.value = res.items[0];
       syncIncrementModalVisible.value = true;
     } else {
-      message.error('未找到关联的企业测绘任务');
+      message.error(assetText('assets.noRelatedEnterpriseDiscoveryTaskFound'));
     }
   } catch (err) {
-    message.error('加载任务失败');
+    message.error(assetText('assets.failedToLoadTask'));
   }
 };
 
@@ -2366,7 +2369,7 @@ const openBindEnterprise = async (record) => {
 
 const submitBindScopeEnterprise = async () => {
   if (!selectedBindScopeTaskId.value) {
-    message.warning('请选择要绑定的企业测绘任务');
+    message.warning(assetText('assets.selectAnEnterpriseDiscoveryTaskToLink'));
     return;
   }
   bindScopeLoading.value = true;
@@ -2376,14 +2379,14 @@ const submitBindScopeEnterprise = async () => {
       task_id: selectedBindScopeTaskId.value
     });
     if (res && res.code === 200) {
-      message.success('绑定企业主体成功');
+      message.success(assetText('assets.organizationLinked'));
       bindScopeModalVisible.value = false;
       fetchData();
     } else {
-      message.error(res.message || '绑定失败');
+      message.error(res.message || assetText('assets.failedToLinkOrganization'));
     }
   } catch (err) {
-    message.error('网络请求失败');
+    message.error(assetText('assets.networkRequestFailed'));
   } finally {
     bindScopeLoading.value = false;
   }
@@ -2445,12 +2448,12 @@ const handleAddSubmit = async () => {
     const res = await request.post('/asset_scope/', addForm);
 
     if (res.code === 200) {
-      message.success('新建资产组成功！');
+      message.success(assetText('assets.assetGroupCreated'));
       addModalVisible.value = false;
       pagination.current = 1;
       fetchData();
     } else {
-      message.error('新建失败: ' + (res.message || '未知错误'));
+      message.error(assetText('assets.failedToCreateAssetGroup') + (res.message || assetText('tasks.unknownError')));
     }
   } catch (error) {
     console.warn('提交中断或校验失败', error);
@@ -2476,15 +2479,15 @@ const editGroupForm = reactive({
 });
 
 const editGroupRules = {
-  name: [{ required: true, message: '请输入资产组名称', trigger: 'blur' }],
+  name: [{ required: true, get message() { return assetText('tasks.enterAnAssetGroupName'); }, trigger: 'blur' }],
   scope: [
     {
       validator: async () => {
-        const list = editGroupMode.value === 'visual' 
-          ? editGroupScopeList.value 
+        const list = editGroupMode.value === 'visual'
+          ? editGroupScopeList.value
           : parseScopeList(editGroupForm.scope);
         if (!list || list.length === 0) {
-          return Promise.reject(new Error('请输入或保留至少一个资产范围'));
+          return Promise.reject(new Error(assetText('assets.enterOrRetainAtLeastOneScopeTarget')));
         }
         return Promise.resolve();
       },
@@ -2542,7 +2545,7 @@ const removeFilteredScopes = () => {
   const toRemove = new Set(filteredScopeList.value);
   editGroupScopeList.value = editGroupScopeList.value.filter(x => !toRemove.has(x));
   editGroupForm.scope = editGroupScopeList.value.join('\n');
-  message.success(`已批量移除 ${toRemove.size} 个匹配资产`);
+  message.success(assetText('assets.matchingAssetsRemovedCount', { count: toRemove.size }));
   editGroupSearchKeyword.value = '';
 };
 
@@ -2563,9 +2566,9 @@ const addScopesFromInput = () => {
   editGroupForm.scope = editGroupScopeList.value.join('\n');
   editGroupNewInput.value = '';
   if (addedCount > 0) {
-    message.success(`成功追加 ${addedCount} 个新资产！`);
+    message.success(assetText('assets.newAssetsAddedCount', { count: addedCount }));
   } else {
-    message.info('所填资产已全部存在，未重复添加');
+    message.info(assetText('assets.allEnteredAssetsAlreadyExistNoDuplicatesWere'));
   }
 };
 
@@ -2574,7 +2577,7 @@ const formatEditGroupScopes = () => {
   const list = parseScopeList(editGroupForm.scope);
   editGroupScopeList.value = list;
   editGroupForm.scope = list.join('\n');
-  message.success('已自动去重并按行规整！');
+  message.success(assetText('assets.duplicatesRemovedAndTargetsFormattedOnePerLine'));
 };
 
 // 提交编辑保存
@@ -2590,7 +2593,7 @@ const handleEditGroupSubmit = async () => {
     await editGroupFormRef.value.validate();
     const newScopeList = parseScopeList(editGroupForm.scope);
     if (newScopeList.length === 0) {
-      message.error('资产组必须保留至少一个资产范围，禁止清空！');
+      message.error(assetText('assets.keepAtLeastOneTargetInTheAsset'));
       return;
     }
 
@@ -2600,16 +2603,16 @@ const handleEditGroupSubmit = async () => {
 
     if (removed.length > 0) {
       Modal.confirm({
-        title: '⚠️ 资产范围剔除与级联清理确认',
+        title: assetText('assets.removeScopeTargetsAndDeleteRelatedAssets'),
         icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
         content: createVNode('div', null, [
-          createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, `检测到您从资产组【${editGroupForm.name}】中移除了以下 ${removed.length} 个资产范围：`),
+          createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, assetText('assets.youHaveRemovedTheseTargetsFromAssetGroup', { name: editGroupForm.name, count: removed.length })),
           createVNode('div', { style: 'max-height: 100px; overflow-y: auto; background: rgba(255, 77, 79, 0.12); border: 1px solid rgba(255, 77, 79, 0.25); padding: 6px 8px; border-radius: 4px; margin-bottom: 10px; font-family: monospace; font-size: 12px; color: #ff4d4f;' }, removed.join(', ')),
-          createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, '警告：移除上述主干目标后，系统将自动物理级联清理该组下所有归属于这些目标的已发现子域名、IP、站点和 WIH 沉淀资产，此操作不可逆！是否确认更新？')
+          createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, assetText('assets.warningRemovingTheseSeedTargetsPermanentlyDeletesAll'))
         ]),
-        okText: '确认更新并清理',
+        okText: assetText('assets.updateAndDeleteRelatedAssets'),
         okType: 'danger',
-        cancelText: '取 消',
+        cancelText: assetText('assets.cancel'),
         onOk: () => {
           submitEditGroupUpdate(newScopeList);
         }
@@ -2633,14 +2636,14 @@ const submitEditGroupUpdate = async (scopeList) => {
     });
 
     if (res.code === 200) {
-      message.success('资产组更新成功！');
+      message.success(assetText('assets.assetGroupUpdated'));
       editGroupModalVisible.value = false;
       fetchData();
     } else {
-      message.error('更新失败: ' + (res.message || '未知错误'));
+      message.error(assetText('assets.updateFailed') + (res.message || assetText('tasks.unknownError')));
     }
   } catch (error) {
-    message.error('请求异常，更新失败');
+    message.error(assetText('assets.requestFailedAssetGroupWasNotUpdated'));
   } finally {
     editGroupLoading.value = false;
   }
@@ -2649,21 +2652,21 @@ const submitEditGroupUpdate = async (scopeList) => {
 // ================= 表格 Tag 快捷单个移除范围 =================
 const handleRemoveSingleScope = (record, scopeItem) => {
   if ((record.scope_array || []).length <= 1) {
-    message.error('资产组必须保留至少一个资产范围，禁止清空！如需彻底销毁该分组，请直接删除资产组。');
+    message.error(assetText('assets.keepAtLeastOneTargetInTheAssetScope'));
     return;
   }
 
   Modal.confirm({
-    title: '⚠️ 资产范围剔除与级联清理确认',
+    title: assetText('assets.removeScopeTargetsAndDeleteRelatedAssets'),
     icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
     content: createVNode('div', null, [
-      createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, `检测到您正准备从资产组【${record.name}】中移除资产范围：`),
+      createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, assetText('assets.youAreAboutToRemoveThisScopeTarget', { name: record.name })),
       createVNode('div', { style: 'background: rgba(255, 77, 79, 0.12); border: 1px solid rgba(255, 77, 79, 0.25); padding: 6px 8px; border-radius: 4px; margin-bottom: 10px; font-family: monospace; font-size: 13px; font-weight: bold; color: #ff4d4f;' }, scopeItem),
-      createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, '警告：移除该主干目标后，系统将自动物理级联清理该组下所有归属于该目标的已发现子域名、IP、站点和 WIH 沉淀资产，此操作不可逆！是否确认移除？')
+      createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, assetText('assets.warningRemovingThisSeedTargetPermanentlyDeletesIts'))
     ]),
-    okText: '确认移除并清理',
+    okText: assetText('assets.removeTargetAndRelatedAssets'),
     okType: 'danger',
-    cancelText: '取 消',
+    cancelText: assetText('assets.cancel'),
     onOk: async () => {
       try {
         const res = await request.get('/asset_scope/delete/', {
@@ -2673,13 +2676,13 @@ const handleRemoveSingleScope = (record, scopeItem) => {
           }
         });
         if (res.code === 200) {
-          message.success(`已成功移除资产范围：${scopeItem}`);
+          message.success(assetText('assets.scopeTargetRemovedTarget', { target: scopeItem }));
           fetchData(true);
         } else {
-          message.error('移除失败: ' + (res.message || res.data?.error || '未知错误'));
+          message.error(assetText('assets.removalFailed') + (res.message || res.data?.error || assetText('tasks.unknownError')));
         }
       } catch (e) {
-        message.error('请求异常，移除失败');
+        message.error(assetText('assets.requestFailedScopeTargetWasNotRemoved'));
       }
     }
   });
@@ -2688,15 +2691,15 @@ const handleRemoveSingleScope = (record, scopeItem) => {
 // ================= 单行删除资产组 =================
 const handleSingleDelete = (record) => {
   Modal.confirm({
-    title: '⚠️ 资产组彻底销毁确认',
+    title: assetText('assets.permanentlyDeleteAssetGroup'),
     icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
     content: createVNode('div', null, [
-      createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, `确定要彻底删除资产组【${record.name}】吗？`),
-      createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, '警告：该操作将同时物理级联清理该组关联的所有已发现子域名、IP、站点、WIH 以及所有定时监控任务，此操作不可逆！')
+      createVNode('p', { style: 'color: #ff4d4f; margin-bottom: 8px;' }, assetText('assets.permanentlyDeleteAssetGroupName', { name: record.name })),
+      createVNode('p', { style: 'font-size: 12px; color: #8c8c8c; margin-bottom: 0;' }, assetText('assets.warningAllDiscoveredSubdomainsIpsWebsitesWihAssets'))
     ]),
-    okText: '彻底删除',
+    okText: assetText('assets.deletePermanently'),
     okType: 'danger',
-    cancelText: '取 消',
+    cancelText: assetText('assets.cancel'),
     onOk: async () => {
       try {
         const res = await request.post('/asset_scope/delete/', {
@@ -2704,16 +2707,16 @@ const handleSingleDelete = (record) => {
         });
 
         if (res.code === 200) {
-          message.success('资产组删除成功！');
+          message.success(assetText('assets.assetGroupDeleted'));
           if (dataSource.value.length === 1 && pagination.current > 1) {
             pagination.current -= 1;
           }
           fetchData();
         } else {
-          message.error('删除失败: ' + res.message);
+          message.error(assetText('tasks.deletionFailed') + res.message);
         }
       } catch (error) {
-        message.error('请求异常，删除失败');
+        message.error(assetText('assets.requestFailedAssetGroupWasNotDeleted'));
       }
     }
   });
@@ -2722,12 +2725,12 @@ const handleSingleDelete = (record) => {
 // ================= 批量删除逻辑 =================
 const handleBatchDelete = () => {
   Modal.confirm({
-    title: '⚠️ 批量删除资产组确认',
+    title: assetText('assets.deleteSelectedAssetGroups'),
     icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
-    content: `确定要彻底删除选中的 ${selectedRowKeys.value.length} 个资产组吗？删除后将同时物理级联清理所有关联的子资产与监控任务，不可恢复。`,
-    okText: '彻底删除',
+    content: assetText('assets.permanentlyDeleteSelectedAssetGroupsCountAndAll', { count: selectedRowKeys.value.length }),
+    okText: assetText('assets.deletePermanently'),
     okType: 'danger',
-    cancelText: '取 消',
+    cancelText: assetText('assets.cancel'),
     onOk: async () => {
       try {
         const res = await request.post('/asset_scope/delete/', {
@@ -2735,17 +2738,17 @@ const handleBatchDelete = () => {
         });
 
         if (res.code === 200) {
-          message.success('批量删除成功！');
+          message.success(assetText('assets.selectedAssetGroupsDeleted'));
           selectedRowKeys.value = [];
           if (dataSource.value.length === selectedRowKeys.value.length && pagination.current > 1) {
             pagination.current -= 1;
           }
           fetchData();
         } else {
-          message.error('删除失败: ' + res.message);
+          message.error(assetText('tasks.deletionFailed') + res.message);
         }
       } catch (error) {
-        message.error('请求异常，删除失败');
+        message.error(assetText('assets.requestFailedAssetGroupWasNotDeleted'));
       }
     }
   });
@@ -2755,15 +2758,15 @@ const handleBatchDelete = () => {
 const handleBatchExport = async ({ key }) => {
   const url = `/batch_export/${key}/`;
   const nameMap = {
-    'asset_domain': '域名',
+    'asset_domain': assetText('tasks.domains'),
     'asset_ip': 'IP',
-    'asset_site': '站点',
+    'asset_site': assetText('tasks.websites'),
     'asset_wih': 'WIH'
   };
   const exportName = nameMap[key];
 
   try {
-    message.loading({ content: `正在生成 ${exportName} 导出文件...`, key: 'export_data' });
+    message.loading({ content: assetText('assets.generatingTypeExport', { type: exportName }), key: 'export_data' });
 
     const res = await request.post(url, { scope_id: selectedRowKeys.value, group_id: searchForm.value.group_id }, { responseType: 'blob' });
     const blob = new Blob([res], { type: 'text/plain;charset=utf-8' });
@@ -2777,9 +2780,9 @@ const handleBatchExport = async ({ key }) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
 
-    message.success({ content: `${exportName} 导出成功！`, key: 'export_data', duration: 2 });
+    message.success({ content: assetText('assets.typeExportCompleted', { type: exportName }), key: 'export_data', duration: 2 });
   } catch (error) {
-    message.error({ content: `${exportName} 导出失败`, key: 'export_data', duration: 2 });
+    message.error({ content: assetText('assets.typeExportFailed', { type: exportName }), key: 'export_data', duration: 2 });
   }
 };
 
@@ -2802,10 +2805,10 @@ const policies = ref([]);
 
 const addMonitorForm = reactive({ domains: [], interval_hours: 24, policy_id: undefined, task_type: 'periodic' });
 const addMonitorRules = {
-  domains: [{ type: 'array', required: true, message: '请选择范围', trigger: 'change' }],
-  interval_hours: [{ required: true, message: '请输入运行间隔', trigger: 'blur' }],
-  policy_id: [{ required: true, message: '请选择策略', trigger: 'change' }],
-  task_type: [{ required: true, message: '请选择任务类型', trigger: 'change' }]
+  domains: [{ type: 'array', required: true, get message() { return assetText('assets.selectTargets'); }, trigger: 'change' }],
+  interval_hours: [{ required: true, get message() { return assetText('assets.enterARunInterval'); }, trigger: 'blur' }],
+  policy_id: [{ required: true, get message() { return assetText('tasks.selectAPolicy'); }, trigger: 'change' }],
+  task_type: [{ required: true, get message() { return assetText('assets.selectATaskType'); }, trigger: 'change' }]
 };
 
 const openAddMonitorModal = async (record) => {
@@ -2866,7 +2869,7 @@ const submitAddMonitor = async () => {
       policy_id: addMonitorForm.policy_id,
       name: ''
     };
-    
+
     if (addMonitorForm.task_type === 'oneshot') {
       delete payload.interval;
     }
@@ -2876,14 +2879,14 @@ const submitAddMonitor = async () => {
 
     if (res.code === 200) {
       const successCount = (res.data || res.items || []).length;
-      const countMsg = successCount > 0 ? `，共成功下发 ${successCount} 个任务！` : '！';
-      
-      message.success(addMonitorForm.task_type === 'oneshot' ? `一次性监控任务下发成功${countMsg}` : `添加监控任务成功${countMsg}`);
+      const countMsg = successCount > 0 ? assetText('assets.tasksQueuedCount', { count: successCount }) : '！';
+
+      message.success(addMonitorForm.task_type === 'oneshot' ? assetText('assets.oneTimeMonitoringTasksQueuedDetails', { details: countMsg }) : assetText('assets.monitoringTasksAddedDetails', { details: countMsg }));
       addMonitorVisible.value = false;
     } else if (res.code === 699) {
       message.error(res.message);
     } else {
-      message.error('添加失败: ' + res.message);
+      message.error(assetText('assets.failedToAddTask') + res.message);
     }
   } catch (error) {
     console.warn('校验失败或请求异常', error);
@@ -2899,7 +2902,7 @@ const addSiteMonitorFormRef = ref();
 
 const addSiteMonitorForm = reactive({ interval_hours: 24 });
 const addSiteMonitorRules = {
-  interval_hours: [{ required: true, message: '请输入运行间隔', trigger: 'blur' }]
+  interval_hours: [{ required: true, get message() { return assetText('assets.enterARunInterval'); }, trigger: 'blur' }]
 };
 
 const openAddSiteMonitorModal = (record) => {
@@ -2921,12 +2924,12 @@ const submitAddSiteMonitor = async () => {
     const res = await request.post('/scheduler/add/site_monitor/', payload);
 
     if (res.code === 200) {
-      message.success('添加站点监控任务成功！');
+      message.success(assetText('assets.websiteMonitoringTaskAdded'));
       addSiteMonitorVisible.value = false;
     } else if (res.code === 1607) {
       message.error(res.message);
     } else {
-      message.error('添加失败: ' + res.message);
+      message.error(assetText('assets.failedToAddTask') + res.message);
     }
   } catch (error) {
     console.warn('校验失败或请求异常', error);
@@ -2942,7 +2945,7 @@ const addWihMonitorFormRef = ref();
 
 const addWihMonitorForm = reactive({ interval_hours: 24 });
 const addWihMonitorRules = {
-  interval_hours: [{ required: true, message: '请输入运行间隔', trigger: 'blur' }]
+  interval_hours: [{ required: true, get message() { return assetText('assets.enterARunInterval'); }, trigger: 'blur' }]
 };
 
 const openAddWihMonitorModal = (record) => {
@@ -2964,12 +2967,12 @@ const submitAddWihMonitor = async () => {
     const res = await request.post('/scheduler/add/wih_monitor/', payload);
 
     if (res.code === 200) {
-      message.success('添加WIH监控任务成功！');
+      message.success(assetText('assets.wihMonitoringTaskAdded'));
       addWihMonitorVisible.value = false;
     } else if (res.code === 1607) {
       message.error(res.message);
     } else {
-      message.error('添加失败: ' + res.message);
+      message.error(assetText('assets.failedToAddTask') + res.message);
     }
   } catch (error) {
     console.warn('校验失败或请求异常', error);
@@ -3022,11 +3025,11 @@ const icpTaskList = ref([]);
 const icpImportTarget = ref('add'); // 'add' | 'edit'
 
 const icpImportColumns = [
-  { title: '任务名称', dataIndex: 'name', key: 'name', ellipsis: true },
-  { title: '查询目标', dataIndex: 'target', key: 'target', ellipsis: true },
-  { title: '网站资产数', key: 'statistic', width: 120 },
-  { title: '完成时间', dataIndex: 'end_time', key: 'end_time', width: 160 },
-  { title: '操作', key: 'action', width: 130, align: 'center' }
+  { get title() { return assetText('assets.taskName'); }, dataIndex: 'name', key: 'name', ellipsis: true },
+  { get title() { return assetText('tasks.queryTarget'); }, dataIndex: 'target', key: 'target', ellipsis: true },
+  { get title() { return assetText('assets.websiteAssets'); }, key: 'statistic', width: 120 },
+  { get title() { return assetText('assets.completionTime'); }, dataIndex: 'end_time', key: 'end_time', width: 160 },
+  { get title() { return assetText('tasks.actions'); }, key: 'action', width: 130, align: 'center' }
 ];
 
 const filteredIcpTasks = computed(() => {
@@ -3068,7 +3071,7 @@ const handleImportFromTask = async (task) => {
     const domainList = Array.from(domainSet);
 
     if (domainList.length === 0) {
-      message.warning('该任务未发现可导入的网站资产');
+      message.warning(assetText('assets.noWebsiteAssetsAreAvailableToImportFrom'));
       return;
     }
 
@@ -3090,11 +3093,11 @@ const handleImportFromTask = async (task) => {
       }
     }
 
-    message.success(`成功从任务【${task.name || task.target}】导入 ${domainList.length} 个资产域名！`);
+    message.success(assetText('assets.importedAssetsFromTaskNameCountDomains', { name: task.name || task.target, count: domainList.length }));
     icpImportModalVisible.value = false;
   } catch (err) {
     console.error('导入资产失败', err);
-    message.error('导入失败，请稍后重试');
+    message.error(assetText('assets.importFailedTryAgainLater'));
   } finally {
     importingTaskId.value = '';
   }
@@ -3139,6 +3142,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.asset-increment-badge :deep(.ant-badge-count) { background-color: #52c41a; font-size: 10px; }
+
 /* 投资层级成本提示：层级越高，天眼查付费额度消耗越大 */
 .depth-cost-hint {
   margin-top: 4px;
@@ -3839,4 +3844,35 @@ onUnmounted(() => {
 .group-drag-chosen {
   cursor: grabbing !important;
 }
+
+.asset-sidebar-heading { font-weight: 600; font-size: 15px; color: var(--arl-text-color); }
+.asset-danger { color: #ff4d4f; }
+.asset-clear-search { font-size: 11px; padding: 0; margin-top: 4px; }
+.asset-sidebar-handle { writing-mode: vertical-lr; font-size: 11px; letter-spacing: 2px; color: var(--arl-text-color); opacity: 0.65; }
+.asset-bold-label { font-weight: 600; }
+.asset-width-170 { width: 170px; }
+.asset-width-175 { width: 175px; }
+.asset-inline-action { padding: 0 4px; }
+.asset-source-label { color: #69c0ff; }
+.asset-sync-marker { color: var(--arl-theme-color); margin-right: 3px; font-size: 11px; }
+.asset-no-targets { color: var(--arl-text-color); opacity: 0.45; font-size: 12px; }
+.asset-info { color: #1890ff; }
+.asset-success { color: #52c41a; }
+.asset-warning { color: #faad14; }
+.asset-small-caption { font-size: 10px; }
+.asset-info-icon { color: #1890ff; margin-right: 6px; }
+.asset-success-icon { color: #52c41a; margin-right: 6px; }
+.asset-purple-icon { color: #722ed1; margin-right: 6px; }
+.asset-muted-caption { font-size: 12px; color: var(--arl-text-color); opacity: 0.65; }
+.asset-section-caption { font-weight: 500; font-size: 13px; }
+.asset-flush-bottom { margin-bottom: 0; }
+.asset-width-160 { width: 160px; }
+.asset-theme-text { color: var(--arl-theme-color); }
+.asset-form-spacing { margin-bottom: 8px; }
+.asset-theme-fallback { color: var(--arl-theme-color, #1890ff); }
+.asset-inline-icon { margin-right: 4px; }
+.asset-text-action { padding: 0; height: auto; }
+.asset-risk-form { margin-top: 20px; }
+.asset-full-width { width: 100%; }
+.asset-modal-spacing { margin-top: 16px; }
 </style>
