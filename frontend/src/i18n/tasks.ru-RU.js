@@ -747,5 +747,7 @@ export default {
   "geoLocation": "Местоположение",
   "version": "Версия",
   "taskId": "Идентификатор задачи",
-  "fuzzing": "Фаззинг"
+  "fuzzing": "Фаззинг",
+  "quickAppName": "Название быстрого приложения",
+  "quickAppIcpNumber": "Регистрационный номер быстрого приложения"
 };

@@ -40,6 +40,9 @@ backend/.venv-docker/
 #系统临时生成文件
 backend/app/tmp/
 backend/app/tmp_screenshot/
+data/
+backend/data/
+*.tar.gz
 ssl-certs/
 # 证书与私钥不入库：部署时由 start-prod.sh 生成，MCP 客户端按同机回环自动发现
 certs/
