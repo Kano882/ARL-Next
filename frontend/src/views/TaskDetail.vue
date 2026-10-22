@@ -22,26 +22,26 @@
     </a-page-header>
 
     <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" style="margin-bottom: 16px;">
-      <a-tab-pane key="site" :tab="taskId ? `站点 - ${queryCounts.site}` : '站点'"></a-tab-pane>
-      <a-tab-pane key="domain" :tab="taskId ? `子域名 - ${queryCounts.domain}` : '子域名'"></a-tab-pane>
+      <a-tab-pane key="site" :tab="taskId ? taskText('tasks.websitesCountLabel', { count: queryCounts.site }) : taskText('tasks.websites')"></a-tab-pane>
+      <a-tab-pane key="domain" :tab="taskId ? taskText('tasks.subdomainsCount', { count: queryCounts.domain }) : taskText('tasks.subdomains')"></a-tab-pane>
       <a-tab-pane key="ip" :tab="taskId ? `IP - ${queryCounts.ip}` : 'IP'"></a-tab-pane>
-      <a-tab-pane key="cert" :tab="taskId ? `SSL证书 - ${queryCounts.cert}` : 'SSL证书'"></a-tab-pane>
-      <a-tab-pane key="service" :tab="taskId ? `服务 - ${(queryCounts.service || 0) + (queryCounts.npoc_service || 0)}` : '服务'"></a-tab-pane>
-      <a-tab-pane key="fileleak" :tab="taskId ? `文件泄露 - ${queryCounts.fileleak}` : '文件泄露'"></a-tab-pane>
-      <a-tab-pane key="url" :tab="taskId ? `URL信息 - ${queryCounts.url}` : 'URL信息'"></a-tab-pane>
-      <a-tab-pane key="cip" :tab="taskId ? `C段 - ${queryCounts.cip}` : 'C段'"></a-tab-pane>
-      <a-tab-pane key="stat_finger" :tab="taskId ? `指纹统计 - ${queryCounts.stat_finger}` : '指纹统计'"></a-tab-pane>
+      <a-tab-pane key="cert" :tab="taskId ? taskText('tasks.sslCertificatesCount', { count: queryCounts.cert }) : taskText('tasks.sslCertificates')"></a-tab-pane>
+      <a-tab-pane key="service" :tab="taskId ? taskText('tasks.servicesCount', { count: (queryCounts.service || 0) + (queryCounts.npoc_service || 0) }) : taskText('tasks.services')"></a-tab-pane>
+      <a-tab-pane key="fileleak" :tab="taskId ? taskText('tasks.fileDisclosuresCount', { count: queryCounts.fileleak }) : taskText('tasks.fileDisclosure')"></a-tab-pane>
+      <a-tab-pane key="url" :tab="taskId ? taskText('tasks.urlsCount', { count: queryCounts.url }) : taskText('tasks.urls')"></a-tab-pane>
+      <a-tab-pane key="cip" :tab="taskId ? taskText('tasks.cClassNetworksCount', { count: queryCounts.cip }) : taskText('tasks.cClassNetworks')"></a-tab-pane>
+      <a-tab-pane key="stat_finger" :tab="taskId ? taskText('tasks.fingerprintStatisticsCount', { count: queryCounts.stat_finger }) : taskText('tasks.fingerprintStatistics')"></a-tab-pane>
       <a-tab-pane key="wih" :tab="taskId ? `WIH - ${queryCounts.wih}` : 'WIH'"></a-tab-pane>
-      <a-tab-pane key="vuln" :tab="taskId ? `风险 - ${queryCounts.vuln}` : '风险'"></a-tab-pane>
+      <a-tab-pane key="vuln" :tab="taskId ? taskText('tasks.risksCountLabel', { count: queryCounts.vuln }) : taskText('tasks.risks')"></a-tab-pane>
       <a-tab-pane key="nuclei_result" :tab="taskId ? `nuclei - ${queryCounts.nuclei_result}` : 'nuclei'"></a-tab-pane>
-      <a-tab-pane v-if="taskId" key="syslog" tab="任务日志"></a-tab-pane>
+      <a-tab-pane v-if="taskId" key="syslog" :tab="taskText('tasks.taskLogs')"></a-tab-pane>
     </a-tabs>
 
     <div v-if="activeTab === 'service'" style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px; background: var(--arl-bg-light); padding: 10px 16px; border-radius: 6px; border: 1px solid var(--arl-border-color);">
-      <span style="font-weight: 600; font-size: 13px; color: var(--arl-text-color);">识别引擎：</span>
+      <span class="task-option-heading">{{ taskText('tasks.detectionEngine') }}</span>
       <a-radio-group v-model:value="serviceEngineType" button-style="solid" size="small" @change="onServiceEngineChange">
-        <a-radio-button value="nmap">端口服务 (Nmap) <span v-if="taskId">({{ queryCounts.service || 0 }})</span></a-radio-button>
-        <a-radio-button value="npoc">Python 插件服务 <span v-if="taskId">({{ queryCounts.npoc_service || 0 }})</span></a-radio-button>
+        <a-radio-button value="nmap">{{ taskText('tasks.portServicesNmap') }} <span v-if="taskId">({{ queryCounts.service || 0 }})</span></a-radio-button>
+        <a-radio-button value="npoc">{{ taskText('tasks.pythonPluginServices') }} <span v-if="taskId">({{ queryCounts.npoc_service || 0 }})</span></a-radio-button>
       </a-radio-group>
     </div>
 
@@ -56,7 +56,7 @@
                 <a-select
             v-else-if="field.type === 'select'"
             v-model:value="searchForm[field.key]"
-            :placeholder="`请选择${field.label}`"
+            :placeholder="taskText('tasks.selectField', { field: field.label })"
             style="width: 200px;"
             allowClear
             @change="onSearch"
@@ -73,7 +73,7 @@
           <template v-if="field.type === 'select'">
             <a-select
                 v-model:value="searchForm[field.key]"
-                :placeholder="`请选择${field.label}`"
+                :placeholder="taskText('tasks.selectField', { field: field.label })"
                 :bordered="false"
                 style="flex: 1; box-shadow: none;"
                 allowClear
@@ -87,7 +87,7 @@
           <template v-else>
             <a-input
                 v-model:value="searchForm[field.key]"
-                :placeholder="field.placeholder || `请输入${field.label}`"
+                :placeholder="field.placeholder || taskText('tasks.enterField', { field: field.label })"
                 :bordered="false"
                 style="flex: 1; box-shadow: none;"
                 allowClear
@@ -105,14 +105,14 @@
               style="width: 90px; box-shadow: none;"
               @change="onSearch"
           >
-            <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ op }}</a-select-option>
+            <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ formatAssetFilterOperator(op) }}</a-select-option>
           </a-select>
         </div>
 
         <a-input
             v-else
             v-model:value="searchForm[field.key]"
-            :placeholder="`请输入${field.label}`"
+            :placeholder="taskText('tasks.enterField', { field: field.label })"
             style="width: 200px;"
             allowClear
             @pressEnter="onSearch"
@@ -126,10 +126,10 @@
     </div>
 
     <div v-show="activeTab !== 'syslog'" style="margin-bottom: 16px;">
-      <a-button style="margin-right: 16px;" @click="resetSearch">清空筛选条件</a-button>
-      <a-button v-if="canDeleteAssets" :disabled="!hasSelected" style="margin-right: 16px;" @click="handleBatchDelete">批量删除</a-button>
-      <a-button v-if="tabConfig[effectiveTab]?.exportName" type="primary" style="margin-right: 16px;" @click="handleExport">导出{{ tabConfig[effectiveTab].exportName }}</a-button>
-      <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">风险任务下发</a-button>
+      <a-button class="task-spaced-option" @click="resetSearch">{{ taskText('tasks.clearFilters') }}</a-button>
+      <a-button v-if="canDeleteAssets" :disabled="!hasSelected" class="task-spaced-option" @click="handleBatchDelete">{{ taskText('tasks.deleteSelected') }}</a-button>
+      <a-button v-if="tabConfig[effectiveTab]?.exportName" type="primary" class="task-spaced-option" @click="handleExport">{{ taskText('tasks.exportAssetType', { type: tabConfig[effectiveTab].exportName }) }}</a-button>
+      <a-button v-if="activeTab === 'site'" type="primary" @click="openRiskModal">{{ taskText('tasks.createRiskScanningTask') }}</a-button>
     </div>
     </div>
 
@@ -166,11 +166,11 @@
 
               <!-- 1. 入口标签 -->
               <a-tag v-if="record.is_entry || record.isEntry" style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);">
-                入口
+                {{ taskText('tasks.entryPoint') }}
                 <a-popconfirm
-                  title="确定移除「入口」标签吗？"
-                  ok-text="确认"
-                  cancel-text="取消"
+                  :title="taskText('tasks.removeTheEntryPointTag')"
+                  :ok-text="taskText('tasks.confirm')"
+                  :cancel-text="taskText('tasks.cancel')"
                   @confirm="handleDeleteTag(record, '入口')"
                 >
                   <span class="ant-tag-close-icon" @click.stop>
@@ -184,9 +184,9 @@
                 <a-tag style="background: var(--arl-bg-light); color: var(--arl-text-color); border-color: var(--arl-border-color);">
                   {{ typeof t === 'string' ? t : (t?.name || t?.tag_name || t) }}
                   <a-popconfirm
-                    :title="`确定移除「${typeof t === 'string' ? t : (t?.name || t?.tag_name || t)}」标签吗？`"
-                    ok-text="确认"
-                    cancel-text="取消"
+                    :title="taskText('tasks.removeTagTag', { tag: typeof t === 'string' ? t : (t?.name || t?.tag_name || t) })"
+                    :ok-text="taskText('tasks.confirm')"
+                    :cancel-text="taskText('tasks.cancel')"
                     @confirm="handleDeleteTag(record, typeof t === 'string' ? t : (t?.name || t?.tag_name || t))"
                   >
                     <span class="ant-tag-close-icon" @click.stop>
@@ -196,7 +196,7 @@
                 </a-tag>
               </template>
 
-              <span class="add-tag" @click="openTagModal(record)" style="cursor: pointer;">添加标签</span>
+              <span class="add-tag task-clickable" @click="openTagModal(record)" >{{ taskText('tasks.addTag') }}</span>
             </div>
           </div>
         </template>
@@ -261,7 +261,7 @@
 
               <div style="cursor: pointer;">
                 <div v-for="(ip, i) in record.ips.slice(0, 5)" :key="i">{{ ip }}</div>
-                <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 2px;">...等 {{ record.ips.length }} 个</div>
+                <div class="task-field-hint">{{ taskText('tasks.andMore') }} {{ record.ips.length }} {{ taskText('tasks.itemsLabel') }}</div>
               </div>
             </a-tooltip>
 
@@ -287,7 +287,7 @@
               </template>
               <div style="cursor: pointer;">
                 <div v-for="(dom, i) in record.domain.slice(0, 5)" :key="i">{{ dom }}</div>
-                <div style="color: var(--arl-text-color); opacity: 0.45; margin-top: 2px;">...等 {{ record.domain.length }} 个</div>
+                <div class="task-field-hint">{{ taskText('tasks.andMore') }} {{ record.domain.length }} {{ taskText('tasks.itemsLabel') }}</div>
               </div>
             </a-tooltip>
             <div v-else>
@@ -312,34 +312,34 @@
         <template v-else-if="column.key === 'cert_detail'">
           <div v-if="record.cert" style="font-size: 13px; line-height: 1.8; color: var(--arl-text-color); padding: 12px 0;">
 
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px;">基本信息</div>
+            <div class="task-section-heading">{{ taskText('tasks.basicInformation') }}</div>
 
             <div style="display: flex; margin-bottom: 6px;">
-              <div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">主题名称</div>
+              <div class="task-option-label">{{ taskText('tasks.subject') }}</div>
               <div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.subject_dn || '-' }}</div>
             </div>
 
             <div style="display: flex; margin-bottom: 6px;">
-              <div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">签发者名称</div>
+              <div class="task-option-label">{{ taskText('tasks.issuer') }}</div>
               <div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.issuer_dn || '-' }}</div>
             </div>
 
             <div style="display: flex; margin-bottom: 6px;">
-              <div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">使用者备用名称</div>
+              <div class="task-option-label">{{ taskText('tasks.subjectAlternativeNames') }}</div>
               <div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.extensions?.subjectAltName || '-' }}</div>
             </div>
 
             <div style="display: flex; margin-bottom: 6px;">
-              <div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">序列号</div>
+              <div class="task-option-label">{{ taskText('tasks.serialNumber') }}</div>
               <div style="flex: 1; word-break: break-all; color: var(--arl-text-color);">{{ record.cert.serial_number || '-' }}</div>
             </div>
 
             <div style="display: flex; margin-bottom: 16px;">
-              <div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">时间</div>
-              <div style="flex: 1; color: var(--arl-text-color);">{{ record.cert.validity?.start || '-' }} 至 {{ record.cert.validity?.end || '-' }}</div>
+              <div class="task-option-label">{{ taskText('tasks.time') }}</div>
+              <div class="task-option-value">{{ record.cert.validity?.start || '-' }} {{ taskText('tasks.to') }} {{ record.cert.validity?.end || '-' }}</div>
             </div>
 
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 12px;">指纹</div>
+            <div class="task-section-heading">{{ taskText('tasks.fingerprints') }}</div>
 
             <div style="display: flex; margin-bottom: 6px;">
               <div style="width: 120px; text-align: right; margin-right: 12px; font-weight: 500;">SHA-256</div>
@@ -361,15 +361,15 @@
         </template>
 
         <template v-else-if="column.key === 'change_status'">
-          <a-tag v-if="record.change_status === 'new' || activeTab === 'stat_finger'" color="green">新增</a-tag>
+          <a-tag v-if="record.change_status === 'new' || activeTab === 'stat_finger'" color="green">{{ taskText('tasks.added') }}</a-tag>
           <a-popover v-else-if="record.change_status === 'update' && activeTab !== 'stat_finger'" placement="right">
             <template #content>
-              <div style="margin-bottom: 8px; font-weight: bold; color: var(--arl-text-color); border-bottom: 1px solid var(--arl-border-color); padding-bottom: 4px;">关键变更预览：</div>
+              <div class="task-rule-heading">{{ taskText('tasks.keyChanges') }}</div>
               <div style="max-height: 200px; overflow-y: auto;">
                 <div v-for="(diff, field) in record.update_diff" :key="field" style="margin-bottom: 6px; font-size: 13px;">
                   <span style="color: var(--arl-text-color); font-weight: 500; margin-right: 4px;">{{ fieldMap[field] || field }}:</span>
-                  <template v-if="formatDiffValue(diff.before) === '[长文本已折叠]' || formatDiffValue(diff.after) === '[长文本已折叠]'">
-                    <span style="color: #8c8c8c; font-style: italic;">[长文本内容变动]</span>
+                  <template v-if="formatDiffValue(diff.before) === taskText('tasks.longTextCollapsed') || formatDiffValue(diff.after) === taskText('tasks.longTextCollapsed')">
+                    <span class="task-empty-hint">{{ taskText('tasks.longTextChanged') }}</span>
                   </template>
                   <template v-else>
                     <span style="color: #ff4d4f; text-decoration: line-through;">{{ formatDiffValue(diff.before) }}</span>
@@ -378,9 +378,9 @@
                   </template>
                 </div>
               </div>
-              <a style="display: block; margin-top: 12px; text-align: center; cursor: pointer; border-top: 1px dashed var(--arl-border-color); padding-top: 8px;" @click="openDiffModal(record)">🔍 点击查看完整明细差异</a>
+              <a class="task-details-toggle" @click="openDiffModal(record)">{{ taskText('tasks.viewTheCompleteDiff') }}</a>
             </template>
-            <a-tag color="blue" style="cursor: help;">更新</a-tag>
+            <a-tag color="blue" class="task-help">{{ taskText('tasks.updated') }}</a-tag>
           </a-popover>
           <span v-else style="color: rgba(255,255,255,0.25);">-</span>
         </template>
@@ -397,7 +397,7 @@
                 style="padding: 0; height: auto; font-size: 12px;"
                 @click="openServiceDetailModal(record)"
               >
-                查看全部 (共 {{ record.service_info.length }} 项) &gt;&gt;
+                {{ taskText('tasks.viewAllTotal') }} {{ record.service_info.length }} 项) &gt;&gt;
               </a-button>
             </div>
           </div>
@@ -471,7 +471,7 @@
                   </a>
                 </div>
               </template>
-              <a-badge :count="`+${record.sites.length - 1} 站点`" :number-style="{ backgroundColor: '#1890ff', color: '#fff', cursor: 'pointer', borderRadius: '4px', padding: '0 6px', fontSize: '12px' }" />
+              <a-badge class="task-site-count" :count="taskText('tasks.countWebsites', { count: record.sites.length - 1 })" />
             </a-popover>
           </div>
         </template>
@@ -479,21 +479,21 @@
         <template v-else-if="column.key === 'wih_risk_level'">
           <!-- 缺失风险等级时如实显示“未知”，避免被误读为已确认低危 -->
           <a-tag :color="record.risk_level === 'CRITICAL' ? 'red' : (record.risk_level === 'MEDIUM' ? 'orange' : 'default')">
-            {{ record.risk_level || '未知' }}
+            {{ record.risk_level || taskText('tasks.unknown') }}
           </a-tag>
         </template>
 
         <template v-else-if="column.key === 'ip_cdn_tag'">
-          <a-tag v-if="record.is_cdn || record.cdn_name" color="blue">{{ record.cdn_name || 'CDN节点' }}</a-tag>
+          <a-tag v-if="record.is_cdn || record.cdn_name" color="blue">{{ record.cdn_name || taskText('tasks.cdnNode') }}</a-tag>
           <!-- is_cdn 为 null/undefined 表示该字段未采集，不应表述为“已确认独立源站” -->
-          <a-tag v-else-if="record.is_cdn === false" color="green">独立源站</a-tag>
-          <a-tag v-else color="default">未识别</a-tag>
+          <a-tag v-else-if="record.is_cdn === false" color="green">{{ taskText('tasks.originServer') }}</a-tag>
+          <a-tag v-else color="default">{{ taskText('tasks.unidentified') }}</a-tag>
         </template>
 
         <template v-else-if="column.key === 'content' && activeTab === 'wih'">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
             <span style="word-break: break-all;">{{ record.content }}</span>
-            <a-button type="link" size="small" style="padding: 0;" @click="copyText(record.content)">复制</a-button>
+            <a-button type="link" size="small" class="task-icon-action" @click="copyText(record.content)">{{ taskText('tasks.copy') }}</a-button>
           </div>
         </template>
 
@@ -507,7 +507,7 @@
     <ServiceDetailModal v-model:open="serviceDetailModalVisible" :record="currentServiceRecord" />
 
     <!-- 指纹统计关联站点弹窗 -->
-    <a-modal v-model:open="fingerModalVisible" :title="`指纹关联站点：${currentFingerName}`" :footer="null" width="800px">
+    <a-modal v-model:open="fingerModalVisible" :title="taskText('tasks.websitesWithFingerprintName', { name: currentFingerName })" :footer="null" width="800px">
       <a-table
         :dataSource="fingerModalData"
         :columns="fingerModalColumns"
@@ -539,7 +539,7 @@
     </a-modal>
 
     <div v-if="tabConfig[effectiveTab] && activeTab !== 'syslog'" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
-      <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+      <div class="task-muted">{{ taskText('tasks.paginationSummary', { pages: Math.ceil(pagination.total / pagination.pageSize) || 1, total: pagination.total }) }}</div>
       <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handleTableChange" @showSizeChange="handleTableChange" />
     </div>
 
@@ -552,8 +552,8 @@
             <a style="margin-right: 8px;" v-if="log.title">[{{ log.title }}]</a>
             <span style="color: #e6f7ff;">{{ log.message }}</span>
           </div>
-          <div v-if="syslogList.length === 0 && !syslogLoading" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 暂无日志记录... (等待日志生成)</div>
-          <div v-if="syslogLoading && syslogList.length === 0" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 正在拉取日志...</div>
+          <div v-if="syslogList.length === 0 && !syslogLoading" class="task-log-empty">{{ taskText('tasks.systemNoLogsYetWaitingForLogs') }}</div>
+          <div v-if="syslogLoading && syslogList.length === 0" class="task-log-empty">{{ taskText('tasks.systemLoadingLogs') }}</div>
         </div>
       </div>
     </div>
@@ -563,28 +563,28 @@
     </a-modal>
 
     <!-- 添加标签弹窗 -->
-    <a-modal v-model:open="tagVisible" title="添加标签" @ok="submitTag" :confirmLoading="tagSubmitLoading" width="400px" okText="确 定" cancelText="取 消">
+    <a-modal v-model:open="tagVisible" :title="taskText('tasks.addTag')" @ok="submitTag" :confirmLoading="tagSubmitLoading" width="400px" :okText="taskText('tasks.confirm')" :cancelText="taskText('tasks.cancel')">
       <div style="margin-top: 20px;">
-        <a-input v-model:value="newTagValue" placeholder="请输入标签名称" />
+        <a-input v-model:value="newTagValue" :placeholder="taskText('tasks.enterATagName')" />
       </div>
     </a-modal>
 <!--    风险任务下发弹窗-->
     <a-modal
         v-model:open="riskVisible"
-        title="添加风险巡航任务"
+        :title="taskText('tasks.addRiskScanningTask')"
         @ok="submitRiskTask"
         :confirmLoading="riskSubmitLoading"
         width="520px"
         wrapClassName="arl-theme-modal"
         rootClassName="arl-theme-modal"
-        okText="确 定"
-        cancelText="取 消"
+        :okText="taskText('tasks.confirm')"
+        :cancelText="taskText('tasks.cancel')"
     >
-      <a-form :model="riskForm" :label-col="{ span: 5 }" :wrapper-col="{ span: 17 }" style="margin-top: 20px;">
-        <a-form-item label="策略名称" name="policy_id" :rules="[{ required: true, message: '请选择策略' }]">
+      <a-form :label-wrap="true" :model="riskForm" :label-col="{ span: taskLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: taskLocale === 'en-US' ? 15 : 17 }" class="task-risk-form">
+        <a-form-item :label="taskText('tasks.policyName')" name="policy_id" :rules="[{ required: true, message: taskText('tasks.selectAPolicy') }]">
           <a-select
               v-model:value="riskForm.policy_id"
-              placeholder="请选择策略"
+              :placeholder="taskText('tasks.selectAPolicy')"
               :options="policyOptions"
               show-search
               option-filter-prop="label"
@@ -592,27 +592,27 @@
           />
         </a-form-item>
 
-        <a-form-item label="任务名称" name="name" :rules="[{ required: true, message: '请输入任务名称' }]">
+        <a-form-item :label="taskText('tasks.taskName')" name="name" :rules="[{ required: true, message: taskText('tasks.enterATaskName') }]">
           <a-input v-model:value="riskForm.name" />
         </a-form-item>
 
         <div style="margin-left: 104px; color: var(--arl-text-color); margin-top: 16px;">
-          目标：选择目标数 {{ targetCount }}
+          {{ taskText('tasks.targetsNumberSelected') }} {{ targetCount }}
         </div>
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="diffModalVisible" title="更新差异明细" :footer="null" width="600px">
+    <a-modal v-model:open="diffModalVisible" :title="taskText('tasks.updateDetails')" :footer="null" width="600px">
       <div style="max-height: 500px; overflow-y: auto;">
         <div v-for="(diff, field) in currentDiffData" :key="field" style="margin-bottom: 12px; border: 1px solid var(--arl-border-color); border-radius: 4px; padding: 12px; background: var(--arl-bg-light);">
-          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; border-bottom: 1px solid var(--arl-border-color); padding-bottom: 4px;">字段: {{ field }}</div>
+          <div class="task-diff-heading">{{ taskText('tasks.field') }} {{ field }}</div>
           <div style="color: #ff4d4f; word-break: break-all; font-family: monospace; line-height: 1.6; margin-bottom: 8px;">
-            <div style="font-weight: bold; margin-bottom: 4px;">- 旧值:</div>
-            <div style="white-space: pre-wrap; background: rgba(255, 77, 79, 0.1); padding: 8px; border-radius: 4px;">{{ diff.before ?? '空' }}</div>
+            <div class="task-diff-caption">{{ taskText('tasks.previousValue') }}</div>
+            <div class="task-diff-before">{{ diff.before ?? taskText('tasks.empty') }}</div>
           </div>
           <div style="color: #52c41a; word-break: break-all; font-family: monospace; line-height: 1.6;">
-            <div style="font-weight: bold; margin-bottom: 4px;">+ 新值:</div>
-            <div style="white-space: pre-wrap; background: rgba(82, 196, 26, 0.1); padding: 8px; border-radius: 4px;">{{ diff.after ?? '空' }}</div>
+            <div class="task-diff-caption">{{ taskText('tasks.newValue') }}</div>
+            <div class="task-diff-after">{{ diff.after ?? taskText('tasks.empty') }}</div>
           </div>
         </div>
       </div>
@@ -622,12 +622,14 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
 defineOptions({ name: 'TaskDetail' });
 import { ref, onMounted, onUnmounted, onActivated, onDeactivated, reactive, watch, nextTick, computed, createVNode } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
 import HttpStatusFilter from '../components/HttpStatusFilter.vue';
-import { buildAssetFilterParams } from '../utils/assetFilters';
+import { formatAssetFilterOperator, buildAssetFilterParams } from '../utils/assetFilters';
 import { message, Modal } from 'ant-design-vue';
 import {
   ExclamationCircleOutlined,
@@ -642,6 +644,8 @@ import { copyText as copyToClipboard } from '../utils/clipboard';
 import { createTabStateCache } from '../utils/useTabStateCache';
 import { formatGeo } from '../utils/formatGeo';
 
+const { t: taskText, locale: taskLocale } = useI18n({ useScope: 'global' });
+
 // 更新差异弹窗状态
 const diffModalVisible = ref(false);
 const currentDiffData = ref({});
@@ -653,30 +657,30 @@ const openDiffModal = (record) => {
 
 // 字段汉化映射
 const fieldMap = {
-  status_code: '状态码',
-  title: '标题',
-  content_length: '响应长度',
-  ip: 'IP地址',
-  port: '开放端口',
-  port_id: '开放端口',
-  product: '服务产品',
-  service_name: '服务名称',
-  vul_name: '漏洞名称',
-  vuln_name: '漏洞名称',
-  vul_category: '漏洞类别',
-  record: '解析记录',
-  type: '记录类型',
-  url: '链接',
-  domain: '域名',
-  os_info: '操作系统',
+  get status_code() { return taskText('tasks.statusCode'); },
+  get title() { return taskText('tasks.title'); },
+  get content_length() { return taskText('tasks.responseLength'); },
+  get ip() { return taskText('tasks.ipAddress'); },
+  get port() { return taskText('tasks.openPorts'); },
+  get port_id() { return taskText('tasks.openPorts'); },
+  get product() { return taskText('tasks.serviceProduct'); },
+  get service_name() { return taskText('tasks.serviceName'); },
+  get vul_name() { return taskText('tasks.vulnerabilityName'); },
+  get vuln_name() { return taskText('tasks.vulnerabilityName'); },
+  get vul_category() { return taskText('tasks.vulnerabilityCategory'); },
+  get record() { return taskText('tasks.dnsRecord'); },
+  get type() { return taskText('tasks.recordType'); },
+  get url() { return taskText('tasks.link'); },
+  get domain() { return taskText('tasks.domains'); },
+  get os_info() { return taskText('tasks.operatingSystem'); },
   cdn_name: 'CDN',
 };
 
 const formatDiffValue = (val) => {
-  if (val === null || val === undefined) return '空';
+  if (val === null || val === undefined) return taskText('tasks.empty');
   let str = typeof val === 'object' ? JSON.stringify(val) : String(val);
   if (str.length > 30) {
-    return '[长文本已折叠]';
+    return taskText('tasks.longTextCollapsed');
   }
   return str;
 };
@@ -689,13 +693,13 @@ const actionBarRef = ref(null);
 const { stickyConfig } = useSticky(actionBarRef);
 
 // 复制文字并提示 (复用 utils/clipboard 兼容非 HTTPS 环境)
-const copyText = async (text, label = '内容') => {
+const copyText = async (text, label = taskText('tasks.content')) => {
   if (!text) return;
   const ok = await copyToClipboard(text);
   if (ok) {
-    message.success(`已复制 ${label} 到剪贴板`);
+    message.success(taskText('tasks.copiedLabelToClipboard', { label: label }));
   } else {
-    message.info('复制失败，请手动选取复制');
+    message.info(taskText('tasks.copyFailedPleaseSelectAndCopyManually'));
   }
 };
 
@@ -724,10 +728,10 @@ const fingerModalData = ref([]);
 const fingerModalLoading = ref(false);
 
 const fingerModalColumns = [
-  { title: '序号', key: 'index', width: 60, align: 'center' },
-  { title: '站点 URL', key: 'site', width: 300 },
-  { title: '标题', key: 'title', dataIndex: 'title', width: 200 },
-  { title: '状态码', key: 'status_code', dataIndex: 'status_code', width: 100 }
+  { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+  { get title() { return taskText('tasks.websiteUrl'); }, key: 'site', width: 300 },
+  { get title() { return taskText('tasks.title'); }, key: 'title', dataIndex: 'title', width: 200 },
+  { get title() { return taskText('tasks.statusCode'); }, key: 'status_code', dataIndex: 'status_code', width: 100 }
 ];
 
 const openFingerModal = async (fingerName) => {
@@ -757,7 +761,7 @@ const openFingerModal = async (fingerName) => {
     fingerModalData.value = uniqueItems;
   } catch (error) {
     console.error('Fetch finger sites failed:', error);
-    message.error('获取关联站点失败');
+    message.error(taskText('tasks.failedToLoadAssociatedWebsites'));
   } finally {
     fingerModalLoading.value = false;
   }
@@ -777,7 +781,7 @@ const openTagModal = (record) => {
 
 const submitTag = async () => {
   if (!newTagValue.value.trim()) {
-    return message.warning('标签名称不能为空');
+    return message.warning(taskText('tasks.tagNameCannotBeEmpty'));
   }
   tagSubmitLoading.value = true;
   try {
@@ -786,15 +790,15 @@ const submitTag = async () => {
       tag: newTagValue.value.trim()
     });
     if (res.code === 200) {
-      message.success('添加标签成功');
+      message.success(taskText('tasks.tagAdded'));
       tagVisible.value = false;
       tabCache.invalidateMemoryCache(activeTab.value);
       fetchData(); // 重新加载数据
     } else {
-      message.error(res.message || '添加标签失败');
+      message.error(res.message || taskText('tasks.failedToAddTag'));
     }
   } catch (error) {
-    message.error('请求异常');
+    message.error(taskText('tasks.requestFailed'));
   } finally {
     tagSubmitLoading.value = false;
   }
@@ -809,7 +813,7 @@ const handleDeleteTag = async (record, tag) => {
       tag: tag
     });
     if (res.code === 200) {
-      message.success(`已移除标签「${tag}」`);
+      message.success(taskText('tasks.removedTagTag', { tag: tag }));
       const currentTags = Array.isArray(record.tag) ? record.tag : (record.tag ? [record.tag] : (record.tags || []));
       record.tag = currentTags.filter(t => (typeof t === 'string' ? t : (t?.name || t?.tag_name)) !== tag);
       if (record.tags) {
@@ -821,21 +825,24 @@ const handleDeleteTag = async (record, tag) => {
       }
       tabCache.invalidateMemoryCache(activeTab.value);
     } else {
-      message.error(res.message || '删除标签失败');
+      message.error(res.message || taskText('tasks.failedToDeleteTag'));
     }
   } catch (error) {
-    message.error('请求异常');
+    message.error(taskText('tasks.requestFailed'));
   }
 };
 
-const targetName = ref(route.query?.targetName || '未知目标');
+const targetName = ref(route.query?.targetName || '');
+const displayTarget = computed(() => !taskId.value && targetName.value === '全局'
+  ? taskText('tasks.globalTargets') : targetName.value || taskText('tasks.unknownTarget'));
+
 const targetList = computed(() => {
   return String(targetName.value).split(/[,\s]+/).filter(Boolean);
 });
 const displayTitle = computed(() => {
   const list = targetList.value;
-  if (list.length <= 1) return `${targetName.value} 相关资产`;
-  return `${list[0]} 等 ${list.length} 个目标相关资产`;
+  if (list.length <= 1) return taskText('tasks.assetsRelatedToTarget', { target: displayTarget.value });
+  return taskText('tasks.assetsRelatedToTargetAndOtherTargetsCount', { target: list[0], count: list.length });
 });
 const isEnterpriseTask = computed(() => {
   const t = route.query?.task_type;
@@ -960,84 +967,84 @@ const tabConfig = reactive({
   site: {
     url: '/site/',
     exportUrl: '/site/export/',
-    exportName: '站点',
+    get exportName() { return taskText('tasks.websites'); },
     deleteUrl: '/site/delete/',
     searchFields: [
-      { label: '站点', key: 'site', operator: '=' },
+      { get label() { return taskText('tasks.websites'); }, key: 'site', operator: '=' },
       { label: 'IP', key: 'ip', operator: '=' },
-      { label: '标题', key: 'title', operator: '=' },
+      { get label() { return taskText('tasks.title'); }, key: 'title', operator: '=' },
       { label: 'Web Server', key: 'http_server', operator: '=' },
-      { label: '状态码', key: 'status', type: 'httpStatus' },
-      { label: '标头', key: 'headers', operator: '=' },
-      { label: '指纹', key: 'finger', operator: '=' },
+      { get label() { return taskText('tasks.statusCode'); }, key: 'status', type: 'httpStatus' },
+      { get label() { return taskText('tasks.headers'); }, key: 'headers', operator: '=' },
+      { get label() { return taskText('tasks.fingerprints'); }, key: 'finger', operator: '=' },
       { label: 'favicon hash', key: 'favicon.hash', operator: '=' },
-      { label: '标签', key: 'tag', operator: '=' }
+      { get label() { return taskText('tasks.tags'); }, key: 'tag', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
-      { title: '站点', key: 'site', width: 250 },
-      { title: '状态码', dataIndex: 'status', key: 'status', width: 100, align: 'center' },
-      { title: '标题', dataIndex: 'title', key: 'title', width: 200 },
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.websites'); }, key: 'site', width: 250 },
+      { get title() { return taskText('tasks.statusCode'); }, dataIndex: 'status', key: 'status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 200 },
       { title: 'headers', key: 'headers',width: 500},
       { title: 'finger', key: 'finger', width: 150 },
-      { title: '截图', key: 'screenshot', width: 280 }
+      { get title() { return taskText('tasks.screenshot'); }, key: 'screenshot', width: 280 }
     ]
   },
   domain: {
     url: '/domain/',
     deleteUrl: '/domain/delete/',
     exportUrl: '/domain/export/',
-    exportName: '子域名',
+    get exportName() { return taskText('tasks.subdomains'); },
     searchFields: [
-      { label: '域名', key: 'domain', operator: '=' },
-      { label: '记录值', key: 'record', operator: '=' },
-      { label: '类型', key: 'type', operator: '=' },
+      { get label() { return taskText('tasks.domains'); }, key: 'domain', operator: '=' },
+      { get label() { return taskText('tasks.recordValue'); }, key: 'record', operator: '=' },
+      { get label() { return taskText('tasks.type'); }, key: 'type', operator: '=' },
       { label: 'IP', key: 'ips', operator: '=' },
-      { label: '来源', key: 'source', operator: '=' }
+      { get label() { return taskText('tasks.source'); }, key: 'source', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
-      { title: '域名', dataIndex: 'domain', key: 'domain', width: 250 },
-      { title: '解析类型', dataIndex: 'type', key: 'type', width: 120 },
-      { title: '记录值', key: 'record', width: 300 },
-      { title: '关联IP', key: 'ips', width: 250 },
-      { title: '来源', dataIndex: 'source', key: 'source', width: 150 }
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.domains'); }, dataIndex: 'domain', key: 'domain', width: 250 },
+      { get title() { return taskText('tasks.dnsRecordType'); }, dataIndex: 'type', key: 'type', width: 120 },
+      { get title() { return taskText('tasks.recordValue'); }, key: 'record', width: 300 },
+      { get title() { return taskText('tasks.associatedIps'); }, key: 'ips', width: 250 },
+      { get title() { return taskText('tasks.source'); }, dataIndex: 'source', key: 'source', width: 150 }
     ]
   },
   ip: {
     url: '/ip/',
     deleteUrl: '/ip/delete/',
     exportUrl: '/ip/export/',
-    exportName: ' IP 端口',
+    get exportName() { return taskText('tasks.ipPorts'); },
     searchFields: [
       { label: 'IP', key: 'ip', operator: '=' },
-      { label: 'C段', key: 'c_segment', operator: '=' },
-      { label: '端口', key: 'port_info.port_id', operator: '=' },
-      { label: '操作系统', key: 'os_info.name', operator: '=' },
-      { label: '域名', key: 'domain', operator: '=' },
-      { label: 'CDN', key: 'cdn_name', operator: '=', placeholder: '输入厂商或独立源站' },
+      { get label() { return taskText('tasks.cClassNetworks'); }, key: 'c_segment', operator: '=' },
+      { get label() { return taskText('tasks.port'); }, key: 'port_info.port_id', operator: '=' },
+      { get label() { return taskText('tasks.operatingSystem'); }, key: 'os_info.name', operator: '=' },
+      { get label() { return taskText('tasks.domains'); }, key: 'domain', operator: '=' },
+      { label: 'CDN', key: 'cdn_name', operator: '=', get placeholder() { return taskText('tasks.enterACdnProviderOrOriginServer'); } },
       {
-        label: 'IP类别',
+        get label() { return taskText('tasks.ipType'); },
         key: 'ip_type',
         operator: '=',
         type: 'select',
         options: [
-          { label: 'PUBLIC (公网)', value: 'PUBLIC' },
-          { label: 'PRIVATE (内网)', value: 'PRIVATE' }
+          { get label() { return taskText('tasks.publicPublic'); }, value: 'PUBLIC' },
+          { get label() { return taskText('tasks.privatePrivate'); }, value: 'PRIVATE' }
         ]
       }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
       { title: 'IP', dataIndex: 'ip', key: 'ip', width: 160 },
-      { title: 'C段', dataIndex: 'c_segment', key: 'c_segment', width: 140 },
-      { title: '操作系统', key: 'os_info', width: 150 },
-      { title: '开放端口', key: 'port_info', width: 200 },
-      { title: '关联域名', key: 'domain', width: 250 },
-      { title: 'CDN状态', key: 'ip_cdn_tag', width: 150 },
+      { get title() { return taskText('tasks.cClassNetworks'); }, dataIndex: 'c_segment', key: 'c_segment', width: 140 },
+      { get title() { return taskText('tasks.operatingSystem'); }, key: 'os_info', width: 150 },
+      { get title() { return taskText('tasks.openPorts'); }, key: 'port_info', width: 200 },
+      { get title() { return taskText('tasks.associatedDomains'); }, key: 'domain', width: 250 },
+      { get title() { return taskText('tasks.cdnStatus'); }, key: 'ip_cdn_tag', width: 150 },
       { title: 'Geo', key: 'geo_city', width: 180 },
       { title: 'AS', key: 'geo_asn', width: 280 }
     ]
@@ -1046,17 +1053,17 @@ const tabConfig = reactive({
     url: '/cert/',
     deleteUrl: '/cert/delete/',
     exportUrl: '/cert/export/',
-    exportName: 'SSL证书信息',
+    get exportName() { return taskText('tasks.sslCertificateInformation'); },
     searchFields: [
-      { label: 'IP字段', key: 'ip', operator: '=' },
-      { label: '签发者名称', key: 'cert.issuer_dn', operator: '=' },
-      { label: '主题名称', key: 'cert.subject_dn', operator: '=' },
+      { get label() { return taskText('tasks.ipFields'); }, key: 'ip', operator: '=' },
+      { get label() { return taskText('tasks.issuer'); }, key: 'cert.issuer_dn', operator: '=' },
+      { get label() { return taskText('tasks.subject'); }, key: 'cert.subject_dn', operator: '=' },
       { label: 'SHA-1', key: 'cert.fingerprint.sha1', operator: '=' },
-      { label: '使用者备用名称', key: 'cert.extensions.subjectAltName', operator: '=' }
+      { get label() { return taskText('tasks.subjectAlternativeNames'); }, key: 'cert.extensions.subjectAltName', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
       { title: 'HOST', key: 'host', width: 180 },
       { title: 'CERT', key: 'cert_detail', width: 900 }
     ]
@@ -1065,16 +1072,16 @@ const tabConfig = reactive({
     url: '/service/',
     deleteUrl: '/service/delete/',
     searchFields: [
-      { label: '服务', key: 'service_name', operator: '=' },
+      { get label() { return taskText('tasks.services'); }, key: 'service_name', operator: '=' },
       { label: 'IP', key: 'service_info.ip', operator: '=' },
-      { label: '端口', key: 'service_info.port_id', operator: '=' },
-      { label: '产品', key: 'service_info.product', operator: '=' }
+      { get label() { return taskText('tasks.port'); }, key: 'service_info.port_id', operator: '=' },
+      { get label() { return taskText('tasks.product'); }, key: 'service_info.product', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
-      { title: '服务', dataIndex: 'service_name', key: 'service_name', width: 150, align: 'center' },
-      { title: 'IP端口', key: 'ip_port', width: 300 },
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.services'); }, dataIndex: 'service_name', key: 'service_name', width: 150, align: 'center' },
+      { get title() { return taskText('tasks.ipPort'); }, key: 'ip_port', width: 300 },
       { title: 'Product', key: 'product', width: 250 }
     ]
   },
@@ -1083,17 +1090,17 @@ const tabConfig = reactive({
     deleteUrl: '/fileleak/delete/',
     searchFields: [
       { label: 'URL', key: 'url', operator: '=' },
-      { label: '标题', key: 'title', operator: '=' },
-      { label: '状态码', key: 'status_code', type: 'httpStatus' },
-      { label: 'body 长度', key: 'content_length', operator: '=' }
+      { get label() { return taskText('tasks.title'); }, key: 'title', operator: '=' },
+      { get label() { return taskText('tasks.statusCode'); }, key: 'status_code', type: 'httpStatus' },
+      { get label() { return taskText('tasks.bodyLength'); }, key: 'content_length', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
       { title: 'URL', key: 'fileleak_url', width: 500 },
-      { title: '标题', dataIndex: 'title', key: 'title', width: 250 },
-      { title: '状态码', dataIndex: 'status_code', key: 'status_code', width: 100, align: 'center' },
-      { title: 'body 长度', dataIndex: 'content_length', key: 'content_length', width: 120, align: 'center' }
+      { get title() { return taskText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 250 },
+      { get title() { return taskText('tasks.statusCode'); }, dataIndex: 'status_code', key: 'status_code', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.bodyLength'); }, dataIndex: 'content_length', key: 'content_length', width: 120, align: 'center' }
     ]
   },
   url: {
@@ -1102,82 +1109,82 @@ const tabConfig = reactive({
     globalUrl: '/asset_url/',
     deleteUrl: '/url/delete/',
     exportUrl: '/url/export/',
-    exportName: 'URL信息',
+    get exportName() { return taskText('tasks.urls'); },
     searchFields: [
       { label: 'URL', key: 'url', operator: '=' },
-      { label: '标题', key: 'title', operator: '=' },
-      { label: '状态码', key: 'status_code', type: 'httpStatus' },
-      { 
-        label: 'body 长度', 
-        key: 'content_length', 
+      { get label() { return taskText('tasks.title'); }, key: 'title', operator: '=' },
+      { get label() { return taskText('tasks.statusCode'); }, key: 'status_code', type: 'httpStatus' },
+      {
+        get label() { return taskText('tasks.bodyLength'); },
+        key: 'content_length',
         operator: '等于',
         hasOperatorSelect: true,
         operators: ['等于', '大于', '小于']
       },
-      { 
-        label: '来源', 
-        key: 'source', 
+      {
+        get label() { return taskText('tasks.source'); },
+        key: 'source',
         type: 'select',
         options: [
-          { label: '爬虫(site_spider)', value: 'site_spider' },
-          { label: '搜索引擎(search_engine)', value: 'search_engine' },
+          { get label() { return taskText('tasks.crawlerSiteSpider'); }, value: 'site_spider' },
+          { get label() { return taskText('tasks.searchEngineSearchEngine'); }, value: 'search_engine' },
           { label: 'AlienVault', value: 'alienvault' },
           { label: 'WaybackMachine', value: 'waybackmachine' },
           { label: 'CommonCrawl', value: 'commoncrawl' },
           { label: 'Fuzz', value: 'fuzz' }
         ],
-        operator: '=' 
+        operator: '='
       }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
       { title: 'URL', key: 'url_link', width: 450 },
-      { title: '标题', dataIndex: 'title', key: 'title', width: 200 },
-      { title: '状态码', dataIndex: 'status_code', key: 'status_code', width: 100, align: 'center' },
-      { title: 'body 长度', dataIndex: 'content_length', key: 'content_length', width: 120, align: 'center' },
-      { title: '来源', dataIndex: 'source', key: 'source', width: 150 }
+      { get title() { return taskText('tasks.title'); }, dataIndex: 'title', key: 'title', width: 200 },
+      { get title() { return taskText('tasks.statusCode'); }, dataIndex: 'status_code', key: 'status_code', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.bodyLength'); }, dataIndex: 'content_length', key: 'content_length', width: 120, align: 'center' },
+      { get title() { return taskText('tasks.source'); }, dataIndex: 'source', key: 'source', width: 150 }
     ]
   },
   vuln: {
     url: '/vuln/',
     deleteUrl: '/vuln/delete/',
     searchFields: [
-      { label: '漏洞名称', key: 'vul_name', operator: '=' },
-      { label: '类别', key: 'vul_category', operator: '=' },
-      { label: '应用名', key: 'app_name', operator: '=' },
-      { label: '目标', key: 'target', operator: '=' }
+      { get label() { return taskText('tasks.vulnerabilityName'); }, key: 'vul_name', operator: '=' },
+      { get label() { return taskText('tasks.category'); }, key: 'vul_category', operator: '=' },
+      { get label() { return taskText('tasks.applicationName'); }, key: 'app_name', operator: '=' },
+      { get label() { return taskText('tasks.target'); }, key: 'target', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
-      { title: '漏洞名称', dataIndex: 'vul_name', key: 'vul_name', width: 250 },
-      { title: '类别', dataIndex: 'vul_category', key: 'vul_category', width: 120 },
-      { title: '应用名', dataIndex: 'app_name', key: 'app_name', width: 150 },
-      { title: '目标', dataIndex: 'target', key: 'target', width: 200 },
-      { title: '凭证', key: 'verify_data', width: 350 },
-      { title: '发现时间', dataIndex: 'insert_time', key: 'insert_time', width: 160 }
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.vulnerabilityName'); }, dataIndex: 'vul_name', key: 'vul_name', width: 250 },
+      { get title() { return taskText('tasks.category'); }, dataIndex: 'vul_category', key: 'vul_category', width: 120 },
+      { get title() { return taskText('tasks.applicationName'); }, dataIndex: 'app_name', key: 'app_name', width: 150 },
+      { get title() { return taskText('tasks.target'); }, dataIndex: 'target', key: 'target', width: 200 },
+      { get title() { return taskText('tasks.credentials'); }, key: 'verify_data', width: 350 },
+      { get title() { return taskText('tasks.discoveredAt'); }, dataIndex: 'insert_time', key: 'insert_time', width: 160 }
     ]
   },
   npoc_service: {
     url: '/npoc_service/',
     deleteUrl: '/npoc_service/delete/',
     exportUrl: '/npoc_service/export/',
-    exportName: 'Python插件服务',
+    get exportName() { return taskText('tasks.pythonPluginServices'); },
     searchFields: [
-      { label: '协议', key: 'scheme', operator: '=' },
-      { label: '主机', key: 'host', operator: '=' },
-      { label: '端口', key: 'port', operator: '=' },
-      { label: '目标', key: 'target', operator: '=' }
+      { get label() { return taskText('tasks.protocol'); }, key: 'scheme', operator: '=' },
+      { get label() { return taskText('tasks.host'); }, key: 'host', operator: '=' },
+      { get label() { return taskText('tasks.port'); }, key: 'port', operator: '=' },
+      { get label() { return taskText('tasks.target'); }, key: 'target', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
-      { title: '协议', dataIndex: 'scheme', key: 'scheme', width: 150 },
-      { title: '主机', dataIndex: 'host', key: 'host', width: 200 },
-      { title: '端口', dataIndex: 'port', key: 'port', width: 100, align: 'center' },
-      { title: '目标', dataIndex: 'target', key: 'target', width: 250 },
-      { title: '保存时间', dataIndex: 'insert_time', key: 'insert_time', width: 180 }
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.protocol'); }, dataIndex: 'scheme', key: 'scheme', width: 150 },
+      { get title() { return taskText('tasks.host'); }, dataIndex: 'host', key: 'host', width: 200 },
+      { get title() { return taskText('tasks.port'); }, dataIndex: 'port', key: 'port', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.target'); }, dataIndex: 'target', key: 'target', width: 250 },
+      { get title() { return taskText('tasks.savedAt'); }, dataIndex: 'insert_time', key: 'insert_time', width: 180 }
     ]
   },
   cip: {
@@ -1185,56 +1192,56 @@ const tabConfig = reactive({
     globalUrl: '/asset_cip/',
     deleteUrl: '/cip/delete/',
     exportUrl: '/cip/export/',
-    exportName: 'C段',
+    get exportName() { return taskText('tasks.cClassNetworks'); },
     searchFields: [
-      { label: 'C段', key: 'cidr_ip', operator: '=' }
+      { get label() { return taskText('tasks.cClassNetworks'); }, key: 'cidr_ip', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
-      { title: 'C段', dataIndex: 'cidr_ip', key: 'cidr_ip', width: 300 },
-      { title: 'IP数', key: 'ip_count_col', width: 150, align: 'center' },
-      { title: '域名数', key: 'domain_count_col', width: 150, align: 'center' }
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.cClassNetworks'); }, dataIndex: 'cidr_ip', key: 'cidr_ip', width: 300 },
+      { get title() { return taskText('tasks.ipCount'); }, key: 'ip_count_col', width: 150, align: 'center' },
+      { get title() { return taskText('tasks.domainCount'); }, key: 'domain_count_col', width: 150, align: 'center' }
     ]
   },
   nuclei_result: {
     url: '/nuclei_result/',
     deleteUrl: '/nuclei_result/delete/',
     searchFields: [
-      { label: '模版ID', key: 'template_id', operator: '=' },
-      { label: '目标', key: 'target', operator: '=' },
-      { label: '漏洞URL', key: 'vuln_url', operator: '=' },
-      { label: '漏洞名称', key: 'vuln_name', operator: '=' }
+      { get label() { return taskText('tasks.templateId'); }, key: 'template_id', operator: '=' },
+      { get label() { return taskText('tasks.target'); }, key: 'target', operator: '=' },
+      { get label() { return taskText('tasks.vulnerableUrl'); }, key: 'vuln_url', operator: '=' },
+      { get label() { return taskText('tasks.vulnerabilityName'); }, key: 'vuln_name', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
-      { title: '模版ID', dataIndex: 'template_id', key: 'template_id', width: 180 },
-      { title: '目标', dataIndex: 'target', key: 'target', width: 200 },
-      { title: '漏洞URL', key: 'nuclei_vuln_url', width: 300 },
-      { title: '漏洞名称', dataIndex: 'vuln_name', key: 'vuln_name', width: 200 },
-      { title: '漏洞等级', dataIndex: 'vuln_severity', key: 'vuln_severity', width: 100, align: 'center' },
-      { title: '保存时间', dataIndex: 'insert_time', key: 'insert_time', width: 160 },
-      { title: '验证命令', key: 'verify_command', width: 350 }
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.templateId'); }, dataIndex: 'template_id', key: 'template_id', width: 180 },
+      { get title() { return taskText('tasks.target'); }, dataIndex: 'target', key: 'target', width: 200 },
+      { get title() { return taskText('tasks.vulnerableUrl'); }, key: 'nuclei_vuln_url', width: 300 },
+      { get title() { return taskText('tasks.vulnerabilityName'); }, dataIndex: 'vuln_name', key: 'vuln_name', width: 200 },
+      { get title() { return taskText('tasks.severity'); }, dataIndex: 'vuln_severity', key: 'vuln_severity', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.savedAt'); }, dataIndex: 'insert_time', key: 'insert_time', width: 160 },
+      { get title() { return taskText('tasks.verificationCommand'); }, key: 'verify_command', width: 350 }
     ]
   },
   stat_finger: {
     url: '/stat_finger/',
     globalUrl: '/asset_stat_finger/',
     searchFields: [
-      { 
-        label: 'finger', 
-        key: 'name', 
+      {
+        label: 'finger',
+        key: 'name',
         operator: '模糊匹配',
         hasOperatorSelect: true,
         operators: ['模糊匹配', '精确匹配']
       }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 80, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 80, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
       { title: 'finger', key: 'finger_name', width: 500 }, // 用专用 key 渲染青蓝字体
-      { title: '数量', dataIndex: 'cnt', key: 'cnt', width: 200 }
+      { get title() { return taskText('tasks.count'); }, dataIndex: 'cnt', key: 'cnt', width: 200 }
     ]
   },
 
@@ -1248,23 +1255,23 @@ const tabConfig = reactive({
     exportName: 'WIH',
     searchFields: [
       {
-        label: '记录类型',
+        get label() { return taskText('tasks.recordType'); },
         key: 'record_type',
         operator: '等于',
         hasOperatorSelect: true,
         operators: ['等于', '不等于']
       },
-      { label: '内容', key: 'content', operator: '=' },
-      { label: '来源 JS', key: 'source', operator: '=' },
-      { label: '来源站点', key: 'site', operator: '=' }
+      { get label() { return taskText('tasks.content'); }, key: 'content', operator: '=' },
+      { get label() { return taskText('tasks.sourceJs'); }, key: 'source', operator: '=' },
+      { get label() { return taskText('tasks.sourceWebsite'); }, key: 'site', operator: '=' }
     ],
     cols: [
-      { title: '序号', key: 'index', width: 60, align: 'center' },
-      { title: '变更状态', key: 'change_status', width: 100, align: 'center' },
-      { title: '记录类型', dataIndex: 'record_type', key: 'record_type', width: 120 },
-      { title: '内容', dataIndex: 'content', key: 'content', width: 250 },
-      { title: '来源 JS', key: 'wih_source', width: 450 },
-      { title: '来源站点', dataIndex: 'site', key: 'wih_site', width: 250 }
+      { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
+      { get title() { return taskText('tasks.changeStatus'); }, key: 'change_status', width: 100, align: 'center' },
+      { get title() { return taskText('tasks.recordType'); }, dataIndex: 'record_type', key: 'record_type', width: 120 },
+      { get title() { return taskText('tasks.content'); }, dataIndex: 'content', key: 'content', width: 250 },
+      { get title() { return taskText('tasks.sourceJs'); }, key: 'wih_source', width: 450 },
+      { get title() { return taskText('tasks.sourceWebsite'); }, dataIndex: 'site', key: 'wih_site', width: 250 }
     ]
   }
 });
@@ -1328,7 +1335,7 @@ const fetchData = async (isPolling = false) => {
     }
   } catch (error) {
     if (!isPolling && effectiveTab.value === currentReqTab) {
-      message.error('加载资产数据失败');
+      message.error(taskText('tasks.failedToLoadAssetData'));
     }
   } finally {
     if (!isPolling && effectiveTab.value === currentReqTab) {
@@ -1348,7 +1355,7 @@ const handleExport = async () => {
   if (!config || !config.exportUrl) return;
 
   try {
-    message.loading({ content: `正在生成${config.exportName}导出文件...`, key: 'export_data' });
+    message.loading({ content: taskText('tasks.generatingTypeExport', { type: config.exportName }), key: 'export_data' });
 
     const params = { page: 1, size: 100000 };
     if (taskId.value) params.task_id = taskId.value;
@@ -1375,10 +1382,10 @@ const handleExport = async () => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
 
-    message.success({ content: `${config.exportName}导出成功！`, key: 'export_data', duration: 2 });
+    message.success({ content: taskText('tasks.typeExportCompleted', { type: config.exportName }), key: 'export_data', duration: 2 });
   } catch (error) {
     console.error('导出异常:', error);
-    message.error({ content: '导出异常，请查看控制台', key: 'export_data', duration: 2 });
+    message.error({ content: taskText('tasks.exportFailedCheckTheConsole'), key: 'export_data', duration: 2 });
   }
 };
 
@@ -1392,22 +1399,22 @@ const handleBatchDelete = () => {
 
   // 2. 如果过滤后全是空的，说明 rowKey 绑定失败，直接拦截并弹窗警告
   if (validKeys.length === 0) {
-    message.error('未能获取到可删除的资产记录，请刷新页面后重试。');
+    message.error(taskText('tasks.noDeletableAssetRecordsFoundRefreshThePage'));
     return;
   }
 
   const config = tabConfig[effectiveTab.value];
   if (!config || !canDeleteAssets.value) {
-    message.warning('当前资产类型暂不支持批量删除');
+    message.warning(taskText('tasks.thisAssetTypeDoesNotSupportBatchDeletion'));
     return;
   }
 
   Modal.confirm({
-    title: '批量删除确认',
+    title: taskText('tasks.deleteSelectedRecords'),
     icon: createVNode(ExclamationCircleOutlined, { style: 'color: #ff4d4f;' }),
-    content: `确认要删除选中的 ${validKeys.length} 项${config.exportName || '资产'}记录吗？`,
-    okText: '确认',
-    cancelText: '取消',
+    content: taskText('tasks.deleteTheSelectedRecordsCountFromType', { count: validKeys.length, type: config.exportName || taskText('tasks.assets') }),
+    okText: taskText('tasks.confirm'),
+    cancelText: taskText('tasks.cancel'),
     onOk: async () => {
       try {
         // 3. 将干净的有效 ID 数组发送给后端
@@ -1416,12 +1423,12 @@ const handleBatchDelete = () => {
         });
 
         if (res.code === 200) {
-          message.success(`成功删除 ${validKeys.length} 项资产！`);
+          message.success(taskText('tasks.assetsDeletedCount', { count: validKeys.length }));
           selectedRowKeys.value = []; // 清空勾选
           tabCache.invalidateMemoryCache(effectiveTab.value);
           fetchData(); // 重新拉取表格数据更新界面
         } else {
-          message.error('删除失败: ' + (res.message || '未知错误'));
+          message.error(taskText('tasks.deletionFailed') + (res.message || taskText('tasks.unknownError')));
         }
       } catch (error) {
         console.error('批量删除异常:', error);
@@ -1499,7 +1506,7 @@ const fetchSyslog = async (isPolling = false) => {
     }
   } catch (error) {
     if (!isPolling) {
-      message.error('加载任务日志失败');
+      message.error(taskText('tasks.failedToLoadTaskLogs'));
     }
   } finally {
     if (!isPolling) {
@@ -1630,7 +1637,7 @@ const reloadTaskData = () => {
   stopTaskStatusTimer();
 
   loadedTaskId.value = taskId.value;
-  targetName.value = route.query?.targetName || '未知目标';
+  targetName.value = route.query?.targetName || '';
   syncQueryCounts(route.query);
   taskStatus.value = '';
   dataSource.value = [];
@@ -1704,7 +1711,7 @@ const currentResultSetId = ref('');
 const openRiskModal = async () => {
   targetCount.value = hasSelected.value ? selectedRowKeys.value.length : pagination.total;
   if (targetCount.value === 0) {
-    message.warning('当前没有可下发的资产目标！');
+    message.warning(taskText('tasks.noAssetTargetsAreAvailableForScanning'));
     return;
   }
 
@@ -1712,7 +1719,7 @@ const openRiskModal = async () => {
   riskForm.name = '';
   currentResultSetId.value = '';
 
-  message.loading({ content: '正在打包资产并拉取策略...', key: 'risk_prepare' });
+  message.loading({ content: taskText('tasks.preparingAssetsAndLoadingPolicies'), key: 'risk_prepare' });
 
   try {
     const policyPromise = request.get('/policy/', { params: { size: 1000 } });
@@ -1745,11 +1752,11 @@ const openRiskModal = async () => {
       }
     }
 
-    message.success({ content: '数据准备就绪', key: 'risk_prepare', duration: 2 });
+    message.success({ content: taskText('tasks.dataIsReady'), key: 'risk_prepare', duration: 2 });
     riskVisible.value = true;
   } catch (error) {
     console.error('准备风险任务异常:', error);
-    message.error({ content: '准备数据失败，请查看控制台', key: 'risk_prepare', duration: 2 });
+    message.error({ content: taskText('tasks.failedToPrepareDataCheckTheConsole'), key: 'risk_prepare', duration: 2 });
   }
 };
 
@@ -1763,11 +1770,11 @@ const handlePolicyChange = (val, option) => {
 // 3. 确定下发任务
 const submitRiskTask = async () => {
   if (!riskForm.policy_id || !riskForm.name) {
-    message.warning('请选择策略并输入任务名称');
+    message.warning(taskText('tasks.selectAPolicyAndEnterATaskName'));
     return;
   }
   if (!currentResultSetId.value) {
-    message.error('未能获取到资产集合 ID，请关闭弹窗重试');
+    message.error(taskText('tasks.assetSetIdIsUnavailableCloseTheDialog'));
     return;
   }
 
@@ -1782,14 +1789,14 @@ const submitRiskTask = async () => {
     });
 
     if (res.code === 200) {
-      message.success('风险任务下发成功 🚀');
+      message.success(taskText('tasks.riskScanningTaskCreated'));
       riskVisible.value = false;
       selectedRowKeys.value = [];
     } else {
-      message.error('下发失败: ' + (res.message || '未知错误'));
+      message.error(taskText('tasks.failedToCreateTaskLabel') + (res.message || taskText('tasks.unknownError')));
     }
   } catch (error) {
-    message.error('网络请求异常');
+    message.error(taskText('tasks.networkRequestFailed'));
   } finally {
     riskSubmitLoading.value = false;
   }
@@ -1821,6 +1828,28 @@ onDeactivated(() => {
 </script>
 
 <style scoped>
+.task-option-heading { font-weight: 600; font-size: 13px; color: var(--arl-text-color); }
+.task-spaced-option { margin-right: 16px; }
+.task-clickable { cursor: pointer; }
+.task-field-hint { color: var(--arl-text-color); opacity: 0.45; margin-top: 2px; }
+.task-section-heading { font-weight: 600; font-size: 14px; margin-bottom: 12px; }
+.task-option-label { width: 120px; text-align: right; margin-right: 12px; font-weight: 500; }
+.task-option-value { flex: 1; color: var(--arl-text-color); }
+.task-rule-heading { margin-bottom: 8px; font-weight: bold; color: var(--arl-text-color); border-bottom: 1px solid var(--arl-border-color); padding-bottom: 4px; }
+.task-empty-hint { color: #8c8c8c; font-style: italic; }
+.task-details-toggle { display: block; margin-top: 12px; text-align: center; cursor: pointer; border-top: 1px dashed var(--arl-border-color); padding-top: 8px; }
+.task-help { cursor: help; }
+.task-icon-action { padding: 0; }
+.task-muted { color: var(--arl-text-color); opacity: 0.65; }
+.task-log-empty { color: rgba(255,255,255,0.45); font-style: italic; }
+.task-diff-heading { font-weight: bold; font-size: 14px; margin-bottom: 8px; border-bottom: 1px solid var(--arl-border-color); padding-bottom: 4px; }
+.task-diff-caption { font-weight: bold; margin-bottom: 4px; }
+.task-diff-before { white-space: pre-wrap; background: rgba(255, 77, 79, 0.1); padding: 8px; border-radius: 4px; }
+.task-diff-after { white-space: pre-wrap; background: rgba(82, 196, 26, 0.1); padding: 8px; border-radius: 4px; }
+
+.task-risk-form { margin-top: 20px; }
+.task-site-count :deep(.ant-badge-count) { background-color: #1890ff; color: #fff; cursor: pointer; border-radius: 4px; padding: 0 6px; font-size: 12px; }
+
 .site-header { line-height: 1.5; word-break: break-all; }
 .site-img { width: 16px; height: 16px; margin-right: 8px; vertical-align: middle; }
 .site-word { color: var(--arl-text-color); opacity: 0.45; font-size: 12px; margin: 4px 0; }
@@ -1892,11 +1921,11 @@ onDeactivated(() => {
 :deep(.ant-tabs-card-bar .ant-tabs-tab-active) {
   background: var(--arl-bg-white) !important;
   border-bottom-color: transparent !important;
-  
+
   font-weight: 500;
 }
 :deep(.ant-tabs-tab:hover) {
-  
+
 }
 /* ================= 6. 站点列细节补充 ================= */
 /* 完美复刻 Favicon Hash 的次级文本灰色与紧凑间距 */

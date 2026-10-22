@@ -4,10 +4,24 @@ import test from 'node:test';
 import vm from 'node:vm';
 import { parse, compileScript } from 'vue/compiler-sfc';
 import { buildAssetFilterParams } from '../src/utils/assetFilters.js';
+import { i18n } from '../src/i18n/index.js';
 
 const plain = value => JSON.parse(JSON.stringify(value));
 const ref = value => ({ value });
 const computed = fn => ({ get value() { return fn(); } });
+
+function testInBothLanguages(name, run) {
+  for (const locale of ['zh-CN', 'en-US']) {
+    test(`${name} (${locale})`, async () => {
+      i18n.global.locale.value = locale;
+      try {
+        await run();
+      } finally {
+        i18n.global.locale.value = 'zh-CN';
+      }
+    });
+  }
+}
 
 function fixture(tab, task = 'task-a') {
   const file = new URL('../src/views/TaskDetail.vue', import.meta.url);
@@ -25,6 +39,7 @@ function fixture(tab, task = 'task-a') {
   const calls = [], confirmations = [], notices = [];
   const context = vm.createContext({
     reactive: value => value, computed, buildAssetFilterParams,
+    taskText: (...args) => i18n.global.t(...args),
     activeTab: ref(tab), taskId: ref(task), serviceEngineType: ref('nmap'),
     searchForm: ref(tab === 'url' ? { status_code: ['403', '200'], title: 'admin' } : {}),
     pagination: { current: 2, pageSize: 20, total: 0 }, loading: ref(false),
@@ -49,7 +64,7 @@ function fixture(tab, task = 'task-a') {
 }
 
 for (const tab of ['url', 'cip', 'stat_finger']) {
-  test(`${tab} task detail fetches task results and retains task scope`, async () => {
+  testInBothLanguages(`${tab} task detail fetches task results and retains task scope`, async () => {
     const page = fixture(tab);
     await page.invoke('fetchData');
     assert.equal(page.calls[0].url, `/${tab}/`);
@@ -59,7 +74,7 @@ for (const tab of ['url', 'cip', 'stat_finger']) {
 }
 
 for (const tab of ['url', 'cip']) {
-  test(`${tab} list, export and confirmed delete use the same task namespace`, async () => {
+  testInBothLanguages(`${tab} list, export and confirmed delete use the same task namespace`, async () => {
     const page = fixture(tab);
     await page.invoke('fetchData');
     await page.invoke('handleExport');
@@ -74,7 +89,7 @@ for (const tab of ['url', 'cip']) {
   });
 }
 
-test('URL export preserves the list status and title filters', async () => {
+testInBothLanguages('URL export preserves the list status and title filters', async () => {
   const page = fixture('url');
   await page.invoke('fetchData');
   await page.invoke('handleExport');
@@ -85,7 +100,7 @@ test('URL export preserves the list status and title filters', async () => {
   }
 });
 
-test('global URL, C-segment and fingerprint views read asset-group collections without task scope', async () => {
+testInBothLanguages('global URL, C-segment and fingerprint views read asset-group collections without task scope', async () => {
   const expected = { url: '/asset_url/', cip: '/asset_cip/', stat_finger: '/asset_stat_finger/' };
   for (const [tab, endpoint] of Object.entries(expected)) {
     const page = fixture(tab, '');
@@ -103,7 +118,7 @@ test('global URL, C-segment and fingerprint views read asset-group collections w
   assert.equal(exportPage.calls[0].url, '/url/export/');
 });
 
-test('aggregated fingerprint statistics have stable keys and cannot dispatch deletion', () => {
+testInBothLanguages('aggregated fingerprint statistics have stable keys and cannot dispatch deletion', () => {
   const page = fixture('stat_finger');
   assert.equal(page.context.canDeleteAssets.value, false);
   assert.equal(page.context.canSelectAssets.value, true);
@@ -117,7 +132,7 @@ test('aggregated fingerprint statistics have stable keys and cannot dispatch del
   assert.ok(page.descriptor.template.content.includes(':row-selection="canSelectAssets ?'));
 });
 
-test('switching back to a deletable tab restores selection and deletion capability', () => {
+testInBothLanguages('switching back to a deletable tab restores selection and deletion capability', () => {
   const page = fixture('stat_finger');
   page.context.activeTab.value = 'url';
   assert.equal(page.context.canDeleteAssets.value, true);
@@ -125,7 +140,7 @@ test('switching back to a deletable tab restores selection and deletion capabili
   assert.equal(page.confirmations.length, 1);
 });
 
-test('global C-segment aggregation is read-only; task C-segment records remain deletable', () => {
+testInBothLanguages('global C-segment aggregation is read-only; task C-segment records remain deletable', () => {
   const page = fixture('cip', '');
   assert.equal(page.context.canDeleteAssets.value, false);
   page.invoke('handleBatchDelete');

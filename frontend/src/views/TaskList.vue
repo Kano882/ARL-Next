@@ -7,33 +7,33 @@
         <!-- 左侧：页面标识与顶层 Tab 切换胶囊 -->
         <div class="task-hero-left">
           <div class="task-hero-title">
-            <span class="title-text">任务管理中心</span>
+            <span class="title-text">{{ taskText('tasks.taskManagement') }}</span>
           </div>
           <div class="task-view-capsule-switcher">
             <button
               class="capsule-btn"
               :class="{ active: activeMainTab === 'enterprise' }"
               @click="handleMainTabChange('enterprise')"
-              title="切换至企业测绘任务 (OSINT)"
+              :title="taskText('tasks.switchToEnterpriseOsintTasks')"
             >
               <bank-outlined class="capsule-icon" />
-              <span>企业测绘任务</span>
+              <span>{{ taskText('tasks.enterpriseOsintTasks') }}</span>
               <span class="capsule-count" v-if="enterpriseMetricCounts.running > 0">
                 <span class="pulse-dot"></span>
-                {{ enterpriseMetricCounts.running }} 运行中
+                {{ enterpriseMetricCounts.running }} {{ taskText('tasks.running') }}
               </span>
             </button>
             <button
               class="capsule-btn"
               :class="{ active: activeMainTab === 'task' }"
               @click="handleMainTabChange('task')"
-              title="切换至资产侦查任务 (ASM)"
+              :title="taskText('tasks.switchToAssetDiscoveryTasksAsm')"
             >
               <global-outlined class="capsule-icon" />
-              <span>资产侦查任务</span>
+              <span>{{ taskText('tasks.assetDiscoveryTasks') }}</span>
               <span class="capsule-count" v-if="taskMetricCounts.running > 0">
                 <span class="pulse-dot"></span>
-                {{ taskMetricCounts.running }} 运行中
+                {{ taskMetricCounts.running }} {{ taskText('tasks.running') }}
               </span>
             </button>
           </div>
@@ -41,18 +41,18 @@
 
         <!-- 右侧：全局自适应静默轮询开关 + 手动刷新 + 主操作按钮 -->
         <div class="task-hero-right">
-          <a-tooltip :title="autoRefreshEnabled ? '自动刷新已开启：有运行任务时每 9 秒静默同步' : '自动刷新已暂停'">
+          <a-tooltip :title="autoRefreshEnabled ? taskText('tasks.autoRefreshIsOnRefreshSilentlyEvery9') : taskText('tasks.autoRefreshPaused')">
             <div class="auto-refresh-toggle">
               <a-switch
                 v-model:checked="autoRefreshEnabled"
                 size="small"
                 @change="handleAutoRefreshToggle"
               />
-              <span class="toggle-label">自动刷新</span>
+              <span class="toggle-label">{{ taskText('tasks.autoRefresh') }}</span>
             </div>
           </a-tooltip>
 
-          <a-tooltip :title="lastRefreshTimeText ? `最后更新于: ${lastRefreshTimeText}` : '点击刷新列表数据'">
+          <a-tooltip :title="lastRefreshTimeText ? taskText('tasks.lastUpdatedTime', { time: lastRefreshTimeText }) : taskText('tasks.refreshTheTaskList')">
             <a-button
               size="small"
               class="task-refresh-btn"
@@ -60,7 +60,7 @@
               @click="handleManualRefresh"
             >
               <template #icon><reload-outlined /></template>
-              刷新
+              {{ taskText('tasks.refresh') }}
             </a-button>
           </a-tooltip>
 
@@ -70,7 +70,7 @@
           <template v-if="activeMainTab === 'enterprise'">
             <a-button type="primary" size="small" class="primary-action-btn" @click="showTycModal">
               <template #icon><plus-outlined /></template>
-              新建企业全景测绘
+              {{ taskText('tasks.newEnterpriseOsintTask') }}
             </a-button>
           </template>
 
@@ -78,15 +78,15 @@
           <template v-else-if="activeMainTab === 'task'">
             <a-button type="primary" size="small" class="primary-action-btn" @click="showModal">
               <template #icon><plus-outlined /></template>
-              新建侦查任务
+              {{ taskText('tasks.newDiscoveryTask') }}
             </a-button>
             <a-button size="small" @click="openFofaModal">
               <template #icon><thunderbolt-outlined /></template>
-              FOFA 任务下发
+              {{ taskText('tasks.createFofaTask') }}
             </a-button>
             <a-button size="small" @click="goToGlobalView">
               <template #icon><compass-outlined /></template>
-              全局查看
+              {{ taskText('tasks.globalView') }}
             </a-button>
           </template>
         </div>
@@ -98,14 +98,14 @@
           class="metric-stat-card"
           :class="{ active: currentStatusFilter === '' }"
           @click="toggleStatusFilter('')"
-          title="点击查看全部任务"
+          :title="taskText('tasks.showAllTasks')"
         >
           <div class="stat-card-inner">
             <div class="stat-icon-box all">
               <appstore-outlined />
             </div>
             <div class="stat-info">
-              <div class="stat-label">全部任务</div>
+              <div class="stat-label">{{ taskText('tasks.allTasks') }}</div>
               <div class="stat-value">{{ currentTotalCount }}</div>
             </div>
           </div>
@@ -115,7 +115,7 @@
           class="metric-stat-card"
           :class="{ active: currentStatusFilter === 'active' }"
           @click="toggleStatusFilter('active')"
-          title="点击快速筛选进行中/排队中的任务"
+          :title="taskText('tasks.showRunningAndQueuedTasks')"
         >
           <div class="stat-card-inner">
             <div class="stat-icon-box running">
@@ -123,7 +123,7 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">
-                <span>进行中 / 排队</span>
+                <span>{{ taskText('tasks.runningQueued') }}</span>
                 <span v-if="currentRunningCount > 0" class="mini-pulse-beacon"></span>
               </div>
               <div class="stat-value running">{{ currentRunningCount }}</div>
@@ -135,14 +135,14 @@
           class="metric-stat-card"
           :class="{ active: currentStatusFilter === 'done' }"
           @click="toggleStatusFilter('done')"
-          title="点击快速筛选已完成的任务"
+          :title="taskText('tasks.showCompletedTasks')"
         >
           <div class="stat-card-inner">
             <div class="stat-icon-box done">
               <check-circle-outlined />
             </div>
             <div class="stat-info">
-              <div class="stat-label">已完成</div>
+              <div class="stat-label">{{ taskText('tasks.completed') }}</div>
               <div class="stat-value done">{{ currentDoneCount }}</div>
             </div>
           </div>
@@ -152,14 +152,14 @@
           class="metric-stat-card"
           :class="{ active: currentStatusFilter === 'abnormal' }"
           @click="toggleStatusFilter('abnormal')"
-          title="点击快速筛选异常或已停止的任务"
+          :title="taskText('tasks.showFailedAndStoppedTasks')"
         >
           <div class="stat-card-inner">
             <div class="stat-icon-box error">
               <close-circle-outlined />
             </div>
             <div class="stat-info">
-              <div class="stat-label">异常 / 已停止</div>
+              <div class="stat-label">{{ taskText('tasks.failedStopped') }}</div>
               <div class="stat-value error">{{ currentAbnormalCount }}</div>
             </div>
           </div>
@@ -174,7 +174,7 @@
             <div class="filter-inputs-group">
               <a-input
                 v-model:value="reconSearchForm.name"
-                placeholder="任务名称"
+                :placeholder="taskText('tasks.taskName')"
                 style="width: 220px;"
                 allowClear
                 @pressEnter="onReconSearch"
@@ -184,7 +184,7 @@
 
               <a-input
                 v-model:value="reconSearchForm.target"
-                placeholder="查询目标企业/主体"
+                :placeholder="taskText('tasks.searchTargetOrganization')"
                 style="width: 220px;"
                 allowClear
                 @pressEnter="onReconSearch"
@@ -194,39 +194,39 @@
 
               <a-select
                 v-model:value="reconSearchForm.status"
-                placeholder="任务状态"
+                :placeholder="taskText('tasks.taskStatus')"
                 style="width: 140px;"
                 allowClear
                 @change="onReconSearch"
               >
-                <a-select-option value="">全部状态</a-select-option>
+                <a-select-option value="">{{ taskText('tasks.allStatuses') }}</a-select-option>
                 <a-select-option value="active">
-                  <span class="status-option-item"><span class="status-dot running"></span> 进行中 / 排队</span>
+                  <span class="status-option-item"><span class="status-dot running"></span> {{ taskText('tasks.runningQueued') }}</span>
                 </a-select-option>
                 <a-select-option value="running">
-                  <span class="status-option-item"><span class="status-dot running"></span> 进行中</span>
+                  <span class="status-option-item"><span class="status-dot running"></span> {{ taskText('tasks.running') }}</span>
                 </a-select-option>
                 <a-select-option value="waiting">
-                  <span class="status-option-item"><span class="status-dot waiting"></span> 等待中</span>
+                  <span class="status-option-item"><span class="status-dot waiting"></span> {{ taskText('tasks.waiting') }}</span>
                 </a-select-option>
                 <a-select-option value="done">
-                  <span class="status-option-item"><span class="status-dot done"></span> 已完成</span>
+                  <span class="status-option-item"><span class="status-dot done"></span> {{ taskText('tasks.completed') }}</span>
                 </a-select-option>
                 <a-select-option value="stop">
-                  <span class="status-option-item"><span class="status-dot stop"></span> 已停止</span>
+                  <span class="status-option-item"><span class="status-dot stop"></span> {{ taskText('tasks.stopped') }}</span>
                 </a-select-option>
                 <a-select-option value="error">
-                  <span class="status-option-item"><span class="status-dot error"></span> 异常失败</span>
+                  <span class="status-option-item"><span class="status-dot error"></span> {{ taskText('tasks.failed') }}</span>
                 </a-select-option>
                 <a-select-option value="abnormal">
-                  <span class="status-option-item"><span class="status-dot error"></span> 异常 / 已停止</span>
+                  <span class="status-option-item"><span class="status-dot error"></span> {{ taskText('tasks.failedStopped') }}</span>
                 </a-select-option>
               </a-select>
 
               <a-range-picker
                 v-model:value="reconSearchForm.dateRange"
                 :presets="rangePresets"
-                :placeholder="['开始日期', '结束日期']"
+                :placeholder="[taskText('tasks.startDate'), taskText('tasks.endDate')]"
                 format="YYYY-MM-DD"
                 style="width: 240px;"
                 allowClear
@@ -235,8 +235,8 @@
             </div>
 
             <div class="filter-actions-group">
-              <a-button type="primary" size="middle" @click="onReconSearch">查 询</a-button>
-              <a-button size="middle" @click="resetReconSearch">重 置</a-button>
+              <a-button type="primary" size="middle" @click="onReconSearch">{{ taskText('tasks.search') }}</a-button>
+              <a-button size="middle" @click="resetReconSearch">{{ taskText('tasks.reset') }}</a-button>
             </div>
           </div>
         </template>
@@ -247,7 +247,7 @@
             <div class="filter-inputs-group">
               <a-input
                 v-model:value="searchForm.name"
-                placeholder="任务名称"
+                :placeholder="taskText('tasks.taskName')"
                 style="width: 210px;"
                 allowClear
                 @pressEnter="onSearch"
@@ -257,7 +257,7 @@
 
               <a-input
                 v-model:value="searchForm.target"
-                placeholder="目标 (IP/域名/段)"
+                :placeholder="taskText('tasks.targetIpDomainCidr')"
                 style="width: 210px;"
                 allowClear
                 @pressEnter="onSearch"
@@ -267,39 +267,39 @@
 
               <a-select
                 v-model:value="searchForm.status"
-                placeholder="任务状态"
+                :placeholder="taskText('tasks.taskStatus')"
                 style="width: 140px;"
                 allowClear
                 @change="onSearch"
               >
-                <a-select-option value="">全部状态</a-select-option>
+                <a-select-option value="">{{ taskText('tasks.allStatuses') }}</a-select-option>
                 <a-select-option value="active">
-                  <span class="status-option-item"><span class="status-dot running"></span> 进行中 / 排队</span>
+                  <span class="status-option-item"><span class="status-dot running"></span> {{ taskText('tasks.runningQueued') }}</span>
                 </a-select-option>
                 <a-select-option value="running">
-                  <span class="status-option-item"><span class="status-dot running"></span> 进行中</span>
+                  <span class="status-option-item"><span class="status-dot running"></span> {{ taskText('tasks.running') }}</span>
                 </a-select-option>
                 <a-select-option value="waiting">
-                  <span class="status-option-item"><span class="status-dot waiting"></span> 等待中</span>
+                  <span class="status-option-item"><span class="status-dot waiting"></span> {{ taskText('tasks.waiting') }}</span>
                 </a-select-option>
                 <a-select-option value="done">
-                  <span class="status-option-item"><span class="status-dot done"></span> 已完成</span>
+                  <span class="status-option-item"><span class="status-dot done"></span> {{ taskText('tasks.completed') }}</span>
                 </a-select-option>
                 <a-select-option value="stop">
-                  <span class="status-option-item"><span class="status-dot stop"></span> 已停止</span>
+                  <span class="status-option-item"><span class="status-dot stop"></span> {{ taskText('tasks.stopped') }}</span>
                 </a-select-option>
                 <a-select-option value="error">
-                  <span class="status-option-item"><span class="status-dot error"></span> 异常失败</span>
+                  <span class="status-option-item"><span class="status-dot error"></span> {{ taskText('tasks.failed') }}</span>
                 </a-select-option>
                 <a-select-option value="abnormal">
-                  <span class="status-option-item"><span class="status-dot error"></span> 异常 / 已停止</span>
+                  <span class="status-option-item"><span class="status-dot error"></span> {{ taskText('tasks.failedStopped') }}</span>
                 </a-select-option>
               </a-select>
             </div>
 
             <div class="filter-actions-group">
-              <a-button type="primary" size="middle" @click="onSearch">查 询</a-button>
-              <a-button size="middle" @click="resetSearch">重 置</a-button>
+              <a-button type="primary" size="middle" @click="onSearch">{{ taskText('tasks.search') }}</a-button>
+              <a-button size="middle" @click="resetSearch">{{ taskText('tasks.reset') }}</a-button>
               <a-button
                 size="middle"
                 :type="isAdvancedFilterOpen ? 'primary' : 'default'"
@@ -307,7 +307,7 @@
                 @click="isAdvancedFilterOpen = !isAdvancedFilterOpen"
               >
                 <template #icon><filter-outlined /></template>
-                {{ isAdvancedFilterOpen ? '收起筛选' : '高级筛选' }}
+                {{ isAdvancedFilterOpen ? taskText('tasks.hideFilters') : taskText('tasks.advancedFilters') }}
                 <a-badge
                   v-if="activeAdvancedFilterCount > 0"
                   :count="activeAdvancedFilterCount"
@@ -324,7 +324,7 @@
                 <span class="filter-label">Task_Id:</span>
                 <a-input
                   v-model:value="searchForm.task_id"
-                  placeholder="请输入24位 Task_Id"
+                  :placeholder="taskText('tasks.enterA24CharacterTaskId')"
                   style="width: 220px;"
                   allowClear
                   @pressEnter="onSearch"
@@ -332,24 +332,24 @@
               </div>
 
               <div class="filter-item">
-                <span class="filter-label">任务类型:</span>
+                <span class="filter-label">{{ taskText('tasks.taskType') }}</span>
                 <a-select
                   v-model:value="searchForm.type"
-                  placeholder="全部类型"
+                  :placeholder="taskText('tasks.allTypes')"
                   style="width: 180px;"
                   allowClear
                   @change="onSearch"
                 >
-                  <a-select-option value="task">资产侦查任务</a-select-option>
-                  <a-select-option value="monitor">资产监控任务</a-select-option>
-                  <a-select-option value="risk_cruising">风险巡航任务</a-select-option>
-                  <a-select-option value="site_update">资产站点更新</a-select-option>
-                  <a-select-option value="wih">WIH 监控任务</a-select-option>
+                  <a-select-option value="task">{{ taskText('tasks.assetDiscoveryTasks') }}</a-select-option>
+                  <a-select-option value="monitor">{{ taskText('tasks.assetMonitoringTask') }}</a-select-option>
+                  <a-select-option value="risk_cruising">{{ taskText('tasks.riskScanningTask') }}</a-select-option>
+                  <a-select-option value="site_update">{{ taskText('tasks.websiteAssetUpdate') }}</a-select-option>
+                  <a-select-option value="wih">{{ taskText('tasks.wihMonitoringTask') }}</a-select-option>
                 </a-select>
               </div>
 
               <div class="filter-item">
-                <span class="filter-label">站点数量:</span>
+                <span class="filter-label">{{ taskText('tasks.websitesLabel') }}</span>
                 <a-input-group compact class="count-input-group">
                   <a-select v-model:value="searchForm.site_operator" style="width: 65px;">
                     <a-select-option value="=">=</a-select-option>
@@ -358,7 +358,7 @@
                   </a-select>
                   <a-input
                     v-model:value="searchForm.site_count"
-                    placeholder="数量"
+                    :placeholder="taskText('tasks.count')"
                     style="width: 115px;"
                     allowClear
                     @pressEnter="onSearch"
@@ -367,7 +367,7 @@
               </div>
 
               <div class="filter-item">
-                <span class="filter-label">域名数量:</span>
+                <span class="filter-label">{{ taskText('tasks.domainsLabel') }}</span>
                 <a-input-group compact class="count-input-group">
                   <a-select v-model:value="searchForm.domain_operator" style="width: 65px;">
                     <a-select-option value="=">=</a-select-option>
@@ -376,7 +376,7 @@
                   </a-select>
                   <a-input
                     v-model:value="searchForm.domain_count"
-                    placeholder="数量"
+                    :placeholder="taskText('tasks.count')"
                     style="width: 115px;"
                     allowClear
                     @pressEnter="onSearch"
@@ -385,7 +385,7 @@
               </div>
 
               <div class="filter-item">
-                <span class="filter-label">WIH数量:</span>
+                <span class="filter-label">{{ taskText('tasks.wihRecords') }}</span>
                 <a-input-group compact class="count-input-group">
                   <a-select v-model:value="searchForm.wih_operator" style="width: 65px;">
                     <a-select-option value="=">=</a-select-option>
@@ -394,7 +394,7 @@
                   </a-select>
                   <a-input
                     v-model:value="searchForm.wih_count"
-                    placeholder="数量"
+                    :placeholder="taskText('tasks.count')"
                     style="width: 115px;"
                     allowClear
                     @pressEnter="onSearch"
@@ -404,8 +404,8 @@
             </div>
 
             <div class="advanced-filter-footer">
-              <a-button size="small" type="link" @click="resetAdvancedFilters">清空高级条件</a-button>
-              <a-button size="small" type="link" @click="isAdvancedFilterOpen = false">收 起</a-button>
+              <a-button size="small" type="link" @click="resetAdvancedFilters">{{ taskText('tasks.clearAdvancedFilters') }}</a-button>
+              <a-button size="small" type="link" @click="isAdvancedFilterOpen = false">{{ taskText('tasks.collapse') }}</a-button>
             </div>
           </div>
         </template>
@@ -419,7 +419,7 @@
     >
       <div class="batch-left">
         <span class="selected-count-badge">
-          已选中 <b>{{ activeMainTab === 'enterprise' ? enterpriseSelectedRowKeys.length : selectedRowKeys.length }}</b> 项任务
+          {{ taskText('tasks.selected') }} <b>{{ activeMainTab === 'enterprise' ? enterpriseSelectedRowKeys.length : selectedRowKeys.length }}</b> {{ taskText('tasks.tasks') }}
         </span>
       </div>
 
@@ -427,26 +427,26 @@
         <!-- 企业测绘批量操作 -->
         <template v-if="activeMainTab === 'enterprise'">
           <a-popconfirm
-            title="确定要批量重启选中的任务吗？"
-            ok-text="确定"
-            cancel-text="取消"
+            :title="taskText('tasks.restartTheSelectedTasks')"
+            :ok-text="taskText('tasks.confirm')"
+            :cancel-text="taskText('tasks.cancel')"
             @confirm="handleBatchRestartEnterprise"
           >
             <a-button size="small">
               <template #icon><sync-outlined /></template>
-              批量重启
+              {{ taskText('tasks.restartSelected') }}
             </a-button>
           </a-popconfirm>
 
           <a-button size="small" @click="handleBatchExportEnterprise">
             <template #icon><export-outlined /></template>
-            批量导出
+            {{ taskText('tasks.exportSelected') }}
           </a-button>
 
           <a-popconfirm
-            title="确定要批量删除选中的企业任务吗？"
-            ok-text="确定"
-            cancel-text="取消"
+            :title="taskText('tasks.deleteTheSelectedEnterpriseTasks')"
+            :ok-text="taskText('tasks.confirm')"
+            :cancel-text="taskText('tasks.cancel')"
             :disabled="enterpriseBatchDeleting"
             @confirm="handleBatchDeleteEnterprise"
           >
@@ -457,44 +457,44 @@
               :disabled="enterpriseBatchDeleting"
             >
               <template #icon><delete-outlined /></template>
-              批量删除
+              {{ taskText('tasks.deleteSelected') }}
             </a-button>
           </a-popconfirm>
 
-          <a-button size="small" type="link" @click="enterpriseSelectedRowKeys = []">取消选择</a-button>
+          <a-button size="small" type="link" @click="enterpriseSelectedRowKeys = []">{{ taskText('tasks.clearSelection') }}</a-button>
         </template>
 
         <!-- 资产侦查批量操作 -->
         <template v-else-if="activeMainTab === 'task'">
           <a-button size="small" @click="handleBatchStop">
             <template #icon><stop-outlined /></template>
-            批量停止
+            {{ taskText('tasks.stopSelected') }}
           </a-button>
 
           <a-dropdown>
             <template #overlay>
               <a-menu @click="handleBatchExport">
-                <a-menu-item key="cip">C段 批量导出</a-menu-item>
-                <a-menu-item key="domain">域名批量导出</a-menu-item>
-                <a-menu-item key="ip">IP 批量导出</a-menu-item>
-                <a-menu-item key="ip_port">IP 端口批量导出</a-menu-item>
-                <a-menu-item key="site">站点批量导出</a-menu-item>
-                <a-menu-item key="url">URL 批量导出</a-menu-item>
-                <a-menu-item key="wih">WIH 批量导出</a-menu-item>
+                <a-menu-item key="cip">{{ taskText('tasks.exportSelectedCClassNetworks') }}</a-menu-item>
+                <a-menu-item key="domain">{{ taskText('tasks.exportSelectedDomains') }}</a-menu-item>
+                <a-menu-item key="ip">{{ taskText('tasks.exportSelectedIps') }}</a-menu-item>
+                <a-menu-item key="ip_port">{{ taskText('tasks.exportSelectedIpPortPairs') }}</a-menu-item>
+                <a-menu-item key="site">{{ taskText('tasks.exportSelectedWebsites') }}</a-menu-item>
+                <a-menu-item key="url">{{ taskText('tasks.exportSelectedUrls') }}</a-menu-item>
+                <a-menu-item key="wih">{{ taskText('tasks.exportSelectedWihRecords') }}</a-menu-item>
               </a-menu>
             </template>
             <a-button size="small">
               <template #icon><export-outlined /></template>
-              批量导出 <down-outlined />
+              {{ taskText('tasks.exportSelected') }} <down-outlined />
             </a-button>
           </a-dropdown>
 
           <a-button size="small" danger @click="handleBatchDelete">
             <template #icon><delete-outlined /></template>
-            批量删除
+            {{ taskText('tasks.deleteSelected') }}
           </a-button>
 
-          <a-button size="small" type="link" @click="selectedRowKeys = []">取消选择</a-button>
+          <a-button size="small" type="link" @click="selectedRowKeys = []">{{ taskText('tasks.clearSelection') }}</a-button>
         </template>
       </div>
     </div>
@@ -525,10 +525,10 @@
 
             <template v-else-if="column.key === 'task_type'">
               <a-tag v-if="record.task_type === 'tyc'" color="blue" style="margin: 0; font-size: 12px; border-radius: 4px; padding: 1px 6px;">
-                🏢 全景双轨
+                {{ taskText('tasks.combinedOsint') }}
               </a-tag>
               <a-tag v-else color="purple" style="margin: 0; font-size: 12px; border-radius: 4px; padding: 1px 6px;">
-                🏛️ 官方备案
+                {{ taskText('tasks.officialIcpRecords') }}
               </a-tag>
             </template>
 
@@ -537,14 +537,14 @@
                 <template #title>
                   <div class="options-tooltip-content">
                     <div class="tooltip-header">
-                      {{ record.task_type === 'tyc' ? '企业全景测绘策略 (全景双轨)' : '企业全景测绘策略 (官方备案)' }}
+                      {{ record.task_type === 'tyc' ? taskText('tasks.enterpriseOsintConfigurationCombinedSources') : taskText('tasks.enterpriseOsintConfigurationOfficialIcpRecords') }}
                     </div>
                     <template v-if="record.task_type === 'tyc'">
-                      <div class="tooltip-section-title">穿透策略</div>
-                      <div class="option-item-line">• 投资穿透层级: {{ record.depth || 1 }} 层</div>
-                      <div class="option-item-line">• 出资比例阈值: ≥ {{ record.invest_ratio !== undefined && record.invest_ratio !== null ? record.invest_ratio : 50 }}%</div>
-                      <div class="option-item-line">• 工信部ICP双轨: {{ record.enable_icp !== false ? '已开启' : '未开启' }}</div>
-                      <div class="tooltip-section-title" style="margin-top: 6px;">测绘维度</div>
+                      <div class="tooltip-section-title">{{ taskText('tasks.investmentTraversal') }}</div>
+                      <div class="option-item-line">{{ taskText('tasks.investmentDepth') }} {{ record.depth || 1 }} {{ taskText('tasks.levels') }}</div>
+                      <div class="option-item-line">{{ taskText('tasks.minimumOwnership') }} {{ record.invest_ratio !== undefined && record.invest_ratio !== null ? record.invest_ratio : 50 }}%</div>
+                      <div class="option-item-line">{{ taskText('tasks.officialIcpCrossCheck') }} {{ record.enable_icp !== false ? taskText('tasks.enabled') : taskText('tasks.disabled') }}</div>
+                      <div class="tooltip-section-title task-nested-content" >{{ taskText('tasks.assetCategories') }}</div>
                     </template>
                     <div v-for="(item, idx) in getEnterpriseQueryTypeLabels(record)" :key="idx" class="option-item-line">
                       • {{ item }}
@@ -558,7 +558,7 @@
               </a-tooltip>
               <span v-else class="options-badge-trigger" style="cursor: default; opacity: 0.65;">
                 <setting-outlined style="margin-right: 4px; font-size: 11px;" />
-                <span>默认配置</span>
+                <span>{{ taskText('tasks.defaultConfiguration') }}</span>
               </span>
             </template>
 
@@ -571,15 +571,15 @@
 
             <template v-else-if="column.key === 'statistic'">
               <div v-if="record.statistic" class="task-stats-capsules">
-                <a-tooltip :title="`核心资产: ${(record.statistic.asset_cnt || 0) - (record.statistic.invest_cnt || 0)}`">
+                <a-tooltip :title="taskText('tasks.coreAssetsCount', { count: (record.statistic.asset_cnt || 0) - (record.statistic.invest_cnt || 0) })">
                   <span class="stat-capsule domain">
-                    <span class="stat-lbl">核心</span>
+                    <span class="stat-lbl">{{ taskText('tasks.core') }}</span>
                     <span class="stat-num">{{ (record.statistic.asset_cnt || 0) - (record.statistic.invest_cnt || 0) }}</span>
                   </span>
                 </a-tooltip>
-                <a-tooltip v-if="record.statistic.invest_cnt !== undefined" :title="`对外投资: ${record.statistic.invest_cnt}`">
+                <a-tooltip v-if="record.statistic.invest_cnt !== undefined" :title="taskText('tasks.investmentsCount', { count: record.statistic.invest_cnt })">
                   <span class="stat-capsule site">
-                    <span class="stat-lbl">投资</span>
+                    <span class="stat-lbl">{{ taskText('tasks.investments') }}</span>
                     <span class="stat-num">{{ record.statistic.invest_cnt }}</span>
                   </span>
                 </a-tooltip>
@@ -589,32 +589,32 @@
 
             <template v-else-if="column.key === 'sync_status'">
               <span v-if="record.sync_badge_status === 'no_web'" class="sync-empty-text">
-                无网站资产
+                {{ taskText('tasks.noWebsiteAssets') }}
               </span>
               <div v-else-if="record.synced_scope_id" class="synced-badge-wrapper">
                 <a-tag
                   color="blue"
                   class="synced-scope-tag"
                   @click="goToScope(record.synced_scope_id, record.synced_scope_name)"
-                  title="点击前往该资产组"
+                  :title="taskText('tasks.openThisAssetGroup')"
                 >
                   <export-outlined />
-                  <span>{{ record.synced_scope_name || '已纳管' }}</span>
+                  <span>{{ record.synced_scope_name || taskText('tasks.managed') }}</span>
                 </a-tag>
-                <a-badge v-if="record.has_increment" count="有增量" :number-style="{ backgroundColor: '#52c41a', fontSize: '10px' }" />
+                <a-badge v-if="record.has_increment" class="task-increment-badge" :count="taskText('tasks.newAssets')" />
               </div>
               <span v-else class="unsynced-text">
-                <span class="status-dot stop"></span> 未同步
+                <span class="status-dot stop"></span> {{ taskText('tasks.notSynced') }}
               </span>
             </template>
 
             <template v-else-if="column.key === 'action'">
               <div class="task-action-cell">
-                <a-button type="link" size="small" class="primary-table-btn" @click="viewEnterpriseTask(record)">详情</a-button>
+                <a-button type="link" size="small" class="primary-table-btn" @click="viewEnterpriseTask(record)">{{ taskText('tasks.details') }}</a-button>
 
                 <template v-if="record.sync_badge_status === 'no_web'">
-                  <a-tooltip title="当前任务无网站资产可同步">
-                    <a-button type="link" size="small" disabled>同步</a-button>
+                  <a-tooltip :title="taskText('tasks.thisTaskHasNoWebsiteAssetsToSync')">
+                    <a-button type="link" size="small" disabled>{{ taskText('tasks.sync') }}</a-button>
                   </a-tooltip>
                 </template>
                 <a-button
@@ -624,43 +624,43 @@
                   @click="handleSyncEnterprise(record)"
                   :disabled="record.status !== 'done' && record.status !== 'stop'"
                 >
-                  {{ record.synced_scope_id ? (record.has_increment ? '同步增量' : '再次同步') : '同步' }}
+                  {{ record.synced_scope_id ? (record.has_increment ? taskText('tasks.syncNewAssets') : taskText('tasks.syncAgain')) : taskText('tasks.sync') }}
                 </a-button>
 
                 <a-dropdown>
                   <template #overlay>
                     <a-menu>
                       <a-menu-item key="export" @click="handleExportEnterprise(record)">
-                        <export-outlined /> 导出 Excel 报告
+                        <export-outlined /> {{ taskText('tasks.exportExcelReport') }}
                       </a-menu-item>
                       <a-menu-item
                         key="stop"
                         :disabled="record.status === 'done' || record.status === 'stop' || record.status === 'error'"
                         @click="handleStopEnterprise(record)"
                       >
-                        <stop-outlined /> 停止任务
+                        <stop-outlined /> {{ taskText('tasks.stopTask') }}
                       </a-menu-item>
                       <a-menu-item
                         key="restart"
                         :disabled="record.status === 'running' || record.status === 'waiting'"
                         @click="handleRestartEnterprise(record)"
                       >
-                        <sync-outlined /> 重启任务
+                        <sync-outlined /> {{ taskText('tasks.restartTask') }}
                       </a-menu-item>
                       <a-menu-divider />
                       <a-menu-item
                         key="delete"
                         danger
                         :disabled="!['done', 'stop', 'error'].includes(record.status)"
-                        :title="!['done', 'stop', 'error'].includes(record.status) ? '无法删除正在运行或排队中的任务，请先停止任务' : undefined"
+                        :title="!['done', 'stop', 'error'].includes(record.status) ? taskText('tasks.runningOrQueuedTasksCannotBeDeletedStop') : undefined"
                         @click="handleDeleteEnterprise(record)"
                       >
-                        <delete-outlined /> 删除任务
+                        <delete-outlined /> {{ taskText('tasks.deleteTask') }}
                       </a-menu-item>
                     </a-menu>
                   </template>
                   <a-button type="text" size="small" class="more-action-btn">
-                    更多 <down-outlined style="font-size: 10px;" />
+                    {{ taskText('tasks.more') }} <down-outlined class="task-small-caption" />
                   </a-button>
                 </a-dropdown>
               </div>
@@ -670,7 +670,7 @@
 
         <div class="task-pagination-bar">
           <div class="pagination-info">
-            共 {{ Math.ceil(enterprisePagination.total / enterprisePagination.pageSize) || 1 }} 页 / {{ enterprisePagination.total }} 条数据
+            {{ taskText('tasks.paginationSummary', { pages: Math.ceil(enterprisePagination.total / enterprisePagination.pageSize) || 1, total: enterprisePagination.total }) }}
           </div>
           <a-pagination
             :pageSizeOptions="['10', '20', '50']"
@@ -736,15 +736,15 @@
 
             <template v-else-if="column.key === 'statistic'">
               <div v-if="record.statistic" class="task-stats-capsules">
-                <a-tooltip v-if="record.statistic.site_cnt !== undefined" :title="`站点: ${record.statistic.site_cnt}`">
+                <a-tooltip v-if="record.statistic.site_cnt !== undefined" :title="taskText('tasks.websitesCount', { count: record.statistic.site_cnt })">
                   <span class="stat-capsule site">
-                    <span class="stat-lbl">站点</span>
+                    <span class="stat-lbl">{{ taskText('tasks.websites') }}</span>
                     <span class="stat-num">{{ record.statistic.site_cnt }}</span>
                   </span>
                 </a-tooltip>
-                <a-tooltip v-if="record.statistic.domain_cnt !== undefined" :title="`域名: ${record.statistic.domain_cnt}`">
+                <a-tooltip v-if="record.statistic.domain_cnt !== undefined" :title="taskText('tasks.domainsCount', { count: record.statistic.domain_cnt })">
                   <span class="stat-capsule domain">
-                    <span class="stat-lbl">域名</span>
+                    <span class="stat-lbl">{{ taskText('tasks.domains') }}</span>
                     <span class="stat-num">{{ record.statistic.domain_cnt }}</span>
                   </span>
                 </a-tooltip>
@@ -760,9 +760,9 @@
                     <span class="stat-num">{{ record.statistic.wih_cnt }}</span>
                   </span>
                 </a-tooltip>
-                <a-tooltip v-if="record.statistic.vuln_cnt !== undefined && record.statistic.vuln_cnt > 0" :title="`风险: ${record.statistic.vuln_cnt}`">
+                <a-tooltip v-if="record.statistic.vuln_cnt !== undefined && record.statistic.vuln_cnt > 0" :title="taskText('tasks.risksCount', { count: record.statistic.vuln_cnt })">
                   <span class="stat-capsule vuln">
-                    <span class="stat-lbl">风险</span>
+                    <span class="stat-lbl">{{ taskText('tasks.risks') }}</span>
                     <span class="stat-num">{{ record.statistic.vuln_cnt }}</span>
                   </span>
                 </a-tooltip>
@@ -774,7 +774,7 @@
               <a-tooltip placement="bottom">
                 <template #title>
                   <div class="options-tooltip-content">
-                    <div class="tooltip-header">已启用策略与配置</div>
+                    <div class="tooltip-header">{{ taskText('tasks.enabledPluginsAndConfiguration') }}</div>
                     <div v-for="(item, index) in getDetailedOptions(record.options)" :key="index" class="option-item-line">
                       • {{ item }}
                     </div>
@@ -791,7 +791,7 @@
               <a-tooltip v-if="record.service && record.service.length > 0" placement="bottom">
                 <template #title>
                   <div class="service-time-tooltip">
-                    <div class="tooltip-header">插件执行耗时明细</div>
+                    <div class="tooltip-header">{{ taskText('tasks.pluginExecutionTimes') }}</div>
                     <div v-for="(item, index) in record.service" :key="index" class="tooltip-row">
                       <span class="service-name">{{ pluginNameMap[item.name] || item.name }}:</span>
                       <span class="service-elapsed">{{ item.elapsed }}</span>
@@ -817,7 +817,7 @@
 
             <template v-else-if="column.key === 'action'">
               <div class="task-action-cell">
-                <a-button type="link" size="small" class="primary-table-btn" @click="viewTask(record)">详情</a-button>
+                <a-button type="link" size="small" class="primary-table-btn" @click="viewTask(record)">{{ taskText('tasks.details') }}</a-button>
 
                 <a-button
                   type="link"
@@ -826,7 +826,7 @@
                   :disabled="(record.status !== 'done' && record.status !== 'stop' && record.status !== 'error') || record.restarting"
                   @click="restartTask(record)"
                 >
-                  重启
+                  {{ taskText('tasks.restart') }}
                 </a-button>
 
                 <a-dropdown>
@@ -837,17 +837,17 @@
                         :disabled="record.status !== 'done' && record.status !== 'stop' && record.status !== 'error'"
                         @click="syncTask(record)"
                       >
-                        <sync-outlined /> 同步至资产组
+                        <sync-outlined /> {{ taskText('tasks.syncToAssetGroup') }}
                       </a-menu-item>
                       <a-menu-item key="export" @click="exportTask(record)">
-                        <export-outlined /> 导出 Excel 报告
+                        <export-outlined /> {{ taskText('tasks.exportExcelReport') }}
                       </a-menu-item>
                       <a-menu-item
                         key="stop"
                         :disabled="record.status === 'done' || record.status === 'stop' || record.status === 'error'"
                         @click="stopSingleTask(record)"
                       >
-                        <stop-outlined /> 停止任务
+                        <stop-outlined /> {{ taskText('tasks.stopTask') }}
                       </a-menu-item>
                       <a-menu-divider />
                       <a-menu-item
@@ -856,12 +856,12 @@
                         :disabled="record.status !== 'done' && record.status !== 'stop' && record.status !== 'error'"
                         @click="deleteSingleTask(record)"
                       >
-                        <delete-outlined /> 删除任务
+                        <delete-outlined /> {{ taskText('tasks.deleteTask') }}
                       </a-menu-item>
                     </a-menu>
                   </template>
                   <a-button type="text" size="small" class="more-action-btn">
-                    更多 <down-outlined style="font-size: 10px;" />
+                    {{ taskText('tasks.more') }} <down-outlined class="task-small-caption" />
                   </a-button>
                 </a-dropdown>
               </div>
@@ -871,7 +871,7 @@
 
         <div class="task-pagination-bar">
           <div class="pagination-info">
-            共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据
+            {{ taskText('tasks.paginationSummary', { pages: Math.ceil(pagination.total / pagination.pageSize) || 1, total: pagination.total }) }}
           </div>
           <a-pagination
             :pageSizeOptions="$pageSizeOptions"
@@ -890,14 +890,14 @@
     <!-- 4. 添加侦查任务弹窗 (结构化重塑) -->
     <a-modal
       v-model:open="visible"
-      title="新建资产侦查任务"
+      :title="taskText('tasks.newAssetDiscoveryTask')"
       @ok="handleOk"
       :confirmLoading="submitLoading"
       width="640px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="下发任务"
-      cancelText="取 消"
+      :okText="taskText('tasks.createTask')"
+      :cancelText="taskText('tasks.cancel')"
       :bodyStyle="{ padding: '16px 24px' }"
     >
       <a-form
@@ -908,25 +908,25 @@
         <!-- A. 基础信息卡片 -->
         <div class="modal-section-card">
           <div class="section-title">
-            <span class="section-indicator"></span> 基础信息
+            <span class="section-indicator"></span> {{ taskText('tasks.basicSettings') }}
           </div>
           <a-row :gutter="16">
             <a-col :span="24">
-              <a-form-item label="任务名称" name="name" :rules="[{ required: true, message: '请输入任务名称' }]">
-                <a-input v-model:value="formState.name" placeholder="例如：某集团边界资产探测_2026Q3" />
+              <a-form-item :label="taskText('tasks.taskName')" name="name" :rules="[{ required: true, message: taskText('tasks.enterATaskName') }]">
+                <a-input v-model:value="formState.name" :placeholder="taskText('tasks.exampleGroupBoundaryDiscovery2026q3')" />
               </a-form-item>
             </a-col>
             <a-col :span="24">
-              <a-form-item label="关联资产组（可选）" name="related_scope_id"
-                extra="选择后，扫描完成会自动同步到该组；全部目标必须属于该组的范围。">
+              <a-form-item :label="taskText('tasks.assetGroupOptional')" name="related_scope_id"
+                :extra="taskText('tasks.resultsWillSyncToThisGroupAfterScanning')">
                 <AssetScopeSelect v-model:value="formState.related_scope_id" />
               </a-form-item>
             </a-col>
             <a-col :span="24">
-              <a-form-item label="探测目标" name="target" :rules="[{ required: true, message: '请输入目标' }]">
+              <a-form-item :label="taskText('tasks.scanTargets')" name="target" :rules="[{ required: true, message: taskText('tasks.enterTargets') }]">
                 <a-textarea
                   v-model:value="formState.target"
-                  placeholder="请输入目标，支持域名 (example.com)、IP (1.1.1.1)、或 IP 掩码段 (192.168.1.0/24)，多个目标请换行输入"
+                  :placeholder="taskText('tasks.enterDomainsExampleComIps111')"
                   :rows="3"
                   style="resize: vertical;"
                 />
@@ -943,39 +943,39 @@
         <!-- B. 字典与策略配置 -->
         <div class="modal-section-card">
           <div class="section-title">
-            <span class="section-indicator"></span> 字典与策略配置
+            <span class="section-indicator"></span> {{ taskText('tasks.wordlistsAndPolicies') }}
           </div>
           <a-row :gutter="12">
             <a-col :span="12">
-              <a-form-item label="域名爆破字典" name="domain_brute_type" :rules="[{ required: !!formState.domain_brute, message: '请选择域名爆破字典' }]">
-                <a-select v-model:value="formState.domain_brute_type" :disabled="!formState.domain_brute" placeholder="请选择字典">
+              <a-form-item :label="taskText('tasks.subdomainWordlist')" name="domain_brute_type" :rules="[{ required: !!formState.domain_brute, message: taskText('tasks.selectASubdomainWordlist') }]">
+                <a-select v-model:value="formState.domain_brute_type" :disabled="!formState.domain_brute" :placeholder="taskText('tasks.selectAWordlist')">
                   <a-select-option v-for="item in domainDicts" :key="item.name" :value="item.name">{{ describeDict(item) }}</a-select-option>
                 </a-select>
-                <div v-if="!formState.domain_brute" class="dict-disabled-hint">需先在下方「扫描插件与调度策略」中启用「域名爆破」</div>
+                <div v-if="!formState.domain_brute" class="dict-disabled-hint">{{ taskText('tasks.enableSubdomainEnumerationUnderScanPluginsAndScheduling') }}</div>
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="智能子域字典" name="alt_dns_dict" :rules="[{ required: !!formState.alt_dns, message: '请选择智能字典' }]">
-                <a-select v-model:value="formState.alt_dns_dict" :disabled="!formState.alt_dns" placeholder="请选择字典">
+              <a-form-item :label="taskText('tasks.generatedSubdomainWordlist')" name="alt_dns_dict" :rules="[{ required: !!formState.alt_dns, message: taskText('tasks.selectAGeneratedWordlist') }]">
+                <a-select v-model:value="formState.alt_dns_dict" :disabled="!formState.alt_dns" :placeholder="taskText('tasks.selectAWordlist')">
                   <a-select-option v-for="item in altDnsDicts" :key="item.name" :value="item.name">{{ describeDict(item) }}</a-select-option>
                 </a-select>
-                <div v-if="!formState.alt_dns" class="dict-disabled-hint">需先在下方「扫描插件与调度策略」中启用「DNS字典智能生成」</div>
+                <div v-if="!formState.alt_dns" class="dict-disabled-hint">{{ taskText('tasks.enableDnsWordlistGenerationUnderScanPluginsAnd') }}</div>
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="端口扫描类型" name="port_scan_type" :rules="[{ required: !!formState.port_scan, message: '请选择端口策略' }]">
-                <a-select v-model:value="formState.port_scan_type" :disabled="!formState.port_scan" placeholder="请选择策略">
+              <a-form-item :label="taskText('tasks.portScanMode')" name="port_scan_type" :rules="[{ required: !!formState.port_scan, message: taskText('tasks.selectAPortScanPolicy') }]">
+                <a-select v-model:value="formState.port_scan_type" :disabled="!formState.port_scan" :placeholder="taskText('tasks.selectAPolicy')">
                   <a-select-option v-for="item in portDicts" :key="item.name" :value="item.name">{{ describeDict(item) }}</a-select-option>
                 </a-select>
-                <div v-if="!formState.port_scan" class="dict-disabled-hint">需先在下方「扫描插件与调度策略」中启用「端口扫描」</div>
+                <div v-if="!formState.port_scan" class="dict-disabled-hint">{{ taskText('tasks.enablePortScanningUnderScanPluginsAndScheduling') }}</div>
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="目录泄露字典" name="file_leak_dict" :rules="[{ required: !!formState.file_leak, message: '请选择泄露字典' }]">
-                <a-select v-model:value="formState.file_leak_dict" :disabled="!formState.file_leak" placeholder="请选择字典">
+              <a-form-item :label="taskText('tasks.fileDiscoveryWordlist')" name="file_leak_dict" :rules="[{ required: !!formState.file_leak, message: taskText('tasks.selectAFileDiscoveryWordlist') }]">
+                <a-select v-model:value="formState.file_leak_dict" :disabled="!formState.file_leak" :placeholder="taskText('tasks.selectAWordlist')">
                   <a-select-option v-for="item in fileLeakDicts" :key="item.name" :value="item.name">{{ describeDict(item) }}</a-select-option>
                 </a-select>
-                <div v-if="!formState.file_leak" class="dict-disabled-hint">需先在下方「扫描插件与调度策略」中启用「文件泄露」</div>
+                <div v-if="!formState.file_leak" class="dict-disabled-hint">{{ taskText('tasks.enableFileDisclosureChecksUnderScanPluginsAnd') }}</div>
               </a-form-item>
             </a-col>
           </a-row>
@@ -985,18 +985,18 @@
         <div class="modal-section-card">
           <div class="section-title-with-actions">
             <div class="section-title">
-              <span class="section-indicator"></span> 扫描插件与调度策略
+              <span class="section-indicator"></span> {{ taskText('tasks.scanPluginsAndScheduling') }}
             </div>
             <div class="preset-btn-group">
-              <span class="preset-tip">快捷预设:</span>
-              <a-tooltip title="启用域名查询、域名爆破、端口扫描、跳过 CDN、站点与指纹识别；耗时最短，适用于初步摸底">
-                <a-button size="small" @click="applyPreset('fast')">快速侦查</a-button>
+              <span class="preset-tip">{{ taskText('tasks.presets') }}</span>
+              <a-tooltip :title="taskText('tasks.enableDomainLookupSubdomainEnumerationPortScanningCdn')">
+                <a-button size="small" @click="applyPreset('fast')">{{ taskText('tasks.quickDiscovery') }}</a-button>
               </a-tooltip>
-              <a-tooltip title="在「快速侦查」基础上追加服务识别、SSL 证书获取、文件泄露；覆盖较全面，耗时中等">
-                <a-button size="small" @click="applyPreset('normal')">常规探测</a-button>
+              <a-tooltip :title="taskText('tasks.addServiceDetectionSslCertificatesAndFileDisclosure')">
+                <a-button size="small" @click="applyPreset('normal')">{{ taskText('tasks.standardDiscovery') }}</a-button>
               </a-tooltip>
-              <a-tooltip title="启用全部插件，并关闭「跳过 CDN」（将对 CDN 节点 IP 一并扫描）；覆盖面最大、耗时与资源占用最高">
-                <a-button size="small" @click="applyPreset('deep')">深度全量</a-button>
+              <a-tooltip :title="taskText('tasks.enableAllPluginsAndIncludeCdnNodeIps')">
+                <a-button size="small" @click="applyPreset('deep')">{{ taskText('tasks.fullDiscovery') }}</a-button>
               </a-tooltip>
             </div>
           </div>
@@ -1005,7 +1005,7 @@
             <div class="plugin-cat-header">
               <span class="cat-title">{{ category.title }}</span>
               <a-button size="small" type="link" @click="toggleCategory(category)">
-                {{ isCategoryAllChecked(category) ? '取消全选' : '全选本类' }}
+                {{ isCategoryAllChecked(category) ? taskText('tasks.clearThisCategory') : taskText('tasks.selectThisCategory') }}
               </a-button>
             </div>
             <a-row :gutter="[12, 8]">
@@ -1023,20 +1023,20 @@
     <!-- 5. 同步至资产组弹窗 -->
     <a-modal
       v-model:open="syncVisible"
-      title="同步任务至资产组"
+      :title="taskText('tasks.syncTaskToAssetGroup')"
       @ok="handleSyncOk"
       :confirmLoading="syncLoading"
       width="480px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="确 定"
-      cancelText="取 消"
+      :okText="taskText('tasks.confirm')"
+      :cancelText="taskText('tasks.cancel')"
     >
       <div style="margin: 16px 0 8px 0;">
-        <p style="color: var(--arl-text-secondary); font-size: 13px;">请选择将该任务探测出的资产数据关联归属的资产组：</p>
+        <p class="task-count-caption">{{ taskText('tasks.selectTheAssetGroupThatWillReceiveThis') }}</p>
       </div>
       <a-form :model="syncFormState" layout="vertical">
-        <a-form-item label="目标资产组" name="scope_id" :rules="[{ required: true, message: '请选择资产组' }]">
+        <a-form-item :label="taskText('tasks.targetAssetGroup')" name="scope_id" :rules="[{ required: true, message: taskText('tasks.selectAnAssetGroup') }]">
           <AssetScopeSelect v-model:value="syncFormState.scope_id" />
         </a-form-item>
       </a-form>
@@ -1045,14 +1045,14 @@
     <!-- 6. FOFA 任务下发弹窗 -->
     <a-modal
       v-model:open="fofaVisible"
-      title="FOFA 任务下发"
+      :title="taskText('tasks.createFofaTask')"
       @ok="submitFofaTask"
       :confirmLoading="fofaSubmitLoading"
       width="560px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
-      okText="下 发"
-      cancelText="取 消"
+      :okText="taskText('tasks.createTask')"
+      :cancelText="taskText('tasks.cancel')"
       :bodyStyle="{ padding: '20px 28px' }"
     >
       <a-form
@@ -1060,24 +1060,24 @@
         :model="fofaForm"
         layout="vertical"
       >
-        <a-form-item label="任务名称" name="name" :rules="[{ required: true, message: '请输入任务名称' }]">
-          <a-input v-model:value="fofaForm.name" placeholder="请输入任务名称" />
+        <a-form-item :label="taskText('tasks.taskName')" name="name" :rules="[{ required: true, message: taskText('tasks.enterATaskName') }]">
+          <a-input v-model:value="fofaForm.name" :placeholder="taskText('tasks.enterATaskName')" />
         </a-form-item>
 
-        <a-form-item label="FOFA 查询语句" name="query" :rules="[{ required: true, message: '请输入查询语句' }]">
+        <a-form-item :label="taskText('tasks.fofaQuery')" name="query" :rules="[{ required: true, message: taskText('tasks.enterAQuery') }]">
           <div style="display: flex; gap: 8px; align-items: center;">
-            <a-input v-model:value="fofaForm.query" placeholder='例如：app="Apache" && country="CN"' style="flex: 1;" />
-            <a-button type="primary" ghost @click="testFofaQuery" :loading="fofaTestLoading">连通测试</a-button>
+            <a-input v-model:value="fofaForm.query" :placeholder="taskText('tasks.exampleAppApacheCountryCn')" class="task-fill-space" />
+            <a-button type="primary" ghost @click="testFofaQuery" :loading="fofaTestLoading">{{ taskText('tasks.testConnection') }}</a-button>
           </div>
           <div v-if="fofaTested" class="fofa-test-result-box">
-            <span class="fofa-badge">查询结果数: <b>{{ fofaResultCount }}</b></span>
+            <span class="fofa-badge">{{ taskText('tasks.queryResults') }} <b>{{ fofaResultCount }}</b></span>
           </div>
         </a-form-item>
 
-        <a-form-item label="关联策略 (可选)" name="policy_id">
+        <a-form-item :label="taskText('tasks.policyOptional')" name="policy_id">
           <a-select
             v-model:value="fofaForm.policy_id"
-            placeholder="请选择关联策略 (默认使用系统默认策略)"
+            :placeholder="taskText('tasks.selectAPolicyUsesTheSystemDefaultWhen')"
             :options="policyOptions"
             allowClear
           />
@@ -1092,6 +1092,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
 defineOptions({ name: 'TaskList' });
 
 import { ref, reactive, onMounted, computed, createVNode, watch, onActivated, onDeactivated, onUnmounted } from 'vue';
@@ -1121,6 +1123,8 @@ import TycTaskModal from '../components/TycTaskModal.vue';
 import SyncToScopeModal from '../components/SyncToScopeModal.vue';
 import AssetScopeSelect from '../components/AssetScopeSelect.vue';
 import { getTaskAssetGroupState } from '../utils/taskAssetGroups';
+
+const { t: taskText } = useI18n({ useScope: 'global' });
 
 // --- 吸顶配置 ---
 const actionBarRef = ref(null);
@@ -1244,10 +1248,10 @@ const stopSmartPolling = () => {
 
 const handleAutoRefreshToggle = (enabled) => {
   if (enabled) {
-    message.success('已开启任务自动刷新 (检测到运行中任务时静默同步)');
+    message.success(taskText('tasks.autoRefreshEnabledRefreshSilentlyWhileTasksAre'));
     startSmartPolling();
   } else {
-    message.info('已暂停自动刷新');
+    message.info(taskText('tasks.autoRefreshPaused'));
     stopSmartPolling();
   }
 };
@@ -1261,9 +1265,9 @@ const handleManualRefresh = async () => {
       await fetchTasks(pagination.current, pagination.pageSize);
     }
     lastRefreshTime.value = new Date();
-    message.success('任务列表已刷新');
+    message.success(taskText('tasks.taskListRefreshed'));
   } catch (e) {
-    message.error('刷新失败');
+    message.error(taskText('tasks.refreshFailed'));
   } finally {
     isRefreshing.value = false;
   }
@@ -1273,10 +1277,10 @@ const handleManualRefresh = async () => {
 // 🏢 企业测绘任务专属逻辑 (OSINT)
 // ==========================================
 const rangePresets = ref([
-  { label: '今天', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
-  { label: '近 7 天', value: [dayjs().subtract(6, 'day').startOf('day'), dayjs().endOf('day')] },
-  { label: '近 30 天', value: [dayjs().subtract(29, 'day').startOf('day'), dayjs().endOf('day')] },
-  { label: '本月', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
+  { get label() { return taskText('tasks.today'); }, value: [dayjs().startOf('day'), dayjs().endOf('day')] },
+  { get label() { return taskText('tasks.last7Days'); }, value: [dayjs().subtract(6, 'day').startOf('day'), dayjs().endOf('day')] },
+  { get label() { return taskText('tasks.last30Days'); }, value: [dayjs().subtract(29, 'day').startOf('day'), dayjs().endOf('day')] },
+  { get label() { return taskText('tasks.thisMonth'); }, value: [dayjs().startOf('month'), dayjs().endOf('month')] },
 ]);
 
 const reconSearchForm = reactive({
@@ -1350,19 +1354,19 @@ const resetReconSearch = () => {
 const handleEnterpriseTableChange = (page, pageSize) => fetchEnterpriseTasks(page, pageSize, false, false);
 
 const TYC_QUERY_TYPE_LABELS = {
-  invest: '对外投资',
-  web: '网站备案',
-  app: '移动APP',
-  mapp: '微信小程序',
-  wechat: '微信公众号',
-  weibo: '企业微博'
+  get invest() { return taskText('tasks.investments'); },
+  get web() { return taskText('tasks.websiteIcpRecords'); },
+  get app() { return taskText('tasks.mobileApps'); },
+  get mapp() { return taskText('tasks.wechatMiniPrograms'); },
+  get wechat() { return taskText('tasks.wechatOfficialAccounts'); },
+  get weibo() { return taskText('tasks.corporateWeiboAccounts'); }
 };
 
 const ICP_QUERY_TYPE_LABELS = {
-  web: '网站备案',
-  app: '移动APP',
-  mapp: '微信小程序',
-  kapp: '快应用'
+  get web() { return taskText('tasks.websiteIcpRecords'); },
+  get app() { return taskText('tasks.mobileApps'); },
+  get mapp() { return taskText('tasks.wechatMiniPrograms'); },
+  get kapp() { return taskText('tasks.quickApps'); }
 };
 
 const hasEnterpriseOptions = (record) => {
@@ -1378,12 +1382,12 @@ const hasEnterpriseOptions = (record) => {
 const getEnterpriseQueryTypeLabels = (record) => {
   const queryType = Array.isArray(record.query_type) ? record.query_type : [];
   const map = record.task_type === 'tyc' ? TYC_QUERY_TYPE_LABELS : ICP_QUERY_TYPE_LABELS;
-  if (!queryType.length) return ['默认查询'];
+  if (!queryType.length) return [taskText('tasks.defaultQuery')];
   return queryType.map(k => map[k] || k);
 };
 
 const formatEnterpriseOptionsSummary = (record) => {
-  if (!record) return '默认配置';
+  if (!record) return taskText('tasks.defaultConfiguration');
   const queryCount = Array.isArray(record.query_type) ? record.query_type.length : 0;
 
   if (record.task_type === 'tyc') {
@@ -1391,25 +1395,26 @@ const formatEnterpriseOptionsSummary = (record) => {
     if (record.depth !== undefined) activeCount++;
     if (record.invest_ratio !== undefined) activeCount++;
     if (record.enable_icp !== false) activeCount++;
-    return `已配置 ${activeCount} 项策略`;
+    return taskText('tasks.configuredPoliciesCount', { count: activeCount });
   }
 
   if (queryCount > 0) {
-    return `${queryCount} 项查询维度`;
+    return taskText('tasks.queryCategoriesCount', { count: queryCount });
   }
-  return '默认配置';
+  return taskText('tasks.defaultConfiguration');
 };
 
+// 这些列配置会复用，读取标题时再翻译，使已打开的页面能随语言更新。
 const enterpriseColumns = [
-  { title: '任务名称', dataIndex: 'name', key: 'name', width: 220, ellipsis: true },
-  { title: '查询目标', dataIndex: 'target', key: 'target', width: 200, ellipsis: true },
-  { title: '测绘模式', dataIndex: 'task_type', key: 'task_type', width: 110 },
-  { title: '策略配置', key: 'policy_options', width: 140 },
-  { title: '状态', dataIndex: 'status', key: 'status', width: 120 },
-  { title: '核心/投资', key: 'statistic', width: 140 },
-  { title: '同步状态', key: 'sync_status', width: 150 },
-  { title: '结束时间', dataIndex: 'end_time', key: 'end_time', width: 160 },
-  { title: '操作', key: 'action', width: 170, fixed: 'right' }
+  { get title() { return taskText('tasks.taskName'); }, dataIndex: 'name', key: 'name', width: 220, ellipsis: true },
+  { get title() { return taskText('tasks.queryTarget'); }, dataIndex: 'target', key: 'target', width: 200, ellipsis: true },
+  { get title() { return taskText('tasks.discoveryMode'); }, dataIndex: 'task_type', key: 'task_type', width: 110 },
+  { get title() { return taskText('tasks.policyConfiguration'); }, key: 'policy_options', width: 140 },
+  { get title() { return taskText('tasks.status'); }, dataIndex: 'status', key: 'status', width: 120 },
+  { get title() { return taskText('tasks.coreInvestments'); }, key: 'statistic', width: 140 },
+  { get title() { return taskText('tasks.syncStatus'); }, key: 'sync_status', width: 150 },
+  { get title() { return taskText('tasks.endTime'); }, dataIndex: 'end_time', key: 'end_time', width: 160 },
+  { get title() { return taskText('tasks.actions'); }, key: 'action', width: 170, fixed: 'right' }
 ];
 
 const getEnterpriseStatusColor = (status) => {
@@ -1482,7 +1487,7 @@ const viewEnterpriseTask = (record) => {
 
 const handleExportEnterprise = async (record) => {
   try {
-    message.loading({ content: '正在导出...', key: 'export', duration: 0 });
+    message.loading({ content: taskText('tasks.exporting'), key: 'export', duration: 0 });
     const res = await request.get(`/icp/export/${record._id}`, { responseType: 'blob' });
     const blob = new Blob([res.data || res]);
     const url = window.URL.createObjectURL(blob);
@@ -1492,19 +1497,19 @@ const handleExportEnterprise = async (record) => {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    message.success({ content: '导出成功', key: 'export', duration: 2 });
+    message.success({ content: taskText('tasks.exportCompleted'), key: 'export', duration: 2 });
   } catch (error) {
-    message.error({ content: '导出失败', key: 'export', duration: 2 });
+    message.error({ content: taskText('tasks.exportFailed'), key: 'export', duration: 2 });
   }
 };
 
 const handleBatchExportEnterprise = async () => {
   if (enterpriseSelectedRowKeys.value.length === 0) {
-    message.warning('请先勾选需要导出的任务');
+    message.warning(taskText('tasks.selectTasksToExportFirst'));
     return;
   }
   try {
-    message.loading({ content: '正在批量导出...', key: 'batch_export', duration: 0 });
+    message.loading({ content: taskText('tasks.exportingSelectedTasks'), key: 'batch_export', duration: 0 });
     const res = await request.post('/icp/batch_export', {
       task_id: enterpriseSelectedRowKeys.value
     }, { responseType: 'blob' });
@@ -1516,9 +1521,9 @@ const handleBatchExportEnterprise = async () => {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    message.success({ content: '批量导出成功', key: 'batch_export', duration: 2 });
+    message.success({ content: taskText('tasks.selectedTasksExported'), key: 'batch_export', duration: 2 });
   } catch (error) {
-    message.error({ content: '批量导出失败', key: 'batch_export', duration: 2 });
+    message.error({ content: taskText('tasks.failedToExportSelectedTasks'), key: 'batch_export', duration: 2 });
   }
 };
 
@@ -1531,16 +1536,16 @@ const handleBatchDeleteEnterprise = async () => {
     return item && !['done', 'stop', 'error'].includes(item.status);
   });
   if (activeSelected.length > 0) {
-    message.warning('所选任务中存在正在运行或未完成的任务，请先停止后再删除');
+    message.warning(taskText('tasks.someSelectedTasksAreRunningOrUnfinishedStop'));
     return;
   }
 
   enterpriseBatchDeleting.value = true;
   try {
-    message.loading({ content: '正在批量删除...', key: 'batchDelete', duration: 0 });
+    message.loading({ content: taskText('tasks.deletingSelectedTasks'), key: 'batchDelete', duration: 0 });
     const res = await request.post('/icp/delete/', { task_ids: enterpriseSelectedRowKeys.value });
     if (res.code === 200) {
-      message.success({ content: '批量删除成功', key: 'batchDelete', duration: 2 });
+      message.success({ content: taskText('tasks.selectedTasksDeleted'), key: 'batchDelete', duration: 2 });
       enterpriseSelectedRowKeys.value.forEach(id => enterpriseTaskCache.delete(id));
       const deletedCount = res.deleted_count || enterpriseSelectedRowKeys.value.length;
       enterpriseSelectedRowKeys.value = [];
@@ -1549,10 +1554,10 @@ const handleBatchDeleteEnterprise = async () => {
       const targetPage = Math.min(enterprisePagination.current, maxPage);
       fetchEnterpriseTasks(targetPage, enterprisePagination.pageSize);
     } else {
-      message.error({ content: res.message || '批量删除失败', key: 'batchDelete', duration: 3 });
+      message.error({ content: res.message || taskText('tasks.failedToDeleteSelectedTasks'), key: 'batchDelete', duration: 3 });
     }
   } catch (error) {
-    message.error({ content: '网络异常，批量删除失败', key: 'batchDelete', duration: 2 });
+    message.error({ content: taskText('tasks.networkErrorFailedToDeleteSelectedTasks'), key: 'batchDelete', duration: 2 });
   } finally {
     enterpriseBatchDeleting.value = false;
   }
@@ -1561,28 +1566,28 @@ const handleBatchDeleteEnterprise = async () => {
 const handleBatchRestartEnterprise = async () => {
   if (!enterpriseSelectedRowKeys.value.length) return;
   try {
-    message.loading({ content: '正在批量重启...', key: 'batchRestart', duration: 0 });
+    message.loading({ content: taskText('tasks.restartingSelectedTasks'), key: 'batchRestart', duration: 0 });
     const res = await request.post('/icp/restart/', { task_ids: enterpriseSelectedRowKeys.value });
     if (res.code === 200) {
-      message.success({ content: '成功下发批量重启', key: 'batchRestart', duration: 3 });
+      message.success({ content: taskText('tasks.selectedTasksQueuedForRestart'), key: 'batchRestart', duration: 3 });
       enterpriseSelectedRowKeys.value = [];
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
     } else {
-      message.error({ content: res.message || '批量重启失败', key: 'batchRestart', duration: 3 });
+      message.error({ content: res.message || taskText('tasks.failedToRestartSelectedTasks'), key: 'batchRestart', duration: 3 });
     }
   } catch (error) {
-    message.error({ content: '批量重启失败', key: 'batchRestart', duration: 2 });
+    message.error({ content: taskText('tasks.failedToRestartSelectedTasks'), key: 'batchRestart', duration: 2 });
   }
 };
 
 const handleStopEnterprise = (record) => {
   Modal.confirm({
-    title: '停止企业测绘任务确认',
+    title: taskText('tasks.stopEnterpriseTask'),
     icon: createVNode(ExclamationCircleOutlined),
-    content: `确认停止企业测绘任务「${record.name}」吗？停止后不会自动建组或纳管资产。`,
-    okText: '确认停止',
+    content: taskText('tasks.stopEnterpriseTaskNameItWillNoLonger', { name: record.name }),
+    okText: taskText('tasks.confirmStop'),
     okButtonProps: { danger: true },
-    cancelText: '取 消',
+    cancelText: taskText('tasks.cancel'),
     onOk: () => executeStopEnterprise(record)
   });
 };
@@ -1591,10 +1596,10 @@ const executeStopEnterprise = async (record) => {
   try {
     const res = await request.get(`/icp/stop/${record._id}`);
     if (res.code === 200) {
-      message.success('已停止任务');
+      message.success(taskText('tasks.taskStopped'));
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
     } else {
-      message.error(res.message || '停止失败');
+      message.error(res.message || taskText('tasks.failedToStopTaskLabel'));
     }
   } catch (error) {
     console.error('停止任务失败', error);
@@ -1603,11 +1608,11 @@ const executeStopEnterprise = async (record) => {
 
 const handleRestartEnterprise = (record) => {
   Modal.confirm({
-    title: '重启企业测绘任务确认',
+    title: taskText('tasks.restartEnterpriseTask'),
     icon: createVNode(ExclamationCircleOutlined),
-    content: `确认重启企业测绘任务「${record.name}」吗？重启将基于原目标重新发起一次测绘，并生成新的任务记录。`,
-    okText: '确认重启',
-    cancelText: '取 消',
+    content: taskText('tasks.restartEnterpriseTaskNameThisWillRunDiscovery', { name: record.name }),
+    okText: taskText('tasks.confirmRestart'),
+    cancelText: taskText('tasks.cancel'),
     onOk: () => executeRestartEnterprise(record)
   });
 };
@@ -1616,10 +1621,10 @@ const executeRestartEnterprise = async (record) => {
   try {
     const res = await request.get(`/icp/restart/${record._id}`);
     if (res.code === 200) {
-      message.success('已重启任务');
+      message.success(taskText('tasks.taskRestarted'));
       fetchEnterpriseTasks(enterprisePagination.current, enterprisePagination.pageSize);
     } else {
-      message.error(res.message || '重启失败');
+      message.error(res.message || taskText('tasks.failedToRestartTaskLabel'));
     }
   } catch (error) {
     console.error('重启任务失败', error);
@@ -1628,22 +1633,22 @@ const executeRestartEnterprise = async (record) => {
 
 const handleDeleteEnterprise = async (record) => {
   if (!['done', 'stop', 'error'].includes(record.status)) {
-    message.warning('无法删除正在运行或排队中的任务，请先停止任务后再行删除');
+    message.warning(taskText('tasks.runningOrQueuedTasksCannotBeDeletedStop'));
     return;
   }
 
   Modal.confirm({
-    title: '删除确认',
+    title: taskText('tasks.confirmDeletion'),
     icon: createVNode(ExclamationCircleOutlined),
-    content: `确认要删除企业测绘任务「${record.name || record._id}」吗？`,
-    okText: '确 定',
-    cancelText: '取 消',
+    content: taskText('tasks.deleteEnterpriseTaskName', { name: record.name || record._id }),
+    okText: taskText('tasks.confirm'),
+    cancelText: taskText('tasks.cancel'),
     okButtonProps: { danger: true },
     onOk: async () => {
       try {
         const res = await request.post('/icp/delete/', { task_ids: [record._id] });
         if (res.code === 200) {
-          message.success('删除成功');
+          message.success(taskText('tasks.deletedSuccessfully'));
           enterpriseTaskCache.delete(record._id);
           enterpriseSelectedRowKeys.value = enterpriseSelectedRowKeys.value.filter(id => id !== record._id);
           const remainingCount = Math.max(0, enterprisePagination.total - 1);
@@ -1651,10 +1656,10 @@ const handleDeleteEnterprise = async (record) => {
           const targetPage = Math.min(enterprisePagination.current, maxPage);
           fetchEnterpriseTasks(targetPage, enterprisePagination.pageSize);
         } else {
-          message.error(res.message || '删除失败');
+          message.error(res.message || taskText('tasks.deletionFailedLabel'));
         }
       } catch (error) {
-        message.error('网络异常，删除失败');
+        message.error(taskText('tasks.networkErrorDeletionFailed'));
         console.error('删除任务失败', error);
       }
     }
@@ -1679,16 +1684,16 @@ watch(globalPageSize, (newSize) => {
 
 // 列配置
 const columns = [
-  { title: '任务名', dataIndex: 'name', key: 'name', width: 200, sorter: true, ellipsis: true },
-  { title: '目标', dataIndex: 'target', key: 'target', width: 220, sorter: true, ellipsis: true },
-  { title: '资产统计', dataIndex: 'statistic', key: 'statistic', width: 210 },
-  { title: '资产组', key: 'asset_group', width: 180 },
-  { title: '策略配置', dataIndex: 'options', key: 'options', width: 140 },
-  { title: '状态', dataIndex: 'status', key: 'status', width: 150 },
-  { title: '开始时间', dataIndex: 'start_time', key: 'start_time', width: 160 },
-  { title: '结束时间', dataIndex: 'end_time', key: 'end_time', width: 160 },
+  { get title() { return taskText('tasks.taskName'); }, dataIndex: 'name', key: 'name', width: 200, sorter: true, ellipsis: true },
+  { get title() { return taskText('tasks.target'); }, dataIndex: 'target', key: 'target', width: 220, sorter: true, ellipsis: true },
+  { get title() { return taskText('tasks.assetCounts'); }, dataIndex: 'statistic', key: 'statistic', width: 210 },
+  { get title() { return taskText('tasks.assetGroup'); }, key: 'asset_group', width: 180 },
+  { get title() { return taskText('tasks.policyConfiguration'); }, dataIndex: 'options', key: 'options', width: 140 },
+  { get title() { return taskText('tasks.status'); }, dataIndex: 'status', key: 'status', width: 150 },
+  { get title() { return taskText('tasks.startTime'); }, dataIndex: 'start_time', key: 'start_time', width: 160 },
+  { get title() { return taskText('tasks.endTime'); }, dataIndex: 'end_time', key: 'end_time', width: 160 },
   { title: 'Task_Id', dataIndex: '_id', key: 'task_id', width: 190 },
-  { title: '操作', key: 'action', fixed: 'right', width: 160 },
+  { get title() { return taskText('tasks.actions'); }, key: 'action', fixed: 'right', width: 160 },
 ];
 
 const isStatusRunning = (status) => {
@@ -1710,16 +1715,16 @@ const getStatusIcon = (status) => {
 const formatStatusText = (status) => formatTaskStatus(status);
 
 const formatOptionsSummary = (options) => {
-  if (!options) return '默认配置';
+  if (!options) return taskText('tasks.defaultConfiguration');
   let activeCount = 0;
   for (const key in options) {
     if (options[key] === true) activeCount++;
   }
-  return `已启用 ${activeCount} 项策略`;
+  return taskText('tasks.enabledPluginsCount', { count: activeCount });
 };
 
 const getDetailedOptions = (options) => {
-  if (!options) return ['默认配置'];
+  if (!options) return [taskText('tasks.defaultConfiguration')];
   const detailed = [];
 
   for (const key in options) {
@@ -1730,21 +1735,21 @@ const getDetailedOptions = (options) => {
   }
 
   if (options.domain_brute_type) {
-    const typeMap = { test: '测试', big: '大字典' };
-    detailed.push(`域名爆破字典: ${typeMap[options.domain_brute_type] || options.domain_brute_type}`);
+    const typeMap = { test: taskText('tasks.test'), big: taskText('tasks.largeWordlist') };
+    detailed.push(taskText('tasks.subdomainWordlistName', { name: typeMap[options.domain_brute_type] || options.domain_brute_type }));
   }
   if (options.port_scan_type && options.port_scan_type !== 'null' && options.port_scan_type !== null) {
-    const typeMap = { test: '测试', top100: 'TOP100', top1000: 'TOP1000', all: '全端口' };
-    detailed.push(`端口扫描策略: ${typeMap[options.port_scan_type] || options.port_scan_type.toUpperCase()}`);
+    const typeMap = { test: taskText('tasks.test'), top100: 'TOP100', top1000: 'TOP1000', all: taskText('tasks.allPorts') };
+    detailed.push(taskText('tasks.portScanPolicyName', { name: typeMap[options.port_scan_type] || options.port_scan_type.toUpperCase() }));
   }
   if (options.alt_dns_dict) {
-    detailed.push(`智能子域字典: ${options.alt_dns_dict}`);
+    detailed.push(taskText('tasks.generatedSubdomainWordlistName', { name: options.alt_dns_dict }));
   }
   if (options.file_leak_dict) {
-    detailed.push(`文件泄露字典: ${options.file_leak_dict}`);
+    detailed.push(taskText('tasks.fileDiscoveryWordlistName', { name: options.file_leak_dict }));
   }
 
-  return detailed.length > 0 ? detailed : ['无额外选项'];
+  return detailed.length > 0 ? detailed : [taskText('tasks.noAdditionalOptions')];
 };
 
 // 搜索表单与高级筛选折叠状态
@@ -1847,7 +1852,7 @@ const handleTableChange = (page, pageSize) => fetchTasks(page, pageSize, false, 
 // ==========================================
 const handleBatchDelete = () => {
   if (!hasSelected.value) {
-    message.warning('请先勾选需要删除的任务');
+    message.warning(taskText('tasks.selectTasksToDeleteFirst'));
     return;
   }
 
@@ -1865,26 +1870,26 @@ const handleBatchDelete = () => {
   const visibleCount = taskList.value.filter(item => validKeys.includes(item._id || item.task_id)).length;
 
   Modal.confirm({
-    title: '批量删除任务确认',
+    title: taskText('tasks.deleteSelectedTasks'),
     icon: createVNode(ExclamationCircleOutlined),
     content: createVNode('div', { style: 'margin-top: 8px;' }, [
-      createVNode('div', { style: 'margin-bottom: 14px; color: var(--arl-text-color);' }, `确认要删除选中的 ${validKeys.length} 项任务吗？`),
+      createVNode('div', { style: 'margin-bottom: 14px; color: var(--arl-text-color);' }, taskText('tasks.deleteTheSelectedTasksCount', { count: validKeys.length })),
       selectedNames.length > 0 ? createVNode('div', {
         style: 'max-height: 120px; overflow-y: auto; background: var(--arl-bg-light, rgba(0,0,0,0.03)); padding: 6px 8px; border-radius: 4px; margin-bottom: 14px; font-size: 12px; color: var(--arl-text-color); opacity: 0.85; line-height: 1.6;'
       }, [
-        createVNode('div', { style: 'font-weight: 500; margin-bottom: 4px;' }, `本次将删除以下任务：`),
+        createVNode('div', { style: 'font-weight: 500; margin-bottom: 4px;' }, taskText('tasks.theFollowingTasksWillBeDeleted', {  })),
         createVNode('div', null, `· ${selectedNames.join('\n· ')}`),
         visibleCount < validKeys.length
-          ? createVNode('div', { style: 'margin-top: 4px; color: #faad14;' }, `其中 ${validKeys.length - visibleCount} 项来自其他页（跨页保留的勾选）。`)
+          ? createVNode('div', { style: 'margin-top: 4px; color: #faad14;' }, taskText('tasks.includesCountSelectionsRetainedFromOtherPages', { count: validKeys.length - visibleCount }))
           : null
       ]) : null,
       createVNode(Checkbox, {
         defaultChecked: isDeleteData,
         onChange: (e) => { isDeleteData = e.target.checked; }
-      }, () => '同时级联删除本次删除任务名下的全部资产数据 (不可恢复，其他任务共享的资产不受影响)')
+      }, () => taskText('tasks.alsoPermanentlyDeleteAllAssetsOwnedByThese'))
     ]),
-    okText: '确认删除',
-    cancelText: '取 消',
+    okText: taskText('tasks.confirmDeletion'),
+    cancelText: taskText('tasks.cancel'),
     okButtonProps: { danger: true },
     onOk: async () => {
       try {
@@ -1894,14 +1899,14 @@ const handleBatchDelete = () => {
         });
 
         if (res.code === 200) {
-          message.success(`成功删除 ${validKeys.length} 项任务`);
+          message.success(taskText('tasks.tasksDeletedCount', { count: validKeys.length }));
           selectedRowKeys.value = [];
           fetchTasks(1, pagination.pageSize);
         } else {
-          message.error('删除失败: ' + (res.message || '未知错误'));
+          message.error(taskText('tasks.deletionFailed') + (res.message || taskText('tasks.unknownError')));
         }
       } catch (error) {
-        message.error('网络异常，请稍后重试');
+        message.error(taskText('tasks.networkErrorPleaseTryAgainLater'));
       }
     }
   });
@@ -1909,7 +1914,7 @@ const handleBatchDelete = () => {
 
 const handleBatchStop = () => {
   if (!hasSelected.value) {
-    message.warning('请先勾选需要停止的任务');
+    message.warning(taskText('tasks.selectTasksToStopFirst'));
     return;
   }
 
@@ -1920,29 +1925,29 @@ const handleBatchStop = () => {
   const activeCount = selectedRecords.filter(item => !['done', 'stop', 'error'].includes(item.status)).length;
   const finishedCount = validKeys.length - activeCount;
 
-  let modalContent = `确认要停止选中的 ${validKeys.length} 项任务吗？`;
+  let modalContent = taskText('tasks.stopTheSelectedTasksCount', { count: validKeys.length });
   if (activeCount > 0 && finishedCount > 0) {
-    modalContent = `选中的 ${validKeys.length} 项任务中包含 ${activeCount} 项正在运行，${finishedCount} 项已结束任务将自动跳过。确认执行停止操作吗？`;
+    modalContent = taskText('tasks.ofTotalSelectedTasksRunningAreRunningAnd', { total: validKeys.length, running: activeCount, finished: finishedCount });
   }
 
   Modal.confirm({
-    title: '停止任务确认',
+    title: taskText('tasks.stopTasks'),
     icon: createVNode(ExclamationCircleOutlined),
     content: modalContent,
-    okText: '确认停止',
-    cancelText: '取 消',
+    okText: taskText('tasks.confirmStop'),
+    cancelText: taskText('tasks.cancel'),
     onOk: async () => {
       try {
         const res = await request.post('/task/batch_stop/', { task_id: validKeys });
         if (res.code === 200) {
-          message.success('停止指令已下发');
+          message.success(taskText('tasks.stopRequestSentLabel'));
           selectedRowKeys.value = [];
           fetchTasks(pagination.current, pagination.pageSize);
         } else {
-          message.error('停止失败: ' + (res.message || '未知错误'));
+          message.error(taskText('tasks.failedToStopTask') + (res.message || taskText('tasks.unknownError')));
         }
       } catch (error) {
-        message.error('网络异常，请稍后重试');
+        message.error(taskText('tasks.networkErrorPleaseTryAgainLater'));
       }
     }
   });
@@ -1950,7 +1955,7 @@ const handleBatchStop = () => {
 
 const handleBatchExport = async ({ key }) => {
   if (!hasSelected.value) {
-    message.warning('请先勾选需要导出的任务');
+    message.warning(taskText('tasks.selectTasksToExportFirst'));
     return;
   }
 
@@ -1958,7 +1963,7 @@ const handleBatchExport = async ({ key }) => {
   if (validKeys.length === 0) return;
 
   try {
-    message.loading({ content: '正在生成导出文件...', key: 'exporting' });
+    message.loading({ content: taskText('tasks.generatingExportFile'), key: 'exporting' });
     const res = await request.post(`/batch_export/${key}/`, {
       task_id: validKeys
     }, {
@@ -1975,10 +1980,10 @@ const handleBatchExport = async ({ key }) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
 
-    message.success({ content: '批量导出成功！', key: 'exporting', duration: 2 });
+    message.success({ content: taskText('tasks.selectedTasksExported'), key: 'exporting', duration: 2 });
   } catch (error) {
     console.error('批量导出异常:', error);
-    message.error({ content: '导出失败，请查看控制台', key: 'exporting', duration: 2 });
+    message.error({ content: taskText('tasks.exportFailedCheckTheConsole'), key: 'exporting', duration: 2 });
   }
 };
 
@@ -2008,17 +2013,17 @@ const restartTask = async (record) => {
     if (res.code === 200) {
       const newTaskId = res.data?.new_task_id?.[0];
       if (newTaskId) {
-        message.success(`任务已重启，新任务 ID: ${newTaskId} 🚀`);
+        message.success(taskText('tasks.taskRestartedNewTaskIdId', { id: newTaskId }));
       } else {
-        message.success('任务已重启，已生成新任务！🚀');
+        message.success(taskText('tasks.taskRestartedWithANewTaskRecord'));
       }
       fetchTasks(pagination.current, pagination.pageSize);
     } else {
-      const errMsg = res.data?.error || res.message || '未知错误';
-      message.error('重启失败: ' + errMsg);
+      const errMsg = res.data?.error || res.message || taskText('tasks.unknownError');
+      message.error(taskText('tasks.failedToRestartTask') + errMsg);
     }
   } catch (error) {
-    message.error('网络异常，重启失败');
+    message.error(taskText('tasks.networkErrorFailedToRestartTask'));
   } finally {
     record.restarting = false;
   }
@@ -2028,13 +2033,13 @@ const stopSingleTask = async (record) => {
   try {
     const res = await request.get(`/task/stop/${record._id || record.task_id}`);
     if (res.code === 200) {
-      message.success('已发送停止指令 🛑');
+      message.success(taskText('tasks.stopRequestSent'));
       fetchTasks(pagination.current, pagination.pageSize);
     } else {
-      message.error('停止失败: ' + (res.message || '未知错误'));
+      message.error(taskText('tasks.failedToStopTask') + (res.message || taskText('tasks.unknownError')));
     }
   } catch (error) {
-    message.error('网络异常，停止失败');
+    message.error(taskText('tasks.networkErrorFailedToStopTask'));
   }
 };
 
@@ -2042,17 +2047,17 @@ const deleteSingleTask = (record) => {
   let isDeleteData = true;
 
   Modal.confirm({
-    title: '删除任务确认',
+    title: taskText('tasks.deleteTask'),
     icon: createVNode(ExclamationCircleOutlined),
     content: createVNode('div', { style: 'margin-top: 8px;' }, [
-      createVNode('div', { style: 'margin-bottom: 14px; color: var(--arl-text-color);' }, `确认要删除任务「${record.name || record._id}」吗？`),
+      createVNode('div', { style: 'margin-bottom: 14px; color: var(--arl-text-color);' }, taskText('tasks.deleteTaskName', { name: record.name || record._id })),
       createVNode(Checkbox, {
         defaultChecked: isDeleteData,
         onChange: (e) => { isDeleteData = e.target.checked; }
-      }, () => '同时级联删除该任务关联的所有资产数据 (不可恢复)')
+      }, () => taskText('tasks.alsoPermanentlyDeleteAllAssetsAssociatedWithThis'))
     ]),
-    okText: '确认删除',
-    cancelText: '取 消',
+    okText: taskText('tasks.confirmDeletion'),
+    cancelText: taskText('tasks.cancel'),
     okButtonProps: { danger: true },
     onOk: async () => {
       try {
@@ -2062,13 +2067,13 @@ const deleteSingleTask = (record) => {
         });
 
         if (res.code === 200) {
-          message.success('任务删除成功');
+          message.success(taskText('tasks.taskDeleted'));
           fetchTasks(pagination.current, pagination.pageSize);
         } else {
-          message.error('删除失败: ' + (res.message || '未知错误'));
+          message.error(taskText('tasks.deletionFailed') + (res.message || taskText('tasks.unknownError')));
         }
       } catch (error) {
-        message.error('网络异常，删除失败');
+        message.error(taskText('tasks.networkErrorDeletionFailed'));
       }
     }
   });
@@ -2076,7 +2081,7 @@ const deleteSingleTask = (record) => {
 
 const exportTask = async (record) => {
   try {
-    message.loading({ content: '正在生成 Excel 导出文件...', key: 'exporting_excel' });
+    message.loading({ content: taskText('tasks.generatingExcelExport'), key: 'exporting_excel' });
     const res = await request.get(`/export/${record._id || record.task_id}`, {
       responseType: 'blob'
     });
@@ -2091,9 +2096,9 @@ const exportTask = async (record) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
 
-    message.success({ content: 'Excel 导出成功！', key: 'exporting_excel', duration: 2 });
+    message.success({ content: taskText('tasks.excelExportCompleted'), key: 'exporting_excel', duration: 2 });
   } catch (error) {
-    message.error({ content: '导出异常，请查看控制台', key: 'exporting_excel', duration: 2 });
+    message.error({ content: taskText('tasks.exportFailedCheckTheConsole'), key: 'exporting_excel', duration: 2 });
   }
 };
 
@@ -2111,7 +2116,7 @@ const syncTask = (record) => {
 
 const handleSyncOk = async () => {
   if (!syncFormState.scope_id) {
-    message.warning('请选择目标资产组');
+    message.warning(taskText('tasks.selectATargetAssetGroup'));
     return;
   }
 
@@ -2123,14 +2128,14 @@ const handleSyncOk = async () => {
     });
 
     if (res.code === 200) {
-      message.success('同步任务下发成功 🚀');
+      message.success(taskText('tasks.syncTaskQueued'));
       syncVisible.value = false;
       fetchTasks(pagination.current, pagination.pageSize);
     } else {
-      message.error('同步失败: ' + (res.data?.error || res.message || '未知错误'));
+      message.error(taskText('tasks.syncFailed') + (res.data?.error || res.message || taskText('tasks.unknownError')));
     }
   } catch (error) {
-    message.error('网络异常，请稍后再试');
+    message.error(taskText('tasks.networkErrorPleaseTryAgainLater'));
   } finally {
     syncLoading.value = false;
   }
@@ -2145,39 +2150,39 @@ const formRef = ref();
 
 const pluginCategories = [
   {
-    title: '🌐 域名与资产发现',
+    get title() { return taskText('tasks.domainsAndAssetDiscovery'); },
     plugins: [
-      { key: 'dns_query_plugin', label: '域名查询插件' },
-      { key: 'domain_brute', label: '域名爆破' },
-      { key: 'alt_dns', label: 'DNS字典智能生成' },
-      { key: 'arl_search', label: 'ARL 历史查询' }
+      { key: 'dns_query_plugin', get label() { return taskText('tasks.domainLookupPlugins'); } },
+      { key: 'domain_brute', get label() { return taskText('tasks.subdomainBruteForce'); } },
+      { key: 'alt_dns', get label() { return taskText('tasks.dnsWordlistGeneration'); } },
+      { key: 'arl_search', get label() { return taskText('tasks.arlHistorySearch'); } }
     ]
   },
   {
-    title: '⚡️ 端口与服务发现',
+    get title() { return taskText('tasks.portsAndServices'); },
     plugins: [
-      { key: 'skip_scan_cdn_ip', label: '跳过CDN' },
-      { key: 'port_scan', label: '端口扫描' },
-      { key: 'service_detection', label: '服务识别' },
-      { key: 'os_detection', label: '操作系统识别' },
-      { key: 'ssl_cert', label: 'SSL 证书获取' }
+      { key: 'skip_scan_cdn_ip', get label() { return taskText('tasks.skipCdn'); } },
+      { key: 'port_scan', get label() { return taskText('tasks.portScanning'); } },
+      { key: 'service_detection', get label() { return taskText('tasks.serviceDetection'); } },
+      { key: 'os_detection', get label() { return taskText('tasks.osDetection'); } },
+      { key: 'ssl_cert', get label() { return taskText('tasks.sslCertificates'); } }
     ]
   },
   {
-    title: '🕷️ Web 深度探测',
+    get title() { return taskText('tasks.webDiscovery'); },
     plugins: [
-      { key: 'site_identify', label: '站点与指纹识别' },
-      { key: 'search_engines', label: '搜索引擎调用' },
-      { key: 'site_spider', label: '站点爬虫' },
-      { key: 'web_info_hunter', label: 'WIH 调用' },
-      { key: 'file_leak', label: '文件泄露' },
-      { key: 'findvhost', label: 'Host 碰撞' }
+      { key: 'site_identify', get label() { return taskText('tasks.websiteDiscoveryAndFingerprinting'); } },
+      { key: 'search_engines', get label() { return taskText('tasks.searchEngines'); } },
+      { key: 'site_spider', get label() { return taskText('tasks.websiteCrawler'); } },
+      { key: 'web_info_hunter', get label() { return taskText('tasks.wihExtraction'); } },
+      { key: 'file_leak', get label() { return taskText('tasks.fileDisclosure'); } },
+      { key: 'findvhost', get label() { return taskText('tasks.hostCollision'); } }
     ]
   },
   {
-    title: '🛡️ 漏洞与风险巡航',
+    get title() { return taskText('tasks.vulnerabilityAndRiskScanning'); },
     plugins: [
-      { key: 'nuclei_scan', label: 'Nuclei 扫描' }
+      { key: 'nuclei_scan', get label() { return taskText('tasks.nucleiScanning'); } }
     ]
   }
 ];
@@ -2211,15 +2216,15 @@ const fanoutHint = computed(() => describeTaskFanout(formState.target));
 // 字典下拉的可读标签：把磁盘文件名转换为「含义 (规模)」，
 // 避免用户需要从 domain_2w.txt / port_top1000.txt 等文件名反推字典规模。
 const dictLabelOverrides = {
-  'domain_2w.txt': '大字典 (约 2 万条)',
-  'domain_top300.txt': '小字典 (约 300 条)',
-  'altdnsdict.txt': '智能生成词表',
-  'port_top100.txt': 'Top 100 常用端口',
-  'port_top1000.txt': 'Top 1000 常见端口',
-  'port_all.txt': '全端口 (1-65535)',
-  'port_custom.txt': '自定义端口',
-  'file_top_200.txt': '小字典 (约 200 条)',
-  'file_top_2000.txt': '大字典 (约 2000 条)'
+  get 'domain_2w.txt'() { return taskText('tasks.largeWordlistAbout20000Entries'); },
+  get 'domain_top300.txt'() { return taskText('tasks.smallWordlistAbout300Entries'); },
+  get 'altdnsdict.txt'() { return taskText('tasks.generatedWordlist'); },
+  get 'port_top100.txt'() { return taskText('tasks.top100Ports'); },
+  get 'port_top1000.txt'() { return taskText('tasks.top1000Ports'); },
+  get 'port_all.txt'() { return taskText('tasks.allPorts165535'); },
+  get 'port_custom.txt'() { return taskText('tasks.customPorts'); },
+  get 'file_top_200.txt'() { return taskText('tasks.smallWordlistAbout200Entries'); },
+  get 'file_top_2000.txt'() { return taskText('tasks.largeWordlistAbout2000Entries'); }
 };
 
 const formatDictSize = (bytes) => {
@@ -2260,26 +2265,26 @@ const applyPreset = (type) => {
     formState.port_scan = true;
     formState.skip_scan_cdn_ip = true;
     formState.site_identify = true;
-    message.info('已载入「快速侦查」预设方案');
+    message.info(taskText('tasks.quickDiscoveryPresetApplied'));
   } else if (type === 'normal') {
     Object.keys(defaultPlugins).forEach(k => { formState[k] = defaultPlugins[k]; });
     formState.site_identify = true;
     formState.file_leak = true;
     formState.service_detection = true;
     formState.ssl_cert = true;
-    message.info('已载入「常规全面探测」预设方案');
+    message.info(taskText('tasks.standardDiscoveryPresetApplied'));
   } else if (type === 'deep') {
     // 「深度全量」会一并关闭「跳过 CDN」，显著扩大扫描面，先向用户明示后果再套用
     Modal.confirm({
-      title: '确认套用「深度全量」预设？',
+      title: taskText('tasks.applyTheFullDiscoveryPreset'),
       icon: createVNode(ExclamationCircleOutlined, { style: 'color: #faad14;' }),
-      content: '该预设将启用全部 16 项插件，并关闭「跳过 CDN」——即对 CDN 节点 IP 一并执行扫描，扫描面与耗时将明显增加。',
-      okText: '套用预设',
-      cancelText: '取消',
+      content: taskText('tasks.thisEnablesAll16PluginsAndIncludesCdn'),
+      okText: taskText('tasks.applyPreset'),
+      cancelText: taskText('tasks.cancel'),
       onOk: () => {
         Object.keys(defaultPlugins).forEach(k => { formState[k] = true; });
         formState.skip_scan_cdn_ip = false;
-        message.info('已载入「深度全量测绘」预设方案');
+        message.info(taskText('tasks.fullDiscoveryPresetApplied'));
       }
     });
   }
@@ -2295,15 +2300,15 @@ const doSubmitTask = async () => {
     if (res.code === 200) {
       // 域名目标会被拆分为多个任务，此处按实际返回的任务数如实回报
       const createdCount = Array.isArray(res.items) ? res.items.length : 0;
-      message.success(createdCount > 1 ? `任务下发成功，共创建 ${createdCount} 个任务！` : '任务下发成功！');
+      message.success(createdCount > 1 ? taskText('tasks.tasksCreatedCount', { count: createdCount }) : taskText('tasks.taskCreated'));
       visible.value = false;
       formState.related_scope_id = undefined;
       fetchTasks(1, pagination.pageSize);
     } else {
-      message.error('下发失败: ' + (res.data?.error || res.message || '未知错误'));
+      message.error(taskText('tasks.failedToCreateTaskLabel') + (res.data?.error || res.message || taskText('tasks.unknownError')));
     }
   } catch (error) {
-    if (!error.errorFields) message.error('网络异常');
+    if (!error.errorFields) message.error(taskText('tasks.networkError'));
   } finally {
     submitLoading.value = false;
   }
@@ -2314,7 +2319,7 @@ const handleOk = async () => {
     await formRef.value.validate();
   } catch (error) {
     // 表单校验未通过，交由 antd 展示字段级错误提示
-    if (!error.errorFields) message.error('网络异常');
+    if (!error.errorFields) message.error(taskText('tasks.networkError'));
     return;
   }
 
@@ -2323,11 +2328,11 @@ const handleOk = async () => {
   // 仅在会发生「一个输入派生多个任务」时二次确认，避免用户误以为只下发一个任务
   if (taskCount > 1) {
     Modal.confirm({
-      title: '确认下发多个任务？',
+      title: taskText('tasks.createMultipleTasks'),
       icon: createVNode(ExclamationCircleOutlined, { style: 'color: #faad14;' }),
-      content: `${text}每个域名任务将独立排队与执行，请确认目标范围无误。`,
-      okText: `确认下发 ${taskCount} 个任务`,
-      cancelText: '返回修改',
+      content: taskText('tasks.summaryEachDomainTaskIsQueuedAndExecuted', { summary: text }),
+      okText: taskText('tasks.createTasksCount', { count: taskCount }),
+      cancelText: taskText('tasks.goBack'),
       onOk: () => doSubmitTask()
     });
     return;
@@ -2378,7 +2383,7 @@ const openFofaModal = async () => {
 
 const testFofaQuery = async () => {
   if (!fofaForm.query) {
-    message.warning('请先输入查询语句再进行测试');
+    message.warning(taskText('tasks.enterAQueryBeforeTesting'));
     return;
   }
 
@@ -2388,16 +2393,16 @@ const testFofaQuery = async () => {
     if (res.code === 200) {
       fofaResultCount.value = res.data?.size || res.data?.total || 0;
       fofaTested.value = true;
-      message.success('测试连接成功');
+      message.success(taskText('tasks.connectionTestSucceeded'));
     } else {
       fofaResultCount.value = 0;
       fofaTested.value = true;
-      message.error(res.message || '测试失败');
+      message.error(res.message || taskText('tasks.testFailed'));
     }
   } catch (error) {
     fofaResultCount.value = 0;
     fofaTested.value = true;
-    message.error('测试请求异常，请检查配置');
+    message.error(taskText('tasks.testRequestFailedCheckTheConfiguration'));
   } finally {
     fofaTestLoading.value = false;
   }
@@ -2414,14 +2419,14 @@ const submitFofaTask = async () => {
     });
 
     if (res.code === 200) {
-      message.success('FOFA 任务下发成功！');
+      message.success(taskText('tasks.fofaTaskCreated'));
       fofaVisible.value = false;
       fetchTasks(1, pagination.pageSize);
     } else {
-      message.error(res.message || '任务下发失败');
+      message.error(res.message || taskText('tasks.failedToCreateTask'));
     }
   } catch (error) {
-    if (!error.errorFields) message.error('网络请求异常');
+    if (!error.errorFields) message.error(taskText('tasks.networkRequestFailed'));
   } finally {
     fofaSubmitLoading.value = false;
   }
@@ -3248,4 +3253,10 @@ onUnmounted(() => {
 .count-input-group {
   display: inline-flex;
 }
+
+.task-nested-content { margin-top: 6px; }
+.task-increment-badge :deep(.ant-badge-count) { background-color: #52c41a; font-size: 10px; }
+.task-small-caption { font-size: 10px; }
+.task-count-caption { color: var(--arl-text-secondary); font-size: 13px; }
+.task-fill-space { flex: 1; }
 </style>

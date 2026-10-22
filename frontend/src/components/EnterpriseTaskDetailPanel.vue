@@ -24,17 +24,17 @@
               color="blue"
               style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"
               @click="goToScope(taskRecord.synced_scope_id, taskRecord.synced_scope_name)"
-              title="点击前往该资产组"
+              :title="taskText('tasks.openThisAssetGroup')"
             >
               <export-outlined />
-              <span>已纳管至: {{ taskRecord.synced_scope_name || '资产组' }}</span>
+              <span>{{ taskText('tasks.managedIn') }} {{ taskRecord.synced_scope_name || taskText('tasks.assetGroup') }}</span>
             </a-tag>
           </div>
         </template>
         <template #extra>
-          <a-tooltip v-if="taskStatus === 'done' && (taskRecord.statistic?.web_cnt === 0)" title="当前任务无网站资产可同步">
+          <a-tooltip v-if="taskStatus === 'done' && (taskRecord.statistic?.web_cnt === 0)" :title="taskText('tasks.thisTaskHasNoWebsiteAssetsToSync')">
             <a-button type="primary" disabled>
-              <cloud-sync-outlined /> 同步至资产组
+              <cloud-sync-outlined /> {{ taskText('tasks.syncToAssetGroup') }}
             </a-button>
           </a-tooltip>
           <a-button
@@ -43,20 +43,20 @@
             @click="openSyncModal"
             :disabled="taskStatus !== 'done' && taskStatus !== 'stop'"
           >
-            <cloud-sync-outlined /> {{ taskRecord.synced_scope_id ? (taskRecord.has_increment ? '同步增量至资产组' : '再次同步至资产组') : '同步至资产组' }}
+            <cloud-sync-outlined /> {{ taskRecord.synced_scope_id ? (taskRecord.has_increment ? taskText('tasks.syncNewAssetsToAssetGroup') : taskText('tasks.syncToAssetGroupAgain')) : taskText('tasks.syncToAssetGroup') }}
           </a-button>
         </template>
       </a-page-header>
 
       <a-tabs v-model:activeKey="activeTab" type="card" class="arl-detail-tabs" :style="activeTab === 'log' ? 'margin-bottom: 0;' : 'margin-bottom: 16px;'" @change="onTabChange">
-        <a-tab-pane key="web" :tab="`网站备案 - ${queryCounts.web}`"></a-tab-pane>
+        <a-tab-pane key="web" :tab="taskText('tasks.websiteIcpRecordsCount', { count: queryCounts.web })"></a-tab-pane>
         <a-tab-pane key="app" :tab="`APP - ${queryCounts.app}`"></a-tab-pane>
-        <a-tab-pane key="mapp" :tab="`小程序 - ${queryCounts.mapp}`"></a-tab-pane>
-        <a-tab-pane v-if="taskType === 'tyc'" key="wechat" :tab="`公众号 - ${queryCounts.wechat}`"></a-tab-pane>
-        <a-tab-pane v-if="taskType === 'tyc'" key="weibo" :tab="`微博 - ${queryCounts.weibo}`"></a-tab-pane>
-        <a-tab-pane key="kapp" :tab="`快应用 - ${queryCounts.kapp}`"></a-tab-pane>
-        <a-tab-pane v-if="taskType === 'tyc'" key="invest" :tab="`对外投资 - ${queryCounts.invest}`"></a-tab-pane>
-        <a-tab-pane key="log" tab="运行日志"></a-tab-pane>
+        <a-tab-pane key="mapp" :tab="taskText('tasks.miniProgramsCount', { count: queryCounts.mapp })"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="wechat" :tab="taskText('tasks.officialAccountsCount', { count: queryCounts.wechat })"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="weibo" :tab="taskText('tasks.weiboAccountsCount', { count: queryCounts.weibo })"></a-tab-pane>
+        <a-tab-pane key="kapp" :tab="taskText('tasks.quickAppsCount', { count: queryCounts.kapp })"></a-tab-pane>
+        <a-tab-pane v-if="taskType === 'tyc'" key="invest" :tab="taskText('tasks.investmentsCountLabel', { count: queryCounts.invest })"></a-tab-pane>
+        <a-tab-pane key="log" :tab="taskText('tasks.executionLogs')"></a-tab-pane>
       </a-tabs>
 
       <div v-show="activeTab !== 'log'">
@@ -66,11 +66,11 @@
               <a-form-item v-if="col.key !== 'index' && col.key !== 'raw' && col.key !== 'icon' && col.key !== 'examineDate' && col.key !== 'updateRecordTime'" :label="col.title + ':'">
                 <a-input-group compact v-if="['amount', 'percent'].includes(col.dataIndex)">
                   <a-select v-model:value="searchFormOp[col.dataIndex]" style="width: 70px" :options="[{value:'eq',label:'='},{value:'gt',label:'>'},{value:'lt',label:'<'}]" />
-                  <a-input v-model:value="searchForm[col.dataIndex]" style="width: 130px" :placeholder="'输入' + col.title" @pressEnter="onSearch">
+                  <a-input v-model:value="searchForm[col.dataIndex]" class="task-width-130" :placeholder="taskText('tasks.enterField', { field: col.title })" @pressEnter="onSearch">
                     <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
                   </a-input>
                 </a-input-group>
-                <a-input v-else v-model:value="searchForm[col.dataIndex]" :placeholder="'请输入' + col.title" style="width: 180px;" allowClear @pressEnter="onSearch">
+                <a-input v-else v-model:value="searchForm[col.dataIndex]" :placeholder="taskText('tasks.enterField', { field: col.title })" class="task-width-180" allowClear @pressEnter="onSearch">
                   <template #suffix><search-outlined @click="onSearch" style="color: var(--arl-text-color); opacity: 0.25; cursor: pointer;"/></template>
                 </a-input>
               </a-form-item>
@@ -78,17 +78,17 @@
           </a-form>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-          <a-button @click="resetSearch">清 除</a-button>
+          <a-button @click="resetSearch">{{ taskText('tasks.clear') }}</a-button>
           <a-button type="primary" :loading="exportLoading" @click="handleExport">
             <template #icon><download-outlined /></template>
-            导出数据
+            {{ taskText('tasks.exportData') }}
           </a-button>
           <a-button
             v-if="activeTab === 'web' && selectedWebRowKeys.length > 0"
             type="dashed"
             @click="openSyncModalWithSelected"
           >
-            <cloud-sync-outlined /> 同步勾选域名 ({{ selectedWebRowKeys.length }})
+            <cloud-sync-outlined /> {{ taskText('tasks.syncSelectedDomainCount', { count: selectedWebRowKeys.length }) }}
           </a-button>
         </div>
       </div>
@@ -137,13 +137,13 @@
             {{ record.updateRecordTime || record.examineDate || '-' }}
           </template>
           <template v-else-if="column.key === 'raw'">
-            <a-popover title="原始数据" trigger="click" placement="left">
+            <a-popover :title="taskText('tasks.rawData')" trigger="click" placement="left">
               <template #content>
                 <div style="max-width: 400px; max-height: 400px; overflow: auto;">
                   <pre style="font-size: 12px;">{{ JSON.stringify(record, null, 2) }}</pre>
                 </div>
               </template>
-              <a-button type="link" size="small">查看JSON</a-button>
+              <a-button type="link" size="small">{{ taskText('tasks.viewJson') }}</a-button>
             </a-popover>
           </template>
           <template v-else>
@@ -153,7 +153,7 @@
       </a-table>
 
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
-        <div style="color: var(--arl-text-color); opacity: 0.65;">共 {{ Math.ceil(pagination.total / pagination.pageSize) || 1 }} 页 / {{ pagination.total }} 条数据</div>
+        <div class="task-muted">{{ taskText('tasks.paginationSummary', { pages: Math.ceil(pagination.total / pagination.pageSize) || 1, total: pagination.total }) }}</div>
         <a-pagination :pageSizeOptions="$pageSizeOptions" v-model:current="pagination.current" v-model:pageSize="pagination.pageSize" :total="pagination.total" show-size-changer @change="handlePaginationChange" @showSizeChange="handlePaginationChange" />
       </div>
     </div>
@@ -167,8 +167,8 @@
             <a style="margin-right: 8px;">[{{ log.title }}]</a>
             <span style="color: #e6f7ff;">{{ log.message }}</span>
           </div>
-          <div v-if="syslogLoading && syslogList.length === 0" style="color: rgba(255,255,255,0.65); font-style: italic;">[System] 正在加载任务运行日志...</div>
-          <div v-else-if="syslogList.length === 0" style="color: rgba(255,255,255,0.45); font-style: italic;">[System] 暂无日志记录（任务未产生日志，或日志仍在生成中）</div>
+          <div v-if="syslogLoading && syslogList.length === 0" class="task-log-hint">{{ taskText('tasks.systemLoadingTaskExecutionLogs') }}</div>
+          <div v-else-if="syslogList.length === 0" class="task-log-empty">{{ taskText('tasks.systemNoLogsYetTheTaskHasNot') }}</div>
         </div>
       </div>
     </div>
@@ -183,6 +183,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
 import { ref, reactive, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SearchOutlined, DownloadOutlined, CloudSyncOutlined, ExportOutlined } from '@ant-design/icons-vue';
@@ -192,6 +194,8 @@ import request from '../utils/request';
 import { useGlobalPageSize } from '../utils/useGlobalPageSize';
 import { useSticky } from '../utils/useSticky';
 import { formatTaskStatus, formatTaskStatusColor } from '../constants/taskStatus';
+
+const { t: taskText } = useI18n({ useScope: 'global' });
 
 const route = useRoute();
 const router = useRouter();
@@ -246,22 +250,22 @@ const goToScope = (scopeId, scopeName) => {
 };
 
 const targetList = computed(() => {
-  const t = taskTarget.value || taskName.value || taskId.value || '未知目标';
+  const t = taskTarget.value || taskName.value || taskId.value || taskText('tasks.unknownTarget');
   return String(t).split(/[,\s]+/).filter(Boolean);
 });
 
 const displayTitle = computed(() => {
   const list = targetList.value;
   if (list.length <= 1) {
-    return `${list[0] || '目标'} 相关资产`;
+    return taskText('tasks.assetsRelatedToTarget', { target: list[0] || taskText('tasks.target') });
   }
-  return `${list[0]} 等 ${list.length} 个目标相关资产`;
+  return taskText('tasks.assetsRelatedToTargetAndOtherTargetsCount', { target: list[0], count: list.length });
 });
 
 const taskTypeLabel = computed(() => {
-  if (taskType.value === 'tyc') return '全景双轨';
-  if (taskType.value === 'icp') return '官方备案';
-  return '企业测绘';
+  if (taskType.value === 'tyc') return taskText('tasks.combinedSources');
+  if (taskType.value === 'icp') return taskText('tasks.officialIcpRecordsLabel');
+  return taskText('tasks.enterpriseOsint');
 });
 
 const taskStatusLabel = computed(() => {
@@ -345,86 +349,86 @@ const resetTabSort = (tab) => {
 };
 
 const webColumns = [
-  { title: '主办单位名称', dataIndex: 'companyName', key: 'companyName', width: 220 },
-  { title: '单位性质', dataIndex: 'companyType', key: 'companyType', width: 120 },
-  { title: '主备案号', dataIndex: 'liscense', key: 'liscense', width: 180 },
-  { title: '域名', dataIndex: 'ym', key: 'ym', width: 200 },
-  { title: '网站名称', dataIndex: 'webName', key: 'webName', width: 200 },
-  { title: '审核日期', dataIndex: 'examineDate', key: 'examineDate', width: 120 },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.organizationName'); }, dataIndex: 'companyName', key: 'companyName', width: 220 },
+  { get title() { return taskText('tasks.organizationType'); }, dataIndex: 'companyType', key: 'companyType', width: 120 },
+  { get title() { return taskText('tasks.primaryIcpNumber'); }, dataIndex: 'liscense', key: 'liscense', width: 180 },
+  { get title() { return taskText('tasks.domains'); }, dataIndex: 'ym', key: 'ym', width: 200 },
+  { get title() { return taskText('tasks.websiteName'); }, dataIndex: 'webName', key: 'webName', width: 200 },
+  { get title() { return taskText('tasks.reviewDate'); }, dataIndex: 'examineDate', key: 'examineDate', width: 120 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const mappColumns = [
-  { title: '小程序名称', dataIndex: 'serviceName', key: 'serviceName', width: 200 },
-  { title: '备案号', dataIndex: 'serviceFilingNumber', key: 'serviceFilingNumber', width: 200 },
-  { title: '审核日期', dataIndex: 'examineDate', key: 'examineDate', width: 120 },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.miniProgramName'); }, dataIndex: 'serviceName', key: 'serviceName', width: 200 },
+  { get title() { return taskText('tasks.icpNumber'); }, dataIndex: 'serviceFilingNumber', key: 'serviceFilingNumber', width: 200 },
+  { get title() { return taskText('tasks.reviewDate'); }, dataIndex: 'examineDate', key: 'examineDate', width: 120 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const appColumns = [
-  { title: '图标', dataIndex: 'icon', key: 'icon', width: 60 },
-  { title: 'APP名称', dataIndex: 'name', key: 'name', width: 150 },
-  { title: '分类', dataIndex: 'classes', key: 'classes', width: 100 },
-  { title: '应用类型', dataIndex: 'type', key: 'type', width: 100 },
-  { title: '简介', dataIndex: 'brief', key: 'brief', width: 300, ellipsis: true },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.icon'); }, dataIndex: 'icon', key: 'icon', width: 60 },
+  { get title() { return taskText('tasks.appName'); }, dataIndex: 'name', key: 'name', width: 150 },
+  { get title() { return taskText('tasks.category'); }, dataIndex: 'classes', key: 'classes', width: 100 },
+  { get title() { return taskText('tasks.appType'); }, dataIndex: 'type', key: 'type', width: 100 },
+  { get title() { return taskText('tasks.description'); }, dataIndex: 'brief', key: 'brief', width: 300, ellipsis: true },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const investColumns = [
-  { title: '投资公司名称', dataIndex: 'name', key: 'name', width: 220 },
-  { title: '法定代表人', dataIndex: 'legalPersonName', key: 'legalPersonName', width: 120 },
-  { title: '注册资本', dataIndex: 'amount', key: 'amount', width: 120 },
-  { title: '投资比例', dataIndex: 'percent', key: 'percent', width: 100 },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.investeeCompany'); }, dataIndex: 'name', key: 'name', width: 220 },
+  { get title() { return taskText('tasks.legalRepresentative'); }, dataIndex: 'legalPersonName', key: 'legalPersonName', width: 120 },
+  { get title() { return taskText('tasks.registeredCapital'); }, dataIndex: 'amount', key: 'amount', width: 120 },
+  { get title() { return taskText('tasks.ownershipShare'); }, dataIndex: 'percent', key: 'percent', width: 100 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const wechatColumns = [
-  { title: '头像', dataIndex: 'titleImgURL', key: 'icon', width: 60 },
-  { title: '公众号名称', dataIndex: 'title', key: 'title', width: 200 },
-  { title: '微信号', dataIndex: 'publicNum', key: 'publicNum', width: 150 },
-  { title: '简介', dataIndex: 'recommend', key: 'recommend', width: 300, ellipsis: true },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.avatar'); }, dataIndex: 'titleImgURL', key: 'icon', width: 60 },
+  { get title() { return taskText('tasks.officialAccountName'); }, dataIndex: 'title', key: 'title', width: 200 },
+  { get title() { return taskText('tasks.wechatId'); }, dataIndex: 'publicNum', key: 'publicNum', width: 150 },
+  { get title() { return taskText('tasks.description'); }, dataIndex: 'recommend', key: 'recommend', width: 300, ellipsis: true },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const weiboColumns = [
-  { title: '微博名称', dataIndex: 'name', key: 'name', width: 200 },
-  { title: '微博链接', dataIndex: 'href', key: 'href', width: 250 },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.weiboAccountName'); }, dataIndex: 'name', key: 'name', width: 200 },
+  { get title() { return taskText('tasks.weiboUrl'); }, dataIndex: 'href', key: 'href', width: 250 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const baseIcpColumns = [
-  { title: '主办单位名称', dataIndex: 'unitName', key: 'unitName', width: 220 },
-  { title: '单位性质', dataIndex: 'natureName', key: 'natureName', width: 120 },
-  { title: '主备案号', dataIndex: 'mainLicence', key: 'mainLicence', width: 180 },
-  { title: '域名', dataIndex: 'domain', key: 'domain', width: 200 },
-  { title: '网站名称', dataIndex: 'serviceName', key: 'serviceName', width: 200 },
-  { title: '审核日期', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.organizationName'); }, dataIndex: 'unitName', key: 'unitName', width: 220 },
+  { get title() { return taskText('tasks.organizationType'); }, dataIndex: 'natureName', key: 'natureName', width: 120 },
+  { get title() { return taskText('tasks.primaryIcpNumber'); }, dataIndex: 'mainLicence', key: 'mainLicence', width: 180 },
+  { get title() { return taskText('tasks.domains'); }, dataIndex: 'domain', key: 'domain', width: 200 },
+  { get title() { return taskText('tasks.websiteName'); }, dataIndex: 'serviceName', key: 'serviceName', width: 200 },
+  { get title() { return taskText('tasks.reviewDate'); }, dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const mobileIcpColumns = [
-  { title: '应用名称', dataIndex: 'serviceName', key: 'serviceName', width: 200 },
-  { title: '服务备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 200 },
-  { title: '主办单位名称', dataIndex: 'unitName', key: 'unitName', width: 220 },
-  { title: '主备案号', dataIndex: 'mainLicence', key: 'mainLicence', width: 180 },
-  { title: '前置审批/类型', dataIndex: 'contentTypeName', key: 'contentTypeName', width: 150 },
-  { title: '审核日期', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.applicationName'); }, dataIndex: 'serviceName', key: 'serviceName', width: 200 },
+  { get title() { return taskText('tasks.serviceIcpNumber'); }, dataIndex: 'serviceLicence', key: 'serviceLicence', width: 200 },
+  { get title() { return taskText('tasks.organizationName'); }, dataIndex: 'unitName', key: 'unitName', width: 220 },
+  { get title() { return taskText('tasks.primaryIcpNumber'); }, dataIndex: 'mainLicence', key: 'mainLicence', width: 180 },
+  { get title() { return taskText('tasks.approvalType'); }, dataIndex: 'contentTypeName', key: 'contentTypeName', width: 150 },
+  { get title() { return taskText('tasks.reviewDate'); }, dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const kappColumns = [
-  { title: '快应用名称', dataIndex: 'serviceName', key: 'serviceName', width: 200 },
-  { title: '快应用备案号', dataIndex: 'serviceLicence', key: 'serviceLicence', width: 200 },
-  { title: '主办单位名称', dataIndex: 'unitName', key: 'unitName', width: 220 },
-  { title: '主备案号', dataIndex: 'mainLicence', key: 'mainLicence', width: 180 },
-  { title: '前置审批/类型', dataIndex: 'contentTypeName', key: 'contentTypeName', width: 150 },
-  { title: '审核日期', dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.quickAppName'); }, dataIndex: 'serviceName', key: 'serviceName', width: 200 },
+  { get title() { return taskText('tasks.quickAppIcpNumber'); }, dataIndex: 'serviceLicence', key: 'serviceLicence', width: 200 },
+  { get title() { return taskText('tasks.organizationName'); }, dataIndex: 'unitName', key: 'unitName', width: 220 },
+  { get title() { return taskText('tasks.primaryIcpNumber'); }, dataIndex: 'mainLicence', key: 'mainLicence', width: 180 },
+  { get title() { return taskText('tasks.approvalType'); }, dataIndex: 'contentTypeName', key: 'contentTypeName', width: 150 },
+  { get title() { return taskText('tasks.reviewDate'); }, dataIndex: 'updateRecordTime', key: 'updateRecordTime', width: 140 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const genericColumns = [
-  { title: '名称', dataIndex: 'filterName', key: 'filterName', width: 200 },
-  { title: '详情', key: 'raw', width: 80 }
+  { get title() { return taskText('tasks.name'); }, dataIndex: 'filterName', key: 'filterName', width: 200 },
+  { get title() { return taskText('tasks.details'); }, key: 'raw', width: 80 }
 ];
 
 const dynamicColumns = computed(() => {
@@ -457,7 +461,7 @@ const dynamicColumns = computed(() => {
   });
 
   return [
-    { title: '序号', key: 'index', width: 70, align: 'center' },
+    { title: taskText('tasks.no'), key: 'index', width: 70, align: 'center' },
     ...processedCols
   ];
 });
@@ -467,11 +471,11 @@ const handleExport = async () => {
   if (!taskId.value) return;
   try {
     exportLoading.value = true;
-    message.loading({ content: '正在导出...', key: 'export', duration: 0 });
+    message.loading({ content: taskText('tasks.exporting'), key: 'export', duration: 0 });
     const res = await request.get(`/icp/export/${taskId.value}`, { responseType: 'blob' });
     const resData = res.data || res;
     if (resData.type === 'application/json' || (res.headers && res.headers['content-type']?.includes('application/json'))) {
-      message.error({ content: '导出失败，接口返回异常', key: 'export', duration: 2 });
+      message.error({ content: taskText('tasks.exportFailedUnexpectedApiResponse'), key: 'export', duration: 2 });
       return;
     }
     const blob = new Blob([resData]);
@@ -483,10 +487,10 @@ const handleExport = async () => {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
-    message.success({ content: '导出成功', key: 'export', duration: 2 });
+    message.success({ content: taskText('tasks.exportCompleted'), key: 'export', duration: 2 });
   } catch (error) {
     console.error('导出失败:', error);
-    message.error({ content: '导出失败', key: 'export', duration: 2 });
+    message.error({ content: taskText('tasks.exportFailed'), key: 'export', duration: 2 });
   } finally {
     exportLoading.value = false;
   }
@@ -671,7 +675,7 @@ const fetchTaskStatistic = async () => {
       queryCounts.invest = stat.invest_cnt !== undefined ? stat.invest_cnt : queryCounts.invest;
       queryCounts.wechat = stat.wechat_cnt !== undefined ? stat.wechat_cnt : queryCounts.wechat;
       queryCounts.weibo = stat.weibo_cnt !== undefined ? stat.weibo_cnt : queryCounts.weibo;
-      
+
       const currentStatus = taskData.status;
       if (['done', 'error', 'stop'].includes(currentStatus)) {
         if (taskTimer) {
@@ -788,3 +792,11 @@ onActivated(() => {
   }
 });
 </script>
+
+<style scoped>
+.task-width-130 { width: 130px }
+.task-width-180 { width: 180px; }
+.task-muted { color: var(--arl-text-color); opacity: 0.65; }
+.task-log-hint { color: rgba(255,255,255,0.65); font-style: italic; }
+.task-log-empty { color: rgba(255,255,255,0.45); font-style: italic; }
+</style>

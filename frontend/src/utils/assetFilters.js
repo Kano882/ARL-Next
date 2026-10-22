@@ -1,3 +1,7 @@
+import { i18n } from '../i18n/index.js';
+
+const taskText = (key, params) => i18n.global.t(key, params);
+
 // 兼容历史单值、路由参数和缓存中的数组；保留无效值以便明确报错。
 export function normalizeHttpStatuses(value) {
   if (value == null || value === '') return [];
@@ -16,7 +20,7 @@ export function buildAssetFilterParams(form, searchFields = []) {
       const codes = normalizeHttpStatuses(value);
       if (!codes.length) continue;
       if (codes.length > 500 || codes.some(code => !/^[1-5][0-9]{2}$/.test(code))) {
-        throw new Error('HTTP 状态码必须是 100 到 599 的整数');
+        throw new Error(taskText('tasks.invalidHttpStatus'));
       }
       params[`${field.key}__in`] = codes.sort().join(',');
     } else if (field.type === 'dateRange' && Array.isArray(value)) {
@@ -32,4 +36,19 @@ export function buildAssetFilterParams(form, searchFields = []) {
     }
   }
   return params;
+}
+
+const OPERATOR_LABEL_KEYS = {
+  等于: 'tasks.operatorEquals',
+  大于: 'tasks.operatorGreaterThan',
+  小于: 'tasks.operatorLessThan',
+  不等于: 'tasks.operatorNotEqual',
+  不包含: 'tasks.operatorNotContains',
+  模糊匹配: 'tasks.operatorContains',
+  精确匹配: 'tasks.operatorExactMatch',
+};
+
+// 运算符仍使用历史缓存和请求参数所需的原值，仅翻译展示名称。
+export function formatAssetFilterOperator(operator) {
+  return OPERATOR_LABEL_KEYS[operator] ? taskText(OPERATOR_LABEL_KEYS[operator]) : operator;
 }

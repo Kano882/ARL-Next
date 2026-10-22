@@ -4,7 +4,7 @@
     :options="options"
     :loading="state.loading"
     :filter-option="false"
-    placeholder="请选择资产组，可搜索名称"
+    :placeholder="taskText('tasks.selectAnAssetGroupOrSearchByName')"
     show-search
     allow-clear
     @change="onChange"
@@ -13,22 +13,26 @@
     @popupScroll="onScroll"
   >
     <template #notFoundContent>
-      <span class="asset-scope-empty">{{ state.loading ? '正在加载资产组...' : '未找到资产组' }}</span>
+      <span class="asset-scope-empty">{{ state.loading ? taskText('tasks.loadingAssetGroups') : taskText('tasks.noAssetGroupsFound') }}</span>
     </template>
   </a-select>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
 import { computed, reactive, ref, watch, onUnmounted } from 'vue';
 import { message } from 'ant-design-vue';
 import request from '../utils/request';
 import { createAssetScopeLoader } from '../utils/taskAssetGroups';
 
+const { t: taskText } = useI18n({ useScope: 'global' });
+
 const props = defineProps({ value: { type: String, default: undefined } });
 const emit = defineEmits(['update:value']);
 const selectedOption = ref(null);
 const state = reactive({ search: '', page: 1, options: [], loading: false, hasMore: true });
-const loader = createAssetScopeLoader(request, state, error => message.error(`加载资产组失败：${error.message}`));
+const loader = createAssetScopeLoader(request, state, error => message.error(taskText('tasks.failedToLoadAssetGroupsReason', { reason: error.message })));
 const options = computed(() => selectedOption.value && !state.options.some(item => item.value === selectedOption.value.value)
   ? [selectedOption.value, ...state.options] : state.options);
 let searchTimer;

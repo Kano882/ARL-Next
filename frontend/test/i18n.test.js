@@ -116,7 +116,7 @@ test('中英文语言包的键和插值参数一致', () => {
   assert.deepEqual(Object.keys(chinese).sort(), Object.keys(english).sort());
   for (const key of Object.keys(chinese)) {
     assert.ok(english[key].trim(), key);
-    assert.deepEqual(chinese[key].match(/\{\w+\}/g), english[key].match(/\{\w+\}/g), key);
+    assert.deepEqual(chinese[key].match(/\{\w+\}/g)?.sort(), english[key].match(/\{\w+\}/g)?.sort(), key);
   }
 });
 

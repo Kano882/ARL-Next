@@ -1,4 +1,7 @@
+import tasks from './tasks.zh-CN.js';
+
 export default {
+  tasks,
   language: { select: '界面语言' },
   common: { cancel: '取消', unknownError: '未知错误' },
   login: {

@@ -1,9 +1,9 @@
 <template>
-  <a-modal :open="open" @update:open="$emit('update:open', $event)" :title="`C段详情：${currentCidrIp}`" :footer="null" width="700px">
-    <a-table 
-      :dataSource="cipDetailData" 
-      :columns="cipDetailColumns" 
-      :pagination="false" 
+  <a-modal :open="open" @update:open="$emit('update:open', $event)" :title="taskText('tasks.cClassNetworkDetailsNetwork', { network: currentCidrIp })" :footer="null" width="700px">
+    <a-table
+      :dataSource="cipDetailData"
+      :columns="cipDetailColumns"
+      :pagination="false"
       size="small"
       :scroll="{ y: 400 }"
       :loading="cipDetailLoading"
@@ -11,10 +11,10 @@
     >
       <template #emptyText>
         <a-empty v-if="loadFailed"
-                 description="C段详情加载失败，请关闭后重试">
-          <a-button size="small" type="primary" @click="fetchDetail">重新加载</a-button>
+                 :description="taskText('tasks.failedToLoadCClassNetworkDetailsClose')">
+          <a-button size="small" type="primary" @click="fetchDetail">{{ taskText('tasks.reload') }}</a-button>
         </a-empty>
-        <a-empty v-else description="该 C 段暂无关联域名记录" />
+        <a-empty v-else :description="taskText('tasks.noAssociatedDomainRecordsForThisCClass')" />
       </template>
       <template #bodyCell="{ column, record, index }">
         <template v-if="column.key === 'index'">
@@ -34,9 +34,13 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n';
+
 import { ref, watch } from 'vue';
 import request from '../utils/request';
 import { message } from 'ant-design-vue';
+
+const { t: taskText } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
   open: { type: Boolean, required: true },
@@ -51,9 +55,9 @@ const currentCidrIp = ref('');
 const loadFailed = ref(false);
 
 const cipDetailColumns = [
-  { title: '序号', key: 'index', width: 60, align: 'center' },
+  { get title() { return taskText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
   { title: 'IP', dataIndex: 'ip', key: 'ip', width: 150 },
-  { title: 'IP对应的域名', key: 'domains', width: 300 }
+  { get title() { return taskText('tasks.domainsAssociatedWithIp'); }, key: 'domains', width: 300 }
 ];
 
 const fetchDetail = async () => {
@@ -67,11 +71,11 @@ const fetchDetail = async () => {
       cipDetailData.value = res.data?.items || res.items || [];
     } else {
       loadFailed.value = true;
-      message.error(res.message || '获取C段详情失败');
+      message.error(res.message || taskText('tasks.failedToLoadCClassNetworkDetails'));
     }
   } catch (error) {
     loadFailed.value = true;
-    message.error('获取C段详情失败，请重试');
+    message.error(taskText('tasks.failedToLoadCClassNetworkDetailsPlease'));
   } finally {
     cipDetailLoading.value = false;
   }
