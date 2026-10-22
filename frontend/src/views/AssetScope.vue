@@ -580,8 +580,8 @@
         ref="addFormRef"
         :model="addForm"
         :rules="addRules"
-        :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '110px' } }"
-        :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 110px)' } }"
+        :label-col="{ style: { width: assetLocale !== 'zh-CN' ? '160px' : '110px' } }"
+        :wrapper-col="{ style: { width: assetLocale !== 'zh-CN' ? 'calc(100% - 160px)' : 'calc(100% - 110px)' } }"
         style="margin-top: 10px;"
       >
         <a-form-item :label="assetText('tasks.parentOrganization')" name="group_id">
@@ -713,7 +713,7 @@
                 <div v-if="wizardAutoScan" style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--arl-border-color);">
                   <a-row :gutter="12">
                     <a-col :span="12">
-                      <a-form-item :label="assetText('tasks.scanPolicy')" :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '80px' } }" :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 80px)' } }" class="asset-flush-bottom" required>
+                      <a-form-item :label="assetText('tasks.scanPolicy')" :label-col="{ style: { width: assetLocale !== 'zh-CN' ? '160px' : '80px' } }" :wrapper-col="{ style: { width: assetLocale !== 'zh-CN' ? 'calc(100% - 160px)' : 'calc(100% - 80px)' } }" class="asset-flush-bottom" required>
                         <a-select
                           v-model:value="wizardPolicyId"
                           :placeholder="assetText('tasks.selectAScanPolicy')"
@@ -723,7 +723,7 @@
                       </a-form-item>
                     </a-col>
                     <a-col :span="12">
-                      <a-form-item :label="assetText('tasks.taskTypeLabel')" :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '80px' } }" :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 80px)' } }" class="asset-flush-bottom">
+                      <a-form-item :label="assetText('tasks.taskTypeLabel')" :label-col="{ style: { width: assetLocale !== 'zh-CN' ? '160px' : '80px' } }" :wrapper-col="{ style: { width: assetLocale !== 'zh-CN' ? 'calc(100% - 160px)' : 'calc(100% - 80px)' } }" class="asset-flush-bottom">
                         <a-radio-group v-model:value="wizardTaskType" size="small">
                           <a-radio-button value="oneshot">{{ assetText('assets.oneTimeScan') }}</a-radio-button>
                           <a-radio-button value="periodic">{{ assetText('assets.recurringMonitoring') }}</a-radio-button>
@@ -743,8 +743,8 @@
                   <a-col :span="12">
                     <a-form-item
                       :label="assetText('tasks.investmentDepthLabel')"
-                      :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '90px' } }"
-                      :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
+                      :label-col="{ style: { width: assetLocale !== 'zh-CN' ? '160px' : '90px' } }"
+                      :wrapper-col="{ style: { width: assetLocale !== 'zh-CN' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
                       style="margin-bottom: 8px;"
                       :tooltip="assetText('tasks.recursiveDepthForSubsidiariesAndInvesteeCompanies1')"
                     >
@@ -764,8 +764,8 @@
                   <a-col :span="12">
                     <a-form-item
                       :label="assetText('tasks.minimumOwnershipLabel')"
-                      :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '90px' } }"
-                      :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
+                      :label-col="{ style: { width: assetLocale !== 'zh-CN' ? '160px' : '90px' } }"
+                      :wrapper-col="{ style: { width: assetLocale !== 'zh-CN' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
                       style="margin-bottom: 8px;"
                       :tooltip="assetText('tasks.minimumOwnershipShareForInvestments1100')"
                     >
@@ -783,8 +783,8 @@
 
                 <a-form-item
                   :label="assetText('tasks.icpCrossCheck')"
-                  :label-col="{ style: { width: assetLocale === 'en-US' ? '160px' : '90px' } }"
-                  :wrapper-col="{ style: { width: assetLocale === 'en-US' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
+                  :label-col="{ style: { width: assetLocale !== 'zh-CN' ? '160px' : '90px' } }"
+                  :wrapper-col="{ style: { width: assetLocale !== 'zh-CN' ? 'calc(100% - 160px)' : 'calc(100% - 90px)' } }"
                   style="margin-bottom: 0;"
                   :tooltip="assetText('tasks.crossCheckAgainstOfficialMiitIcpRecordsAnd')"
                 >
@@ -886,8 +886,8 @@
         ref="editGroupFormRef"
         :model="editGroupForm"
         :rules="editGroupRules"
-        :label-col="{ span: assetLocale === 'en-US' ? 6 : 4 }"
-        :wrapper-col="{ span: assetLocale === 'en-US' ? 17 : 19 }"
+        :label-col="{ span: assetLocale !== 'zh-CN' ? 6 : 4 }"
+        :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 17 : 19 }"
         style="margin-top: 20px;"
       >
         <a-form-item :label="assetText('tasks.parentOrganization')" name="group_id">
@@ -1036,7 +1036,7 @@
           <QuestionCircleOutlined style="font-size: 14px; color: #8c8c8c; cursor: pointer; margin-left: 4px;" />
         </a-tooltip>
       </template>
-      <a-form :label-wrap="true" ref="addMonitorFormRef" :model="addMonitorForm" :rules="addMonitorRules" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+      <a-form :label-wrap="true" ref="addMonitorFormRef" :model="addMonitorForm" :rules="addMonitorRules" :label-col="{ span: assetLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 16 : 18 }" class="asset-risk-form">
 
         <a-form-item :label="assetText('assets.scope')" name="domains">
           <div style="margin-bottom: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
@@ -1107,7 +1107,7 @@
       :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form :label-wrap="true" ref="addSiteMonitorFormRef" :model="addSiteMonitorForm" :rules="addSiteMonitorRules" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+      <a-form :label-wrap="true" ref="addSiteMonitorFormRef" :model="addSiteMonitorForm" :rules="addSiteMonitorRules" :label-col="{ span: assetLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 16 : 18 }" class="asset-risk-form">
         <a-form-item :label="assetText('tasks.runInterval')" name="interval_hours">
           <div style="display: flex; align-items: center; gap: 8px;">
             <a-input-number v-model:value="addSiteMonitorForm.interval_hours" :min="1" style="width: 100%;" />
@@ -1130,7 +1130,7 @@
       :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form :label-wrap="true" ref="addWihMonitorFormRef" :model="addWihMonitorForm" :rules="addWihMonitorRules" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+      <a-form :label-wrap="true" ref="addWihMonitorFormRef" :model="addWihMonitorForm" :rules="addWihMonitorRules" :label-col="{ span: assetLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 16 : 18 }" class="asset-risk-form">
         <a-form-item :label="assetText('tasks.runInterval')" name="interval_hours">
           <div style="display: flex; align-items: center; gap: 8px;">
             <a-input-number v-model:value="addWihMonitorForm.interval_hours" :min="1" style="width: 100%;" />
@@ -1258,7 +1258,7 @@
       :cancelText="assetText('assets.cancel')"
       destroyOnClose
     >
-      <a-form :label-wrap="true" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 16 : 18 }" class="asset-risk-form">
+      <a-form :label-wrap="true" :label-col="{ span: assetLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 16 : 18 }" class="asset-risk-form">
         <a-form-item :label="assetText('assets.currentAssetGroup')">
           <span style="font-weight: 500;">{{ currentBindingScope?.name }}</span>
         </a-form-item>

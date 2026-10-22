@@ -31,7 +31,7 @@
 
       <div v-if="tabConfig[effectiveTab]?.searchFields" style="margin-bottom: 8px;">
         <a-form :label-wrap="true" :model="searchForm" layout="inline" class="asset-search-row-gap">
-          <a-form-item v-for="field in tabConfig[effectiveTab].searchFields" :key="field.key" :label="field.label" :class="{ 'asset-status-field-en': field.type === 'httpStatus' && assetLocale === 'en-US' }">
+          <a-form-item v-for="field in tabConfig[effectiveTab].searchFields" :key="field.key" :label="field.label" :class="{ 'asset-status-field-wide': field.type === 'httpStatus' && assetLocale !== 'zh-CN' }">
             <HttpStatusFilter
               v-if="field.type === 'httpStatus'"
               v-model:value="searchForm[field.key]"
@@ -91,7 +91,7 @@
                 v-model:value="field.operator"
                 :bordered="false"
                 size="small"
-                class="asset-filter-operator" :class="{ 'asset-filter-operator-en': assetLocale === 'en-US' }"
+                class="asset-filter-operator" :class="{ 'asset-filter-operator-wide': assetLocale !== 'zh-CN' }"
                 @change="onSearch"
               >
                 <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ formatAssetFilterOperator(op) }}</a-select-option>
@@ -434,7 +434,7 @@
     </a-modal>
 
     <a-modal v-model:open="riskVisible" :title="assetText('tasks.addRiskScanningTask')" @ok="submitRiskTask" :confirmLoading="riskSubmitLoading" width="520px" wrapClassName="arl-theme-modal" rootClassName="arl-theme-modal" :okText="assetText('tasks.confirm')" :cancelText="assetText('assets.cancel')">
-      <a-form :label-wrap="true" :model="riskForm" :label-col="{ span: assetLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: assetLocale === 'en-US' ? 15 : 17 }" class="asset-risk-form">
+      <a-form :label-wrap="true" :model="riskForm" :label-col="{ span: assetLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: assetLocale !== 'zh-CN' ? 15 : 17 }" class="asset-risk-form">
         <a-form-item :label="assetText('tasks.policyName')" name="policy_id" :rules="[{ required: true, message: assetText('tasks.selectAPolicy') }]">
           <a-select v-model:value="riskForm.policy_id" :placeholder="assetText('tasks.selectAPolicy')" :options="policyOptions" show-search option-filter-prop="label" @change="handlePolicyChange"/>
         </a-form-item>
@@ -1275,8 +1275,8 @@ onDeactivated(() => {
 .asset-site-count :deep(.ant-badge-count) { background-color: #1890ff; color: #fff; cursor: pointer; border-radius: 4px; padding: 0 6px; font-size: 12px; }
 
 .asset-filter-operator { width: 85px; box-shadow: none; }
-.asset-filter-operator-en { width: 130px; }
-.asset-status-field-en :deep(.ant-form-item-control) { width: 270px; }
+.asset-filter-operator-wide { width: 130px; }
+.asset-status-field-wide :deep(.ant-form-item-control) { width: 270px; }
 
 /* 页签数量徽标：与资产组详情页 ASM 视图保持同一视觉语言 */
 .asm-tab-item {

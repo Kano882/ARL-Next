@@ -286,8 +286,8 @@
         ref="addFormRef"
         :model="addForm"
         :rules="addRules"
-        :label-col="{ span: taskLocale === 'en-US' ? 7 : 5 }"
-        :wrapper-col="{ span: taskLocale === 'en-US' ? 16 : 18 }"
+        :label-col="{ span: taskLocale !== 'zh-CN' ? 7 : 5 }"
+        :wrapper-col="{ span: taskLocale !== 'zh-CN' ? 16 : 18 }"
         style="margin-top: 20px;"
       >
         <a-form-item :label="taskText('tasks.name')" name="name">

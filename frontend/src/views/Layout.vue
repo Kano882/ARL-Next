@@ -1,6 +1,6 @@
 <template>
   <a-layout :style="{ height: '100vh', background: 'transparent' }">
-    <a-layout-sider v-model:collapsed="collapsed" collapsible :trigger="null" :width="locale === 'en-US' ? 240 : 170" :style="{ background: hasBgImage ? (isUIHidden ? 'transparent' : 'rgba(11, 17, 32, 0.6)') : '#0b1120', borderRight: isUIHidden ? 'none' : (isDarkMode ? '1px solid #1e293b' : 'none'), transition: 'all 0.5s' }">
+    <a-layout-sider v-model:collapsed="collapsed" collapsible :trigger="null" :width="locale !== 'zh-CN' ? 240 : 170" :style="{ background: hasBgImage ? (isUIHidden ? 'transparent' : 'rgba(11, 17, 32, 0.6)') : '#0b1120', borderRight: isUIHidden ? 'none' : (isDarkMode ? '1px solid #1e293b' : 'none'), transition: 'all 0.5s' }">
       <div class="logo-container" @click="toggleUI" :title="t('layout.toggleInterface')" style="height: 64px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 999; position: relative;" :style="{ background: hasBgImage ? 'transparent' : '#0b1120', borderBottom: isDarkMode ? '1px solid #1e293b' : 'none' }">
         <DeploymentUnitOutlined class="logo-icon" :style="{ color: 'var(--arl-theme-color)', fontSize: '20px' }" />
         <span class="logo-text" v-show="!collapsed" style="color: #f1f5f9; font-size: 16px; margin-left: 8px; font-weight: 500;">ARL-Next</span>

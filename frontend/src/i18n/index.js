@@ -1,19 +1,21 @@
 import { createI18n } from 'vue-i18n';
 import zhCN from './zh-CN.js';
 import enUS from './en-US.js';
+import ruRU from './ru-RU.js';
 
 export const DEFAULT_LOCALE = 'zh-CN';
 export const LOCALE_STORAGE_KEY = 'arl_locale';
 export const SUPPORTED_LOCALES = [
   { value: 'zh-CN', label: '简体中文' },
   { value: 'en-US', label: 'English' },
+  { value: 'ru-RU', label: 'Русский' },
 ];
 
 export const i18n = createI18n({
   legacy: false,
   locale: DEFAULT_LOCALE,
   fallbackLocale: DEFAULT_LOCALE,
-  messages: { 'zh-CN': zhCN, 'en-US': enUS },
+  messages: { 'zh-CN': zhCN, 'en-US': enUS, 'ru-RU': ruRU },
 });
 
 export function setLocale(locale) {

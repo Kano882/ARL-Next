@@ -35,8 +35,8 @@
         ref="formRef"
         :model="formState"
         :rules="rules"
-        :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '100px' } }"
-        :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 100px)' } }"
+        :label-col="{ style: { width: taskLocale !== 'zh-CN' ? '140px' : '100px' } }"
+        :wrapper-col="{ style: { width: taskLocale !== 'zh-CN' ? 'calc(100% - 140px)' : 'calc(100% - 100px)' } }"
       >
         <!-- 核心企业目标输入框 -->
         <a-form-item
@@ -87,11 +87,11 @@
           </div>
 
           <a-row :gutter="16">
-            <a-col :span="taskLocale === 'en-US' ? 24 : 12">
+            <a-col :span="taskLocale !== 'zh-CN' ? 24 : 12">
               <a-form-item
                 :label="taskText('tasks.investmentDepthLabel')"
-                :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '80px' } }"
-                :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
+                :label-col="{ style: { width: taskLocale !== 'zh-CN' ? '140px' : '80px' } }"
+                :wrapper-col="{ style: { width: taskLocale !== 'zh-CN' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
                 style="margin-bottom: 8px;"
                 :tooltip="taskText('tasks.recursiveDepthForSubsidiariesAndInvesteeCompanies1')"
               >
@@ -108,11 +108,11 @@
                 </div>
               </a-form-item>
             </a-col>
-            <a-col :span="taskLocale === 'en-US' ? 24 : 12">
+            <a-col :span="taskLocale !== 'zh-CN' ? 24 : 12">
               <a-form-item
                 :label="taskText('tasks.minimumOwnershipLabel')"
-                :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '80px' } }"
-                :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
+                :label-col="{ style: { width: taskLocale !== 'zh-CN' ? '140px' : '80px' } }"
+                :wrapper-col="{ style: { width: taskLocale !== 'zh-CN' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
                 style="margin-bottom: 8px;"
                 :tooltip="taskText('tasks.minimumOwnershipShareForInvestments1100')"
               >
@@ -130,8 +130,8 @@
 
           <a-form-item
             :label="taskText('tasks.icpCrossCheck')"
-            :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '85px' } }"
-            :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 85px)' } }"
+            :label-col="{ style: { width: taskLocale !== 'zh-CN' ? '140px' : '85px' } }"
+            :wrapper-col="{ style: { width: taskLocale !== 'zh-CN' ? 'calc(100% - 140px)' : 'calc(100% - 85px)' } }"
             style="margin-bottom: 8px;"
             :tooltip="taskText('tasks.crossCheckAgainstOfficialMiitIcpRecordsAnd')"
           >
@@ -143,8 +143,8 @@
 
           <a-form-item
             :label="taskText('tasks.assetCategories')"
-            :label-col="{ style: { width: taskLocale === 'en-US' ? '140px' : '80px' } }"
-            :wrapper-col="{ style: { width: taskLocale === 'en-US' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
+            :label-col="{ style: { width: taskLocale !== 'zh-CN' ? '140px' : '80px' } }"
+            :wrapper-col="{ style: { width: taskLocale !== 'zh-CN' ? 'calc(100% - 140px)' : 'calc(100% - 80px)' } }"
             style="margin-bottom: 0;"
           >
             <a-checkbox-group v-model:value="formState.query_type" style="display: flex; flex-wrap: wrap; gap: 6px;">

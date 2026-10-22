@@ -133,7 +133,7 @@
       :cancelText="pageText('assets.cancel')"
       destroyOnClose
   >
-    <a-form :label-wrap="true" :model="dispatchForm" :label-col="{ span: pageLocale === 'en-US' ? 7 : 5 }" :wrapper-col="{ span: pageLocale === 'en-US' ? 16 : 18 }" class="page-modal-form">
+    <a-form :label-wrap="true" :model="dispatchForm" :label-col="{ span: pageLocale !== 'zh-CN' ? 7 : 5 }" :wrapper-col="{ span: pageLocale !== 'zh-CN' ? 16 : 18 }" class="page-modal-form">
       <a-form-item :label="pageText('tasks.taskTypeLabel')" required>
         <a-select v-model:value="dispatchForm.task_tag" @change="onTaskTagChange">
           <a-select-option value="task">{{ pageText('tasks.assetDiscoveryTasks') }}</a-select-option>

@@ -146,10 +146,10 @@
               <a-col
                 v-for="field in currentSearchFields"
                 :key="field.key"
-                :xs="24" :sm="12" :md="assetLocale === 'en-US' ? 12 : 8" :lg="assetLocale === 'en-US' ? 8 : 6"
+                :xs="24" :sm="12" :md="assetLocale !== 'zh-CN' ? 12 : 8" :lg="assetLocale !== 'zh-CN' ? 8 : 6"
               >
                 <div class="filter-field-cell">
-                  <span class="filter-field-label" :class="{ 'filter-field-label-en': assetLocale === 'en-US' }" :title="field.label">{{ field.label }}</span>
+                  <span class="filter-field-label" :class="{ 'filter-field-label-wide': assetLocale !== 'zh-CN' }" :title="field.label">{{ field.label }}</span>
                   <div class="filter-field-widget">
                     <!-- 下拉选择 -->
                     <a-select
@@ -1368,7 +1368,7 @@ defineExpose({
 </script>
 
 <style scoped>
-.filter-field-label.filter-field-label-en { width: 112px; white-space: normal; overflow: visible; text-overflow: clip; }
+.filter-field-label.filter-field-label-wide { width: 112px; white-space: normal; overflow: visible; text-overflow: clip; }
 .asset-increment-badge :deep(.ant-badge-count) { background-color: #52c41a; font-size: 10px; }
 
 /* ================= 测绘更新中顶部平滑提示条 ================= */

@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-container" :class="{ 'page-english': pageLocale === 'en-US' }">
+  <div class="dashboard-container" :class="{ 'page-wide-text': pageLocale !== 'zh-CN' }">
     <!-- Row 1: 4 组安全态势感知核心大卡 (Security Posture Priority Cards) -->
     <div class="dashboard-section section-posture">
       <a-row :gutter="[14, 14]" class="stat-row">
@@ -2707,14 +2707,14 @@ onUnmounted(() => {
 .page-warning-note { color: #faad14; margin-top: 2px; }
 .page-small-label { font-size: 11px; }
 
-.page-english .vuln-matrix-header { flex-direction: column; align-items: flex-start; gap: 6px; }
-.page-english .vuln-total-unit { display: block; margin-left: 0; line-height: 1.5; }
-.page-english .critical-alert-tag { white-space: normal; max-width: 100%; }
-.page-english .cell-lbl { white-space: normal; line-height: 1.5; }
-.page-english .card-header-flex { flex-wrap: wrap; row-gap: 8px; }
-.page-english .trend-controls { flex-wrap: wrap; }
-.page-english .main-card :deep(.ant-card-head-title) { white-space: normal; }
+.page-wide-text .vuln-matrix-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+.page-wide-text .vuln-total-unit { display: block; margin-left: 0; line-height: 1.5; }
+.page-wide-text .critical-alert-tag { white-space: normal; max-width: 100%; }
+.page-wide-text .cell-lbl { white-space: normal; line-height: 1.5; }
+.page-wide-text .card-header-flex { flex-wrap: wrap; row-gap: 8px; }
+.page-wide-text .trend-controls { flex-wrap: wrap; }
+.page-wide-text .main-card :deep(.ant-card-head-title) { white-space: normal; }
 @media (min-width: 992px) and (max-width: 1599px) {
-  .page-english .stat-row > :deep(.ant-col) { flex: 0 0 50%; max-width: 50%; }
+  .page-wide-text .stat-row > :deep(.ant-col) { flex: 0 0 50%; max-width: 50%; }
 }
 </style>
