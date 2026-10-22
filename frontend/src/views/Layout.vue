@@ -1,7 +1,7 @@
 <template>
   <a-layout :style="{ height: '100vh', background: 'transparent' }">
-    <a-layout-sider v-model:collapsed="collapsed" collapsible :trigger="null" width="170" :style="{ background: hasBgImage ? (isUIHidden ? 'transparent' : 'rgba(11, 17, 32, 0.6)') : '#0b1120', borderRight: isUIHidden ? 'none' : (isDarkMode ? '1px solid #1e293b' : 'none'), transition: 'all 0.5s' }">
-      <div class="logo-container" @click="toggleUI" title="点击隐藏/显示界面" style="height: 64px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 999; position: relative;" :style="{ background: hasBgImage ? 'transparent' : '#0b1120', borderBottom: isDarkMode ? '1px solid #1e293b' : 'none' }">
+    <a-layout-sider v-model:collapsed="collapsed" collapsible :trigger="null" :width="locale === 'en-US' ? 240 : 170" :style="{ background: hasBgImage ? (isUIHidden ? 'transparent' : 'rgba(11, 17, 32, 0.6)') : '#0b1120', borderRight: isUIHidden ? 'none' : (isDarkMode ? '1px solid #1e293b' : 'none'), transition: 'all 0.5s' }">
+      <div class="logo-container" @click="toggleUI" :title="t('layout.toggleInterface')" style="height: 64px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 999; position: relative;" :style="{ background: hasBgImage ? 'transparent' : '#0b1120', borderBottom: isDarkMode ? '1px solid #1e293b' : 'none' }">
         <DeploymentUnitOutlined class="logo-icon" :style="{ color: 'var(--arl-theme-color)', fontSize: '20px' }" />
         <span class="logo-text" v-show="!collapsed" style="color: #f1f5f9; font-size: 16px; margin-left: 8px; font-weight: 500;">ARL-Next</span>
       </div>
@@ -17,12 +17,12 @@
             <template #icon>
               <component :is="item.icon" />
             </template>
-            <span class="sidebar-menu-title-text">{{ item.title }}</span>
+            <span class="sidebar-menu-title-text">{{ t(item.titleKey) }}</span>
             <span
               v-if="!collapsed"
               class="sidebar-menu-drag-handle"
               @click.stop
-              title="按住拖拽调整顺序"
+              :title="t('layout.sortMenu')"
             >
               <HolderOutlined />
             </span>
@@ -32,7 +32,7 @@
     </a-layout-sider>
 
     <a-layout :style="{ background: 'transparent', opacity: isUIHidden ? 0 : 1, pointerEvents: isUIHidden ? 'none' : 'auto', transition: 'opacity 0.5s', overflow: 'hidden' }">
-      <a-layout-header :style="{ background: isDarkMode ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.75)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid ' + (isDarkMode ? '#1e293b' : '#e2e8f0'), zIndex: 10, position: 'relative' }">
+      <a-layout-header class="arl-header" :style="{ background: isDarkMode ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.75)', borderBottom: '1px solid ' + (isDarkMode ? '#1e293b' : '#e2e8f0') }">
         <div style="display: flex; align-items: center;">
           <span class="trigger" @click="() => (collapsed = !collapsed)" style="font-size: 18px; cursor: pointer; margin-right: 24px;">
             <menu-unfold-outlined v-if="collapsed" /><menu-fold-outlined v-else />
@@ -40,30 +40,31 @@
           <span :style="{ fontSize: '16px', fontWeight: 500, color: isDarkMode ? 'rgba(255,255,255,.85)' : 'var(--arl-text-color)' }">{{ currentPageTitle }}</span>
         </div>
 
-        <div style="display: flex; align-items: center; color: var(--arl-text-color);">
+        <div class="header-actions">
+          <LanguageSwitcher class="header-language-switcher" />
           <SupportAuthorPopover />
 
           <a-dropdown>
             <span class="header-text-action" style="cursor: pointer; margin-right: 24px; display: flex; align-items: center;">
               <BgColorsOutlined style="font-size: 16px; margin-right: 4px;" />
-              主题色
+              {{ t('layout.theme') }}
             </span>
             <template #overlay>
               <a-menu @click="handleThemeChange">
                 <a-menu-item key="#00bcd4">
-                  <span style="display: inline-block; width: 12px; height: 12px; background: #00bcd4; border-radius: 50%; margin-right: 8px;"></span>ARL 青
+                  <span class="theme-swatch theme-cyan"></span>{{ t('layout.cyan') }}
                 </a-menu-item>
                 <a-menu-item key="#1890ff">
-                  <span style="display: inline-block; width: 12px; height: 12px; background: #1890ff; border-radius: 50%; margin-right: 8px;"></span>AntD 蓝
+                  <span class="theme-swatch theme-blue"></span>{{ t('layout.blue') }}
                 </a-menu-item>
                 <a-menu-item key="#52c41a">
-                  <span style="display: inline-block; width: 12px; height: 12px; background: #52c41a; border-radius: 50%; margin-right: 8px;"></span>极客绿
+                  <span class="theme-swatch theme-green"></span>{{ t('layout.green') }}
                 </a-menu-item>
                 <a-menu-item key="#fa541c">
-                  <span style="display: inline-block; width: 12px; height: 12px; background: #fa541c; border-radius: 50%; margin-right: 8px;"></span>火山橙
+                  <span class="theme-swatch theme-orange"></span>{{ t('layout.orange') }}
                 </a-menu-item>
                 <a-menu-item key="#eb2f96">
-                  <span style="display: inline-block; width: 12px; height: 12px; background: #eb2f96; border-radius: 50%; margin-right: 8px;"></span>猛男粉
+                  <span class="theme-swatch theme-pink"></span>{{ t('layout.pink') }}
                 </a-menu-item>
               </a-menu>
             </template>
@@ -72,25 +73,25 @@
           <a-upload :show-upload-list="false" :before-upload="handleUploadBackground" accept="image/*">
             <span class="header-text-action" style="cursor: pointer; margin-right: 24px; display: flex; align-items: center;">
               <PictureOutlined style="font-size: 16px; margin-right: 4px;" />
-              自定义背景
+              {{ t('layout.background') }}
             </span>
           </a-upload>
 
-          <div style="margin-right: 24px; display: flex; align-items: center;" title="黑客暗色模式">
+          <div class="header-switch" :title="t('layout.darkMode')">
             <a-switch checked-children="🌙" un-checked-children="☀️" v-model:checked="isDarkMode" @change="toggleDarkMode" />
           </div>
 
-          <div style="margin-right: 24px; display: flex; align-items: center;" :title="isBasicAuthOnline ? (isBasicAuthEnabled ? 'Basic Auth 安全防护已开启 (点击切换)' : 'Basic Auth 安全防护已关闭 (点击切换)') : 'Basic Auth 控制服务未连接'">
+          <div class="header-switch" :title="isBasicAuthOnline ? (isBasicAuthEnabled ? t('layout.basicAuthEnabled') : t('layout.basicAuthDisabled')) : t('layout.basicAuthOffline')">
             <a-switch :checked="isBasicAuthEnabled" :loading="isBasicAuthLoading" :disabled="!isBasicAuthOnline" @click="handleBasicAuthSwitchClick" checked-children="🔒" un-checked-children="🔓" />
           </div>
 
           <span class="header-text-action" style="cursor: pointer; margin-right: 24px; display: flex; align-items: center;" @click="handleShowMcpModal">
             <RobotOutlined style="font-size: 16px; margin-right: 4px;" />
-            AI 助手接入 (MCP)
+            {{ t('layout.mcp') }}
           </span>
           
           <a-dropdown>
-            <span class="header-text-action" style="cursor: pointer; margin-right: 24px; display: flex; align-items: center;" title="用户设置与操作">
+            <span class="header-text-action header-user-settings" :title="t('layout.userSettings')">
               <a-avatar style="background-color: #87d068; margin-right: 8px;" size="small"><template #icon><UserOutlined /></template></a-avatar>
               <span>{{ currentUsername }}</span>
               <DownOutlined style="font-size: 10px; margin-left: 6px; opacity: 0.7;" />
@@ -98,22 +99,22 @@
             <template #overlay>
               <a-menu>
                 <a-menu-item key="changePass" @click="showChangePassModal = true">
-                  <KeyOutlined style="margin-right: 8px;" />修改密码
+                  <KeyOutlined class="user-menu-icon" />{{ t('account.changePassword') }}
                 </a-menu-item>
                 <a-menu-item key="resetMenuOrder" @click="handleResetMenuOrder">
-                  <ReloadOutlined style="margin-right: 8px;" />恢复默认菜单顺序
+                  <ReloadOutlined class="user-menu-icon" />{{ t('layout.resetMenu') }}
                 </a-menu-item>
                 <a-menu-divider />
                 <a-menu-item key="logout" @click="handleLogout" style="color: #ff4d4f;">
-                  <LogoutOutlined style="margin-right: 8px;" />退出登录
+                  <LogoutOutlined class="user-menu-icon" />{{ t('layout.signOut') }}
                 </a-menu-item>
               </a-menu>
             </template>
           </a-dropdown>
           
-          <span class="header-text-action" style="cursor: pointer; margin-right: 24px;" @click="showChangePassModal = true">修改密码</span>
+          <span class="header-text-action header-change-password" @click="showChangePassModal = true">{{ t('account.changePassword') }}</span>
           
-          <a-tooltip title="退出登录" placement="bottom">
+          <a-tooltip :title="t('layout.signOut')" placement="bottom">
             <span class="header-icon-action header-icon-danger" style="cursor: pointer;" @click="handleLogout">
               <LogoutOutlined style="font-size: 16px;" />
             </span>
@@ -184,22 +185,22 @@
 
   <a-modal
       v-model:visible="showChangePassModal"
-      title="修改密码"
+      :title="t('account.changePassword')"
       @ok="handleChangePass"
       :confirmLoading="isSubmitting"
       @cancel="handleCancelChangePass"
-      okText="确认修改"
-      cancelText="取消"
+      :okText="t('account.confirmChange')"
+      :cancelText="t('common.cancel')"
   >
     <a-form :model="passForm" :rules="passRules" ref="passFormRef" layout="vertical">
-      <a-form-item label="旧密码" name="old_password">
-        <a-input-password v-model:value="passForm.old_password" placeholder="请输入旧密码" />
+      <a-form-item :label="t('account.oldPassword')" name="old_password">
+        <a-input-password v-model:value="passForm.old_password" :placeholder="t('account.oldPlaceholder')" />
       </a-form-item>
-      <a-form-item label="新密码" name="new_password">
-        <a-input-password v-model:value="passForm.new_password" placeholder="请输入新密码" />
+      <a-form-item :label="t('account.newPassword')" name="new_password">
+        <a-input-password v-model:value="passForm.new_password" :placeholder="t('account.newPlaceholder')" />
       </a-form-item>
-      <a-form-item label="确认新密码" name="check_password">
-        <a-input-password v-model:value="passForm.check_password" placeholder="请再次输入新密码" />
+      <a-form-item :label="t('account.confirmPassword')" name="check_password">
+        <a-input-password v-model:value="passForm.check_password" :placeholder="t('account.confirmPlaceholder')" />
       </a-form-item>
     </a-form>
   </a-modal>
@@ -256,6 +257,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch, computed, onUnmounted, createVNode, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 // 引入 request (根据你的实际路径调整)
 import request from '@/utils/request';
 // 引入主题提取工具和 IndexedDB
@@ -265,6 +267,7 @@ import { message, Modal } from 'ant-design-vue';
 import SupportAuthorPopover from '@/components/SupportAuthorPopover.vue';
 import { copyText } from '@/utils/clipboard';
 import Sortable from 'sortablejs';
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 
 // 补全所有需要的图标
 import {
@@ -295,6 +298,7 @@ import {
 } from '@ant-design/icons-vue';
 
 const route = useRoute();
+const { t, locale } = useI18n({ useScope: 'global' });
 const router = useRouter();
 const collapsed = ref(false);
 const selectedKeys = ref([route.path]);
@@ -312,16 +316,16 @@ let timeInterval = null;
 
 // ---------- 左侧边栏动态菜单与拖拽重排逻辑 ----------
 const defaultMenuItems = [
-  { key: '/dashboard', title: '仪表盘', icon: DashboardOutlined },
-  { key: '/group', title: '资产组', icon: AppstoreOutlined },
-  { key: '/taskList', title: '任务管理', icon: GlobalOutlined },
-  { key: '/asset-search', title: '资产搜索', icon: SearchOutlined },
-  { key: '/planningTasks', title: '计划与调度', icon: ClockCircleOutlined },
-  { key: '/GitHubTasks/GitHubTasksList', title: 'GitHub监控', icon: GithubOutlined },
-  { key: '/pocList', title: 'POC管理', icon: BugOutlined },
-  { key: '/fingerprint', title: '指纹管理', icon: TagsOutlined },
-  { key: '/policy', title: '策略配置', icon: ControlOutlined },
-  { key: '/systemSettings', title: '系统设置', icon: SettingOutlined },
+  { key: '/dashboard', titleKey: 'navigation.dashboard', icon: DashboardOutlined },
+  { key: '/group', titleKey: 'navigation.assetGroups', icon: AppstoreOutlined },
+  { key: '/taskList', titleKey: 'navigation.tasks', icon: GlobalOutlined },
+  { key: '/asset-search', titleKey: 'navigation.assetSearch', icon: SearchOutlined },
+  { key: '/planningTasks', titleKey: 'navigation.schedules', icon: ClockCircleOutlined },
+  { key: '/GitHubTasks/GitHubTasksList', titleKey: 'navigation.github', icon: GithubOutlined },
+  { key: '/pocList', titleKey: 'navigation.pocs', icon: BugOutlined },
+  { key: '/fingerprint', titleKey: 'navigation.fingerprints', icon: TagsOutlined },
+  { key: '/policy', titleKey: 'navigation.policies', icon: ControlOutlined },
+  { key: '/systemSettings', titleKey: 'navigation.settings', icon: SettingOutlined },
 ];
 
 const getMenuStorageKey = () => `arl_sidebar_menu_order_${currentUsername.value || 'default'}`;
@@ -368,15 +372,15 @@ const saveMenuOrder = () => {
 
 const handleResetMenuOrder = () => {
   Modal.confirm({
-    title: '恢复默认菜单顺序',
+    title: t('layout.resetMenu'),
     icon: createVNode(ExclamationCircleOutlined),
-    content: '确认要恢复左侧边栏为出厂默认的菜单排列顺序吗？',
-    okText: '确认恢复',
-    cancelText: '取消',
+    content: t('layout.resetMenuConfirm'),
+    okText: t('layout.resetMenuOk'),
+    cancelText: t('common.cancel'),
     onOk: () => {
       localStorage.removeItem(getMenuStorageKey());
       menuItems.value = [...defaultMenuItems];
-      message.success('已恢复出厂默认菜单排序');
+      message.success(t('layout.resetMenuSuccess'));
       nextTick(() => {
         initSidebarSortable();
       });
@@ -653,23 +657,23 @@ watch(() => route.path, (newPath) => {
 
 // 动态计算页面标题
 const currentPageTitle = computed(() => {
-  if (route.path.includes('taskDetail')) return '任务详情';
-  if (route.path.includes('groupAssetsDetail')) return '资产组详情';
-  if (route.path.includes('policyDetail')) return '策略配置详情';
+  if (route.path.includes('taskDetail')) return t('navigation.taskDetail');
+  if (route.path.includes('groupAssetsDetail')) return t('navigation.assetGroupDetail');
+  if (route.path.includes('policyDetail')) return t('navigation.policyDetail');
   const titleMap = {
-    '/dashboard': '仪表盘',
-    '/group': '资产组',
-    '/taskList': '任务管理',
-    '/asset-search': '资产搜索',
-    '/assetsMonitor': '计划与调度',
-    '/planningTasks': '计划与调度',
-    '/GitHubTasks/GitHubTasksList': 'GitHub监控',
-    '/policy': '策略配置',
-    '/pocList': 'POC管理',
-    '/fingerprint': '指纹管理',
-    '/systemSettings': '系统设置',
+    '/dashboard': 'navigation.dashboard',
+    '/group': 'navigation.assetGroups',
+    '/taskList': 'navigation.tasks',
+    '/asset-search': 'navigation.assetSearch',
+    '/assetsMonitor': 'navigation.schedules',
+    '/planningTasks': 'navigation.schedules',
+    '/GitHubTasks/GitHubTasksList': 'navigation.github',
+    '/policy': 'navigation.policies',
+    '/pocList': 'navigation.pocs',
+    '/fingerprint': 'navigation.fingerprints',
+    '/systemSettings': 'navigation.settings',
   };
-  return titleMap[route.path] || 'ARL-Next';
+  return titleMap[route.path] ? t(titleMap[route.path]) : 'ARL-Next';
 });
 /* ---------- 新增：修改密码逻辑 ---------- */
 const showChangePassModal = ref(false);
@@ -686,20 +690,20 @@ const passForm = reactive({
 // 自定义校验：确认密码必须和新密码一致
 const validateCheckPassword = async (_rule, value) => {
   if (value === '') {
-    return Promise.reject('请再次输入确认密码');
+    return Promise.reject(t('account.confirmRequired'));
   } else if (value !== passForm.new_password) {
-    return Promise.reject('两次输入的新密码不一致!');
+    return Promise.reject(t('account.mismatch'));
   } else {
     return Promise.resolve();
   }
 };
 
 // 表单校验规则
-const passRules = {
-  old_password: [{ required: true, message: '旧密码不能为空', trigger: 'blur' }],
-  new_password: [{ required: true, message: '新密码不能为空', trigger: 'blur' }],
+const passRules = computed(() => ({
+  old_password: [{ required: true, message: t('account.oldRequired'), trigger: 'blur' }],
+  new_password: [{ required: true, message: t('account.newRequired'), trigger: 'blur' }],
   check_password: [{ required: true, validator: validateCheckPassword, trigger: 'blur' }]
-};
+}));
 
 // 提交修改密码
 const handleChangePass = async () => {
@@ -713,13 +717,13 @@ const handleChangePass = async () => {
 
     // 3. 处理后端返回结果
     if (res.code === 200) {
-      message.success('密码修改成功，请重新登录');
+      message.success(t('account.changed'));
       showChangePassModal.value = false;
       passFormRef.value.resetFields();
       handleLogout(); // 密码修改成功后调用已有的退出逻辑
     } else {
       // 捕获后端的 301, 302, 303 等错误
-      message.error(res.message || '修改失败');
+      message.error(res.message || t('account.failed'));
     }
   } catch (error) {
     console.error('表单校验失败或网络错误:', error);
@@ -979,6 +983,70 @@ const executeToggleBasicAuth = async (checked, username = null, password = null)
 </script>
 
 <style scoped>
+.arl-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  height: auto;
+  line-height: normal;
+  padding: 12px 24px;
+  position: relative;
+  z-index: 10;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  white-space: nowrap;
+  color: var(--arl-text-color);
+}
+
+.theme-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+.theme-cyan { background: #00bcd4; }
+.theme-blue { background: #1890ff; }
+.theme-green { background: #52c41a; }
+.theme-orange { background: #fa541c; }
+.theme-pink { background: #eb2f96; }
+
+.header-language-switcher {
+  margin-right: 16px;
+}
+
+.header-switch,
+.header-user-settings {
+  margin-right: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.header-user-settings,
+.header-change-password {
+  cursor: pointer;
+}
+
+.header-change-password {
+  margin-right: 24px;
+}
+
+.user-menu-icon {
+  margin-right: 8px;
+}
+
 .header-icon-action {
   color: var(--arl-text-color);
   transition: color 0.3s;
