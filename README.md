@@ -29,6 +29,7 @@
   </p>
 
   <p>
+    <a href="./docs/QUICKSTART.md"><b>🚀 快速入门（5 分钟）</b></a> •
     <a href="#quick-deploy"><b>⚡ 快速部署指南</b></a> •
     <a href="#comparison"><b>💡 架构演进对比</b></a> •
     <a href="#core-features"><b>✨ 核心特性</b></a> •
