@@ -57,7 +57,7 @@ def get_scope_by_scope_id(scope_id):
 
 def update_scope_domain_status(scope_id, domain, status, task_id=None):
     """
-    更新资产分组中指定主域名的探测状态
+    更新资产组中指定主域名的探测状态
     status: 'unprobed' | 'scanning' | 'probed' | 'error'
     """
     if not scope_id or not domain:
@@ -98,8 +98,8 @@ def update_scope_domain_status(scope_id, domain, status, task_id=None):
 
 def get_scope_domain_stat(scope_data, auto_persist=True):
     """
-    计算并规整资产分组的范围项（域名/IP/网段）探测状态和统计覆盖度
-    使用高效批量聚合与持久化回写，彻底杜绝 N+1 跨表查询与全表正则扫描
+    计算并规整资产组的范围项（域名/IP/网段）探测状态和统计覆盖度
+    使用批量聚合与持久化回写，规避 N+1 跨表查询与全表正则扫描
     """
     # 优先取 scope_array（覆盖域名、IP、网段全量范围项）
     scope_items = scope_data.get("scope_array")
@@ -139,10 +139,10 @@ def get_scope_domain_stat(scope_data, auto_persist=True):
     except Exception as e:
         utils.get_logger().error(f"check active scanning tasks error: {e}")
 
-    # 所有非活跃扫描的目标纳入全量一致性核验（高性能批量 $in 索引查询）
+    # 所有非活跃扫描的目标纳入全量一致性核验（批量 $in 索引查询）
     items_to_check = [d for d in scope_items if d not in active_scanning_set]
 
-    # 如果存在待核验项，进行批量聚合检测（一次性查询，杜绝 for 循环单条查询与正则 COLLSCAN）
+    # 如果存在待核验项，进行批量聚合检测（一次性查询，规避 for 循环单条查询与正则 COLLSCAN）
     need_persist = False
     if items_to_check and scope_id_str:
         # 2. 预加载当前 scope_id 关联的所有已完成历史任务中的 target tokens（覆盖空格拼接的多目标与单目标）
@@ -294,7 +294,7 @@ def get_scope_domain_stat(scope_data, auto_persist=True):
 
         updated_status[d] = st_obj
 
-    # 自动持久化回写至 MongoDB asset_scope，确保后续查询 0 额外 DB 聚合开销
+    # 自动持久化回写至 MongoDB asset_scope，降低后续查询额外 DB 聚合开销
     if need_persist and auto_persist and scope_id_str:
         try:
             utils.conn_db("asset_scope").update_one(
@@ -313,9 +313,258 @@ def get_scope_domain_stat(scope_data, auto_persist=True):
     }
 
 
+def populate_scopes_domain_stat(scope_list, auto_persist=True):
+    """
+    批量计算并规整多个资产组的范围项探测状态与统计覆盖度。
+    将页级 N 次 * 5 张表的跨表查询收敛为页级单次批量聚合查询，规避列表接口 N+1 查询瓶颈。
+    """
+    if not scope_list:
+        return
+
+    all_scope_items_set = set()
+    scope_meta_list = []
+
+    for scope_data in scope_list:
+        scope_items = scope_data.get("scope_array")
+        if scope_items is None:
+            sa = []
+            if scope_data.get("domain_array"):
+                sa.extend(scope_data["domain_array"])
+            if scope_data.get("ip_array"):
+                sa.extend(scope_data["ip_array"])
+            scope_items = sa or []
+
+        domain_status = scope_data.get("domain_status")
+        if not isinstance(domain_status, dict):
+            domain_status = {}
+
+        scope_id_str = str(scope_data.get("_id", ""))
+        all_scope_items_set.update(scope_items)
+        scope_meta_list.append((scope_data, scope_id_str, scope_items, domain_status))
+
+    all_scope_items = list(all_scope_items_set)
+    active_scanning_set = set()
+    if all_scope_items:
+        try:
+            terminal_statuses = ["done", "error", "stop"]
+            for doc in utils.conn_db("task").find(
+                {
+                    "status": {"$nin": terminal_statuses},
+                    "$or": [
+                        {"target": {"$in": all_scope_items}},
+                        {"domain": {"$in": all_scope_items}}
+                    ]
+                },
+                {"target": 1, "domain": 1}
+            ):
+                if doc.get("target"):
+                    for tok in str(doc["target"]).split():
+                        active_scanning_set.add(tok.strip())
+                if doc.get("domain"):
+                    active_scanning_set.add(str(doc["domain"]).strip())
+        except Exception as e:
+            utils.get_logger().error(f"batch check active scanning tasks error: {e}")
+
+    valid_scope_ids = [sid for _, sid, items, _ in scope_meta_list if sid and items]
+    non_active_items = [d for d in all_scope_items if d not in active_scanning_set]
+
+    found_in_scope_tasks_by_sid = {sid: set() for sid in valid_scope_ids}
+    found_domains_by_sid = {sid: set() for sid in valid_scope_ids}
+    found_ips_by_sid = {sid: set() for sid in valid_scope_ids}
+    found_sch_by_sid = {sid: set() for sid in valid_scope_ids}
+    found_global_tasks = set()
+
+    if valid_scope_ids and non_active_items:
+        # 1. 批量加载当前页所有 scope_id 关联的已完成历史任务
+        try:
+            for tsk in utils.conn_db("task").find(
+                {
+                    "$or": [
+                        {"scope_id": {"$in": valid_scope_ids}},
+                        {"options.scope_id": {"$in": valid_scope_ids}},
+                        {"options.related_scope_id": {"$in": valid_scope_ids}}
+                    ],
+                    "status": "done"
+                },
+                {"scope_id": 1, "options.scope_id": 1, "options.related_scope_id": 1, "target": 1, "domain": 1}
+            ):
+                opts = tsk.get("options") if isinstance(tsk.get("options"), dict) else {}
+                matched_sids = set()
+                for cand in (tsk.get("scope_id"), opts.get("scope_id"), opts.get("related_scope_id")):
+                    if cand and str(cand) in found_in_scope_tasks_by_sid:
+                        matched_sids.add(str(cand))
+                if not matched_sids:
+                    continue
+                tokens = set()
+                tgt = tsk.get("target")
+                if tgt and isinstance(tgt, str):
+                    for tok in tgt.split():
+                        tokens.add(tok.strip())
+                dom = tsk.get("domain")
+                if dom and isinstance(dom, str):
+                    tokens.add(dom.strip())
+                for sid in matched_sids:
+                    found_in_scope_tasks_by_sid[sid].update(tokens)
+        except Exception as e:
+            utils.get_logger().error(f"batch check scope tasks error: {e}")
+
+        # 2. 分批查询 asset_domain / asset_ip / 全局 task / scheduler
+        chunk_size = 500
+        for i in range(0, len(non_active_items), chunk_size):
+            chunk = non_active_items[i:i + chunk_size]
+            try:
+                for doc in utils.conn_db("asset_domain").find(
+                    {"scope_id": {"$in": valid_scope_ids}, "domain": {"$in": chunk}},
+                    {"scope_id": 1, "domain": 1}
+                ):
+                    sid = str(doc.get("scope_id", ""))
+                    if sid in found_domains_by_sid and doc.get("domain"):
+                        found_domains_by_sid[sid].add(doc["domain"])
+            except Exception as e:
+                utils.get_logger().error(f"batch check asset_domain error: {e}")
+
+            try:
+                for doc in utils.conn_db("asset_ip").find(
+                    {"scope_id": {"$in": valid_scope_ids}, "ip": {"$in": chunk}},
+                    {"scope_id": 1, "ip": 1}
+                ):
+                    sid = str(doc.get("scope_id", ""))
+                    if sid in found_ips_by_sid and doc.get("ip"):
+                        found_ips_by_sid[sid].add(doc["ip"])
+            except Exception as e:
+                utils.get_logger().error(f"batch check asset_ip error: {e}")
+
+            # 仅对至少在一个资产组中尚未命中的目标查全局 task 与 scheduler
+            unresolved_in_chunk = set()
+            for _, sid, scope_items, _ in scope_meta_list:
+                if not sid:
+                    continue
+                s_dom = found_domains_by_sid.get(sid, set())
+                s_ip = found_ips_by_sid.get(sid, set())
+                s_tsk = found_in_scope_tasks_by_sid.get(sid, set())
+                for d in scope_items:
+                    if d in chunk and d not in s_dom and d not in s_ip and d not in s_tsk:
+                        unresolved_in_chunk.add(d)
+
+            if unresolved_in_chunk:
+                rem_list = list(unresolved_in_chunk)
+                try:
+                    for doc in utils.conn_db("task").find(
+                        {
+                            "$or": [
+                                {"target": {"$in": rem_list}},
+                                {"domain": {"$in": rem_list}}
+                            ],
+                            "status": "done"
+                        },
+                        {"target": 1, "domain": 1}
+                    ):
+                        if doc.get("target"):
+                            for tok in str(doc["target"]).split():
+                                found_global_tasks.add(tok.strip())
+                        if doc.get("domain"):
+                            found_global_tasks.add(doc["domain"])
+                except Exception as e:
+                    utils.get_logger().error(f"batch check global task error: {e}")
+
+                rem_for_sch = [x for x in rem_list if x not in found_global_tasks]
+                if rem_for_sch:
+                    try:
+                        for doc in utils.conn_db("scheduler").find(
+                            {
+                                "scope_id": {"$in": valid_scope_ids},
+                                "domain": {"$in": rem_for_sch},
+                                "$or": [{"run_number": {"$gt": 0}}, {"last_run_time": {"$gt": 0}}]
+                            },
+                            {"scope_id": 1, "domain": 1}
+                        ):
+                            sid = str(doc.get("scope_id", ""))
+                            if sid in found_sch_by_sid and doc.get("domain"):
+                                found_sch_by_sid[sid].add(doc["domain"])
+                    except Exception as e:
+                        utils.get_logger().error(f"batch check scheduler error: {e}")
+
+    # 3. 汇总写回每个 scope_data
+    for scope_data, sid, scope_items, domain_status in scope_meta_list:
+        need_persist = False
+        s_dom = found_domains_by_sid.get(sid, set())
+        s_ip = found_ips_by_sid.get(sid, set())
+        s_tsk = found_in_scope_tasks_by_sid.get(sid, set())
+        s_sch = found_sch_by_sid.get(sid, set())
+
+        if sid:
+            for d in scope_items:
+                if d in active_scanning_set:
+                    continue
+                is_probed = (
+                    d in s_dom
+                    or d in s_ip
+                    or d in s_tsk
+                    or d in found_global_tasks
+                    or d in s_sch
+                )
+                prev_status = domain_status.get(d, {}).get("status") if isinstance(domain_status.get(d), dict) else None
+                new_status = "probed" if is_probed else "unprobed"
+                if prev_status != new_status:
+                    need_persist = True
+                    target_meta = dict(domain_status.get(d, {})) if isinstance(domain_status.get(d), dict) else {}
+                    target_meta["status"] = new_status
+                    if is_probed and not target_meta.get("last_probe_time"):
+                        target_meta["last_probe_time"] = utils.curr_date()
+                    domain_status[d] = target_meta
+
+        updated_status = {}
+        probed_cnt = 0
+        unprobed_cnt = 0
+        scanning_cnt = 0
+        error_cnt = 0
+
+        for d in scope_items:
+            if d in active_scanning_set:
+                st_obj = dict(domain_status.get(d, {})) if isinstance(domain_status.get(d), dict) else {}
+                st_obj["status"] = "scanning"
+                scanning_cnt += 1
+                if domain_status.get(d, {}).get("status") != "scanning":
+                    need_persist = True
+            else:
+                st_obj = domain_status.get(d)
+                if not isinstance(st_obj, dict):
+                    st_obj = {"status": "unprobed"}
+
+                st_val = st_obj.get("status", "unprobed")
+                if st_val == "probed":
+                    probed_cnt += 1
+                elif st_val == "scanning":
+                    scanning_cnt += 1
+                elif st_val == "error":
+                    error_cnt += 1
+                else:
+                    unprobed_cnt += 1
+
+            updated_status[d] = st_obj
+
+        if need_persist and auto_persist and sid and bson.ObjectId.is_valid(sid):
+            try:
+                utils.conn_db("asset_scope").update_one(
+                    {"_id": bson.ObjectId(sid)},
+                    {"$set": {"domain_status": updated_status}}
+                )
+            except Exception as e:
+                utils.get_logger().error(f"auto_persist domain_status for scope {sid} error: {e}")
+
+        scope_data["domain_status"] = updated_status
+        scope_data["domain_stat"] = {
+            "total": len(scope_items),
+            "probed": probed_cnt,
+            "unprobed": unprobed_cnt,
+            "scanning": scanning_cnt,
+            "error": error_cnt
+        }
+
+
 def trigger_scope_domain_scan(scope_id, domains, policy_id, task_type='oneshot', interval=86400, task_name=""):
     """
-    复用监控/扫描任务体系，对资产分组中的指定域名下发任务
+    复用监控/扫描任务体系，对资产组中的指定域名下发任务
     """
     from app.modules import TaskTag, CeleryAction, CeleryRoutingKey, AssetScopeType
     from app.helpers import get_options_by_policy_id
@@ -323,7 +572,7 @@ def trigger_scope_domain_scan(scope_id, domains, policy_id, task_type='oneshot',
 
     scope_data = get_scope_by_scope_id(scope_id)
     if not scope_data:
-        raise Exception(f"未找到资产分组: {scope_id}")
+        raise Exception(f"未找到资产组: {scope_id}")
 
     task_options = get_options_by_policy_id(policy_id, TaskTag.TASK) if policy_id else {}
     if task_options is None:

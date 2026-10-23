@@ -143,7 +143,7 @@ class BatchExportWIH(ARLResource):
 
 
 scope_batch_export_fields = ns.model('ScopeBatchExport',  {
-    "scope_id": fields.List(fields.String(description="资产分组 ID")),
+    "scope_id": fields.List(fields.String(description="资产组 ID")),
     "group_id": fields.String(description="集团ID")
 })
 
@@ -180,7 +180,7 @@ class BatchExportAssetIP(ARLResource):
     @ns.expect(scope_batch_export_fields)
     def post(self):
         """
-        资产分组中IP批量导出
+        资产组中IP批量导出
         """
         scope_id_list = _get_scope_ids(self, request)
         response = self.send_scope_batch_export_file(scope_id_list, "asset_ip")
@@ -194,7 +194,7 @@ class BatchExportAssetDomain(ARLResource):
     @ns.expect(scope_batch_export_fields)
     def post(self):
         """
-        资产分组中域名批量导出
+        资产组中域名批量导出
         """
         scope_id_list = _get_scope_ids(self, request)
         response = self.send_scope_batch_export_file(scope_id_list, "asset_domain")
@@ -208,7 +208,7 @@ class BatchExportAssetSite(ARLResource):
     @ns.expect(scope_batch_export_fields)
     def post(self):
         """
-        资产分组中站点批量导出
+        资产组中站点批量导出
         """
         scope_id_list = _get_scope_ids(self, request)
         response = self.send_scope_batch_export_file(scope_id_list, "asset_site")
@@ -222,7 +222,7 @@ class BatchExportAssetWIH(ARLResource):
     @ns.expect(scope_batch_export_fields)
     def post(self):
         """
-        资产分组中 WIH 批量导出
+        资产组中 WIH 批量导出
         """
         scope_id_list = _get_scope_ids(self, request)
         response = self.send_scope_batch_export_file(scope_id_list, "asset_wih")

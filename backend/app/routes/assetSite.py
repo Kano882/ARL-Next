@@ -120,7 +120,7 @@ class ARLSiteExport(HttpStatusResource):
     @ns.expect(parser)
     def get(self):
         """
-        资产分组站点导出
+        资产组站点导出
         """
         args = self.parser.parse_args()
         response = self.send_export_file(args=args, _type="asset_site")
@@ -572,9 +572,8 @@ class ARLAssetSubdomainChain(ARLResource):
 
             def sanitize_chain_items(items):
                 """
-                【第一性原理：全链路画像脱敏与纯净拓扑保障】
                 剔除任务级监控对比历史字段 (update_diff / change_status)，
-                彻底消除由基线对比引入的整个资产组数以百计的历史无关 IP 泄漏，大幅压缩 JSON 体积。
+                规避由基线对比引入的资产组历史无关 IP 冗余，收敛响应 JSON 体积。
                 """
                 if not items:
                     return []

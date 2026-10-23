@@ -153,7 +153,7 @@ def trigger_dict_upload_task(temp_file_path, target_dict_path):
     now = int(time.time())
     expire_at = datetime.now(timezone.utc) + timedelta(days=7)
 
-    # 1. 原子前置写入 pending 状态文档，彻底消除 Worker 消费空窗期导致的 404 与前端轮询假死
+    # 1. 原子前置写入 pending 状态文档，规避 Worker 消费空窗期导致的 404 与前端轮询异常
     try:
         conn('dict_upload_task').insert_one({
             "task_id": task_id,

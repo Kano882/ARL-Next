@@ -1853,7 +1853,7 @@ onDeactivated(() => {
 .site-header { line-height: 1.5; word-break: break-all; }
 .site-img { width: 16px; height: 16px; margin-right: 8px; vertical-align: middle; }
 .site-word { color: var(--arl-text-color); opacity: 0.45; font-size: 12px; margin: 4px 0; }
-/* 完美复刻原版的 "添加标签" 按钮 (灰色虚线框) */
+/* "添加标签" 按钮样式 (灰色虚线框) */
 .add-tag {
   color: var(--arl-text-color);
   cursor: pointer;
@@ -1928,7 +1928,7 @@ onDeactivated(() => {
 
 }
 /* ================= 6. 站点列细节补充 ================= */
-/* 完美复刻 Favicon Hash 的次级文本灰色与紧凑间距 */
+/* Favicon Hash 次级文本与紧凑间距样式 */
 /* 修复 Favicon Hash 发虚的问题：恢复原版字号和深色 */
 .site-word {
   color: var(--arl-text-color) !important; /* 恢复为标准的深黑色，去掉导致发虚的浅灰 */

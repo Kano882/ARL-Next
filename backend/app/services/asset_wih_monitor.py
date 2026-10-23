@@ -9,8 +9,8 @@ logger = get_logger()
 class AssetWihMonitor(object):
     def __init__(self, scope_id: str):
         self.scope_id = scope_id
-        self.scope_domains = []  # 资产分组中的域名范围
-        self.scope_name = None  # 资产分组名称
+        self.scope_domains = []  # 资产组中的域名范围
+        self.scope_name = None  # 资产组名称
         self.sites = []
 
     def init_scope_data(self):

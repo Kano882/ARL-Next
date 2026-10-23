@@ -74,7 +74,7 @@ def add_asset_site_monitor_job(scope_id, name, interval=60 * 1):
     return create_scheduler_job("资产站点更新", scope_id, interval, "site_update_monitor", name)
 
 def add_asset_wih_monitor_job(scope_id, name, interval=60 * 1):
-    return create_scheduler_job("资产分组 WIH 更新", scope_id, interval, "wih_update_monitor", name)
+    return create_scheduler_job("资产组 WIH 更新", scope_id, interval, "wih_update_monitor", name)
 
 
 def delete_scheduler(scheduler_id):

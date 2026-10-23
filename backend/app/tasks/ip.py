@@ -307,7 +307,7 @@ class IPTask(CommonTask):
             self.insert_cip_stat()
             self.insert_task_stat()
 
-            # 如果有关联的资产分组就进行同步，同步这块有点乱
+            # 如果有关联的资产组就进行同步
             if self.task_tag == "task":
                 self.sync_asset()
 

@@ -67,7 +67,7 @@ def create_index():
     # Scheduler 核心轮询复合索引
     conn_db('scheduler').create_index([("status", 1), ("next_run_time", 1)], background=True)
 
-    # icp_asset 核心多维查询与排序复合索引（解决 COLLSCAN 与 32MB 内存排序超限）
+    # icp_asset 核心多维查询与排序复合索引（缓解 COLLSCAN 与 32MB 内存排序限制）
     # 逐个兜底：索引属增益型优化，任一构建异常都不得阻断后续增量迁移步骤
     for icp_keys in ([("task_id", 1), ("query_type", 1), ("updateRecordTime", -1)],
                      [("task_id", 1), ("query_type", 1), ("examineDate", -1)]):
@@ -77,7 +77,50 @@ def create_index():
             import logging
             logging.getLogger().warning(f"Failed to create icp_asset index {icp_keys}: {ex}")
 
-    # 兜底：创建联合唯一索引，彻底解决极端并发下的重复写入问题
+    # 全链路资产画像 (subdomain_chain / MCP) 与资产组高频查询复合索引
+    compound_indexes = {
+        "asset_site": [
+            [("scope_id", 1), ("hostname", 1)],
+            [("scope_id", 1), ("site", 1)],
+            [("scope_id", 1), ("ip", 1)],
+        ],
+        "asset_ip": [
+            [("scope_id", 1), ("ip", 1)],
+            [("scope_id", 1), ("domain", 1)],
+        ],
+        "asset_service": [
+            [("scope_id", 1), ("service_info.ip", 1)],
+        ],
+        "asset_npoc_service": [
+            [("scope_id", 1), ("host", 1)],
+            [("scope_id", 1), ("target", 1)],
+        ],
+        "asset_fileleak": [
+            [("scope_id", 1), ("url", 1)],
+        ],
+        "asset_url": [
+            [("scope_id", 1), ("url", 1)],
+        ],
+        "asset_vuln": [
+            [("scope_id", 1), ("target", 1)],
+        ],
+        "asset_nuclei_result": [
+            [("scope_id", 1), ("target", 1)],
+            [("scope_id", 1), ("vuln_url", 1)],
+        ],
+        "asset_cip": [
+            [("scope_id", 1), ("cidr_ip", 1)],
+        ],
+    }
+    for col_name, idx_list in compound_indexes.items():
+        for idx_keys in idx_list:
+            try:
+                conn_db(col_name).create_index(idx_keys, background=True)
+            except Exception as ex:
+                import logging
+                logging.getLogger().warning(f"Failed to create compound index {idx_keys} on {col_name}: {ex}")
+
+    # 兜底：创建联合唯一索引，规避高并发下的重复写入冲突
     unique_indexes = {
         "site": [("task_id", 1), ("site", 1)],
         "domain": [("task_id", 1), ("domain", 1)],
@@ -232,8 +275,8 @@ def create_index():
 
 def migrate_asset_scope_domain_status():
     """
-    后台静默补齐存量 asset_scope 分组的 domain_status 探测状态与覆盖度
-    彻底消除前端访问存量资产分组时的延迟
+    后台静默补齐存量 asset_scope 资产组的 domain_status 探测状态与覆盖度
+    规避前端访问存量资产组时的计算延迟
     """
     def _worker():
         import logging

@@ -740,7 +740,7 @@ const tabConfig = reactive({
   // 💡 新增：服务 Tab 的 1:1 配置
   service: {
     url: '/service/',
-    // 🚨 故意不写 exportUrl，完美对齐原版不带导出功能的 UI
+    // 服务 Tab 不配置 exportUrl，保持无导出按钮的视图布局
     searchFields: [
       { get label() { return assetText('tasks.services'); }, key: 'service_name', operator: '=' },
       { label: 'IP', key: 'service_info.ip', operator: '=' },

@@ -354,7 +354,7 @@ class SyncAsset(object):
         from urllib.parse import urlparse
         from pymongo import UpdateOne
 
-        # 🚀【性能优化：彻底消除 N+1 查询风暴】预先批量拉取情报并构建内存哈希索引，替代循环内多次网络 I/O
+        # 预先批量拉取情报并构建内存哈希索引，规避循环内 N+1 查询开销
         # 1. 批量预载 fileleak (status_code 200, 301, 302)
         leaks_by_site = defaultdict(list)
         leak_base_filter = dict(base_scope_filter)

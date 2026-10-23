@@ -85,7 +85,7 @@
 
     <a-tabs v-model:activeKey="activeKey">
       <!-- 统一字典与规则库 Tab -->
-      <a-tab-pane key="api_config" :tab="tabTitle(pageText('pages.assetDiscoveryAndIntelligence'), Object.keys(pendingByGroup.api_config).length > 0)" force-render>
+      <a-tab-pane key="api_config" :tab="tabTitle(pageText('pages.assetDiscoveryAndIntelligence'), Object.keys(pendingByGroup.api_config).length > 0)">
         <div style="max-width: 1000px; padding-bottom: 40px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <span style="color: var(--arl-text-color); opacity: 0.45;">
@@ -541,201 +541,14 @@
         </a-drawer>
       </a-tab-pane>
 
-      <a-tab-pane key="cdn" :tab="pageText('pages.cdnFingerprintsAndRules')" force-render>
-        <a-spin :spinning="cdnLoading">
-          <div style="display: flex; gap: 0; height: calc(100vh - 180px); min-height: 580px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04); border: 1px solid rgba(0,0,0,0.05); background: var(--arl-bg-white);"> 
-            
-            <!-- 左侧：CDN 列表 -->
-            <div style="width: 256px; flex-shrink: 0; border-right: 1px solid var(--arl-border-color); background: var(--arl-bg-white); display: flex; flex-direction: column;">
-              <div style="padding: 16px; border-bottom: 1px solid var(--arl-border-color); min-height: 64px; box-sizing: border-box;">
-                <div style="display: flex; gap: 8px;">
-                  <a-input-search v-model:value="cdnSearchText" :placeholder="pageText('pages.searchCdns')" class="page-search-field" />
-                  <a-button 
-                    v-if="isCdnDirty" 
-                    type="primary" 
-                    class="breathing-btn" 
-                    @click="saveCdnData" 
-                    :loading="cdnSaveLoading" 
-                    style="padding: 0 8px; background-color: #52c41a; border-color: #52c41a;" 
-                    :title="pageText('pages.unsavedChanges')"
-                  >
-                    <template #icon><span style="margin-right:0px;">💾</span></template>
-                  </a-button>
-                  <a-button type="primary" @click="openCdnDrawer" class="page-icon-padding" :title="pageText('pages.addCdnFingerprint')">
-                    <template #icon><span style="margin-right:0px;">➕</span></template>
-                  </a-button>
-                </div>
-              </div>
-              <div class="hide-scrollbar" style="flex: 1; overflow-y: auto; padding: 12px 8px;">
-                <div v-if="filteredCdnList.length === 0" style="padding: 48px 24px; text-align: center; color: var(--arl-text-color); opacity: 0.65; display: flex; flex-direction: column; align-items: center; gap: 12px;">
-                  <span style="font-size: 32px; opacity: 0.8;">📭</span>
-                  <span class="page-label">{{ pageText('pages.cdnNotFound') }}</span>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <div
-                    v-for="item in filteredCdnList" :key="item.name"
-                    class="custom-list-item"
-                    :class="{ 'is-active': selectedCdnName === item.name }"
-                    @click="selectedCdnName = item.name"
-                  >
-                    <div style="display: flex; align-items: flex-start; gap: 8px;">
-                      <span style="font-size: 16px; margin-top: 2px; opacity: 0.9;">🌐</span>
-                      <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;">
-                        <span class="dict-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">{{ item.name }}</span>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <span class="dict-subtitle">{{ pageText('pages.cdnRuleCounts', { cnames: (item.cname_domain || []).length, ips: (item.ip_cidr || []).length }) }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 右侧：详情面板 -->
-            <div style="flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; background: var(--arl-bg-white); position: relative;">
-              <!-- 健康概览 -->
-              <div v-if="!selectedCdn" class="health-dashboard-wrapper">
-                <div class="health-dashboard-bg"></div>
-                <div class="health-content">
-                  <div class="health-icon-pulse">
-                    <span style="font-size: 56px;">🌍</span>
-                  </div>
-                  <h3 class="health-title">{{ pageText('pages.cdnDataOverview') }}</h3>
-                  <div class="health-stats-container">
-                    <div class="health-stat-card primary-stat">
-                      <div class="stat-value">{{ cdnList.length }}</div>
-                      <div class="stat-label">{{ pageText('pages.cdnProviders') }}</div>
-                    </div>
-                    <div class="health-stat-card warning-stat">
-                      <div class="stat-value">{{ totalCnameCount }}</div>
-                      <div class="stat-label">{{ pageText('pages.cnameRules') }}</div>
-                    </div>
-                    <div class="health-stat-card danger-stat" style="background: rgba(245, 34, 45, 0.04); border: 1px solid rgba(245, 34, 45, 0.1);">
-                      <div class="stat-value" style="color: #cf1322;">{{ totalIpCount }}</div>
-                      <div class="stat-label page-danger-emphasis" >{{ pageText('pages.ipRangeRules') }}</div>
-                    </div>
-                  </div>
-                  <div class="health-hint">
-                    <span class="pulse-dot"></span>
-                    <span>{{ pageText('pages.systemStatusIsHealthySelectACdnOnThe') }}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- CDN 详情与编辑 -->
-              <div v-else class="native-preview-container">
-                <div class="native-toolbar">
-                   <div>
-                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-                       <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--arl-text-color);">{{ selectedCdn.name }}</h3>
-                       <a-tag color="cyan" class="page-flush-tag">{{ pageText('pages.cdnFingerprints') }}</a-tag>
-                     </div>
-                     <div class="page-secondary-help">{{ pageText('pages.cdnRuleCounts', { cnames: (selectedCdn.cname_domain || []).length, ips: (selectedCdn.ip_cidr || []).length }) }}</div>
-                   </div>
-                   <div style="display: flex; gap: 8px; align-items: center;">
-                      <a-button 
-                        v-if="isCdnDirty" 
-                        type="primary" 
-                        @click="saveCdnData" 
-                        :loading="cdnSaveLoading"
-                        class="breathing-btn"
-                        style="background-color: #52c41a; border-color: #52c41a;"
-                      >
-                        <template #icon><span class="page-icon-gap">💾</span></template> {{ pageText('pages.saveChanges') }}
-                      </a-button>
-                      <a-popconfirm :title="pageText('pages.deleteThisCdnTheDeletionTakesEffectAfterSaving')" placement="bottomRight" @confirm="deleteSelectedCdn">
-                        <a-button danger><template #icon><span class="page-icon-gap">🗑️</span></template> {{ pageText('pages.deleteFingerprint') }}</a-button>
-                      </a-popconfirm>
-                      <a-button type="primary" ghost @click="editSelectedCdn"><template #icon><span class="page-icon-gap">✏️</span></template> {{ pageText('pages.editFingerprint') }}</a-button>
-                   </div>
-                </div>
-
-                <!-- 极简内容预览区 (双区块) -->
-                <div class="native-preview-area hide-scrollbar" style="display: flex; flex-direction: column; gap: 16px; padding-bottom: 24px;">
-                  
-                  <!-- CNAME 规则 -->
-                  <div class="native-code-wrapper" style="flex: none; display: flex; flex-direction: column; padding: 0;">
-                    <div style="padding: 8px 16px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--arl-border-color); font-weight: 500; font-size: 13px; color: var(--arl-text-color); display: flex; justify-content: space-between; align-items: center;">
-                      <span>{{ pageText('pages.cnameRulesLabel2') }}{{ (selectedCdn.cname_domain || []).length }})</span>
-                      <a-button size="small" type="text" @click="() => copyTextList(selectedCdn.cname_domain, pageText('pages.cnameRulesLabel3'))">
-                        {{ pageText('pages.copy') }}
-                      </a-button>
-                    </div>
-                    <div style="display: flex; position: relative; padding: 16px;">
-                      <div class="native-line-numbers" v-if="selectedCdn.cname_domain && selectedCdn.cname_domain.length > 0">
-                        <div v-for="n in selectedCdn.cname_domain.length" :key="'cname-'+n" class="line-number">{{ n }}</div>
-                      </div>
-                      <div class="native-code-content" style="min-height: 40px;">
-                        <div v-if="!(selectedCdn.cname_domain && selectedCdn.cname_domain.length > 0)" class="empty-code" style="padding-top: 0;">
-                          <span>{{ pageText('pages.noCnameRules') }}</span>
-                        </div>
-                        <pre v-else class="code-text">{{ selectedCdn.cname_domain.join('\n') }}</pre>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- IP CIDR 规则 -->
-                  <div class="native-code-wrapper" style="flex: none; display: flex; flex-direction: column; padding: 0;">
-                    <div style="padding: 8px 16px; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--arl-border-color); font-weight: 500; font-size: 13px; color: var(--arl-text-color); display: flex; justify-content: space-between; align-items: center;">
-                      <span>{{ pageText('pages.ipCidrRules') }}{{ (selectedCdn.ip_cidr || []).length }})</span>
-                      <a-button size="small" type="text" @click="() => copyTextList(selectedCdn.ip_cidr, pageText('pages.ipCidrRulesLabel2'))">
-                        {{ pageText('pages.copy') }}
-                      </a-button>
-                    </div>
-                    <div style="display: flex; position: relative; padding: 16px;">
-                      <div class="native-line-numbers" v-if="selectedCdn.ip_cidr && selectedCdn.ip_cidr.length > 0">
-                        <div v-for="n in selectedCdn.ip_cidr.length" :key="'ip-'+n" class="line-number">{{ n }}</div>
-                      </div>
-                      <div class="native-code-content" style="min-height: 40px;">
-                        <div v-if="!(selectedCdn.ip_cidr && selectedCdn.ip_cidr.length > 0)" class="empty-code" style="padding-top: 0;">
-                          <span>{{ pageText('pages.noIpCidrRules') }}</span>
-                        </div>
-                        <pre v-else class="code-text">{{ selectedCdn.ip_cidr.join('\n') }}</pre>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </a-spin>
-
-        <a-drawer
-          v-model:open="cdnDrawerVisible"
-          :title="isEditingCdn ? pageText('pages.editCdnFingerprint') : pageText('pages.addCdnFingerprint')"
-          placement="right"
-          width="450"
-          @close="resetCdnForm"
-        >
-          <div style="display: flex; flex-direction: column; height: 100%;">
-            <div class="hide-scrollbar" style="flex: 1; overflow-y: auto; padding-right: 4px;">
-              <a-form :label-wrap="true" :model="currentCdnForm" layout="vertical">
-                <a-form-item :label="pageText('pages.cdnName')" required>
-                  <a-input v-model:value="currentCdnForm.name" :placeholder="pageText('pages.eGAlibabaCloudCdn')" />
-                </a-form-item>
-                <a-form-item :label="pageText('pages.cnameSuffixes')">
-                  <a-textarea v-model:value="currentCdnForm.cnameText" :rows="8" :placeholder="pageText('pages.oneCnameSuffixPerLineEGKunlunpiCom')" />
-                </a-form-item>
-                <a-form-item :label="pageText('pages.ipRangesCidr')">
-                  <a-textarea v-model:value="currentCdnForm.ipText" :rows="8" :placeholder="pageText('pages.oneIpRangePerLineEG10321')" />
-                </a-form-item>
-              </a-form>
-            </div>
-            <div style="border-top: 1px solid var(--arl-border-color); padding-top: 16px; text-align: right; margin-top: 16px;">
-              <a-button @click="cdnDrawerVisible = false" class="page-inline-gap">{{ pageText('tasks.cancel') }}</a-button>
-              <a-button type="primary" @click="submitCdnDrawer">{{ pageText('pages.saveLabel2') }}</a-button>
-            </div>
-          </div>
-        </a-drawer>
-          </a-tab-pane>
+      <a-tab-pane key="cdn" :tab="pageText('pages.cdnFingerprintsAndRules')">
+        <CdnRulePanel ref="cdnPanelRef" />
+      </a-tab-pane>
         </a-tabs>
       </a-tab-pane>
-      <a-tab-pane key="performance" :tab="tabTitle(pageText('pages.scanningAndConcurrency'), isPerformanceDirty || isSecurityDirty)" force-render>
+      <a-tab-pane key="performance" :tab="tabTitle(pageText('pages.scanningAndConcurrency'), isPerformanceDirty || isSecurityDirty)">
         <a-tabs v-model:activeKey="scanSubTab" type="card" class="dict-sub-tabs" style="margin-bottom: 16px;">
-          <a-tab-pane key="performance" :tab="pageText('pages.taskQueueConcurrency')" force-render>
+          <a-tab-pane key="performance" :tab="pageText('pages.taskQueueConcurrency')">
             <div style="max-width: 1000px; padding-bottom: 40px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <span style="color: var(--arl-text-color); opacity: 0.45;">
@@ -941,7 +754,7 @@
               </a-spin>
             </div>
           </a-tab-pane>
-          <a-tab-pane key="security" :tab="pageText('pages.securityPolicyIpDomainScanExclusions')" force-render>
+          <a-tab-pane key="security" :tab="pageText('pages.securityPolicyIpDomainScanExclusions')">
             <div style="max-width: 1000px; padding-bottom: 40px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <span style="color: var(--arl-text-color); opacity: 0.45;">
@@ -969,7 +782,7 @@
               </a-spin>
             </div>
           </a-tab-pane>
-          <a-tab-pane key="system_general" :tab="pageText('pages.advancedScanningAndEnvironment')" force-render>
+          <a-tab-pane key="system_general" :tab="pageText('pages.advancedScanningAndEnvironment')">
             <div style="max-width: 1000px; padding-bottom: 40px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <span style="color: var(--arl-text-color); opacity: 0.45;">
@@ -1077,7 +890,7 @@
           </a-tab-pane>
         </a-tabs>
       </a-tab-pane>
-      <a-tab-pane key="message_push" :tab="tabTitle(pageText('pages.notificationsAndCallbacks'), Object.keys(pendingByGroup.message_push).length > 0)" force-render>
+      <a-tab-pane key="message_push" :tab="tabTitle(pageText('pages.notificationsAndCallbacks'), Object.keys(pendingByGroup.message_push).length > 0)">
         <div style="max-width: 1100px; padding-bottom: 40px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <span style="color: var(--arl-text-color); opacity: 0.45;">
@@ -1246,401 +1059,13 @@
           </a-spin>
         </div>
       </a-tab-pane>
-      <a-tab-pane key="system_backup" :tab="tabTitle(pageText('pages.backupTab'), false)" force-render>
-        <div class="tab-content" style="padding: 20px;">
-          <!-- 顶层操作看板 -->
-          <a-card data-setting-anchor="backup" :title="pageText('pages.backupTitle')" :bordered="false" style="max-width: 1050px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
-              <div style="max-width: 620px;">
-                <div style="font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--arl-text-color);">{{ pageText('pages.backupSnapshot') }}</div>
-                <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65; line-height: 1.6;">{{ pageText('pages.backupDescription') }}</div>
-              </div>
-
-              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <a-button type="primary" @click="openCreateBackupModal" :loading="backupLoading">
-                  <template #icon><CloudUploadOutlined /></template>{{ pageText('pages.backupCreate') }}</a-button>
-
-                <a-button @click="openUploadBackupModal">
-                  <template #icon><UploadOutlined /></template>{{ pageText('pages.backupUpload') }}</a-button>
-
-                <a-button @click="fetchBackupList" :loading="backupListLoading">
-                  <template #icon><ReloadOutlined /></template>{{ pageText('pages.backupRefresh') }}</a-button>
-              </div>
-            </div>
-
-            <a-alert
-              v-if="backupRunningTasks > 0"
-              type="warning"
-              show-icon
-              style="margin-top: 16px; border-radius: 6px;"
-              :message="pageText('pages.backupRunningWarning', { count: backupRunningTasks })"
-            />
-          </a-card>
-
-          <!-- 现存备份归档表格 -->
-          <a-card :title="pageText('pages.backupArchives')" :bordered="false" style="max-width: 1050px;">
-            <a-table
-              :dataSource="backupList"
-              :columns="backupColumns"
-              rowKey="filename"
-              :loading="backupListLoading"
-              size="middle"
-              :pagination="{ pageSize: 10, showTotal: total => pageText('pages.backupArchiveCount', { count: total }) }"
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'filename'">
-                  <div style="font-family: monospace; font-weight: 600; color: var(--arl-text-color);">
-                    {{ record.filename }}
-                  </div>
-                  <div v-if="record.note" style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6; margin-top: 2px;">
-                    📝 {{ record.note }}
-                  </div>
-                </template>
-
-                <template v-else-if="column.key === 'size'">
-                  <a-tag color="blue">{{ formatBytes(record.size) }}</a-tag>
-                </template>
-
-                <template v-else-if="column.key === 'include_screenshots'">
-                  <a-tag :color="record.include_screenshots ? 'cyan' : 'orange'">
-                    {{ record.include_screenshots ? pageText('pages.backupFull') : pageText('pages.backupCompact') }}
-                  </a-tag>
-                </template>
-
-                <template v-else-if="column.key === 'summary'">
-                  <div v-if="record.summary && record.summary.task_assets !== undefined" style="font-size: 12px; line-height: 1.5;">
-                    <div>{{ pageText('pages.backupTaskAssets') }}: <b>{{ record.summary.task_assets }}</b> | {{ pageText('pages.backupScopeAssets') }}: <b>{{ record.summary.scope_assets || 0 }}</b></div>
-                    <div style="opacity: 0.65;">{{ pageText('pages.backupHistoryTasks') }}: {{ record.summary.total_tasks || 0 }} | {{ pageText('pages.backupUsers') }}: {{ record.summary.total_users || 0 }}</div>
-                  </div>
-                  <span v-else style="opacity: 0.4;">-</span>
-                </template>
-
-                <template v-else-if="column.key === 'created_at'">
-                  <span style="font-size: 12px; white-space: nowrap;">{{ formatDateTime(record.created_at) }}</span>
-                </template>
-
-                <template v-else-if="column.key === 'action'">
-                  <a-space>
-                    <a-button type="link" size="small" @click="handleDownloadBackup(record.filename)">
-                      <template #icon><DownloadOutlined /></template>{{ pageText('pages.backupDownload') }}</a-button>
-
-                    <a-button type="link" danger size="small" @click="openRestoreModal(record)">
-                      <template #icon><CloudDownloadOutlined /></template>{{ pageText('pages.backupRestore') }}</a-button>
-
-                    <a-popconfirm
-                      :title="pageText('pages.backupDeleteConfirm')"
-                      :ok-text="pageText('pages.backupConfirmDelete')"
-                      :cancel-text="pageText('pages.backupCancel')"
-                      ok-type="danger"
-                      @confirm="handleDeleteBackup(record.filename)"
-                    >
-                      <a-button type="link" danger size="small" style="opacity: 0.7;">
-                        <template #icon><DeleteOutlined /></template>{{ pageText('pages.backupDelete') }}</a-button>
-                    </a-popconfirm>
-                  </a-space>
-                </template>
-              </template>
-            </a-table>
-          </a-card>
-        </div>
+      <a-tab-pane key="system_backup" :tab="tabTitle(pageText('pages.backupTab'), false)">
+        <BackupRestorePanel ref="backupPanelRef" />
       </a-tab-pane>
-      <a-tab-pane key="system_update" :tab="tabTitle(pageText('pages.systemVersionAndUpdates'), false)" force-render>
-        <div class="tab-content" style="padding: 20px;">
-          <a-card data-setting-anchor="update" :title="pageText('pages.systemUpdateManagement')" :bordered="false" class="page-dialog-content">
-            <a-descriptions bordered :column="1">
-              <a-descriptions-item :label="pageText('pages.currentVersionLabel2')">
-                <a-tag color="blue">{{ formatSystemVersion(localVersion) }}</a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item :label="pageText('pages.latestAvailableVersion')">
-                <a-tag :color="hasNewVersion ? 'red' : 'green'">{{ formatSystemVersion(remoteVersion) }}</a-tag>
-                <span v-if="hasNewVersion" style="margin-left: 10px; color: #f5222d; font-weight: bold;">
-                  {{ pageText('pages.newVersionAvailableAnUpdateIsRecommended') }}
-                </span>
-                <span v-else-if="remoteVersion" style="margin-left: 10px; color: #52c41a;">
-                  {{ pageText('pages.alreadyUpToDate') }}
-                </span>
-              </a-descriptions-item>
-              <a-descriptions-item v-if="hasNewVersion" :label="pageText('pages.releaseNotes')">
-                <div class="markdown-release-notes hide-scrollbar" v-html="renderedReleaseNotes" style="max-height: 380px; overflow-y: auto; line-height: 1.6; font-size: 13px; background: rgba(0,0,0,0.02); padding: 12px 16px; border-radius: 6px; border: 1px solid var(--arl-border-color);"></div>
-              </a-descriptions-item>
-            </a-descriptions>
-            
-            <div style="margin-top: 20px; text-align: center;">
-              <a-popconfirm :title="pageText('pages.thisWillDownloadTheLatestImagesAndRestartSystem')" @confirm="handleStartUpdateClick">
-                <a-button type="primary" size="large" danger :loading="updateButtonLoading" :disabled="!hasNewVersion && !forceUpdateMode">
-                  {{ pageText('pages.updateSystem') }}
-                </a-button>
-              </a-popconfirm>
-              <div style="margin-top: 10px;">
-                <a-checkbox v-model:checked="forceUpdateMode">{{ pageText('pages.forceShowUpdateButton') }}</a-checkbox>
-              </div>
-            </div>
-
-            <!-- 开源仓库入口：纯文本外链，不嵌外部 badge/iframe，保证离线内网环境无破图 -->
-            <a-divider style="margin: 20px 0 12px;" />
-            <div style="text-align: center; font-size: 12px; color: var(--arl-text-color); opacity: 0.55;">
-              <GithubOutlined style="margin-right: 4px;" />
-              <span>{{ pageText('pages.sourceRepository') }}</span>
-              <a href="https://github.com/owl234/ARL-Next" target="_blank" rel="noopener noreferrer">github.com/owl234/ARL-Next</a>
-              <a-divider type="vertical" />
-              <a href="https://github.com/owl234/ARL-Next/releases" target="_blank" rel="noopener noreferrer">{{ pageText('pages.releaseHistory') }}</a>
-            </div>
-          </a-card>
-        </div>
+      <a-tab-pane key="system_update" :tab="tabTitle(pageText('pages.systemVersionAndUpdates'), false)">
+        <SystemUpdatePanel ref="updatePanelRef" />
       </a-tab-pane>
     </a-tabs>
-
-    <!-- 系统更新日志 Modal -->
-    <a-modal
-      v-model:open="updateModalVisible"
-      :closable="updateFinished"
-      :maskClosable="false"
-      :footer="null"
-      width="840px"
-    >
-      <template #title>
-        <div style="display: flex; align-items: center; justify-content: space-between; padding-right: 24px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px;">🚀</span>
-            <span class="page-sidebar-heading">{{ pageText('pages.arlNextOnlineSystemUpdate') }}</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <div v-if="!updateFinished" class="update-heartbeat-badge">
-              <span class="heartbeat-dot"></span>
-              <span>{{ pageText('pages.runningLabel2') }}</span>
-            </div>
-            <div style="font-family: monospace; font-size: 13px; font-weight: 600; color: var(--arl-text-color); background: rgba(0,0,0,0.04); padding: 2px 8px; border-radius: 4px;">
-              {{ pageText('pages.elapsed') }} {{ formattedElapsedTime }}
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- 阶段与总进度 -->
-      <div style="margin-bottom: 12px; background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 10px 14px; border-radius: 6px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <span style="font-size: 13px; font-weight: 500; color: var(--arl-text-color);">{{ currentStageTitle }}</span>
-          <span style="font-size: 13px; font-weight: 600; color: #1677ff;">{{ updateProgress }}%</span>
-        </div>
-        <a-progress :percent="updateProgress" :show-info="false" :status="updateHasError ? 'exception' : (updateFinished ? 'success' : 'active')" stroke-linecap="square" />
-      </div>
-
-      <!-- 实时镜像分层动态传输芯片 -->
-      <div v-if="Object.keys(activeLayers).length > 0" class="update-layer-box">
-        <div class="update-layer-header">
-          <span style="font-size: 14px;">⚡</span>
-          <span class="page-small-heading">{{ pageText('pages.transferringImageLayers') }}{{ Object.keys(activeLayers).length }} {{ pageText('pages.activeLayers') }}</span>
-        </div>
-        <div class="update-layer-list">
-          <div v-for="(statusText, layerId) in activeLayers" :key="layerId" class="layer-chip">
-            <span class="layer-id">{{ String(layerId).slice(0, 12) }}</span>
-            <span class="layer-status">{{ statusText }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 终端控制台 -->
-      <div style="background-color: #141414; border: 1px solid #333; color: #00ff66; padding: 14px; border-radius: 6px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; height: 380px; overflow-y: auto; box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);" ref="terminalRef">
-        <pre style="margin: 0; white-space: pre-wrap; font-family: inherit; color: inherit; background: transparent; border: none; padding: 0; font-size: 12px; line-height: 1.6;">{{ updateLogs }}</pre>
-      </div>
-
-      <div v-if="updateFinished" style="margin-top: 16px; text-align: center;">
-        <a-button v-if="!updateHasError" type="primary" size="large" @click="reloadPage" class="page-primary-action">{{ pageText('pages.updateCompletedReloadThePage') }}</a-button>
-        <a-button v-else type="default" size="large" @click="updateModalVisible = false" class="page-rounded">{{ pageText('pages.closeWindow') }}</a-button>
-      </div>
-    </a-modal>
-
-    <!-- 1. 创建备份 Modal -->
-    <a-modal
-      v-model:open="createBackupModalVisible"
-      :title="pageText('pages.backupCreateTitle')"
-      :okText="pageText('pages.backupCreateConfirm')"
-      :cancelText="pageText('pages.backupCancel')"
-      :confirmLoading="backupLoading"
-      @ok="handleExecuteCreateBackup"
-      width="560px"
-    >
-      <div style="padding: 10px 0;">
-        <a-alert
-          type="info"
-          show-icon
-          style="margin-bottom: 16px; border-radius: 6px;"
-          :message="pageText('pages.backupCollections')"
-        />
-
-        <a-form layout="vertical">
-          <a-form-item :label="pageText('pages.backupContents')">
-            <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 12px 16px; border-radius: 6px;">
-              <a-checkbox v-model:checked="createBackupForm.includeScreenshots">
-                <span style="font-weight: 500;">{{ pageText('pages.backupScreenshots') }}</span>
-              </a-checkbox>
-              <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6; margin-top: 6px; margin-left: 24px;">{{ pageText('pages.backupScreenshotsHint') }}</div>
-            </div>
-          </a-form-item>
-
-          <a-form-item :label="pageText('pages.backupNote')">
-            <a-input v-model:value="createBackupForm.note" :placeholder="pageText('pages.backupNotePlaceholder')" :maxLength="80" showCount />
-          </a-form-item>
-        </a-form>
-      </div>
-    </a-modal>
-
-    <!-- 2. 上传备份 Modal -->
-    <a-modal
-      v-model:open="uploadBackupModalVisible"
-      :title="pageText('pages.backupUploadTitle')"
-      :footer="null"
-      width="580px"
-    >
-      <div style="padding: 10px 0;">
-        <a-alert
-          type="info"
-          show-icon
-          style="margin-bottom: 16px; border-radius: 6px;"
-          :message="pageText('pages.backupUploadHint')"
-        />
-
-        <a-upload-dragger
-          name="file"
-          :multiple="false"
-          :showUploadList="true"
-          accept=".tar.gz,.gz"
-          :customRequest="handleCustomUploadBackup"
-        >
-          <p class="ant-upload-drag-icon">
-            <InboxOutlined style="font-size: 48px; color: #1677ff;" />
-          </p>
-          <p class="ant-upload-text" style="font-size: 15px; font-weight: 500;">{{ pageText('pages.backupUploadDrop') }}</p>
-          <p class="ant-upload-hint" style="font-size: 12px; color: var(--arl-text-color); opacity: 0.6;">{{ pageText('pages.backupUploadFormat') }}</p>
-        </a-upload-dragger>
-      </div>
-    </a-modal>
-
-    <!-- 3. 恢复确认 Modal -->
-    <a-modal
-      v-model:open="restoreModalVisible"
-      :title="pageText('pages.backupRestoreTitle')"
-      :okText="pageText('pages.backupRestoreConfirm')"
-      :cancelText="pageText('pages.backupCancel')"
-      okType="danger"
-      :okButtonProps="{ disabled: restoreConfirmInput !== 'RESTORE' }"
-      @ok="handleExecuteRestore"
-      width="620px"
-    >
-      <div style="padding: 10px 0;" v-if="selectedRestoreBackup">
-        <a-alert
-          type="error"
-          show-icon
-          style="margin-bottom: 16px; border-radius: 6px;"
-          :message="pageText('pages.backupDropWarning')"
-          :description="pageText('pages.backupDropDescription')"
-        />
-
-        <a-descriptions bordered size="small" :column="2" style="margin-bottom: 16px;">
-          <a-descriptions-item :label="pageText('pages.backupRestoreArchive')" :span="2">
-            <span style="font-family: monospace; font-weight: 600;">{{ selectedRestoreBackup.filename }}</span>
-          </a-descriptions-item>
-          <a-descriptions-item :label="pageText('pages.backupArchiveSize')">
-            {{ formatBytes(selectedRestoreBackup.size) }}
-          </a-descriptions-item>
-          <a-descriptions-item :label="pageText('pages.backupIncludesScreenshots')">
-            {{ selectedRestoreBackup.include_screenshots ? pageText('pages.backupYes') : pageText('pages.backupNo') }}
-          </a-descriptions-item>
-          <a-descriptions-item :label="pageText('pages.backupCreatedAt')" :span="2">
-            {{ formatDateTime(selectedRestoreBackup.created_at) }}
-          </a-descriptions-item>
-        </a-descriptions>
-
-        <div v-if="backupRunningTasks > 0" style="margin-bottom: 16px; background: rgba(250, 173, 20, 0.08); border: 1px dashed #faad14; padding: 10px 14px; border-radius: 6px;">
-          <a-checkbox v-model:checked="restoreForceCheck">
-            <span style="color: #d46b08; font-weight: 600;">{{ pageText('pages.backupForceRestore', { count: backupRunningTasks }) }}</span>
-          </a-checkbox>
-        </div>
-
-        <div style="background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 12px 14px; border-radius: 6px;">
-          <div style="font-size: 13px; font-weight: 500; margin-bottom: 6px;">
-            <i18n-t keypath="pages.backupRestoreVerification" tag="span"><template #word><span style="color: #ff4d4f; font-weight: bold; font-family: monospace;">RESTORE</span></template></i18n-t>
-          </div>
-          <a-input
-            v-model:value="restoreConfirmInput"
-            :placeholder="pageText('pages.backupEnterRestore')"
-            style="font-family: monospace; font-size: 14px;"
-          />
-        </div>
-      </div>
-    </a-modal>
-
-    <!-- 4. 备份 / 恢复实时进度流 Modal -->
-    <a-modal
-      v-model:open="backupProgressModalVisible"
-      :closable="progressFinished"
-      :maskClosable="false"
-      :footer="null"
-      width="780px"
-    >
-      <template #title>
-        <div style="display: flex; align-items: center; justify-content: space-between; padding-right: 24px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px;">{{ progressAction === 'backup' ? '📦' : '🔄' }}</span>
-            <span style="font-weight: 600; font-size: 15px; color: var(--arl-text-color);">
-              {{ progressAction === 'backup' ? pageText('pages.backupProgressTitle') : pageText('pages.backupRestoreProgressTitle') }}
-            </span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <div v-if="!progressFinished" class="update-heartbeat-badge">
-              <span class="heartbeat-dot"></span>
-              <span>{{ pageText('pages.backupInProgress') }}</span>
-            </div>
-            <div style="font-family: monospace; font-size: 13px; font-weight: 600; color: var(--arl-text-color); background: rgba(0,0,0,0.04); padding: 2px 8px; border-radius: 4px;">
-              {{ pageText('pages.backupElapsed', { seconds: progressElapsed }) }}
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- 阶段与总进度 -->
-      <div style="margin-bottom: 12px; background: var(--arl-bg-light); border: 1px solid var(--arl-border-color); padding: 10px 14px; border-radius: 6px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <a-spin v-if="!progressFinished" size="small" />
-            <span style="font-size: 13px; font-weight: 500; color: var(--arl-text-color);">
-              {{ progressStage }}
-              <span v-if="!progressFinished" style="font-size: 12px; opacity: 0.65; margin-left: 4px;">
-                {{ pageText('pages.backupWriting', { seconds: progressElapsed }) }}
-              </span>
-            </span>
-          </div>
-          <span style="font-size: 13px; font-weight: 600; color: #1677ff;">{{ progressPercent }}%</span>
-        </div>
-        <a-progress
-          :percent="progressPercent"
-          :show-info="false"
-          :status="progressHasError ? 'exception' : (progressFinished ? 'success' : 'active')"
-          stroke-linecap="square"
-        />
-      </div>
-
-      <!-- 终端控制台 -->
-      <div style="background-color: #141414; border: 1px solid #333; color: #00ff66; padding: 14px; border-radius: 6px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; height: 320px; overflow-y: auto; box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);" ref="backupTerminalRef">
-        <pre style="margin: 0; white-space: pre-wrap; font-family: inherit; color: inherit; background: transparent; border: none; padding: 0; font-size: 12px; line-height: 1.6;">{{ progressLogs.join('\n') }}</pre>
-      </div>
-
-      <div v-if="progressFinished" style="margin-top: 16px; text-align: center;">
-        <template v-if="!progressHasError">
-          <div v-if="progressAction === 'restore'" style="display: flex; justify-content: center; gap: 12px;">
-            <a-button type="primary" size="large" @click="reloadPage" style="border-radius: 6px; padding: 0 32px; font-weight: 600;">{{ pageText('pages.backupReload') }}</a-button>
-          </div>
-          <div v-else style="display: flex; justify-content: center; gap: 12px;">
-            <a-button v-if="progressArchiveName" type="primary" size="large" @click="handleDownloadBackup(progressArchiveName)" style="border-radius: 6px;">
-              <template #icon><DownloadOutlined /></template>{{ pageText('pages.backupDownloadNow') }}</a-button>
-            <a-button size="large" @click="backupProgressModalVisible = false" style="border-radius: 6px;">{{ pageText('pages.backupFinish') }}</a-button>
-          </div>
-        </template>
-        <template v-else>
-          <a-button type="default" size="large" @click="backupProgressModalVisible = false" style="border-radius: 6px;">{{ pageText('pages.closeWindow') }}</a-button>
-        </template>
-      </div>
-    </a-modal>
   </div>
 </template>
 
@@ -1648,22 +1073,23 @@
 import { useI18n } from 'vue-i18n';
 defineOptions({ name: 'SystemSettings' });
 import {
-  InfoCircleOutlined, ExclamationCircleOutlined, GithubOutlined,
-  CloudUploadOutlined, CloudDownloadOutlined, DownloadOutlined,
-  UploadOutlined, DeleteOutlined, ReloadOutlined, CheckCircleOutlined,
-  CloseCircleOutlined, InboxOutlined
+  InfoCircleOutlined, ExclamationCircleOutlined,
+  CheckCircleOutlined, CloseCircleOutlined
 } from '@ant-design/icons-vue';
-import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, watch, createVNode } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, onDeactivated, computed, nextTick, createVNode } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import request from '@/utils/request';
 import { copyText } from '@/utils/clipboard';
 import { useRoute, onBeforeRouteLeave } from 'vue-router';
+import CdnRulePanel from '@/components/settings/CdnRulePanel.vue';
+import BackupRestorePanel from '@/components/settings/BackupRestorePanel.vue';
+import SystemUpdatePanel from '@/components/settings/SystemUpdatePanel.vue';
 
 const { t: pageText, locale: pageLocale } = useI18n({ useScope: 'global' });
 
-const reloadPage = () => {
-  window.location.reload();
-};
+const cdnPanelRef = ref(null);
+const backupPanelRef = ref(null);
+const updatePanelRef = ref(null);
 
 const route = useRoute();
 const activeKey = ref('dictionary');
@@ -2189,6 +1615,19 @@ const settingsSearchResults = computed(() => {
   });
 });
 
+const scrollAndFlashAnchor = (selector, retries = 3) => {
+  nextTick(() => {
+    const el = document.querySelector(selector);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('arl-anchor-flash');
+      setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
+    } else if (retries > 0) {
+      setTimeout(() => scrollAndFlashAnchor(selector, retries - 1), 60);
+    }
+  });
+};
+
 // 点击搜索结果：切到目标 Tab（含嵌套子 Tab），并把锚点元素滚动进视野 + 短暂高亮
 const jumpToSetting = (item) => {
   // 三组 Tab 均使用嵌套子结构：需同时切换外层 activeKey 与内层子 Tab
@@ -2210,51 +1649,29 @@ const jumpToSetting = (item) => {
   if (item.anchor === 'credential_status') {
     credExpanded.value = true;
   }
-  nextTick(() => {
-    // cdn / dict 指向子 Tab 本身，高亮容器；其余锚点高亮对应设置项
-    const isSubTab = item.anchor === 'cdn' || item.anchor === 'dict';
-    let selector;
-    if (isSubTab) {
-      selector = '.dict-sub-tabs';
-    } else if (item.anchor === 'credential_status') {
-      selector = '.arl-global-cred';
-    } else {
-      selector = `[data-setting-anchor="${item.anchor}"]`;
-    }
-    const el = document.querySelector(selector);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('arl-anchor-flash');
-      setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
-    }
-  });
+  const isSubTab = item.anchor === 'cdn' || item.anchor === 'dict';
+  let selector;
+  if (isSubTab) {
+    selector = '.dict-sub-tabs';
+  } else if (item.anchor === 'credential_status') {
+    selector = '.arl-global-cred';
+  } else {
+    selector = `[data-setting-anchor="${item.anchor}"]`;
+  }
+  scrollAndFlashAnchor(selector);
 };
 
 // 两套并发指标互相指引，避免用户在同一页找不到对应字段
 const goToBruteConcurrent = () => {
   activeKey.value = 'performance';
   scanSubTab.value = 'system_general';
-  nextTick(() => {
-    const el = document.querySelector('[data-setting-anchor="brute_concurrent"]');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('arl-anchor-flash');
-      setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
-    }
-  });
+  scrollAndFlashAnchor('[data-setting-anchor="brute_concurrent"]');
 };
 
 const goToQueueConcurrency = () => {
   activeKey.value = 'performance';
   scanSubTab.value = 'performance';
-  nextTick(() => {
-    const el = document.querySelector('[data-setting-anchor="performance"]');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('arl-anchor-flash');
-      setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
-    }
-  });
+  scrollAndFlashAnchor('[data-setting-anchor="performance"]');
 };
 
 // 定位第一个存在未保存改动的 Tab，供提示条一键跳转
@@ -2996,187 +2413,6 @@ const deleteEntries = async (content) => {
   }
 };
 
-// ======================= CDN 管理逻辑 =======================
-const cdnList = ref([]);
-const originalCdnList = ref([]);
-const cdnLoading = ref(false);
-const cdnSaveLoading = ref(false);
-
-const isCdnDirty = computed(() => {
-  return JSON.stringify(cdnList.value) !== JSON.stringify(originalCdnList.value);
-});
-
-const cdnSearchText = ref('');
-const selectedCdnName = ref('');
-
-const filteredCdnList = computed(() => {
-  if (!cdnSearchText.value) return cdnList.value;
-  return cdnList.value.filter(item => 
-    item.name.toLowerCase().includes(cdnSearchText.value.toLowerCase())
-  );
-});
-
-const selectedCdn = computed(() => {
-  if (!selectedCdnName.value) return null;
-  return cdnList.value.find(item => item.name === selectedCdnName.value);
-});
-
-const totalCnameCount = computed(() => {
-  return cdnList.value.reduce((acc, curr) => acc + (curr.cname_domain || []).length, 0);
-});
-
-const totalIpCount = computed(() => {
-  return cdnList.value.reduce((acc, curr) => acc + (curr.ip_cidr || []).length, 0);
-});
-
-const copyTextList = async (list, label = pageText('tasks.content')) => {
-  if (!list || !list.length) {
-    message.warning(pageText('pages.noDataForType', { type: label }));
-    return;
-  }
-  const ok = await copyText(list.join('\n'));
-  if (ok) {
-    message.success(pageText('pages.typeCopiedToClipboard', { type: label }));
-  } else {
-    message.error(pageText('pages.copyFailedSelectAndCopyTheTextManually'));
-  }
-};
-
-const cdnDrawerVisible = ref(false);
-const isEditingCdn = ref(false);
-const currentCdnForm = reactive({
-  name: '',
-  cnameText: '',
-  ipText: ''
-});
-const currentEditIndex = ref(-1);
-
-const openCdnDrawer = () => {
-  isEditingCdn.value = false;
-  currentEditIndex.value = -1;
-  currentCdnForm.name = '';
-  currentCdnForm.cnameText = '';
-  currentCdnForm.ipText = '';
-  cdnDrawerVisible.value = true;
-};
-
-const editSelectedCdn = () => {
-  if (!selectedCdn.value) return;
-  isEditingCdn.value = true;
-  currentEditIndex.value = cdnList.value.findIndex(c => c.name === selectedCdn.value.name);
-  currentCdnForm.name = selectedCdn.value.name;
-  currentCdnForm.cnameText = (selectedCdn.value.cname_domain || []).join('\n');
-  currentCdnForm.ipText = (selectedCdn.value.ip_cidr || []).join('\n');
-  cdnDrawerVisible.value = true;
-};
-
-const deleteSelectedCdn = () => {
-  if (!selectedCdn.value) return;
-  const index = cdnList.value.findIndex(c => c.name === selectedCdn.value.name);
-  if (index > -1) {
-    cdnList.value.splice(index, 1);
-    selectedCdnName.value = '';
-    message.success(pageText('pages.deletedLocallySaveAllChangesToApply'));
-  }
-};
-
-const resetCdnForm = () => {
-  cdnDrawerVisible.value = false;
-};
-
-const submitCdnDrawer = () => {
-  if (!currentCdnForm.name.trim()) {
-    message.warning(pageText('pages.enterACdnName'));
-    return;
-  }
-  const cname_domain = currentCdnForm.cnameText.split('\n').map(s => s.trim()).filter(s => s);
-  const ip_cidr = currentCdnForm.ipText.split('\n').map(s => s.trim()).filter(s => s);
-
-  // IP / 网段格式校验（IPv4 或 IPv4 CIDR），阻断明显非法输入写入全局探测配置
-  const cidrRe = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
-  const invalidCidr = ip_cidr.filter(cidr => {
-    if (!cidrRe.test(cidr)) return true;
-    const parts = cidr.split('/');
-    const octets = parts[0].split('.').map(Number);
-    if (octets.some(o => o < 0 || o > 255)) return true;
-    if (parts[1] && (parseInt(parts[1]) < 0 || parseInt(parts[1]) > 32)) return true;
-    return false;
-  });
-  if (invalidCidr.length > 0) {
-    message.error(pageText('pages.invalidIpEGIpUseAnIpv4Address', { ip: invalidCidr[0] }));
-    return;
-  }
-  // CNAME 后缀校验：不允许空白与路径分隔符
-  const invalidCname = cname_domain.filter(d => /[\s/\\]/.test(d));
-  if (invalidCname.length > 0) {
-    message.error(pageText('pages.invalidCnameSuffixEGSuffixUseADomain', { suffix: invalidCname[0] }));
-    return;
-  }
-
-  if (isEditingCdn.value && currentEditIndex.value > -1) {
-    cdnList.value[currentEditIndex.value] = {
-      name: currentCdnForm.name.trim(),
-      cname_domain,
-      ip_cidr
-    };
-    selectedCdnName.value = currentCdnForm.name.trim();
-  } else {
-    if (cdnList.value.find(c => c.name === currentCdnForm.name.trim())) {
-      message.warning(pageText('pages.thisCdnNameAlreadyExists'));
-      return;
-    }
-    cdnList.value.unshift({
-      name: currentCdnForm.name.trim(),
-      cname_domain,
-      ip_cidr
-    });
-    selectedCdnName.value = currentCdnForm.name.trim();
-  }
-  cdnDrawerVisible.value = false;
-};
-
-
-// 拉取 CDN 列表
-const fetchCdnList = async () => {
-  cdnLoading.value = true;
-  try {
-    const res = await request.get('/api/cdn_dict/list');
-    if (res.code === 200) {
-      cdnList.value = res.data || [];
-      originalCdnList.value = JSON.parse(JSON.stringify(cdnList.value));
-    } else {
-      message.error(res.message || pageText('pages.failedToLoadCdnList'));
-    }
-  } catch (error) {
-    message.error(pageText('pages.cdnListRequestFailed'));
-    console.error(error);
-  } finally {
-    cdnLoading.value = false;
-  }
-};
-
-// 保存全量数据到服务器
-const saveCdnData = async () => {
-  cdnSaveLoading.value = true;
-  try {
-    const res = await request.post('/api/cdn_dict/save', {
-      data: cdnList.value
-    });
-    if (res.code === 200) {
-      message.success(pageText('pages.allChangesSaved'));
-      originalCdnList.value = JSON.parse(JSON.stringify(cdnList.value));
-      fetchCdnList(); // 重新拉取确认
-    } else {
-      message.error(res.message || pageText('pages.failedToSaveLabel2'));
-    }
-  } catch (error) {
-    message.error(pageText('pages.saveRequestFailed'));
-    console.error(error);
-  } finally {
-    cdnSaveLoading.value = false;
-  }
-};
-
 // ======================= 安全策略管理逻辑 =======================
 const securityForm = ref({ blackIpsText: '', forbiddenDomainsText: '' });
 const securityLoading = ref(false);
@@ -3300,592 +2536,19 @@ const fetchBruteDictList = async (showLoading = true) => {
   }
 };
 
-const formatSystemVersion = (version) => {
-  if (!version) return pageText('pages.loadingLabel2');
-  return version === '未知版本' ? pageText('pages.unknownVersion') : version;
-};
-const localVersion = ref('');
-const remoteVersion = ref('');
-const releaseNotes = ref('');
-const hasNewVersion = ref(false);
-const forceUpdateMode = ref(false);
-
-const updateModalVisible = ref(false);
-const updateLogs = ref('');
-const updateProgress = ref(0);
-const updatePollInterval = ref(null); // 🛠️ 轮询定时器句柄
-const logByteOffset = ref(0);         // 🛠️ 增量 Byte-Offset 偏移量指针
-const updateFinished = ref(false);
-const terminalRef = ref(null);
-const updateButtonLoading = ref(false);
-const updateHasError = ref(false);
-const updateOfflineNotices = ref('');
-
-// 🌟 实时体验升级：耗时计时器、分层动态传输芯片与当前阶段标题
-const updateElapsedSeconds = ref(0);
-const updateTimer = ref(null);
-const activeLayers = ref({});
-const currentStageKey = ref('pages.preparingTheUpdateEnvironment');
-const currentStageTitle = computed(() => pageText(currentStageKey.value));
-
-const formattedElapsedTime = computed(() => {
-  const mins = Math.floor(updateElapsedSeconds.value / 60);
-  const secs = updateElapsedSeconds.value % 60;
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-});
-
-const renderedReleaseNotes = computed(() => {
-  if (!releaseNotes.value) return '';
-  let html = releaseNotes.value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  
-  html = html.replace(/^### (.*$)/gim, '<h4 style="margin: 12px 0 6px 0; font-weight: 600; font-size: 13px; color: var(--arl-text-color);">$1</h4>');
-  html = html.replace(/^## (.*$)/gim, '<h3 style="margin: 14px 0 8px 0; font-weight: 700; font-size: 14px; color: var(--arl-text-color);">$1</h3>');
-  html = html.replace(/^# (.*$)/gim, '<h2 style="margin: 16px 0 8px 0; font-weight: 700; font-size: 15px; color: var(--arl-text-color);">$1</h2>');
-  
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600;">$1</strong>');
-  html = html.replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px;">$1</code>');
-  
-  html = html.replace(/^\s*-\s+(.*$)/gim, '<li style="margin-left: 18px; line-height: 1.8; list-style-type: disc;">$1</li>');
-  html = html.replace(/^\s*(\d+)\.\s+(.*$)/gim, '<li style="margin-left: 18px; line-height: 1.8; list-style-type: decimal;">$2</li>');
-  
-  html = html.replace(/\n\n/g, '<div style="height: 6px;"></div>');
-  html = html.replace(/\n/g, '<br/>');
-  html = html.replace(/<br\/>\s*<li/g, '<li').replace(/<\/li>\s*<br\/>/g, '</li>');
-  
-  return html;
-});
-
-const checkVersion = async (force = false) => {
-  try {
-    const res = await request.get('/api/system_config/check_update', { params: force ? { refresh: 1 } : {} });
-    if (res.code === 200 && res.data) {
-      localVersion.value = res.data.local_version || '未知版本';
-      remoteVersion.value = res.data.remote_version || localVersion.value;
-      hasNewVersion.value = Boolean(res.data.has_new_version);
-      releaseNotes.value = res.data.release_notes || '';
-    }
-  } catch (e) {
-    console.error('检查版本更新失败', e);
-    // 降级使用 local_version 接口兜底
-    try {
-      const localRes = await request.get('/api/system_config/local_version');
-      if (localRes.code === 200) {
-        localVersion.value = localRes.data.version;
-      }
-    } catch (_) {}
-  }
-};
-
-const handleStartUpdateClick = async () => {
-  try {
-    const res = await request.get('/api/system_config/running_task_count');
-    const runningCount = res.code === 200 && res.data ? (res.data.running_count || 0) : 0;
-    if (runningCount > 0) {
-      Modal.confirm({
-        title: pageText('pages.scanningTasksAreRunning'),
-        content: pageText('pages.thereAreCountRunningScanningTasksUpdatingTheSystem', { count: runningCount }),
-        okText: pageText('pages.interruptTasksAndUpdate'),
-        okType: 'danger',
-        cancelText: pageText('pages.cancelAndWaitForTasksToFinish'),
-        onOk: () => {
-          startUpdate();
-        }
-      });
-      return;
-    }
-  } catch (e) {
-    console.warn('获取运行中任务数量失败，跳过前置阻断', e);
-  }
-  startUpdate();
-};
-
-// 🛠️ 统一停止更新轮询/耗时计时器，并清空动态分层芯片状态
-const stopUpdateTimers = () => {
-  if (updatePollInterval.value) {
-    clearInterval(updatePollInterval.value);
-    updatePollInterval.value = null;
-  }
-  if (updateTimer.value) {
-    clearInterval(updateTimer.value);
-    updateTimer.value = null;
-  }
-  activeLayers.value = {};
-};
-
-// 🛠️ 统一收尾更新流程：停止双定时器、清空分层芯片，并落定终态（标题/进度/成败标记）
-const finishUpdate = (stageKey, { progress = null, hasError = false } = {}) => {
-  stopUpdateTimers();
-  currentStageKey.value = stageKey;
-  if (progress !== null) updateProgress.value = progress;
-  updateFinished.value = true;
-  updateHasError.value = hasError;
-  updateOfflineNotices.value = '';
-};
-
-const startUpdate = async () => {
-  if (updateButtonLoading.value) return;
-  updateButtonLoading.value = true;
-  try {
-    const res = await request.post('/api/system_config/request_update_token');
-    if (res.code !== 200) {
-      message.error(res.message || pageText('pages.failedToObtainUpdateToken'));
-      updateButtonLoading.value = false;
-      return;
-    }
-    const token = res.data.token;
-    
-    updateModalVisible.value = true;
-    updateHasError.value = false;
-    updateOfflineNotices.value = '';
-    updateLogs.value = pageText('pages.startingTheUpdateService');
-    updateProgress.value = 10;
-    updateFinished.value = false;
-    updateButtonLoading.value = false;
-    logByteOffset.value = 0;
-    activeLayers.value = {};
-    updateElapsedSeconds.value = 0;
-    currentStageKey.value = 'pages.preparingTheUpdateEnvironment';
-
-    // 启动秒级耗时计数器（先统一停止可能残留的定时器并清空分层状态）
-    stopUpdateTimers();
-    updateTimer.value = setInterval(() => {
-      updateElapsedSeconds.value++;
-    }, 1000);
-    
-    // 1. 触发更新
-    const triggerUrl = `/update_stream/trigger?token=${token}`;
-    try {
-      const triggerRes = await fetch(triggerUrl);
-      if (!triggerRes.ok) {
-        updateLogs.value += pageText('pages.errorUpdateRequestFailedTheServiceReturnedAnUnexpected');
-        finishUpdate('pages.failedToStartUpdate', { hasError: true });
-        return;
-      }
-    } catch (e) {
-      updateLogs.value += pageText('pages.errorCannotConnectToTheUpdateServiceCheckThe');
-      finishUpdate('pages.cannotConnectToUpdateService', { hasError: true });
-      return;
-    }
-
-    // 2. 开始增量轮询日志与动态分层状态
-    if (updatePollInterval.value) {
-      clearInterval(updatePollInterval.value);
-    }
-    
-    updatePollInterval.value = setInterval(async () => {
-      try {
-        const pollUrl = `/update_stream/log?offset=${logByteOffset.value}`;
-        const logRes = await fetch(pollUrl);
-        if (!logRes.ok) {
-          if (logRes.status === 401) {
-            finishUpdate('pages.systemUpdatedBasicAuthProtectionIsActive', { progress: 100 });
-            updateLogs.value += pageText('pages.doneSystemUpdatedBasicAuthProtectionIsActiveRefresh');
-            scrollToBottom();
-            message.success(pageText('pages.systemUpdatedRefreshThePage'), 8);
-            return;
-          }
-          // 502 可能是网关重启，不报错，仅记录
-          if (updateOfflineNotices.value !== 'network') {
-            updateOfflineNotices.value = 'network';
-            updateLogs.value += pageText('pages.gatewayRestartingOrServiceTemporarilyUnavailableWaitingForThe');
-            scrollToBottom();
-          }
-          return;
-        }
-
-        const contentType = logRes.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const data = await logRes.json();
-          logByteOffset.value = data.offset !== undefined ? data.offset : logByteOffset.value;
-          if (data.chunk) {
-            updateLogs.value += data.chunk;
-            scrollToBottom();
-          }
-
-          // 🌟 动态同步镜像分层下载进度
-          if (data.progress && typeof data.progress === 'object') {
-            activeLayers.value = data.progress;
-          } else {
-            activeLayers.value = {};
-          }
-          
-          // 动态解析阶段与进度（终态达成后锁定，规避日志延迟写入引起标题回跳与闪烁）
-          if (!updateFinished.value) {
-            if (updateLogs.value.includes('正在拉取核心镜像')) {
-              currentStageKey.value = 'pages.stage13PullingTheCoreImageToExtract';
-              updateProgress.value = Math.max(updateProgress.value, 20);
-            }
-            if (updateLogs.value.includes('核心镜像拉取完成') || updateLogs.value.includes('基础架构同步完毕')) {
-              currentStageKey.value = 'pages.stage13InfrastructureExtractedPreparingServiceDeployment';
-              updateProgress.value = Math.max(updateProgress.value, 35);
-            }
-            if (updateLogs.value.includes('正在为当前运行版本创建稳定备份快照')) {
-              currentStageKey.value = 'pages.stage23CreatingAStableSnapshotOfThe';
-              updateProgress.value = Math.max(updateProgress.value, 45);
-            }
-            if (updateLogs.value.includes('正在从阿里云镜像库极速拉取最新构建')) {
-              currentStageKey.value = 'pages.stage23PullingTheLatestImagesFromThe';
-              updateProgress.value = Math.max(updateProgress.value, 60);
-            }
-            if (updateLogs.value.includes('所有微服务镜像拉取完成') || updateLogs.value.includes('正在启动生产多服务容器组')) {
-              currentStageKey.value = 'pages.stage33StartingServiceContainersAndCheckingTheir';
-              updateProgress.value = Math.max(updateProgress.value, 80);
-            }
-            if (updateLogs.value.includes('后端服务已完全就绪')) {
-              currentStageKey.value = 'pages.stage33BackendServicesAndDatabaseAreReady';
-              updateProgress.value = Math.max(updateProgress.value, 95);
-            }
-          }
-
-          if (data.done) {
-            finishUpdate('pages.systemUpdateAndDeploymentCompleted', { progress: 100 });
-            message.success(pageText('pages.systemUpdatedSelectReloadBelowToRefreshThePage'), 5);
-          } else if (data.error) {
-            finishUpdate('pages.systemUpdateFailed', { hasError: true });
-            message.error(pageText('pages.systemUpdateFailedCheckTheLogs'), 8);
-          }
-        } else {
-          // 纯文本兜底
-          const logText = await logRes.text();
-          updateLogs.value = logText;
-          scrollToBottom();
-          if (logText.includes('[DONE]')) {
-            finishUpdate('pages.systemUpdated', { progress: 100 });
-            message.success(pageText('pages.systemUpdated'), 5);
-          } else if (logText.includes('[ERROR]')) {
-            finishUpdate('pages.systemUpdateFailed', { hasError: true });
-            message.error(pageText('pages.systemUpdateFailedLabel2'), 8);
-          }
-        }
-      } catch (err) {
-        // 网络请求失败（容器重启时）忽略错误，继续轮询
-        if (updateOfflineNotices.value !== 'container') {
-          updateOfflineNotices.value = 'container';
-          updateLogs.value += pageText('pages.networkDisconnectedWaitingForContainersToRecover');
-          scrollToBottom();
-        }
-      }
-    }, 1200);
-    
-  } catch (e) {
-    message.error(pageText('pages.failedToStartUpdateLabel2'));
-    console.error(e);
-    updateButtonLoading.value = false;
-    stopUpdateTimers();
-  }
-};
-
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (terminalRef.value) {
-      terminalRef.value.scrollTop = terminalRef.value.scrollHeight;
-    }
-  });
-};
-
-// ======================= 数据备份与恢复模块 =======================
-const backupList = ref([]);
-const backupListLoading = ref(false);
-const backupRunningTasks = ref(0);
-const backupLoading = ref(false);
-
-const createBackupModalVisible = ref(false);
-const createBackupForm = reactive({
-  includeScreenshots: true,
-  note: ''
-});
-
-const uploadBackupModalVisible = ref(false);
-
-const restoreModalVisible = ref(false);
-const selectedRestoreBackup = ref(null);
-const restoreConfirmInput = ref('');
-const restoreForceCheck = ref(false);
-
-const backupProgressModalVisible = ref(false);
-const progressAction = ref('backup');
-const progressPercent = ref(0);
-const progressStage = ref('');
-const progressElapsed = ref(0);
-const progressLogs = ref([]);
-const progressFinished = ref(false);
-const progressHasError = ref(false);
-const progressArchiveName = ref('');
-const backupTerminalRef = ref(null);
-let progressPollTimer = null;
-let progressElapsedTimer = null;
-
-const formatBytes = (bytes) => {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
-};
-
-const formatDateTime = (iso) => {
-  if (!iso) return '-';
-  return iso.slice(0, 19).replace('T', ' ');
-};
-
-const backupColumns = [
-  { get title() { return pageText('pages.backupArchiveName'); }, dataIndex: 'filename', key: 'filename', width: 280 },
-  { get title() { return pageText('pages.backupSize'); }, dataIndex: 'size', key: 'size', width: 110 },
-  { get title() { return pageText('pages.backupScreenshotColumn'); }, dataIndex: 'include_screenshots', key: 'include_screenshots', width: 130 },
-  { get title() { return pageText('pages.backupSummary'); }, key: 'summary' },
-  { get title() { return pageText('pages.backupCreatedAt'); }, dataIndex: 'created_at', key: 'created_at', width: 160 },
-  { get title() { return pageText('pages.backupActions'); }, key: 'action', width: 200, align: 'center' }
-];
-
-const fetchBackupList = async () => {
-  backupListLoading.value = true;
-  try {
-    const res = await request.get('/api/backup/list');
-    if (res.code === 200 && res.data) {
-      backupList.value = res.data.items || [];
-      backupRunningTasks.value = res.data.running_tasks || 0;
-    } else {
-      message.error(res.message || pageText('pages.backupListFailed'));
-    }
-  } catch (e) {
-    message.error(pageText('pages.backupListNetworkError'));
-  } finally {
-    backupListLoading.value = false;
-  }
-};
-
-const openCreateBackupModal = () => {
-  createBackupForm.includeScreenshots = true;
-  createBackupForm.note = '';
-  createBackupModalVisible.value = true;
-};
-
-const handleExecuteCreateBackup = async () => {
-  backupLoading.value = true;
-  try {
-    const res = await request.post('/api/backup/create', {
-      include_screenshots: createBackupForm.includeScreenshots,
-      note: createBackupForm.note.trim()
-    });
-    if (res.code === 200) {
-      createBackupModalVisible.value = false;
-      startProgressTracking('backup');
-    } else {
-      message.error(res.message || pageText('pages.backupStartFailed'));
-    }
-  } catch (e) {
-    message.error(e.response?.data?.message || pageText('pages.backupStartError'));
-  } finally {
-    backupLoading.value = false;
-  }
-};
-
-const openUploadBackupModal = () => {
-  uploadBackupModalVisible.value = true;
-};
-
-const handleCustomUploadBackup = async ({ file, onSuccess, onError, onProgress }) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  try {
-    const res = await request.post('/api/backup/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (progressEvent) => {
-        if (progressEvent.total) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress({ percent });
-        }
-      }
-    });
-    if (res.code === 200) {
-      message.success(pageText('pages.backupUploadSuccess'));
-      onSuccess(res.data, file);
-      uploadBackupModalVisible.value = false;
-      fetchBackupList();
-    } else {
-      message.error(res.message || pageText('pages.backupUploadFailed'));
-      onError(new Error(res.message));
-    }
-  } catch (err) {
-    const errText = err.response?.data?.message || pageText('pages.backupUploadError');
-    message.error(errText);
-    onError(err);
-  }
-};
-
-const openRestoreModal = (record) => {
-  selectedRestoreBackup.value = record;
-  restoreConfirmInput.value = '';
-  restoreForceCheck.value = false;
-  restoreModalVisible.value = true;
-};
-
-const handleExecuteRestore = async () => {
-  if (!selectedRestoreBackup.value) return;
-  try {
-    const res = await request.post('/api/backup/restore', {
-      filename: selectedRestoreBackup.value.filename,
-      force: restoreForceCheck.value || backupRunningTasks.value === 0
-    });
-    if (res.code === 200) {
-      restoreModalVisible.value = false;
-      startProgressTracking('restore', selectedRestoreBackup.value.filename);
-    } else {
-      message.error(res.message || pageText('pages.backupRestoreFailed'));
-    }
-  } catch (e) {
-    message.error(e.response?.data?.message || pageText('pages.backupRestoreError'));
-  }
-};
-
-const handleDownloadBackup = (filename) => {
-  const token = localStorage.getItem('token') || '';
-  const url = `/api/backup/download/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`;
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-};
-
-const handleDeleteBackup = async (filename) => {
-  try {
-    const res = await request.delete(`/api/backup/delete/${encodeURIComponent(filename)}`);
-    if (res.code === 200) {
-      message.success(pageText('pages.backupDeleted'));
-      fetchBackupList();
-    } else {
-      message.error(res.message || pageText('pages.backupDeleteFailed'));
-    }
-  } catch (e) {
-    message.error(pageText('pages.backupDeleteError'));
-  }
-};
-
-const scrollBackupTerminal = () => {
-  nextTick(() => {
-    if (backupTerminalRef.value) {
-      backupTerminalRef.value.scrollTop = backupTerminalRef.value.scrollHeight;
-    }
-  });
-};
-
-const stopProgressTracking = () => {
-  if (progressPollTimer) {
-    clearInterval(progressPollTimer);
-    progressPollTimer = null;
-  }
-  if (progressElapsedTimer) {
-    clearInterval(progressElapsedTimer);
-    progressElapsedTimer = null;
-  }
-};
-
-const checkAndResumeBackupProgress = async () => {
+const probeActiveBackupTask = async () => {
   try {
     const res = await request.get('/api/backup/status');
-    if (res.code === 200 && res.data) {
-      const d = res.data;
-      if (['backing_up', 'restoring'].includes(d.status)) {
-        if (typeof d.percent === 'number') progressPercent.value = d.percent;
-        if (d.stage) progressStage.value = d.stage;
-        if (Array.isArray(d.logs)) progressLogs.value = d.logs;
-        if (d.archive_name) progressArchiveName.value = d.archive_name;
-        if (d.elapsed) progressElapsed.value = d.elapsed;
-        startProgressTracking(d.action, d.archive_name, true);
-      }
+    if (res.code === 200 && res.data && ['backing_up', 'restoring'].includes(res.data.status)) {
+      activeKey.value = 'system_backup';
     }
   } catch (e) {
     // 页面初始化静默容错
   }
 };
 
-const startProgressTracking = (action, archiveName = '', isResume = false) => {
-  stopProgressTracking();
-  progressAction.value = action || 'backup';
-  if (!isResume) {
-    progressPercent.value = 5;
-    progressStage.value = action === 'backup' ? pageText('pages.backupPreparing') : pageText('pages.backupRestorePreparing');
-    progressElapsed.value = 0;
-    progressLogs.value = [pageText('pages.backupConnecting')];
-  }
-  progressFinished.value = false;
-  progressHasError.value = false;
-  if (archiveName) progressArchiveName.value = archiveName;
-  backupProgressModalVisible.value = true;
-
-  const initElapsed = progressElapsed.value || 0;
-  const startTime = Date.now() - initElapsed * 1000;
-  let microStepTick = 0;
-
-  progressElapsedTimer = setInterval(() => {
-    progressElapsed.value = Math.floor((Date.now() - startTime) / 1000);
-    microStepTick += 1;
-    // 每 2.5 秒执行一次拟真平滑微步（绝不倒退，且不超过当前阶段上限），降低长时间阻塞卡顿焦虑
-    if (microStepTick % 3 === 0 && !progressFinished.value) {
-      if (progressPercent.value >= 20 && progressPercent.value < 54) {
-        progressPercent.value = Math.min(54, progressPercent.value + 1);
-      } else if (progressPercent.value >= 58 && progressPercent.value < 74) {
-        progressPercent.value = Math.min(74, progressPercent.value + 1);
-      } else if (progressPercent.value >= 85 && progressPercent.value < 96) {
-        progressPercent.value = Math.min(96, progressPercent.value + 1);
-      }
-    }
-  }, 1000);
-
-  progressPollTimer = setInterval(async () => {
-    try {
-      const res = await request.get('/api/backup/status');
-      if (res.code === 200 && res.data) {
-        const d = res.data;
-        // 关键防抖保护：如果弹窗正在活跃跟踪，而返回的数据处于 idle 或 0%，坚决不倒退
-        if (d.status === 'idle' && !progressFinished.value) {
-          return;
-        }
-
-        if (d.stage) progressStage.value = d.stage;
-        // 单调递增保护：只增不减
-        if (typeof d.percent === 'number' && d.percent > progressPercent.value) {
-          progressPercent.value = d.percent;
-        }
-        if (Array.isArray(d.logs) && d.logs.length > 0) {
-          progressLogs.value = d.logs;
-        }
-        if (d.archive_name) progressArchiveName.value = d.archive_name;
-        if (typeof d.elapsed === 'number' && d.elapsed > progressElapsed.value) {
-          progressElapsed.value = d.elapsed;
-        }
-        scrollBackupTerminal();
-
-        if (d.status === 'success') {
-          progressFinished.value = true;
-          progressHasError.value = false;
-          progressPercent.value = 100;
-          progressStage.value = (d.action || action) === 'backup' ? pageText('pages.backupCompleted') : pageText('pages.backupRestoreCompleted');
-          stopProgressTracking();
-          fetchBackupList();
-        } else if (d.status === 'error') {
-          progressFinished.value = true;
-          progressHasError.value = true;
-          progressStage.value = pageText('pages.backupExecutionFailed', { error: d.error || pageText('pages.backupUnknownError') });
-          stopProgressTracking();
-          fetchBackupList();
-        }
-      }
-    } catch (err) {
-      // 容错重试
-    }
-  }, 1000);
-};
-
-
 onMounted(() => {
-  // 页面加载时自动探测后台是否已有运行中的备份/恢复任务并接管看板
-  checkAndResumeBackupProgress();
+  probeActiveBackupTask();
 
   if (route.query.tab) {
     if (route.query.tab === 'cdn') {
@@ -3902,38 +2565,19 @@ onMounted(() => {
   // 支持 ?focus=<anchor> 深链：业务页可直接把用户送到具体设置项并高亮
   if (route.query.focus) {
     const target = SETTINGS_INDEX.find((i) => i.anchor === route.query.focus);
-    nextTick(() => {
-      if (target) {
-        jumpToSetting({ ...target, tab: route.query.tab || target.tab });
-      } else {
-        // 索引中无此锚点时退化为纯 DOM 定位，保证业务页深链不失效
-        const el = document.querySelector(`[data-setting-anchor="${route.query.focus}"]`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('arl-anchor-flash');
-          setTimeout(() => el.classList.remove('arl-anchor-flash'), 2200);
-        }
-      }
-    });
+    if (target) {
+      jumpToSetting({ ...target, tab: route.query.tab || target.tab });
+    } else {
+      scrollAndFlashAnchor(`[data-setting-anchor="${route.query.focus}"]`);
+    }
   }
   window.addEventListener('beforeunload', handleBeforeUnload);
-  checkVersion();
   fetchCapacityProbe();
   fetchDictList();
   fetchBruteDictList();
-  fetchCdnList();
   fetchSecurityPolicy();
   fetchPerformanceConfig();
   fetchGeneralConfig();
-  if (activeKey.value === 'system_backup') {
-    fetchBackupList();
-  }
-});
-
-watch(activeKey, (newVal) => {
-  if (newVal === 'system_backup') {
-    fetchBackupList();
-  }
 });
 
 onDeactivated(() => {
@@ -3944,21 +2588,17 @@ onDeactivated(() => {
   createDictDrawerVisible.value = false;
   appendDrawerVisible.value = false;
   searchDrawerVisible.value = false;
-  cdnDrawerVisible.value = false;
-  updateModalVisible.value = false;
-  backupProgressModalVisible.value = false;
-  createBackupModalVisible.value = false;
-  uploadBackupModalVisible.value = false;
-  restoreModalVisible.value = false;
+  cdnPanelRef.value?.closeDrawer?.();
+  updatePanelRef.value?.closeModals?.();
+  backupPanelRef.value?.closeModals?.();
   clearAllDictPollTimers();
-  stopProgressTracking();
 });
 
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload);
-  stopUpdateTimers();
+  updatePanelRef.value?.stopUpdateTimers?.();
   clearAllDictPollTimers();
-  stopProgressTracking();
+  backupPanelRef.value?.stopProgressTracking?.();
 });
 
 // 路由级离开拦截：组件被 keep-alive 缓存时 onDeactivated 只提示不阻断，

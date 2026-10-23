@@ -28,7 +28,7 @@ def file_lock(f, exclusive=True):
 def get_dict_lock_path(dict_path: str) -> str:
     """
     获取字典专属的独立配套排他锁文件路径。
-    保持独立锁文件 inode 不可变，彻底消除 os.replace 替换原文件导致的锁失效与并发覆盖竞态。
+    保持独立锁文件 inode 不可变，规避 os.replace 替换原文件导致的锁失效与并发覆盖竞态。
     """
     return dict_path + ".lock"
 

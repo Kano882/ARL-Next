@@ -49,7 +49,8 @@ class ARLAssetScope(ARLResource):
         data = self.build_data(args=args, collection='asset_scope')
 
         # 历史数据兼容与探测状态统计
-        for item in data.get("items", []):
+        items = data.get("items", [])
+        for item in items:
             if "domain_array" not in item or "ip_array" not in item:
                 st = item.get("scope_type")
                 sa = item.get("scope_array", [])
@@ -70,12 +71,10 @@ class ARLAssetScope(ARLResource):
                     item["domain_array"] = d_arr
                     item["ip_array"] = i_arr
 
-            from app.helpers.scope import get_scope_domain_stat
-            domain_status, domain_stat = get_scope_domain_stat(item)
-            item["domain_status"] = domain_status
-            item["domain_stat"] = domain_stat
+        if items:
+            from app.helpers.scope import populate_scopes_domain_stat
+            populate_scopes_domain_stat(items)
 
-        items = data.get("items", [])
         if items:
             scope_id_strs = [str(item.get('_id')) for item in items if item.get('_id')]
             synced_task_ids = []

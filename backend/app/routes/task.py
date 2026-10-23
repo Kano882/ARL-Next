@@ -511,7 +511,7 @@ sync_scope_fields = ns.model('SyncScope',  {
 })
 
 
-# ******* 根据目标找到要同步的资产分组ID *********
+# ******* 根据目标找到要同步的资产组ID *********
 @ns.route('/sync_scope/')
 class Target2Scope(ARLResource):
     parser = get_arl_parser(sync_scope_fields, location='args')
@@ -520,7 +520,7 @@ class Target2Scope(ARLResource):
     @ns.expect(parser)
     def get(self):
         """
-        从目标反查资产分组
+        从目标反查资产组
         """
         args = self.parser.parse_args()
         target = args.pop("target")

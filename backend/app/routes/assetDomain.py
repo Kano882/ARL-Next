@@ -203,7 +203,7 @@ class ARLAssetDomainExport(ARLResource):
     @ns.expect(parser)
     def get(self):
         """
-        资产分组域名导出
+        资产组域名导出
         """
         args = self.parser.parse_args()
         # 复用强大的万能导出函数！

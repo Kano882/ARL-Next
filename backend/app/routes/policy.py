@@ -75,7 +75,7 @@ site_config_fields = ns.model('siteConfig', {
 
 '''资产组关联配置'''
 scope_config_fields = ns.model('scopeConfig', {
-    "scope_id": fields.String(description="资产分组 ID", default=""),
+    "scope_id": fields.String(description="资产组 ID", default=""),
 })
 
 add_policy_fields = ns.model('addPolicy', {

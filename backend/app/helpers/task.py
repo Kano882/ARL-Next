@@ -415,9 +415,9 @@ def _restart_scope_task(task_data, task_type, task_tag, options, scope_id):
     if _is_running_periodic_task(task_data):
         raise Exception("该任务为周期监控任务，由定时引擎自动调度，不支持在此手动重启")
 
-    # 2. 一次性扫描任务：严格防御校验关联资产分组是否存在
+    # 2. 一次性扫描任务：严格防御校验关联资产组是否存在
     if not scope_id:
-        raise Exception("一次性扫描任务缺失关联的资产分组 ID，无法重新下发")
+        raise Exception("一次性扫描任务缺失关联的资产组 ID，无法重新下发")
 
     if task_type not in (TaskType.DOMAIN, TaskType.IP):
         raise Exception("不支持的监控任务类型: {}".format(task_type))
@@ -425,11 +425,11 @@ def _restart_scope_task(task_data, task_type, task_tag, options, scope_id):
     try:
         scope_obj_id = bson.ObjectId(str(scope_id))
     except Exception:
-        raise Exception("资产分组 ID 格式非法: {}".format(scope_id))
+        raise Exception("资产组 ID 格式非法: {}".format(scope_id))
 
     scope_data = utils.conn_db('asset_scope').find_one({"_id": scope_obj_id})
     if not scope_data:
-        raise Exception("关联的资产分组 (ID: {}) 已不存在，无法重启该监控任务".format(scope_id))
+        raise Exception("关联的资产组 (ID: {}) 已不存在，无法重启该监控任务".format(scope_id))
 
     # 3. 目标完整性校验
     target = task_data.get("target", "")
@@ -485,7 +485,7 @@ def _restart_scope_task(task_data, task_type, task_tag, options, scope_id):
     new_task_data["celery_id"] = str(celery_id)
     utils.conn_db('task').update_one({"_id": bson.ObjectId(new_task_id)}, values)
 
-    # 7. 标记资产分组探测状态
+    # 7. 标记资产组探测状态
     if task_type == TaskType.IP:
         for ip in str(target).split():
             update_scope_domain_status(str(scope_id), ip, "scanning", new_task_id)

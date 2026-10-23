@@ -67,7 +67,7 @@ class ARLAssetIPExport(ARLResource):
     @ns.expect(parser)
     def get(self):
         """
-        资产分组端口导出
+        资产组端口导出
         """
         args = self.parser.parse_args()
         # 调用基础导出（对于 asset_ip，底层说明书会把它拼接成 IP:端口 的格式）
@@ -87,7 +87,7 @@ class ARLIPExportIp(ARLResource):
     @ns.expect(parser)
     def get(self):
         """
-        从 资产分组 IP 中导出 IP
+        从资产组 IP 中导出 IP
         """
         args = self.parser.parse_args()
         # 调用万能导出器！指定只从 asset_ip 表里，抠出 "ip" 这个字段
@@ -107,7 +107,7 @@ class ARLIPExportDomain(ARLResource):
     @ns.expect(parser)
     def get(self):
         """
-        从 资产分组 IP 中导出 域名
+        从资产组 IP 中导出域名
         """
         args = self.parser.parse_args()
         response = self.send_export_file_attr(args=args, collection="asset_ip", field="domain")

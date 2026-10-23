@@ -456,24 +456,28 @@ class ARLResource(Resource):
         ret['order'] = orderby_list
         return ret
 
-    def send_export_cert_json(self, args, _type):
+    def _build_export_query(self, args, collection):
         """
-        SSL证书专有导出逻辑: 导出标准结构化 JSON 格式，保留完整证书画像元数据。
-        突破原有分页 10 条的截断限制，支持最多 50,000 条安全上限。
+        提取并清洗导出控制参数，构造 MongoDB 查询条件（含监控子任务增量过滤）。
         """
-        # 1. 清洗控制参数并提取业务查询条件
         self.get_default_field(args)
         query = self.build_db_query(args)
-
-        # 强制拦截过滤: 如果是监控子任务，默认只显示增量 (new/update)
-        if _type.startswith("asset_") and "task_id" in query:
+        if collection and collection.startswith("asset_") and "task_id" in query:
             task_id = query["task_id"]
             if isinstance(task_id, str) and len(task_id) == 24:
                 from app.utils.monitor_diff import _get_task_scope_id
                 if _get_task_scope_id(task_id):
                     query["change_status"] = {"$in": ["new", "update"]}
+        return query
 
-        # 2. 游标查询，排除 Mongo 内部 _id，避免分页截断与内存暴涨
+    def send_export_cert_json(self, args, _type):
+        """
+        SSL证书专有导出逻辑: 导出标准结构化 JSON 格式，保留完整证书画像元数据。
+        突破原有分页 10 条的截断限制，支持最多 50,000 条安全上限。
+        """
+        query = self._build_export_query(args, _type)
+
+        # 游标查询，排除 Mongo 内部 _id，避免分页截断与内存暴涨
         cursor = conn(_type).find(query, {"_id": 0}).sort([("_id", -1)]).limit(50000)
 
         items = []
@@ -506,14 +510,9 @@ class ARLResource(Resource):
         :param _type: 导出的表名/类型，比如 "site"（站点）, "domain"（域名）, "ip"（IP地址）
         :return: 调用发送文件的方法，返回给前端一个文件流
         """
-
-        # 0. 证书专属结构化导出分流 (保留完整元数据，规避文本单列丢失与分页10条截断)
         if _type in ("cert", "asset_cert"):
             return self.send_export_cert_json(args, _type)
 
-        # 1. 定义一张“提取说明书”（字典映射）
-        # 告诉程序：如果要导出 site 表，就提取里面叫做 "site" 的字段；
-        # 如果要导出 wih（Web信息收集），就提取 "content" 字段。
         _type_map_field_name = {
             "site": "site",
             "domain": "domain",
@@ -531,92 +530,45 @@ class ARLResource(Resource):
             "asset_npoc_service": "target",
         }
 
-        # 2. 复用之前讲过的总调度室 build_data，去数据库里把符合条件的数据全捞出来
-        data = self.build_data(args=args, collection=_type)["items"]
-
-        # 3. 准备一个“去重篮子” (Set 集合)
-        # 为什么用 set 而不是 list？因为导出的文件里，我们不希望有重复的行（比如两个相同的域名）
+        query = self._build_export_query(args, _type)
         items_set = set()
-
-        # 4. 遍历捞出来的每一条数据
-        for item in data:
-            # 去说明书里查一下，当前这种数据类型，我该提取哪个字段名？（注意这里原作者拼写错误写成了 filed_name）
-            filed_name = _type_map_field_name.get(_type, "")
-
-            # 如果找到了需要提取的字段名，并且这条数据里刚好有这个字段
-            if filed_name and filed_name in item:
-
-                # 【特殊处理】如果当前导出的是 ip 类型的数据
-                if filed_name == "ip":
-                    curr_ip = item[filed_name]  # 先拿到基础 IP (比如 192.168.1.1)
-
-                    # 因为一个 IP 可能开了多个端口，所以要遍历它的 port_info 列表
-                    for port_info in item.get("port_info", []):
-                        # 把 IP 和 端口 拼起来，格式化成 "IP:Port" (比如 192.168.1.1:80)，扔进篮子
-                        items_set.add("{}:{}".format(curr_ip, port_info["port_id"]))
-
-                # 6. 【特殊处理】WIH 信息导出需保留业务上下文
-                elif _type in ("wih", "asset_wih"):
-                    items_set.add(format_wih_export(item, filed_name))
-
-                # 7. 【常规处理】如果是其他类型（比如域名、URL）
-                else:
-                    # 直接把对应的值扔进篮子即可
-                    items_set.add(item[filed_name])
-
-        # 7. 把装满去重数据的篮子，交给专门负责发货的兄弟 (send_file) 去生成真实的文件并下载
+        filed_name = _type_map_field_name.get(_type, "")
+        self._extract_items_to_set(_type, query, filed_name, items_set, export_mode="single")
         return self.send_file(items_set, _type)
 
     # 表示从 给定集合中 导出相应的字段来
     def send_export_file_attr(self, args, collection, field):
         """
-        万能数据导出逻辑:从任意表里提取任意字段,去重后打包成文件.
+        通用字段导出逻辑:从任意表里提取指定字段,去重后打包成文件.
 
         :param args: 前端传来的搜索和过滤条件
         :param collection: 要查询的集合（表）名，比如 "user", "task"
-        :param field: 你想导出的具体字段名，比如 "email", "domain"
-        :return:返回一个可下载的文件流
+        :param field: 要导出的具体字段名，比如 "email", "domain"
+        :return: 返回一个可下载的文件流
         """
-        # 1. 调兵遣将：使用我们熟悉的 build_data 去数据库里把符合条件的数据全拿出来
-        # 注意这里直接加上 ["items"]，意思是只拿具体的数据列表，不要总数、页码等外层包装了
-        data = self.build_data(args=args, collection=collection)["items"]
-
-        # 2. 准备一个空的“去重草稿本”（集合 Set），保证导出的数据没有重复项
+        query = self._build_export_query(args, collection)
         items_set = set()
+        if field:
+            cursor = conn(collection).find(query, {field: 1, "_id": 0})
+            for item in cursor:
+                if field in item and item[field] is not None:
+                    value = item[field]
+                    if isinstance(value, list):
+                        items_set |= {str(v) for v in value if v is not None and str(v) != ""}
+                    elif str(value) != "":
+                        items_set.add(str(value))
 
-        # 3. 遍历数据库里捞出来的每一条数据（每一行）
-        for item in data:
-            # 如果当前这条数据里，确实包含我们要找的那个字段
-            if field in item:
-                # 把这个字段的值取出来
-                value = item[field]
-
-                # 4. 【核心判断】看看取出来的值是个什么东西？
-                # isinstance() 用于判断数据类型。这里判断它是不是一个列表 (list)
-                if isinstance(value, list):
-                    # 如果它是个列表（比如这行记录里存了多个邮箱 ["a@qq.com", "b@qq.com"]）
-                    # 那么把这几个邮箱一起倒进我们的草稿本里
-                    # |= 是集合特有的“并集”符号，意思是把两个集合合并，遇到重复的自动过滤
-                    items_set |= set(value)
-                else:
-                    # 如果它只是个普通的值（比如就是一个单独的邮箱 "a@qq.com"）
-                    # 直接把它写进草稿本里
-                    items_set.add(value)
-
-        # 5. 草稿写完后，交给送货员 (send_file) 去打包生成 txt 文件。
-        # 文件名的前缀会根据表名和字段名自动生成，比如 f"user_email"
         return self.send_file(items_set, f"{collection}_{field}")
 
-    def _extract_items_to_set(self, _type, query, filed_name, items_set):
+    def _extract_items_to_set(self, _type, query, filed_name, items_set, export_mode="batch"):
         """
-        统一的数据抽取引擎 (解决不一致性与内存溢出问题)
+        统一的数据抽取引擎 (使用精确投影或 distinct 降低内存开销)
         """
         if not filed_name:
             return
 
-        # 1. 复杂类型：需要业务上下文，使用 find + 精确投影(Projection) 防止内存溢出
+        # 1. 复杂类型：需要业务上下文，使用 find + 精确投影(Projection) 降低内存占用
         if _type in ("ip", "asset_ip"):
-            # 仅投影所需的字段
             cursor = conn(_type).find(query, {"ip": 1, "port_info.port_id": 1, "_id": 0})
             for item in cursor:
                 curr_ip = item.get("ip")
@@ -626,7 +578,7 @@ class ARLResource(Resource):
                 if port_infos:
                     for port_info in port_infos:
                         items_set.add("{}:{}".format(curr_ip, port_info.get("port_id", "")))
-                else:
+                elif export_mode == "batch":
                     items_set.add(curr_ip)
 
         elif _type in ("wih", "asset_wih"):
@@ -638,20 +590,19 @@ class ARLResource(Resource):
                     continue
                 items_set.add(format_wih_export(item, filed_name))
 
-        # 2. 简单类型：无业务上下文，直接使用数据库级别的 distinct 高效去重
+        # 2. 简单类型：无业务上下文，直接使用数据库级别的 distinct 去重
         else:
             items = conn(_type).distinct(filed_name, query)
-            items_set |= set(items)
+            items_set |= {x for x in items if x is not None and x != ""}
 
     def send_batch_export_file(self, task_id_list, _type):
         """
         批量导出核心逻辑:根据传入的多个任务ID,把它们的数据合并去重后,打包成文件发给前端.
 
-        :param task_id_list:前端传来的任务 ID 列表，比如 ["id_1", "id_2", "id_3"]
-        :param _type:导出的表名/类型，比如 "domain"（域名）
+        :param task_id_list: 前端传来的任务 ID 列表，比如 ["id_1", "id_2", "id_3"]
+        :param _type: 导出的表名/类型，比如 "domain"（域名）
         :return: 调用发送文件的方法，返回给前端一个文件流
         """
-        # 1. 依然是那份熟悉的“提取说明书”（字典映射）
         _type_map_field_name = {
             "site": "site",
             "domain": "domain",
@@ -660,24 +611,13 @@ class ARLResource(Resource):
             "cip": "cidr_ip",
             "wih": "content",
         }
-        # 2. 准备好我们的“去重魔法本” (Set)
         items_set = set()
-
-        # 3. 去说明书里查一下当前要提取哪个字段
         filed_name = _type_map_field_name.get(_type, "")
+        valid_ids = [tid for tid in (task_id_list or []) if tid]
+        if filed_name and valid_ids:
+            query = {"task_id": {"$in": valid_ids}} if len(valid_ids) > 1 else {"task_id": valid_ids[0]}
+            self._extract_items_to_set(_type, query, filed_name, items_set, export_mode="batch")
 
-        # 4. 遍历前端传过来的每一个任务 ID
-        for task_id in task_id_list:
-            if not filed_name or not task_id:
-                continue
-
-            # 5. 组装查询条件
-            query = {"task_id": task_id}
-
-            # 6. 调用统一抽取引擎提取数据
-            self._extract_items_to_set(_type, query, filed_name, items_set)
-
-        # 8. 循环结束，所有的任务数据都合并完了，交给发货员去打包下载
         return self.send_file(items_set, _type)
 
     def send_scope_batch_export_file(self, scope_id_list, _type):
@@ -688,33 +628,19 @@ class ARLResource(Resource):
         :param _type: 导出的资产表名，比如 "asset_domain"（已确认的资产域名表）
         :return: 调用发送文件的方法，返回下载文件流
         """
-
-        # 1. 专门针对“资产库(asset)”的提取说明书
         _type_map_field_name = {
-            "asset_site": "site",       # 如果导资产站点，提取 site 字段
-            "asset_domain": "domain",   # 如果导资产域名，提取 domain 字段
-            "asset_ip": "ip",           # 如果导资产 IP，提取 ip 字段
-            "asset_wih": "content"      # 如果导 Web 信息，提取 content 字段
+            "asset_site": "site",
+            "asset_domain": "domain",
+            "asset_ip": "ip",
+            "asset_wih": "content"
         }
-
-        # 2. 准备全局去重草稿本 (Set)
         items_set = set()
-
-        # 3. 查说明书，拿到要提取的字段名
         filed_name = _type_map_field_name.get(_type, "")
+        valid_ids = [sid for sid in (scope_id_list or []) if sid]
+        if filed_name and valid_ids:
+            query = {"scope_id": {"$in": valid_ids}} if len(valid_ids) > 1 else {"scope_id": valid_ids[0]}
+            self._extract_items_to_set(_type, query, filed_name, items_set, export_mode="batch")
 
-        # 4. 遍历前端选中的每一个资产组 ID
-        for scope_id in scope_id_list:
-            if not filed_name or not scope_id:
-                continue
-
-            # 5. 组装查询条件
-            query = {"scope_id": scope_id}
-
-            # 6. 调用统一抽取引擎提取数据
-            self._extract_items_to_set(_type, query, filed_name, items_set)
-
-        # 8. 全部合并完毕，调用发货程序打包成 txt 下载
         return self.send_file(items_set, _type)
 
     def send_file(self, items_set, _type):

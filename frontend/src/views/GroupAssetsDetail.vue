@@ -963,7 +963,6 @@ import HttpStatusFilter from '../components/HttpStatusFilter.vue';
 import { buildAssetFilterParams, formatAssetFilterOperator } from '../utils/assetFilters';
 import { formatGeo } from '../utils/formatGeo';
 import { message, Modal } from 'ant-design-vue';
-import * as echarts from 'echarts';
 import dayjs from 'dayjs';
 import CidrDetailModal from '../components/CidrDetailModal.vue';
 import ServiceDetailModal from '../components/ServiceDetailModal.vue';
@@ -1646,7 +1645,7 @@ const tabConfig = reactive({
   ip: {
     url: '/asset_ip/',
     tabName: 'IP',
-    // 🚨 修复：完美对齐截图的 7 个搜索字段，首个为下拉框
+    // IP 列表搜索字段配置（首个为下拉框）
     searchFields: [
       { get label() { return assetText('tasks.ipType'); }, key: 'ip_type', type: 'select', options: [{ get label() { return assetText('tasks.publicPublic'); }, value: 'PUBLIC' }, { get label() { return assetText('tasks.privatePrivate'); }, value: 'PRIVATE' }] },
       { label: 'IP', key: 'ip', operator: '=' },
@@ -1672,7 +1671,7 @@ const tabConfig = reactive({
     url: '/asset_wih/',
     exportUrl: '/asset_wih/export/', // 🚨 激活“导出WIH”按钮
     tabName: 'WIH',
-    // 🚨 完美对齐截图的 4 个搜索框，记录类型带下拉选择
+    // WIH 列表搜索字段配置（记录类型带操作符下拉选择）
     searchFields: [
       {
         get label() { return assetText('tasks.recordType'); },
@@ -1685,7 +1684,7 @@ const tabConfig = reactive({
       { get label() { return assetText('tasks.sourceJs'); }, key: 'source', operator: '=' },
       { get label() { return assetText('tasks.sourceWebsite'); }, key: 'site', operator: '=' }
     ],
-    // 🚨 完美对齐抓包数据的列，特别是 source 键名
+    // WIH 表格列定义（绑定 source 键名）
     cols: [
       { get title() { return assetText('tasks.no'); }, key: 'index', width: 60, align: 'center' },
       { get title() { return assetText('tasks.recordType'); }, dataIndex: 'record_type', key: 'record_type', width: 120 },
@@ -1981,7 +1980,7 @@ const handleBatchDelete = () => {
 
           selectedRowKeys.value = []; // 清空选中状态
           tabCache.invalidateMemoryCache(effectiveTab.value);
-          fetchData(); // 🚨 完美对齐抓包里的第二个请求：自动刷新表格数据
+          fetchData(); // 删除后自动刷新表格数据
         } else {
           message.error(assetText('tasks.deletionFailed') + res.message);
         }
@@ -2099,7 +2098,7 @@ const handleExport = async () => {
     // 🚨 动态映射真实的 tabIndex
     const tabIndexMap = { site: 0, domain: 1, ip: 2, cert: 3, service: 4, fileleak: 5, url: 6, cip: 7, stat_finger: 8, wih: 9, vuln: 10, npoc_service: 11, nuclei_result: 12 };
 
-    // 🚨 完美对齐 WIH 抓包：size 扩大到十万级 100000，并带上动态的 tabIndex
+    // 导出请求参数：设置单页上限并携带动态 tabIndex
     const params = {
       page: 1,
       size: 100000,
@@ -2158,7 +2157,7 @@ const handleIPExport = async (type) => {
   try {
     message.loading({ content: assetText('assets.preparingExportFile'), key: 'export_ip_data' });
 
-    // 🚨 完美对齐 Payload，并自动带上当前所有的搜索过滤条件
+    // 组装导出请求参数，附带当前搜索过滤条件
     const params = {
       page: 1,
       size: 10000,

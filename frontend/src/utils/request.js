@@ -52,7 +52,7 @@ function triggerUnauthorizedRedirect() {
 // 响应拦截器：统一处理状态码
 request.interceptors.response.use(
     (response) => {
-        // 若已处于登出跳转中，直接挂起后续所有并发响应，彻底消除组件层 catch 弹窗风暴
+        // 若已处于登出跳转中，直接挂起后续并发响应，收敛组件层重复报错弹窗
         if (isRedirecting) {
             return new Promise(() => {});
         }

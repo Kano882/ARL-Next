@@ -6,7 +6,7 @@ def submit_asset_wih_monitor_job(scope_id, name, scheduler_id):
 
     task_data = {
         'name': name,
-        'target': "资产分组 WIH 更新",
+        'target': "资产组 WIH 更新",
         'start_time': '-',
         'status': TaskStatus.WAITING,
         'type':  TaskType.ASSET_WIH_UPDATE,

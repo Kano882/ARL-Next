@@ -49,7 +49,7 @@ class ARLAssetWIHExport(ARLResource):
     @ns.expect(parser)
     def get(self):
         """
-        资产分组 WIH 导出
+        资产组 WIH 导出
         """
         args = self.parser.parse_args()
         response = self.send_export_file(args=args, _type="asset_wih")
