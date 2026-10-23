@@ -282,7 +282,7 @@ export default {
   "failed": "异常失败",
   "stopped": "已停止",
   "completed": "已完成",
-  "waiting": "等待中",
+  "waiting": "排队中",
   "running": "进行中",
   "runningQueued": "进行中 / 排队",
   "allStatuses": "全部状态",

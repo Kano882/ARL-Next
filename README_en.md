@@ -199,6 +199,7 @@ graph TD
 ### Production Deployment (Recommended)
 
 **Target Environments**: Public Cloud VMs (Ubuntu / Debian / CentOS / RHEL / Rocky Linux, etc.) or Enterprise Internal Servers.  
+**Recommended Specs**: 4-Core CPU, 4GB RAM or higher (ensures stability for multi-task concurrency and large-scale scanning).  
 **Estimated Time**: Typically completes within minutes on a host with Docker already installed; on bare metal, Docker installation and Swap configuration add further time depending on host and network conditions.
 
 **Key Operational Advantages**:
@@ -464,18 +465,20 @@ Continuous development of ARL-Next is supported by our open-source community. Sp
 
 <p align="center">
   <a href="https://github.com/robotfish001" target="_blank">
-    <img src="https://github.com/robotfish001.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="robotfish-001" title="Special thanks to robotfish-001!"/>
+    <img src="https://github.com/robotfish001.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="robotfish-001" title="Special thanks to robotfish-001!"/>
   </a>
   <a href="https://github.com/phpmac" target="_blank">
-    <img src="https://github.com/phpmac.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="phpmac" title="Special thanks to phpmac!"/>
+    <img src="https://github.com/phpmac.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="phpmac" title="Special thanks to phpmac!"/>
   </a>
   <a href="https://github.com/123lpone" target="_blank">
-    <img src="https://github.com/123lpone.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="123lpone" title="Special thanks to 123lpone!"/>
+    <img src="https://github.com/123lpone.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="123lpone" title="Special thanks to 123lpone!"/>
   </a>
   <a href="https://github.com/Qexzi" target="_blank">
-    <img src="https://github.com/Qexzi.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="Qexzi" title="Special thanks to Qexzi!"/>
+    <img src="https://github.com/Qexzi.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="Qexzi" title="Special thanks to Qexzi!"/>
   </a>
-  <img src="./img/sponsor_777.jpg" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="777" title="Special thanks to 777!"/>
+  <a style="cursor: default;">
+    <img src="./img/sponsor_777.jpg" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="777" title="Special thanks to 777!"/>
+  </a>
 </p>
 
 ---

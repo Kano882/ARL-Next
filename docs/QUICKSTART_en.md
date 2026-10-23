@@ -19,7 +19,7 @@
 ## Prerequisites
 
 - A reachable server with TCP port **5173** open (security group and host firewall).
-- Root access on the server; the script installs Docker and Swap automatically.
+- Root access on the server; **4-core CPU, 4GB RAM or higher** recommended; the script installs Docker and Swap automatically.
 
 ---
 

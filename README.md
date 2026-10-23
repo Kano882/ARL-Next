@@ -201,6 +201,7 @@ graph TD
 ### 生产部署 (推荐)
 
 **适用环境**：公网云服务器 (Ubuntu / Debian / CentOS / 统信等)、企业内网服务器。  
+**推荐配置**：4 核 4G 及以上（保证多任务并发与大资产巡航稳定性）。  
 **预估耗时**：自带 Docker 环境通常在数分钟内完成；裸机需额外安装 Docker 与配置 Swap，耗时视宿主机与网络状况而定。
 
 **核心机制与优势**：
@@ -466,18 +467,20 @@ ARL-Next 的持续高频迭代离不开社区伙伴的慷慨支持。特别致�
 
 <p align="center">
   <a href="https://github.com/robotfish001" target="_blank">
-    <img src="https://github.com/robotfish001.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="robotfish-001" title="感谢 robotfish-001 的支持！"/>
+    <img src="https://github.com/robotfish001.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="robotfish-001" title="感谢 robotfish-001 的支持！"/>
   </a>
   <a href="https://github.com/phpmac" target="_blank">
-    <img src="https://github.com/phpmac.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="phpmac" title="感谢 phpmac 的支持！"/>
+    <img src="https://github.com/phpmac.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="phpmac" title="感谢 phpmac 的支持！"/>
   </a>
   <a href="https://github.com/123lpone" target="_blank">
-    <img src="https://github.com/123lpone.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="123lpone" title="感谢 123lpone 的支持！"/>
+    <img src="https://github.com/123lpone.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="123lpone" title="感谢 123lpone 的支持！"/>
   </a>
   <a href="https://github.com/Qexzi" target="_blank">
-    <img src="https://github.com/Qexzi.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="Qexzi" title="感谢 Qexzi 的支持！"/>
+    <img src="https://github.com/Qexzi.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="Qexzi" title="感谢 Qexzi 的支持！"/>
   </a>
-  <img src="./img/sponsor_777.jpg" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="777" title="感谢 777 的支持！"/>
+  <a style="cursor: default;">
+    <img src="./img/sponsor_777.jpg" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="777" title="感谢 777 的支持！"/>
+  </a>
 </p>
 
 ---
