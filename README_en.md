@@ -475,6 +475,7 @@ Continuous development of ARL-Next is supported by our open-source community. Sp
   <a href="https://github.com/Qexzi" target="_blank">
     <img src="https://github.com/Qexzi.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="Qexzi" title="Special thanks to Qexzi!"/>
   </a>
+  <img src="./img/sponsor_777.jpg" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="777" title="Special thanks to 777!"/>
 </p>
 
 ---

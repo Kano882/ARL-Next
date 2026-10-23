@@ -477,6 +477,7 @@ ARL-Next 的持续高频迭代离不开社区伙伴的慷慨支持。特别致�
   <a href="https://github.com/Qexzi" target="_blank">
     <img src="https://github.com/Qexzi.png" width="48" height="48" style="border-radius: 50%; margin: 0 8px;" alt="Qexzi" title="感谢 Qexzi 的支持！"/>
   </a>
+  <img src="./img/sponsor_777.jpg" width="48" height="48" style="border-radius: 50%; margin: 0 8px; vertical-align: middle;" alt="777" title="感谢 777 的支持！"/>
 </p>
 
 ---
