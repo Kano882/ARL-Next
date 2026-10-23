@@ -23,6 +23,14 @@
           <span v-if="tycConfigValid" style="color: var(--arl-text-color); line-height: 1.5;">
             {{ taskText('tasks.enterpriseReadyHint') }}
           </span>
+          <span v-else-if="tycErrorType === 'banned_location'" style="color: var(--arl-text-color); line-height: 1.5;">
+            {{ taskText('tasks.enterpriseBannedLocationHint') }}
+            <a @click="goToProxyConfig" class="task-settings-link">{{ taskText('tasks.openProxySettings') }}</a>
+          </span>
+          <span v-else-if="tycConfigured && tycErrorMsg" style="color: var(--arl-text-color); line-height: 1.5;">
+            {{ tycErrorMsg }}
+            <a @click="goToApiConfig" class="task-settings-link">{{ taskText('tasks.openSettings') }}</a>
+          </span>
           <span v-else style="color: var(--arl-text-color); line-height: 1.5;">
             {{ taskText('tasks.enterpriseIcpHint') }}
             <a @click="goToApiConfig" class="task-settings-link">{{ taskText('tasks.openSettings') }}</a>
@@ -190,6 +198,9 @@ const formRef = ref();
 const submitLoading = ref(false);
 const configChecking = ref(false);
 const tycConfigValid = ref(false);
+const tycConfigured = ref(false);
+const tycErrorType = ref('');
+const tycErrorMsg = ref('');
 
 const formState = reactive({
   name: '',
@@ -239,12 +250,21 @@ const checkTycConfig = async () => {
     const res = await request.get('/icp/tyc_check');
     if (res.code === 200 && res.data) {
       tycConfigValid.value = !!res.data.valid;
+      tycConfigured.value = !!res.data.configured;
+      tycErrorType.value = res.data.error_type || '';
+      tycErrorMsg.value = res.data.message || '';
     } else {
       tycConfigValid.value = false;
+      tycConfigured.value = false;
+      tycErrorType.value = '';
+      tycErrorMsg.value = '';
     }
   } catch (error) {
     console.error('检测天眼查配置异常:', error);
     tycConfigValid.value = false;
+    tycConfigured.value = false;
+    tycErrorType.value = '';
+    tycErrorMsg.value = '';
   } finally {
     configChecking.value = false;
   }
@@ -258,6 +278,12 @@ const goToApiConfig = () => {
   emit('update:open', false);
   // focus 参数让系统设置页直接定位并高亮天眼查凭据卡片
   router.push({ path: '/systemSettings', query: { tab: 'api_config', focus: 'tyc' } });
+};
+
+const goToProxyConfig = () => {
+  pendingDraft = { rawTarget: formState.rawTarget, name: formState.name };
+  emit('update:open', false);
+  router.push({ path: '/systemSettings', query: { tab: 'system_general', focus: 'proxy' } });
 };
 
 watch(() => props.open, (val) => {
@@ -289,6 +315,30 @@ const handleSubmit = async () => {
     // 分流场景 1: 输入了天眼查 GID / 链接
     if (parsed.gid) {
       if (!tycConfigValid.value) {
+        if (tycErrorType.value === 'banned_location') {
+          Modal.confirm({
+            title: taskText('tasks.tianyanchaLocationRestrictedTitle'),
+            content: taskText('tasks.tianyanchaLocationRestrictedContent'),
+            okText: taskText('tasks.configureSystemProxy'),
+            cancelText: taskText('tasks.stayOnThisPage'),
+            onOk() {
+              goToProxyConfig();
+            }
+          });
+          return;
+        }
+        if (tycConfigured.value && tycErrorMsg.value) {
+          Modal.confirm({
+            title: taskText('tasks.tianyanchaCredentialCheckFailedTitle'),
+            content: tycErrorMsg.value,
+            okText: taskText('tasks.configureCredentials'),
+            cancelText: taskText('tasks.stayOnThisPage'),
+            onOk() {
+              goToApiConfig();
+            }
+          });
+          return;
+        }
         Modal.confirm({
           title: taskText('tasks.tianyanchaCommercialCredentialsAreNotConfigured'),
           content: taskText('tasks.investmentTraversalForATianyanchaGidRequiresCommercial'),

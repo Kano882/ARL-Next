@@ -9,9 +9,10 @@ class AsyncTycException(Exception):
     pass
 
 class AsyncTycClient:
-    def __init__(self, gid, token):
+    def __init__(self, gid, token, proxy=None):
         self.gid = gid
         self.token = token
+        self.proxy = self._normalize_proxy(proxy)
         self.base_url = "https://capi.tianyancha.com"
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:152.0) Gecko/20100101 Firefox/152.0",
@@ -24,6 +25,17 @@ class AsyncTycClient:
         }
         self.page_size = 100
 
+    @staticmethod
+    def _normalize_proxy(proxy):
+        if not proxy or not isinstance(proxy, str):
+            return None
+        p = proxy.strip()
+        if not p:
+            return None
+        if "://" not in p:
+            p = f"http://{p}"
+        return p
+
     async def _request(self, method, path, json_data=None, params=None, max_retries=3):
         import random
         await asyncio.sleep(random.uniform(5, 10))
@@ -35,12 +47,12 @@ class AsyncTycClient:
             for attempt in range(max_retries):
                 try:
                     if method.upper() == 'POST':
-                        async with session.post(url, headers=self.headers, json=json_data, timeout=15) as res:
+                        async with session.post(url, headers=self.headers, json=json_data, timeout=15, proxy=self.proxy) as res:
                             status = res.status
                             text = await res.text()
                             data = await res.json() if "application/json" in res.headers.get("Content-Type", "") else None
                     else:
-                        async with session.get(url, headers=self.headers, params=params, timeout=15) as res:
+                        async with session.get(url, headers=self.headers, params=params, timeout=15, proxy=self.proxy) as res:
                             status = res.status
                             text = await res.text()
                             data = await res.json() if "application/json" in res.headers.get("Content-Type", "") else None
@@ -55,8 +67,14 @@ class AsyncTycClient:
                         continue
                     raise AsyncTycException(f"网络异常: {e}")
 
+                body_text = text or ""
                 if status == 401:
                     raise AsyncTycException("TYC Token 已失效。")
+                elif status == 419 or "bannedLocation" in body_text or "301000" in body_text:
+                    raise AsyncTycException(
+                        "当前服务器出口 IP 非中国大陆地区，已被天眼查地域围栏拦截 (bannedLocation)，"
+                        "请在「系统设置 -> 扫描与并发 -> 高级扫描 -> 系统代理地址」中配置中国大陆境内代理。"
+                    )
                 elif status in [403, 429]:
                     if attempt < max_retries - 1:
                         logger.warning(f"触发限流(HTTP {status})，挂起 {15 * (attempt + 1)} 秒后重试 (Attempt {attempt+1}/{max_retries})...")
@@ -64,13 +82,19 @@ class AsyncTycClient:
                         continue
                     raise AsyncTycException("触发天眼查风控拦截或限流。")
                 elif status != 200:
-                    raise AsyncTycException(f"天眼查 API 请求失败, HTTP {status}, {text[:100]}")
+                    raise AsyncTycException(f"天眼查 API 请求失败, HTTP {status}, {body_text[:100]}")
 
                 if not data:
                     return None
 
                 state = str(data.get("state", "")).lower()
                 message = str(data.get("message", ""))
+                error_code = str(data.get("errorCode", ""))
+                if message == "bannedLocation" or error_code == "301000":
+                    raise AsyncTycException(
+                        "当前服务器出口 IP 非中国大陆地区，已被天眼查地域围栏拦截 (bannedLocation)，"
+                        "请在「系统设置 -> 扫描与并发 -> 高级扫描 -> 系统代理地址」中配置中国大陆境内代理。"
+                    )
                 
                 # 1. 过滤正常的无数据场景
                 if "无数据" in message or "未找到" in message or "为空" in message:

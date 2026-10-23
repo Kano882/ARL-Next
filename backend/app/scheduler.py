@@ -4,7 +4,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo import UpdateOne
 from pymongo.errors import PyMongoError
-from app.utils import conn_db as conn
+from app.utils import conn_db as conn, curr_date
 from app import utils
 import time
 from app.modules import CeleryAction, SchedulerStatus, AssetScopeType, TaskStatus, CeleryRoutingKey
@@ -408,7 +408,7 @@ def icp_auto_group_scheduler():
             {"_id": item["_id"],
              "$or": [{"auto_group_claimed": {"$exists": False}},
                      {"auto_group_claimed": False}]},
-            {"$set": {"auto_group_claimed": True, "auto_group_claim_time": curr_date()}}
+            {"$set": {"auto_group_claimed": True, "auto_group_claim_time": utils.curr_date()}}
         )
         if res.modified_count == 1:
             claimed.append(item)
@@ -457,7 +457,7 @@ def process_icp_auto_group(task, task_id):
             "auto_group_msg": result.get("msg") or result.get("error", ""),
             "auto_group_domain_count": len(domains),
             "auto_group_scope_id": result.get("scope_id") or "",
-            "auto_group_time": curr_date()
+            "auto_group_time": utils.curr_date()
         }}
     )
     logger.info(f"Auto-group finished for {task_id}: {len(domains)} domains, ok={ok}")

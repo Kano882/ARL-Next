@@ -72,7 +72,7 @@ class AsyncCollection:
 
 def database(status='waiting'):
     return {'icp_task': Collection([{'_id': TID, 'status': status}]), 'icp_asset': Collection(),
-            'syslog': Collection(), 'asset_scope': Collection()}
+            'syslog': Collection(), 'asset_scope': Collection(), 'system_config': Collection()}
 
 
 def runner(db):
@@ -82,7 +82,7 @@ def runner(db):
     return extract('osint_service/clients/job_runner.py',
                    ['_claim_recon_task', '_task_is_running', '_sync_scope_after_task_completion',
                     '_finish_recon_task', '_abort_recon_task', '_log_rejected_claim',
-                    'run_icp_job', 'run_tyc_job', '_upsert_task_asset'], env)
+                    'run_icp_job', 'run_tyc_job', '_upsert_task_asset', '_resolve_system_proxy'], env)
 
 
 def route(db, cls, method):
@@ -285,6 +285,81 @@ class APIContractTests(unittest.TestCase):
                 self.assertEqual(db['asset_scope'].docs[0]['synced_icp_task_id'], old_id)
                 expected = {'rejected': None, 'running': TID, 'newer': 'newer'}[outcome]
                 self.assertEqual(db['asset_scope'].docs[0].get('updating_icp_task_id'), expected)
+
+    def test_perform_icp_sync_marks_auto_group_claimed_to_prevent_scheduler_duplicate(self):
+        db = database('done')
+        db['icp_task'].docs[0].update({'_id': TID, 'name': '示例企业全景测绘', 'auto_group': True})
+        db['icp_asset'].insert_one({'task_id': TID, 'query_type': 'web', 'domain': 'example.com'})
+        env = route(db, 'IcpTaskSync', 'post')
+        extract('app/routes/icp.py', ['perform_icp_sync'], env)
+        scope_helper = types.SimpleNamespace(trigger_scope_domain_scan=lambda **kwargs: 0)
+        with patch.dict(sys.modules, {'app.helpers': types.ModuleType('app.helpers'), 'app.helpers.scope': scope_helper}):
+            ok, _, payload = env['perform_icp_sync'](TID, {'mode': 'new', 'target_name': '示例企业'})
+        self.assertTrue(ok)
+        self.assertEqual(payload['insert_count'], 1)
+        task_doc = db['icp_task'].docs[0]
+        self.assertTrue(task_doc.get('auto_group_claimed'))
+        self.assertEqual(task_doc.get('auto_group_result'), 'success')
+        self.assertEqual(task_doc.get('auto_group_domain_count'), 1)
+        self.assertEqual(task_doc.get('synced_scope_name'), '示例企业')
+
+    def test_icp_auto_group_scheduler_uses_utils_curr_date_and_claims_once(self):
+        db = database('done')
+        db['icp_task'].docs[0].update({'_id': TID, 'name': '超长24小时企业全景测绘', 'auto_group': True})
+        db['icp_asset'].insert_one({'task_id': TID, 'query_type': 'web', 'domain': 'long-scan.example.com'})
+
+        class CursorList(list):
+            def limit(self, n):
+                return self[:n]
+
+        orig_find = db['icp_task'].find
+        orig_update_one = db['icp_task'].update_one
+        orig_matches = db['icp_task'].matches
+
+        def matches_with_or(doc, query):
+            q = dict(query)
+            or_conds = q.pop('$or', None)
+            if not orig_matches(doc, q):
+                return False
+            if or_conds:
+                return any(
+                    (k in doc) == v['$exists'] if isinstance(v, dict) and '$exists' in v else doc.get(k) == v
+                    for cond in or_conds for k, v in cond.items()
+                )
+            return True
+
+        db['icp_task'].matches = matches_with_or
+        db['icp_task'].find = lambda q, *a: CursorList(orig_find(q, *a))
+        db['icp_task'].update_one = lambda q, u: types.SimpleNamespace(modified_count=orig_update_one(q, u).matched_count)
+
+        sched_env = {
+            'conn': db.__getitem__,
+            'utils': types.SimpleNamespace(curr_date=lambda: '2026-10-23 15:40:00'),
+            'TaskStatus': types.SimpleNamespace(DONE='done'),
+            'logger': LOG,
+        }
+        extract('app/scheduler.py', ['icp_auto_group_scheduler', 'process_icp_auto_group'], sched_env)
+        route_env = route(db, 'IcpTaskSync', 'post')
+        extract('app/routes/icp.py', ['perform_icp_sync', 'build_auto_group_payload', '_resolve_auto_group_name'], route_env)
+        icp_mod = types.SimpleNamespace(
+            build_auto_group_payload=route_env['build_auto_group_payload'],
+            perform_icp_sync=route_env['perform_icp_sync'],
+        )
+        scope_helper = types.SimpleNamespace(trigger_scope_domain_scan=lambda **kwargs: 0)
+        with patch.dict(sys.modules, {
+            'app': types.ModuleType('app'),
+            'app.routes': types.ModuleType('app.routes'),
+            'app.routes.icp': icp_mod,
+            'app.helpers': types.ModuleType('app.helpers'),
+            'app.helpers.scope': scope_helper,
+        }):
+            self.assertEqual(sched_env['icp_auto_group_scheduler'](), 1)
+            self.assertEqual(sched_env['icp_auto_group_scheduler'](), 0)
+        task_doc = db['icp_task'].docs[0]
+        self.assertTrue(task_doc.get('auto_group_claimed'))
+        self.assertEqual(task_doc.get('auto_group_result'), 'success')
+        self.assertEqual(len(db['asset_scope'].docs), 1)
+        self.assertEqual(db['asset_scope'].docs[0]['name'], '超长24小时')
 
 
 class HTTPTests(unittest.IsolatedAsyncioTestCase):

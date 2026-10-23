@@ -1806,6 +1806,7 @@ onMounted(() => {
   }
   loadPendingReconTasks();
   if (pendingReconTasks.value.some(t => t.status === 'running')) {
+    pollRunningReconTasks();
     startReconPoller();
   }
 });
@@ -1818,6 +1819,7 @@ onActivated(() => {
   updateSidebarLeft();
   loadPendingReconTasks();
   if (pendingReconTasks.value.some(t => t.status === 'running')) {
+    pollRunningReconTasks();
     startReconPoller();
   }
 });
@@ -1935,18 +1937,18 @@ const loadPendingReconTasks = () => {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         const now = Date.now();
-        const valid = parsed.filter(t => (now - (t.startTime || 0)) < 86400000);
-        const expired = parsed.filter(t => (now - (t.startTime || 0)) >= 86400000);
+        // 仅保留仍在运行且未超 7 天兜底时限的追踪项（护航跨天超长测绘任务，真实终态由 pollRunningReconTasks 实时向后端核验收敛）；
+        // 凡被过滤的残留项立即回写 localStorage，规避因未持久化回写导致每次切页重复读取的问题。
+        const valid = parsed.filter(
+          t => t && t.status === 'running' && (now - (t.startTime || 0)) < 7 * 86400000
+        );
         pendingReconTasks.value = valid;
-        // 超期追踪记录不再轮询，仅如实告知，避免任务静默停留于“测绘中”
-        if (expired.length > 0) {
-          notification.warning({
-            key: 'recon_expired_notice',
-            message: assetText('assets.enterpriseDiscoveryTasksNoLongerTrackedAutomaticallyCount', { count: expired.length }),
-            description: assetText('assets.theServerNowCreatesAndManagesGroupsIndependently'),
-            duration: 10
-          });
+        if (valid.length !== parsed.length) {
+          savePendingReconTasks();
         }
+      } else {
+        pendingReconTasks.value = [];
+        localStorage.removeItem(PENDING_RECON_KEY);
       }
     }
   } catch (e) {
@@ -1990,6 +1992,7 @@ const runningReconTasks = computed(() => {
 });
 
 let reconPollerTimer = null;
+let isPollingRecon = false;
 
 const startReconPoller = () => {
   if (reconPollerTimer) return;
@@ -2004,134 +2007,132 @@ const stopReconPoller = () => {
 };
 
 const pollRunningReconTasks = async () => {
+  if (isPollingRecon) return;
   const runningTasks = pendingReconTasks.value.filter(t => t.status === 'running');
   if (runningTasks.length === 0) {
     stopReconPoller();
     return;
   }
 
-  for (const task of runningTasks) {
-    try {
-      const checkRes = await request.get('/icp/task', { params: { _id: task.taskId } });
-      if (checkRes.code === 200 && checkRes.items) {
-        if (checkRes.items.length === 0) {
-          // 数据库中该任务已不存在（已被删除），立即收敛移除追踪，不再轮询
-          dismissPendingReconTask(task.taskId);
-          continue;
-        }
-
-        const taskObj = checkRes.items[0];
-        // 关键：只要任务不是 running 也不是 waiting，一律从运行追踪队列收敛
-        if (taskObj.status !== 'running' && taskObj.status !== 'waiting') {
-          if (taskObj.status === 'stop') {
-            task.status = 'stop';
-            savePendingReconTasks();
+  isPollingRecon = true;
+  try {
+    for (const task of runningTasks) {
+      try {
+        const checkRes = await request.get('/icp/task', { params: { _id: task.taskId } });
+        if (checkRes.code === 200 && checkRes.items) {
+          if (checkRes.items.length === 0) {
+            // 数据库中该任务已不存在（已被删除），立即收敛移除追踪，不再轮询
             dismissPendingReconTask(task.taskId);
-            notification.warning({
-              key: `recon_stop_${task.taskId}`,
-              message: assetText('assets.enterpriseDiscoveryStoppedManuallyName', { name: task.name || task.target }),
-              description: assetText('assets.theTaskWasStoppedNoAssetGroupWill'),
-              duration: 6
-            });
             continue;
           }
 
-          if (taskObj.status === 'error') {
-            task.status = 'error';
-            savePendingReconTasks();
-            dismissPendingReconTask(task.taskId);
-            notification.error({
-              key: `recon_err_${task.taskId}`,
-              message: assetText('assets.enterpriseDiscoveryFailedName', { name: task.name || task.target }),
-              description: taskObj.error_msg || assetText('assets.theDiscoveryTaskFailedCheckItsExecutionLogs')
-            });
-            continue;
-          }
-
-          if (taskObj.status === 'done') {
-            const assetRes = await request.get('/icp/asset', { params: { task_id: task.taskId, query_type: 'web', size: 5000 } });
-            const domainSet = new Set();
-            if (assetRes.code === 200 && assetRes.items) {
-              assetRes.items.forEach(item => {
-                const d = item.domain || item.ym;
-                if (d && typeof d === 'string') domainSet.add(d.trim().toLowerCase());
+          const taskObj = checkRes.items[0];
+          // 关键：只要任务不是 running 也不是 waiting，一律从运行追踪队列收敛
+          if (taskObj.status !== 'running' && taskObj.status !== 'waiting') {
+            if (taskObj.status === 'stop') {
+              dismissPendingReconTask(task.taskId);
+              notification.warning({
+                key: `recon_stop_${task.taskId}`,
+                message: assetText('assets.enterpriseDiscoveryStoppedManuallyName', { name: task.name || task.target }),
+                description: assetText('assets.theTaskWasStoppedNoAssetGroupWill'),
+                duration: 6
               });
+              continue;
             }
-            const domainList = Array.from(domainSet);
-            task.status = 'done';
-            task.domains = domainList;
-            savePendingReconTasks();
 
-            // 若开启了免等自动建组 (autoSync 默认开启)
-            if (task.autoSync) {
-              if (domainList.length === 0) {
+            if (taskObj.status === 'error') {
+              dismissPendingReconTask(task.taskId);
+              notification.error({
+                key: `recon_err_${task.taskId}`,
+                message: assetText('assets.enterpriseDiscoveryFailedName', { name: task.name || task.target }),
+                description: taskObj.error_msg || assetText('assets.theDiscoveryTaskFailedCheckItsExecutionLogs')
+              });
+              continue;
+            }
+
+            if (taskObj.status === 'done') {
+              // 若开启了自动建组 (autoSync 默认开启)，统一由后端消费建组并回写结果，前端仅读取结果展示
+              if (task.autoSync) {
+                if (taskObj.auto_group && !taskObj.auto_group_result && !taskObj.synced_scope_id) {
+                  // 后端正在执行自动建组中，等待下一轮轮询结果
+                  continue;
+                }
+                const targetName = taskObj.synced_scope_name || task.groupName || taskObj.company_name || (task.name ? task.name.replace(/(?:企业全景测绘|企业测绘|全景测绘)$/, '') : ('TYC_' + task.target));
                 dismissPendingReconTask(task.taskId);
-                notification.warning({
-                  key: `recon_done_${task.taskId}`,
-                  message: assetText('assets.noWebsiteDomainsFoundByEnterpriseDiscoveryName', { name: task.name || task.target }),
-                  description: assetText('assets.companyRelationshipsAndIcpRecordsWereQueriedBut'),
-                  duration: 6
-                });
-              } else {
-                const targetName = task.groupName || taskObj.company_name || (task.name ? task.name.replace(/(?:企业测绘|全景测绘)$/, '') : ('TYC_' + task.target));
-                const syncPayload = {
-                  mode: 'new',
-                  target_name: targetName,
-                  group_id: task.group_id || '',
-                  selected_domains: domainList,
-                  auto_scan: !!task.autoScan,
-                  task_type: task.taskType || 'oneshot',
-                  policy_id: task.policyId || ''
-                };
-                const syncRes = await request.post(`/icp/sync/${task.taskId}`, syncPayload);
-                dismissPendingReconTask(task.taskId);
-                if (syncRes.code === 200) {
-                  notification.success({
+
+                if (taskObj.auto_group_result === 'no_domain') {
+                  notification.warning({
                     key: `recon_done_${task.taskId}`,
-                    message: assetText('assets.enterpriseAssetGroupCreatedAutomatically'),
-                    description: assetText('assets.assetGroupCreatedForNameWithCountWebsite', { name: targetName, count: domainList.length, details: task.autoScan ? assetText('assets.activeDiscoveryTasksHaveAlsoBeenQueued') : '' }),
-                    duration: 8
+                    message: assetText('assets.noWebsiteDomainsFoundByEnterpriseDiscoveryName', { name: task.name || task.target }),
+                    description: assetText('assets.companyRelationshipsAndIcpRecordsWereQueriedBut'),
+                    duration: 6
                   });
-                  fetchData();
-                } else {
+                } else if (taskObj.auto_group_result === 'error' && !taskObj.synced_scope_id) {
                   notification.error({
                     key: `recon_done_${task.taskId}`,
                     message: assetText('assets.automaticGroupCreationFailedName', { name: targetName }),
-                    description: syncRes.message || assetText('assets.assetImportFailed')
+                    description: taskObj.auto_group_msg || assetText('assets.assetImportFailed')
+                  });
+                } else {
+                  const domainCount = taskObj.auto_group_domain_count ?? (taskObj.statistic?.web_cnt || 0);
+                  notification.success({
+                    key: `recon_done_${task.taskId}`,
+                    message: assetText('assets.enterpriseAssetGroupCreatedAutomatically'),
+                    description: assetText('assets.assetGroupCreatedForNameWithCountWebsite', {
+                      name: targetName,
+                      count: domainCount,
+                      details: task.autoScan ? assetText('assets.activeDiscoveryTasksHaveAlsoBeenQueued') : ''
+                    }),
+                    duration: 8
+                  });
+                  fetchData();
+                }
+              } else {
+                // 用户显式取消了自动成组，拉取域名列表并弹出手动挑选引导，同时从 localStorage 移除避免残留
+                const assetRes = await request.get('/icp/asset', { params: { task_id: task.taskId, query_type: 'web', size: 5000 } });
+                const domainSet = new Set();
+                if (assetRes.code === 200 && assetRes.items) {
+                  assetRes.items.forEach(item => {
+                    const d = item.domain || item.ym;
+                    if (d && typeof d === 'string') domainSet.add(d.trim().toLowerCase());
                   });
                 }
-              }
-            } else {
-              // 用户显式取消了自动成组，保留手动确认
-              notification.success({
-                key: `recon_done_${task.taskId}`,
-                message: assetText('assets.enterpriseDiscoveryCompletedName', { name: task.name || task.target }),
-                description: assetText('assets.websiteDomainsFoundCountSelectDomainsToSave', { count: domainList.length }),
-                btn: () => h(
-                  Button,
-                  {
-                    type: 'primary',
-                    size: 'small',
-                    onClick: () => {
-                      notification.close(`recon_done_${task.taskId}`);
-                      resumeWizardFromCompletedTask(task);
-                    }
-                  },
-                  { default: () => assetText('assets.selectDomainsAndCreateGroup') }
-                ),
-                duration: 0
-              });
-            }
-            continue;
-          }
+                const domainList = Array.from(domainSet);
+                const completedTask = { ...task, status: 'done', domains: domainList };
+                dismissPendingReconTask(task.taskId);
 
-          // 兜底任何其他非运行状态
-          dismissPendingReconTask(task.taskId);
+                notification.success({
+                  key: `recon_done_${task.taskId}`,
+                  message: assetText('assets.enterpriseDiscoveryCompletedName', { name: task.name || task.target }),
+                  description: assetText('assets.websiteDomainsFoundCountSelectDomainsToSave', { count: domainList.length }),
+                  btn: () => h(
+                    Button,
+                    {
+                      type: 'primary',
+                      size: 'small',
+                      onClick: () => {
+                        notification.close(`recon_done_${task.taskId}`);
+                        resumeWizardFromCompletedTask(completedTask);
+                      }
+                    },
+                    { default: () => assetText('assets.selectDomainsAndCreateGroup') }
+                  ),
+                  duration: 0
+                });
+              }
+              continue;
+            }
+
+            // 兜底任何其他非运行状态
+            dismissPendingReconTask(task.taskId);
+          }
         }
+      } catch (err) {
+        console.error(`Error polling recon task ${task.taskId}`, err);
       }
-    } catch (err) {
-      console.error(`Error polling recon task ${task.taskId}`, err);
     }
+  } finally {
+    isPollingRecon = false;
   }
 };
 
@@ -2218,8 +2219,22 @@ const startWizardRecon = async () => {
       }
       const taskRes = await request.post('/icp/tyc_task', payload);
       if (!taskRes || taskRes.code !== 200) {
-        message.error(taskRes?.message || assetText('assets.failedToStartEnterpriseDiscovery'));
+        const errMsg = taskRes?.message || assetText('assets.failedToStartEnterpriseDiscovery');
         wizardLoading.value = false;
+        if (errMsg.includes('bannedLocation') || errMsg.includes('地域围栏拦截')) {
+          Modal.confirm({
+            title: assetText('tasks.tianyanchaLocationRestrictedTitle'),
+            content: assetText('tasks.tianyanchaLocationRestrictedContent'),
+            okText: assetText('tasks.configureSystemProxy'),
+            cancelText: assetText('tasks.stayOnThisPage'),
+            onOk() {
+              addModalVisible.value = false;
+              router.push({ path: '/systemSettings', query: { tab: 'system_general', focus: 'proxy' } });
+            }
+          });
+          return;
+        }
+        message.error(errMsg);
         return;
       }
       taskId = taskRes.data?.task_id || taskRes.data?._id || taskRes.task_id;

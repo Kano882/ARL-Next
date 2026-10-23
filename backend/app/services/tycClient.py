@@ -15,6 +15,9 @@ class TycTokenExpiredException(TycException):
 class TycRiskControlException(TycException):
     pass
 
+class TycBannedLocationException(TycException):
+    pass
+
 class TycClient:
     def __init__(self):
         self.gid = Config.TYC_ID
@@ -31,32 +34,56 @@ class TycClient:
         }
         self.page_size = 100
 
+    @staticmethod
+    def _get_proxies():
+        proxy_url = str(getattr(Config, "PROXY_URL", "") or "").strip()
+        if not proxy_url:
+            return None
+        if "://" not in proxy_url:
+            proxy_url = f"http://{proxy_url}"
+        return {"http": proxy_url, "https": proxy_url}
+
     def _request(self, method, path, json_data=None, params=None):
         if not self.gid or not self.token:
             raise TycException("未配置天眼查 ID 或 Token，请在系统设置 -> 三方API配置中完善信息。")
 
         url = urljoin(self.base_url, path)
+        proxies = self._get_proxies()
         try:
             if method.upper() == 'POST':
-                res = requests.post(url, headers=self.headers, json=json_data, timeout=15)
+                res = requests.post(url, headers=self.headers, json=json_data, timeout=15, proxies=proxies)
             else:
-                res = requests.get(url, headers=self.headers, params=params, timeout=15)
+                res = requests.get(url, headers=self.headers, params=params, timeout=15, proxies=proxies)
         except requests.exceptions.Timeout:
             raise TycException("天眼查 API 请求超时")
         except requests.exceptions.RequestException as e:
             raise TycException(f"网络异常: {e}")
 
+        body_text = res.text or ""
         if res.status_code == 401:
             raise TycTokenExpiredException("TYC Token 已失效，请在系统设置中更新。")
+        elif res.status_code == 419 or "bannedLocation" in body_text or "301000" in body_text:
+            raise TycBannedLocationException(
+                "当前服务器出口 IP 非中国大陆地区，已被天眼查地域围栏拦截 (bannedLocation)，"
+                "请在「系统设置 -> 扫描与并发 -> 高级扫描 -> 系统代理地址」中配置中国大陆境内代理。"
+            )
         elif res.status_code in [403, 429]:
             raise TycRiskControlException("触发天眼查风控拦截或限流，请更换 Token 或稍后再试。")
         elif res.status_code != 200:
-            raise TycException(f"天眼查 API 请求失败, HTTP {res.status_code}, {res.text[:100]}")
+            raise TycException(f"天眼查 API 请求失败, HTTP {res.status_code}, {body_text[:100]}")
 
         try:
             data = res.json()
         except ValueError:
             raise TycException("天眼查 API 返回非预期的数据格式（非 JSON）")
+
+        if isinstance(data, dict) and (
+            str(data.get("message", "")) == "bannedLocation" or str(data.get("errorCode", "")) == "301000"
+        ):
+            raise TycBannedLocationException(
+                "当前服务器出口 IP 非中国大陆地区，已被天眼查地域围栏拦截 (bannedLocation)，"
+                "请在「系统设置 -> 扫描与并发 -> 高级扫描 -> 系统代理地址」中配置中国大陆境内代理。"
+            )
 
         # 判断天眼查的业务状态码（通常在 data 外部有个 state 字段，但依赖实际返回，暂时仅使用 200 判断）
         if 'data' not in data:
@@ -169,13 +196,13 @@ class TycClient:
         return self.fetch_all_pages("GET", "/cloud-business-state/weibo/list",
                                   total_key="total", list_key="result", gid_field="graphId", gid_val=gid)
 
-    def check_token(self):
+    def check_token_detail(self):
         """
-        校验天眼查 ID 与 Token 是否有效
-        通过发送一个最简请求来检测
+        校验天眼查 ID 与 Token 是否有效，并返回结构化错误分类
+        返回: (valid: bool, message: str, error_type: str)
         """
         if not self.gid or not self.token:
-            return False, "未配置天眼查 ID 或 Token，请在系统设置 -> 三方API配置中完善信息。"
+            return False, "未配置天眼查 ID 或 Token，请在系统设置 -> 三方API配置中完善信息。", "unconfigured"
 
         path = "/cloud-business-state/weibo/list"
         params = {
@@ -185,15 +212,25 @@ class TycClient:
         }
         try:
             self._request("GET", path, params=params)
-            return True, "天眼查 ID & Token 校验成功，有效"
+            return True, "天眼查 ID & Token 校验成功，有效", ""
+        except TycBannedLocationException as e:
+            return False, str(e), "banned_location"
         except TycTokenExpiredException as e:
-            return False, str(e)
+            return False, str(e), "token_expired"
         except TycRiskControlException as e:
-            return False, str(e)
+            return False, str(e), "risk_control"
         except TycException as e:
-            return False, f"天眼查 API 异常: {e}"
+            return False, f"天眼查 API 异常: {e}", "api_error"
         except Exception as e:
-            return False, f"天眼查连接异常: {e}"
+            return False, f"天眼查连接异常: {e}", "network_error"
+
+    def check_token(self):
+        """
+        校验天眼查 ID 与 Token 是否有效
+        通过发送一个最简请求来检测
+        """
+        valid, msg, _ = self.check_token_detail()
+        return valid, msg
 
     def get_company_name(self, gid):
         """

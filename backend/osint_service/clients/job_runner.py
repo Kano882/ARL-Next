@@ -18,6 +18,29 @@ def curr_date():
     return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
 
 
+async def _resolve_system_proxy(options=None):
+    """
+    读取系统全局代理配置 (system_config.general_config.proxy_url)：
+    1. 优先使用任务派发 options 中携带的 proxy_url；
+    2. 兜底实时查询 MongoDB system_config 集合中的 general_config.proxy_url。
+    """
+    raw_proxy = ""
+    if isinstance(options, dict):
+        raw_proxy = str(options.get("proxy_url") or "").strip()
+    if not raw_proxy:
+        try:
+            doc = await db['system_config'].find_one({"_id": "general_config"}, {"proxy_url": 1})
+            if doc and doc.get("proxy_url"):
+                raw_proxy = str(doc.get("proxy_url") or "").strip()
+        except Exception as e:
+            logger.warning(f"Failed to read proxy_url from system_config: {e}")
+    if not raw_proxy:
+        return None
+    if "://" not in raw_proxy:
+        raw_proxy = f"http://{raw_proxy}"
+    return raw_proxy
+
+
 # 熔断等待上限：超过此值说明 IP 被连续封禁，等待无意义，直接跳过保任务收尾
 WAF_WAIT_MAX_SECONDS = 300
 
@@ -223,6 +246,7 @@ async def run_icp_job(options):
             "kapp_cnt": counts.get("kapp", 0)
         }}})
 
+    sys_proxy = await _resolve_system_proxy(options)
     await insert_syslog("info", "ICP查询", f"任务开始运行，目标: {target}，类型: {query_types}")
 
     for idx, qt in enumerate(query_types):
@@ -250,7 +274,7 @@ async def run_icp_job(options):
                     if not await _task_is_running(task_id):
                         return
                 await insert_syslog("info", f"{qt}查询", f"开始获取 {qt} 资产数据...")
-                res = await handlers[qt](target, "", "", proxy=None)
+                res = await handlers[qt](target, "", "", proxy=sys_proxy)
                 if not await _task_is_running(task_id):
                     return
                 if res.get("code") == 200 and res.get("params"):
@@ -543,7 +567,7 @@ async def _upsert_task_asset(task_id, query_type, asset, company_name, task_asse
         return True
 
 
-async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_index, counts, total_assets_holder, insert_syslog, update_stats):
+async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_index, counts, total_assets_holder, insert_syslog, update_stats, proxy=None):
     """
     针对指定企业主体发起工信部官方备案双轨查重与补全
     """
@@ -586,7 +610,7 @@ async def _run_company_icp_enrichment(task_id, company_name, myicp, task_assets_
 
         await asyncio.sleep(random.uniform(8.0, 15.0))
         try:
-            res = await handler(company_name, "", "", proxy=None)
+            res = await handler(company_name, "", "", proxy=proxy)
             if res.get("code") == 200 and res.get("params"):
                 assets = res["params"].get("list", [])
                 new_count = 0
@@ -720,7 +744,8 @@ async def run_tyc_job(options):
         if task_doc and task_doc.get("company_name"):
             root_company_name = task_doc.get("company_name").strip()
 
-    client = AsyncTycClient(gid=tyc_id, token=tyc_token)
+    sys_proxy = await _resolve_system_proxy(options)
+    client = AsyncTycClient(gid=tyc_id, token=tyc_token, proxy=sys_proxy)
 
     # 若尚未获取官方全称，直接调用接口定向解析根企业全称
     if not root_company_name:
@@ -1045,7 +1070,8 @@ async def run_tyc_job(options):
                             counts=counts,
                             total_assets_holder=total_assets_holder,
                             insert_syslog=insert_syslog,
-                            update_stats=update_stats
+                            update_stats=update_stats,
+                            proxy=sys_proxy
                         )
                     else:
                         await insert_syslog("warning", "工信部查重", f"企业 GID {current_gid} 未能获取到官方全称，跳过工信部二次查重")

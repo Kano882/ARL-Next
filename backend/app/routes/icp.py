@@ -13,6 +13,13 @@ logger = get_logger()
 def _request_recon(action, options):
     """只有微服务确认接收或停止后，调用方才报告成功。"""
     import requests
+    try:
+        from app.config import Config
+        proxy = str(getattr(Config, "PROXY_URL", "") or "").strip()
+    except Exception:
+        proxy = ""
+    if action == "start" and isinstance(options, dict):
+        options.setdefault("proxy_url", proxy)
     response = requests.post(f"http://osint-service:16181/api/v1/recon/{action}", json=options, timeout=5)
     response.raise_for_status()
     result = response.json()
@@ -122,6 +129,20 @@ class IcpTask(ARLResource):
         include_statistics = args.pop('include_statistics', 0) == 1
         data = self.build_data(args=args, collection='icp_task')
         items = data.get('items', [])
+        if any(
+            t.get('status') == TaskStatus.DONE
+            and t.get('auto_group')
+            and not t.get('auto_group_claimed')
+            for t in items
+        ):
+            try:
+                from app.scheduler import icp_auto_group_scheduler
+                if icp_auto_group_scheduler() > 0:
+                    data = self.build_data(args=args, collection='icp_task')
+                    items = data.get('items', [])
+            except Exception as e:
+                logger.error(f"Immediate auto-group trigger in IcpTask.get failed: {e}")
+
         if items:
             scope_col = conn_db('asset_scope')
             scope_names = [t.get('synced_scope_name') or t.get('name') for t in items if t.get('name')]
@@ -353,10 +374,21 @@ class TycCheck(ARLResource):
         from app.services.tycClient import TycClient
         try:
             client = TycClient()
-            success, msg = client.check_token()
-            return build_ret(ErrorMsg.Success, {"valid": success, "message": msg})
+            configured = bool(client.gid and client.token)
+            success, msg, error_type = client.check_token_detail()
+            return build_ret(ErrorMsg.Success, {
+                "valid": success,
+                "configured": configured,
+                "error_type": error_type,
+                "message": msg
+            })
         except Exception as e:
-            return build_ret(ErrorMsg.Success, {"valid": False, "message": f"校验异常: {e}"})
+            return build_ret(ErrorMsg.Success, {
+                "valid": False,
+                "configured": False,
+                "error_type": "api_error",
+                "message": f"校验异常: {e}"
+            })
 
 
 @ns.route('/tyc_task')
@@ -1376,14 +1408,19 @@ def perform_icp_sync(task_id, args):
             insert_res = conn_db('asset_scope').insert_one(scope_data)
             final_scope_id = str(insert_res.inserted_id)
 
-    # 回写 icp_task 最近同步状态
+    # 回写 icp_task 最近同步状态，并置位 auto_group_claimed 防止后端调度器重复消费
     conn_db('icp_task').update_one(
         {"_id": task["_id"]},
         {"$set": {
             "synced_scope_id": final_scope_id,
             "synced_scope_name": target_name,
             "synced_group_name": group_name,
-            "synced_at": curr_date()
+            "synced_at": curr_date(),
+            "auto_group_claimed": True,
+            "auto_group_result": "success",
+            "auto_group_domain_count": len(domains),
+            "auto_group_scope_id": final_scope_id,
+            "auto_group_time": curr_date()
         }}
     )
 
