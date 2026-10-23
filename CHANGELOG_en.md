@@ -6,6 +6,30 @@ This document records all major version evolution, new features, performance opt
 
 ---
 
+## [v1.4.3] - 2026-10-23
+
+### 🚀 New Features
+- **One-click full system backup and clean restore**: implemented multi-worker state-synchronized `BackupProgressTracker` covering 49 MongoDB collections, plugins, custom dictionaries, and optional screenshots; supports `--drop` clean-slate overwrite restore with automated index reconstruction and cache invalidation; provides `/api/backup/*` RESTful streaming endpoints; adds "Data Backup & Restore" tab in System Settings with live progress and safe confirmation guardrails; introduces `tools/arl_backup.py` CLI utility for transparent execution across both host and container environments.
+- **Web Info Hunter (WIH) API candidate extraction and same-origin reachability probe**: enhanced static analysis to recognize fetch and axios request candidates from JavaScript syntax (extracting template literals, relative endpoints, and HTTP methods); added controlled same-origin reachability probing (`api_probe`) capturing response status and truncated body previews with automatic stripping of sensitive headers and cookies; updated export utilities to include detected API endpoints and methods.
+- **Multilingual internationalization framework (ZH / EN / RU)**: deeply integrated `vue-i18n` with instant switching across Simplified Chinese (zh-CN), English (en-US), and Russian (ru-RU), covering login, dashboard, task management, asset scope, policy configuration, threat radar, and system settings; decoupled task status terms from phase mappings to prevent parameter mutation across locale changes.
+
+### 🛠️ Performance & Refactoring
+- **Tiered rate-limit and circuit breaker architecture for MIIT ICP queries**: built a multi-tiered breaker isolating list queries from detail requests, featuring healthy proxy awareness, request-level physical pacing (8-15s inter-subject delay), automated ban proxy ejection, and precise client IP attribution under KnownSec WAF; added automatic cool-down retry to prevent permanent task skipping.
+- **Quick App (Kapp) multi-identifier query and schema normalization**: added standard column rendering and default update time sorting for Quick Apps in enterprise task details; decoupled entity licence and service licence multi-way compound matching; improved openpyxl virtual workbook export compatibility.
+- **Task detail collection scope alignment**: detail queries and deletions uniformly resolve against asset-group data sources, mitigating delete endpoint exceptions while preserving collection namespace fallbacks.
+
+### 🐛 Bug Fixes & Hardening
+- **Enterprise recon auto-grouping and navigation stabilization**: fixed backend scheduler anomalies in enterprise panorama auto-grouping, suppressed duplicate confirmation prompts when switching asset group tabs, and improved Tianyancha geographical boundary tips.
+- **Backup dashboard polling stabilization**: resolved progress indicator flickering to 0% and long wait stalls during large asset archive packing, improving state takeover upon reconnection.
+- **Global status terminology standardization**: corrected variant status expressions across locale files to strictly adhere to the project baseline vocabulary (`running` In progress / `waiting` Queued / `done` Completed / `stop` Stopped / `error` Failed).
+
+### 🛡️ Security & Configuration
+- **Nginx gateway security upgrade**: upgraded frontend production Nginx to 1.30.6, addressing upstream security vulnerabilities and unbuffering streaming for large backup archives.
+- **Dedicated persistent volume for backups**: added `arl_backups` named volume in `docker-compose.prod.yml` to isolate and persist backup archives across container recreation, keeping `mongo_data_v7` fully compatible.
+- **Recommended hardware specs documentation**: clarified 4-core CPU and 4GB RAM minimum recommended hardware baseline in both Chinese and English README and quickstart documentation to safeguard multi-task concurrency and large-scale asset discovery.
+
+---
+
 ## [v1.4.2] - 2026-10-19
 
 ### 🚀 New Features
