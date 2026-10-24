@@ -46,7 +46,13 @@ Then open `https://<your-server-ip>:5173` (accept the self-signed certificate wa
 
 | Layer | Default user | Default password | Notes |
 | :--- | :--- | :--- | :--- |
-| ARL-Next login | `admin` | `arlpass` | Change it after first login |
+| ARL-Next login | `admin` | Randomly generated on first startup | Read it on a trusted host using the command below; existing passwords are preserved |
+
+```bash
+docker exec arl-web-prod cat /tmp/arl_initial_admin_password
+```
+
+Alternatively, set `ARL_ADMIN_PASSWORD` (at least 12 characters) before first startup; no password file is generated in that case. The initial password is not logged. Remove the file after changing the password and confirming login. Login sessions expire after 24 hours.
 
 > Notes: the Nginx Basic Auth front gate is off by default; toggle it in the top navigation bar if needed.
 

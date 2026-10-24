@@ -46,7 +46,13 @@ chmod +x start-prod.sh && bash start-prod.sh
 
 | 验证层级 | 默认账号 | 默认密码 | 说明 |
 | :--- | :--- | :--- | :--- |
-| ARL-Next 系统登录 | `admin` | `arlpass` | 首次登录后建议立即修改 |
+| ARL-Next 系统登录 | `admin` | 首次启动随机生成 | 在受信宿主机执行下方命令读取；既有账号密码不变 |
+
+```bash
+docker exec arl-web-prod cat /tmp/arl_initial_admin_password
+```
+
+可在首次启动前设置 `ARL_ADMIN_PASSWORD`（至少 12 个字符）；设置后不会生成上述密码文件。初始密码不写入启动日志。修改密码并确认登录成功后可删除该文件，登录会话有效期为 24 小时。
 
 > 说明：Nginx Basic Auth 前置网关默认关闭，如需开启请在顶部导航栏安全开关处操作。
 

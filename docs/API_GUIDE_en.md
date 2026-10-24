@@ -31,13 +31,36 @@
 
 ## 2. Authentication & Security Policy
 
-- **Header Authentication (Recommended)**: Pass the token in the HTTP header when authentication is enabled:
+- **Header Authentication (Required)**: Pass the token in the HTTP header when authentication is enabled:
   ```http
   Token: <your-token>
   ```
-- **Query Parameter (Fallback)**: The backend also supports `?token=<your-token>`. However, query tokens are often recorded in Web server access logs, reverse proxies, and browser histories. **Headers are strongly recommended**.
+- **No account credentials in URLs**: `?token=` is no longer accepted. Authentication decorators return HTTP 401 with JSON `code: 401`; continue checking JSON `code` for other legacy business errors.
+- **Sessions and migration**: Login/refresh tokens use cryptographic randomness and expire after 24 hours. Legacy sessions receive a one-time 24-hour grace period; restarts do not extend it. Successful legacy-password login upgrades MD5 to scrypt. Existing passwords are preserved; new/reset passwords require 12–1024 characters and no longer use a fixed initial value. Long-running integrations may use a separately configured, full-privilege `API_KEY` (MCP: `ARL_TOKEN`), with an appropriate rotation policy.
+- **Login limits**: MongoDB atomic counters allow 10 attempts per account per five minutes (account counter cleared on success) and 60 per backend peer address per minute. The production gateway separately limits each actual client IP to five per minute with a burst of five. Excess attempts return HTTP 429; backend responses include `Retry-After`.
+- **Screenshots and downloads**: Screenshots require Header authentication; the frontend displays authenticated Blobs and releases their URLs. Nuclei exports use authenticated downloads. For large backups, call authenticated `POST /api/backup/download_ticket` with `{"filename":"arl_backup_....tar.gz"}`, then download using `GET /api/backup/download/<filename>?ticket=<ticket>`. Tickets expire after 60 seconds, are scoped to one file, are consumed atomically once, and are revoked by logout/session rotation/API Key rotation. They cannot authenticate other APIs. Request a new ticket after an interrupted download.
+- **Updater**: Control operations require POST with `X-Update-Token` or a JSON token. Authenticated `POST /api/system_config/request_update_token` issues a five-minute control token; use `{"purpose":"status"}` for a separate status token. Triggering an update returns `log_token`; send it in `X-Update-Read-Token` when polling `/update_stream/log`. Log-only tokens last one hour and survive backend restarts; their digest is stored on the host at `/var/lib/arl-updater/read_token.json` (0600). A new update revokes the previous log token. Anonymous logs and wildcard CORS are disabled.
 - **Security Red Line**: Never commit real API tokens to public version control, GitHub issues, publicly shared debug logs, or terminal command histories.
 - **Unauthenticated Environments**: If authentication is explicitly disabled in the system configuration for air-gapped or testing environments, token verification is bypassed. Always ensure platform authentication and gateway access controls are enforced on exposed networks.
+
+### Remediation and acceptance scope
+
+| Issue | Remediation | Regression coverage |
+| :--- | :--- | :--- |
+| Backup extraction | Fixed component manifest and SHA256 checks; reject links, special files and duplicates; stage all components and validate dedicated data directories before database restore | Traversal, sibling-directory writes, existing symlinks and corrupt hashes rejected; valid archives restored |
+| Favicon SSRF | Validate HTTP(S), domains and every resolved IP; pin the connection to a checked address with Host/SNI preserved; disable redirects and cap responses at 2MB | Forbidden targets never contacted; direct and proxied requests use literal checked IPs |
+| Credential TLS | Verify certificates by default; explicit self-signed scan support uses a separate connection pool | Untrusted certificates receive no API credentials, including after an insecure scan |
+| Anonymous screenshots | Header authentication and private/no-store responses | Anonymous denial and authenticated display/preview |
+| Download credentials in URLs | Header downloads or short-lived, single-use scoped tickets | Expiry, replay, wrong-file and session-revocation rejection |
+| IP blacklist bypass | Compare complete ranges/networks; fail closed on invalid policy/targets | Any overlap blocks scanning |
+| CSV formulas | Escape formula prefixes in cells and headers | Includes whitespace, tab and newline prefixes |
+| Login baseline | Random initial passwords, scrypt, throttling, expiry and revocation | Legacy hash upgrade and preservation of existing accounts |
+| Updater logs | Scoped read-only tokens and expiring control/status tokens | Anonymous denial, backend-independent log polling, status tokens cannot trigger updates |
+| MCP code generation | Validate server origins and serialize credentials as string literals | Host injection rejected; special-character keys remain data |
+
+Upgrade the backend, frontend gateway and host updater together. Migrate `?token=` callers to headers. Historical archives containing links or nonstandard components must be normalized before restore. Archives can contain executable Python PoCs, so restore only trusted backups; SHA256 provides integrity checking. Private third-party APIs should use a mounted CA via `REQUESTS_CA_BUNDLE`, not disabled TLS verification. The SSRF change covers favicon fetching; browser/PoC execution still requires network isolation from management and cloud metadata services. Rolling back reopens these vulnerabilities.
+
+For isolated regression checks, install the backend dependencies plus `pytest` and `mongomock`, then run `python backend/test/run_security_regressions.py`. The suites use a MongoDB substitute, temporary files and loopback HTTP/TLS servers, without real scanning or deployment. Run frontend file-authentication tests from `frontend/` with `node --test test/authenticatedFiles.test.js`.
 
 ---
 

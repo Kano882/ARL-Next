@@ -300,7 +300,11 @@ After deployment completes, open your browser and navigate to: `https://<YOUR_SE
 | Authentication Layer | Default Username | Default Password | Description |
 | :--- | :--- | :--- | :--- |
 | **Layer 1: Nginx Basic Auth Gateway** | `admin` | `arl_next` | Prevents automated internet scanner brute-forcing. Disabled by default; can be toggled via the security switch in the top navigation bar. |
-| **Layer 2: ARL-Next System Login** | `admin` | `arlpass` | Main platform admin account. Changing the default password upon initial login is strongly recommended. |
+| **Layer 2: ARL-Next System Login** | `admin` | Randomly generated on first startup | Existing passwords are preserved; new passwords require at least 12 characters. |
+
+On a trusted host, run `docker exec arl-web-prod cat /tmp/arl_initial_admin_password` to read the initial password. The file is mode `0600`; the password is never printed in startup logs. Alternatively, set `ARL_ADMIN_PASSWORD` to at least 12 characters before first startup. Remove the bootstrap file after changing the password and confirming login. Upgrades preserve existing accounts; deployments using the old default password must change it explicitly.
+
+Login sessions expire after 24 hours. Long-running API/MCP integrations should use a separately configured `API_KEY` in the `Token` header. See [API authentication](docs/API_GUIDE_en.md#2-authentication--security-policy).
 
 > [!IMPORTANT]
 > **Required**: Ensure port **5173** (TCP) is allowed in your cloud provider security groups and local firewall, otherwise the console will be unreachable.
@@ -384,12 +388,12 @@ ARL-Next provides standardized RESTful APIs for automation scripts, CI/CD pipeli
 <br/>
 
 **A:** Execute the following commands on the server terminal to reset credentials:
-- **Reset Platform Admin Account (admin / arlpass)**:
+- **Reset Platform Admin Account (admin)**:
   ```bash
   docker exec -it arl-web-prod /code/backend/.venv-docker/bin/python3 /code/backend/inject_user.py --reset
   ```
   > [!NOTE]
-  > The platform protects existing passwords on startup by default. Adding `--reset` forces the `admin` password back to `arlpass`. Run this within a trusted host shell.
+  > Startup preserves existing passwords. `--reset` generates a new random password and revokes the login session; read it from `/tmp/arl_initial_admin_password` inside the container. If `ARL_ADMIN_PASSWORD` is set, that value is used instead. Run only from a trusted host shell.
 - **Reset or View Basic Auth Credentials**: Edit `frontend/.htpasswd` in your deployment directory, or toggle the Basic Auth switch in the web top navigation bar after logging in (to change the password, disable and re-enable it).
 </details>
 
