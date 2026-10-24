@@ -70,7 +70,7 @@ class TestBackupRestore(unittest.TestCase):
             archive_path = os.path.join(tmpdir, "arl_backup_sample.tar.gz")
             
             # 创建伪造的备份内容
-            sub_file = os.path.join(tmpdir, "data.txt")
+            sub_file = os.path.join(tmpdir, "mongo_dump.archive.gz")
             with open(sub_file, "w") as f:
                 f.write("dummy database dump")
             data_hash = compute_sha256(sub_file)
@@ -86,8 +86,8 @@ class TestBackupRestore(unittest.TestCase):
                     "total_documents": 100,
                     "summary": {"task_assets": 50, "scope_assets": 20, "total_tasks": 5, "total_users": 2}
                 },
-                "files": {"mongo_dump": "data.txt"},
-                "checksums": {"data.txt": data_hash}
+                "files": {"mongo_dump": "mongo_dump.archive.gz"},
+                "checksums": {"mongo_dump.archive.gz": data_hash}
             }
             manifest_file = os.path.join(tmpdir, "manifest.json")
             with open(manifest_file, "w", encoding="utf-8") as f:
@@ -95,7 +95,7 @@ class TestBackupRestore(unittest.TestCase):
 
             with tarfile.open(archive_path, "w:gz") as tar:
                 tar.add(manifest_file, arcname="manifest.json")
-                tar.add(sub_file, arcname="data.txt")
+                tar.add(sub_file, arcname="mongo_dump.archive.gz")
 
             # 读取元数据
             read_manifest = read_archive_manifest(archive_path)
@@ -115,8 +115,8 @@ class TestBackupRestore(unittest.TestCase):
                     "include_screenshots": True,
                     "note": "测试列表",
                     "mongo_stats": {"summary": {"task_assets": 10}},
-                    "files": {},
-                    "checksums": {}
+                    "files": {"mongo_dump": "mongo_dump.archive.gz"},
+                    "checksums": {"mongo_dump.archive.gz": hashlib.sha256(b'dummy dump').hexdigest()}
                 }
                 manifest_file = os.path.join(tmpdir, "manifest.json")
                 with open(manifest_file, "w") as f:
@@ -124,6 +124,10 @@ class TestBackupRestore(unittest.TestCase):
 
                 with tarfile.open(valid_file, "w:gz") as tar:
                     tar.add(manifest_file, arcname="manifest.json")
+                    import io
+                    member = tarfile.TarInfo('mongo_dump.archive.gz')
+                    member.size = len(b'dummy dump')
+                    tar.addfile(member, io.BytesIO(b'dummy dump'))
 
                 # 列出备份
                 backups = list_all_backups()

@@ -9,12 +9,14 @@ import hashlib
 import logging
 import threading
 import subprocess
+import tempfile
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from urllib.parse import urlparse
 
 from app.config import Config, basedir, clear_system_config_cache, bump_system_config_version
 from app.utils.conn import ConnMongo
+from .backup_archive import read_manifest, stage_restore, install_staged, regular_backup_member
 
 logger = logging.getLogger('arlv2')
 
@@ -410,7 +412,7 @@ def create_backup_archive(include_screenshots: bool = True, note: str = "") -> D
                         step = max(1, total_files // 10)
                         for idx, fname in enumerate(files, 1):
                             fpath = os.path.join(scr_dir, fname)
-                            tar.add(fpath, arcname=os.path.join("tmp_screenshot", fname))
+                            tar.add(fpath, arcname=os.path.join("tmp_screenshot", fname), filter=regular_backup_member)
                             if idx % step == 0 or idx == total_files:
                                 sub_pct = min(74, 58 + int((idx / total_files) * 16))
                                 progress_tracker.update(
@@ -435,7 +437,7 @@ def create_backup_archive(include_screenshots: bool = True, note: str = "") -> D
         if d_dir and os.listdir(d_dir):
             dict_tar_name = "dicts.tar.gz"
             with tarfile.open(os.path.join(work_dir, dict_tar_name), "w:gz") as tar:
-                tar.add(d_dir, arcname="dicts")
+                tar.add(d_dir, arcname="dicts", filter=regular_backup_member)
             file_map["dicts"] = dict_tar_name
 
         poc_dirs = ["/code/backend/ARL-NPoC/xing/plugins", os.path.abspath(os.path.join(basedir, "..", "ARL-NPoC", "xing", "plugins"))]
@@ -443,7 +445,7 @@ def create_backup_archive(include_screenshots: bool = True, note: str = "") -> D
         if p_dir and os.listdir(p_dir):
             poc_tar_name = "pocs.tar.gz"
             with tarfile.open(os.path.join(work_dir, poc_tar_name), "w:gz") as tar:
-                tar.add(p_dir, arcname="plugins")
+                tar.add(p_dir, arcname="plugins", filter=regular_backup_member)
             file_map["pocs"] = poc_tar_name
 
         # 5. 复制当前 config.yaml（如存在）
@@ -524,16 +526,7 @@ def read_archive_manifest(archive_path: str) -> Dict[str, Any]:
     if not os.path.isfile(archive_path):
         raise FileNotFoundError(f"备份文件不存在: {archive_path}")
     
-    with tarfile.open(archive_path, "r:gz") as tar:
-        try:
-            member = tar.getmember("manifest.json")
-        except KeyError:
-            raise ValueError("非法备份包：未在归档中找到 manifest.json 元数据文件！")
-        
-        f = tar.extractfile(member)
-        if not f:
-            raise ValueError("读取 manifest.json 内容失败！")
-        return json.load(f)
+    return read_manifest(archive_path)
 
 
 def list_all_backups() -> List[Dict[str, Any]]:
@@ -617,6 +610,20 @@ def restore_backup_archive(archive_path: str, force: bool = False) -> Dict[str, 
         
         # 1. 前置预检：扫描运行中任务
         running_count = get_running_task_count()
+        if running_count > 0 and not force:
+            raise RuntimeError(f"系统当前有 {running_count} 个正在进行的扫描任务！请等待完成后再恢复。")
+
+        # 所有归档层级、哈希和目标目录均先校验；恶意包不得触发停任务或 --drop。
+        progress_tracker.update("正在解包归档并校验完整性...", 15, "校验备份构件与恢复目录")
+        work_dir = tempfile.mkdtemp(prefix='.restore_', dir=get_backup_dir())
+        app_dir = '/code/backend/app' if os.path.isdir('/code/backend/app') else basedir
+        poc_dir = '/code/backend/ARL-NPoC/xing' if os.path.isdir('/code/backend/ARL-NPoC/xing') else os.path.abspath(os.path.join(basedir, '..', 'ARL-NPoC', 'xing'))
+        manifest, staged = stage_restore(archive_path, work_dir, {
+            'screenshots': ('tmp_screenshot', os.path.join(app_dir, 'tmp_screenshot')),
+            'dicts': ('dicts', os.path.join(app_dir, 'dicts')),
+            'pocs': ('plugins', os.path.join(poc_dir, 'plugins')),
+        })
+
         if running_count > 0:
             if not force:
                 raise RuntimeError(
@@ -634,32 +641,6 @@ def restore_backup_archive(archive_path: str, force: bool = False) -> Dict[str, 
                     {"status": {"$nin": [TaskStatus.DONE, TaskStatus.WAITING, TaskStatus.ERROR, TaskStatus.STOP]}},
                     {"$set": {"status": TaskStatus.STOP, "end_time": datetime.now()}}
                 )
-
-        # 2. 解包到临时工作目录并校验元数据
-        progress_tracker.update("正在解包归档并校验完整性...", 15, "解包备份文件")
-        backup_dir = get_backup_dir()
-        work_dir = os.path.join(backup_dir, f".restore_{int(time.time())}")
-        os.makedirs(work_dir, exist_ok=True)
-        
-        with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(work_dir)
-            
-        manifest_file = os.path.join(work_dir, "manifest.json")
-        if not os.path.isfile(manifest_file):
-            raise ValueError("非法备份包：解包后缺少 manifest.json 元数据文件！")
-            
-        with open(manifest_file, "r", encoding="utf-8") as f:
-            manifest = json.load(f)
-            
-        progress_tracker.update("正在校验构件哈希完整性...", 25, "核对 SHA256 校验和")
-        checksums = manifest.get("checksums", {})
-        for fname, expected_hash in checksums.items():
-            fpath = os.path.join(work_dir, fname)
-            if not os.path.isfile(fpath):
-                raise ValueError(f"备份文件损坏：缺少构件 {fname}")
-            actual_hash = compute_sha256(fpath)
-            if actual_hash != expected_hash:
-                raise ValueError(f"备份文件校验和不匹配，文件可能已损坏：{fname}")
 
         # 3. 执行 mongorestore 覆盖还原
         progress_tracker.update("正在恢复 MongoDB 数据库（--drop 完全覆盖恢复）...", 35, "调用 mongorestore 覆盖还原")
@@ -687,30 +668,9 @@ def restore_backup_archive(archive_path: str, force: bool = False) -> Dict[str, 
         progress_tracker.update("MongoDB 数据覆盖还原成功", 70, "数据库集合已全部恢复")
 
         # 4. 还原静态资产与截图文件
-        files_spec = manifest.get("files", {})
-        if "screenshots" in files_spec:
-            progress_tracker.update("正在还原资产截图附件...", 75, "解包 tmp_screenshot 截图目录")
-            scr_tar_path = os.path.join(work_dir, files_spec["screenshots"])
-            if os.path.isfile(scr_tar_path):
-                target_scr_dir = "/code/backend/app" if os.path.isdir("/code/backend/app") else basedir
-                with tarfile.open(scr_tar_path, "r:gz") as tar:
-                    tar.extractall(target_scr_dir)
-
-        if "dicts" in files_spec:
-            progress_tracker.update("正在还原自定义字典...", 80, "解包 app/dicts 目录")
-            dict_tar_path = os.path.join(work_dir, files_spec["dicts"])
-            if os.path.isfile(dict_tar_path):
-                target_dict_parent = "/code/backend/app" if os.path.isdir("/code/backend/app") else basedir
-                with tarfile.open(dict_tar_path, "r:gz") as tar:
-                    tar.extractall(target_dict_parent)
-
-        if "pocs" in files_spec:
-            progress_tracker.update("正在还原自定义 PoC 插件...", 85, "解包 plugins 目录")
-            poc_tar_path = os.path.join(work_dir, files_spec["pocs"])
-            if os.path.isfile(poc_tar_path):
-                target_poc_parent = "/code/backend/ARL-NPoC/xing" if os.path.isdir("/code/backend/ARL-NPoC/xing") else os.path.abspath(os.path.join(basedir, "..", "ARL-NPoC", "xing"))
-                with tarfile.open(poc_tar_path, "r:gz") as tar:
-                    tar.extractall(target_poc_parent)
+        progress_tracker.update("正在还原已校验的数据文件...", 80, "恢复截图、字典与插件")
+        for source, destination in staged:
+            install_staged(source, destination)
 
         # 5. 执行索引重构与平滑兼容
         progress_tracker.update("正在重新构建数据库核心索引与同步缓存...", 90, "执行 arlupdate 索引维护")
