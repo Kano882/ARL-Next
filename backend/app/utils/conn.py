@@ -25,6 +25,7 @@ SET_PROXY = False
 
 
 _adapter = requests.adapters.HTTPAdapter(pool_connections=200, pool_maxsize=100)
+_scan_adapter = requests.adapters.HTTPAdapter(pool_connections=200, pool_maxsize=100)
 
 class StatelessSession(requests.Session):
     def close(self):
@@ -57,7 +58,9 @@ def patch_content(response, timeout=None, max_size=10*1024*1024):
 
 
 def http_req(url, method='get', **kwargs):
-    kwargs.setdefault('verify', False)
+    # Third-party APIs and callbacks carry credentials and must verify TLS.
+    # Reconnaissance callers explicitly opt out for self-signed target sites.
+    kwargs.setdefault('verify', True)
     kwargs.setdefault('timeout', (10.1, 30.1))
     kwargs.setdefault('allow_redirects', False)
 
@@ -77,8 +80,11 @@ def http_req(url, method='get', **kwargs):
     with StatelessSession() as session:
         # 必须清空自带的默认 Adapter 避免未关闭造成潜在的内存泄漏
         session.adapters.clear()
-        session.mount('http://', _adapter)
-        session.mount('https://', _adapter)
+        # Keep insecure target connections out of credential-bearing API pools,
+        # including on requests versions predating TLS-aware pool keys.
+        adapter = _scan_adapter if kwargs['verify'] is False else _adapter
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
         conn = getattr(session, method)(url, **kwargs)
 
         timeout = kwargs.get("timeout")

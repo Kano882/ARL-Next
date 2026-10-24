@@ -15,7 +15,7 @@ class CheckHTTP(BaseThread):
 
     def check(self, url):
         # 移除了流处理和手动 close，顺应底层的连接池机制
-        conn = utils.http_req(url, method="get", timeout=self.timeout)
+        conn = utils.http_req(url, method="get", timeout=self.timeout, verify=False)
 
         if conn.status_code == 400:
             # 特殊情况排除

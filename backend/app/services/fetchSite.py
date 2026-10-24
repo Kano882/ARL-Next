@@ -10,6 +10,8 @@ from .baseThread import BaseThread
 logger = utils.get_logger()
 from .autoTag import auto_tag
 from app.utils import http_req, normal_url
+from app.utils.favicon_http import fetch_favicon_response
+from app.config import Config
 # Removed static load_fingerprint as we now rely fully on DB
 
 class FetchSite(BaseThread):
@@ -71,7 +73,7 @@ class FetchSite(BaseThread):
         hostname = urlparse(site).hostname
 
         # 核心：发起 HTTP 请求
-        conn = utils.http_req(site, timeout=self.http_timeout)
+        conn = utils.http_req(site, timeout=self.http_timeout, verify=False)
         try:
             import simhash
             body_simhash = str(simhash.Simhash(conn.text).value)
@@ -256,7 +258,10 @@ class FetchFavicon(object):
     def get_favicon_data(self, favicon_url):
         if favicon_url.startswith("data:"):
             return None
-        conn = http_req(favicon_url)
+        conn = fetch_favicon_response(
+            favicon_url, allowed_ip=utils.not_in_black_ips,
+            forbidden_domain=utils.is_forbidden_domain, proxy_url=Config.PROXY_URL,
+        )
         if conn.status_code != 200:
             return
 
@@ -288,7 +293,10 @@ class FetchFavicon(object):
     def find_icon_url_from_html(self, html_content=None):
         """用 pyquery (类似 jQuery 的操作语法) 提取 HTML 中的图标链接"""
         if not html_content:
-            conn = http_req(self.url)
+            conn = fetch_favicon_response(
+                self.url, allowed_ip=utils.not_in_black_ips,
+                forbidden_domain=utils.is_forbidden_domain, proxy_url=Config.PROXY_URL,
+            )
             html_content = conn.content
             
         if b"<link" not in html_content:

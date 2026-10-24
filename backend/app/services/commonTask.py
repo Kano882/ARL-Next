@@ -399,7 +399,7 @@ class WebSiteFetch(object):
         try:
             conn = utils.http_req(url, headers={"Host": host_header},
                                   timeout=self.CATCH_ALL_CONTROL_TIMEOUT,
-                                  allow_redirects=True)
+                                  allow_redirects=True, verify=False)
         except Exception:
             return None
 

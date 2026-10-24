@@ -33,24 +33,42 @@ def transfer_ip_scope(target):
         logger.warn("error on ip_scope {} {}".format(target, e))
 
 
-#判断是否在黑名单IP内，有点不严谨
 def not_in_black_ips(target):
+    """Reject any overlap with a blocked network, including ranges and CIDRs."""
+    import ipaddress
     from . import get_logger
     from app.utils.security_policy import get_security_policy
     logger = get_logger()
+
+    def interval(value):
+        value = str(value).strip()
+        if '-' in value:
+            first, last = value.split('-', 1)
+            start = ipaddress.ip_address(first)
+            if start.version == 4 and last.isdigit():
+                last = first.rsplit('.', 1)[0] + '.' + last
+            end = ipaddress.ip_address(last)
+            if start.version != end.version or int(start) > int(end):
+                raise ValueError('Invalid IP range')
+            return start.version, int(start), int(end)
+        if '/' in value:
+            network = ipaddress.ip_network(value, strict=False)
+            return network.version, int(network.network_address), int(network.broadcast_address)
+        address = ipaddress.ip_address(value)
+        if getattr(address, 'ipv4_mapped', None):
+            address = address.ipv4_mapped
+        return address.version, int(address), int(address)
+
     try:
         black_ips, _ = get_security_policy()
-        for ip in black_ips:
-            if "-" in target:
-                target = target.split("-")[0]
-
-            if "/" in target:
-                target = target.split("/")[0]
-
-            if IP(target) in IP(ip):
+        version, first, last = interval(target)
+        for blocked in black_ips:
+            blocked_version, blocked_first, blocked_last = interval(blocked)
+            if version == blocked_version and first <= blocked_last and blocked_first <= last:
                 return False
     except Exception as e:
-        logger.warn("error on check black ip {} {}".format(target, e))
+        logger.warning("error on check black ip {} {}".format(target, e))
+        return False
 
     return True
 
