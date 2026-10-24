@@ -111,7 +111,7 @@
                   </div>
                 </div>
                 <div v-if="siteItem.screenshot" class="drawer-site-shot">
-                  <a-image :src="`/api${siteItem.screenshot}`" :alt="assetText('tasks.screenshot')" />
+                  <AuthenticatedImage :src="`/api${siteItem.screenshot}`" :alt="assetText('tasks.screenshot')" />
                 </div>
               </div>
             </div>
@@ -545,6 +545,7 @@ import {
   VerticalAlignTopOutlined
 } from '@ant-design/icons-vue';
 import request from '../utils/request';
+import AuthenticatedImage from './AuthenticatedImage.vue';
 import { formatGeo } from '../utils/formatGeo';
 import { copyText } from '../utils/clipboard';
 

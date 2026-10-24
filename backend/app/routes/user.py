@@ -3,6 +3,7 @@ from flask_restx import fields, Namespace
 from app.utils import get_logger
 from app import utils
 from . import  ARLResource
+from app.utils.user import LoginRateLimited
 
 ns = Namespace('user', description="管理员登录认证")
 
@@ -27,7 +28,10 @@ class LoginARL(ARLResource):
         args = self.parse_args(login_fields)
 
 
-        return build_data(utils.user_login(**args))
+        try:
+            return build_data(utils.user_login(**args))
+        except LoginRateLimited as exc:
+            return {'code': 429, 'message': str(exc), 'data': {}}, 429, {'Retry-After': str(exc.retry_after)}
 
 
 
@@ -67,6 +71,7 @@ change_pass_fields = ns.model('ChangePassARL', {
 
 @ns.route('/change_pass')
 class ChangePassARL(ARLResource):
+    @utils.auth
     @ns.expect(change_pass_fields)
     def post(self):
         """
@@ -90,11 +95,12 @@ class ChangePassARL(ARLResource):
             ret["message"] = "新密码不能为空"
             return ret
 
-        if utils.change_pass(token, args["old_password"], args["new_password"]):
-            utils.user_logout(token)
-        else:
-            ret["message"] = "旧密码错误"
-            ret["code"] = 303
+        try:
+            if not utils.change_pass(token, args["old_password"], args["new_password"]):
+                ret["message"] = "旧密码错误"
+                ret["code"] = 303
+        except ValueError as exc:
+            return {'code': 400, 'message': str(exc), 'data': {}}, 400
 
         return ret
 

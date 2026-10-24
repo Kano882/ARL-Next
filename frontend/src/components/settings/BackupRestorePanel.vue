@@ -459,15 +459,20 @@ const handleExecuteRestore = async () => {
   }
 };
 
-const handleDownloadBackup = (filename) => {
-  const token = localStorage.getItem('token') || '';
-  const url = `/api/backup/download/${encodeURIComponent(filename)}?token=${encodeURIComponent(token)}`;
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+const handleDownloadBackup = async (filename) => {
+  try {
+    const res = await request.post('/api/backup/download_ticket', { filename });
+    if (res.code !== 200 || !res.data?.ticket) throw new Error(res.message);
+    const a = document.createElement('a');
+    a.href = `/api/backup/download/${encodeURIComponent(filename)}?ticket=${encodeURIComponent(res.data.ticket)}`;
+    a.download = filename;
+    a.rel = 'noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (error) {
+    message.error(error.message);
+  }
 };
 
 const handleDeleteBackup = async (filename) => {

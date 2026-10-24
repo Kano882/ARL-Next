@@ -2,7 +2,7 @@ from flask import  make_response
 from flask_restx import Resource, Namespace
 import os
 from app.config import Config
-from app.utils import get_logger
+from app.utils import get_logger, auth
 from werkzeug.utils import secure_filename
 
 ns = Namespace('image', description="截图信息")
@@ -16,7 +16,7 @@ def allowed_file(filename):
 
 @ns.route('/<string:task_id>/<string:file_name>')
 class ARLImage(Resource):
-
+    @auth
     def get(self, task_id, file_name):
         task_id = secure_filename(task_id)
         file_name = secure_filename(file_name)
@@ -29,11 +29,13 @@ class ARLImage(Resource):
             image_data = open(imgpath, "rb").read()
             response = make_response(image_data)
             response.headers['Content-Type'] = 'image/jpg'
+            response.headers['Cache-Control'] = 'private, no-store'
             return response
         else:
             image_data = open(Config.SCREENSHOT_FAIL_IMG, "rb").read()
             response = make_response(image_data)
             response.headers['Content-Type'] = 'image/jpg'
+            response.headers['Cache-Control'] = 'private, no-store'
             return response
 
 
