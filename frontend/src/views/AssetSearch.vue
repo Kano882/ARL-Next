@@ -6,7 +6,7 @@
         <span class="scope-hint-tag">{{ assetText('assets.allAssets') }}</span>
         <span>{{ assetText('assets.statisticsAndSearchesCoverAllAssetsAcrossAll') }}</span>
       </div>
-      <a-tabs style="margin-bottom: 12px;" v-model:activeKey="activeTab" type="card" class="arl-detail-tabs">
+      <a-tabs v-model:activeKey="activeTab" type="card" size="small" class="arl-detail-tabs asm-tabs-nav">
         <a-tab-pane v-for="t in assetTabList" :key="t.key">
           <template #tab>
             <span class="asm-tab-item">
@@ -21,7 +21,7 @@
         </a-tab-pane>
       </a-tabs>
 
-      <div v-if="activeTab === 'service'" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+      <div v-if="activeTab === 'service'" style="margin-top: 8px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; background: var(--arl-bg-light); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--arl-border-color);">
         <span class="asset-engine-label">{{ assetText('tasks.detectionEngine') }}</span>
         <a-radio-group v-model:value="serviceEngineType" button-style="solid" size="small" @change="onServiceEngineChange">
           <a-radio-button value="nmap">{{ assetText('tasks.portServicesNmap') }}</a-radio-button>
@@ -29,109 +29,173 @@
         </a-radio-group>
       </div>
 
-      <div v-if="tabConfig[effectiveTab]?.searchFields" style="margin-bottom: 8px;">
-        <a-form :label-wrap="true" :model="searchForm" layout="inline" class="asset-search-row-gap">
-          <a-form-item v-for="field in tabConfig[effectiveTab].searchFields" :key="field.key" :label="field.label" :class="{ 'asset-status-field-wide': field.type === 'httpStatus' && assetLocale !== 'zh-CN' }">
-            <HttpStatusFilter
-              v-if="field.type === 'httpStatus'"
-              v-model:value="searchForm[field.key]"
-              size="small"
-              @change="onSearch"
-            />
-            <a-select
-              v-else-if="field.type === 'select'"
-              v-model:value="searchForm[field.key]"
-              :placeholder="assetText('tasks.selectField', { field: field.label })"
-              style="width: 180px;"
-              size="small"
-              allowClear
-              @change="onSearch"
-            >
-              <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </a-select-option>
-            </a-select>
+      <!-- 资产列表检索与操作工具栏 (上下分层：业务操作行 + 紧凑折叠栅格卡片) -->
+      <div class="asm-toolbar-container">
+        <div class="toolbar-row">
+          <div class="toolbar-left">
+            <span class="toolbar-title-text">{{ assetText('assets.categoryHeading', { category: currentTabLabel }) }}</span>
+            <span class="toolbar-meta-count">
+              {{ assetText('assets.recordCount', { count: pagination.total || 0 }) }}
+            </span>
+          </div>
 
-            <div
-              v-else-if="field.hasOperatorSelect"
-              style="display: flex; align-items: center; border: 1px solid var(--arl-border-color); border-radius: 4px; width: 280px; background: var(--arl-bg-white); height: 24px;"
+          <div class="toolbar-right">
+            <a-button v-if="tabConfig[effectiveTab]?.exportName" size="small" @click="handleExport">
+              <template #icon><download-outlined /></template>
+              {{ assetText('tasks.exportAssetType', { type: tabConfig[effectiveTab].exportName }) }}
+            </a-button>
+
+            <a-button v-if="activeTab === 'site'" type="primary" size="small" @click="openRiskModal">
+              <template #icon><thunderbolt-outlined /></template>
+              {{ assetText('tasks.createRiskScanningTask') }}
+            </a-button>
+
+            <!-- 高级筛选折叠展开切换按钮 -->
+            <a-button
+              v-if="tabConfig[effectiveTab]?.searchFields?.length"
+              size="small"
+              :type="isAdvancedFilterOpen ? 'primary' : 'default'"
+              :ghost="isAdvancedFilterOpen"
+              @click="isAdvancedFilterOpen = !isAdvancedFilterOpen"
             >
-              <template v-if="field.type === 'select'">
-                <a-select
-                  v-model:value="searchForm[field.key]"
-                  :placeholder="assetText('tasks.selectField', { field: field.label })"
-                  :bordered="false"
-                  size="small"
-                  style="flex: 1; box-shadow: none;"
-                  allowClear
-                  @change="onSearch"
+              <template #icon><filter-outlined /></template>
+              {{ isAdvancedFilterOpen ? assetText('tasks.hideFilters') : assetText('tasks.advancedFilters') }}
+              <a-badge
+                v-if="activeFilterCount > 0"
+                :count="activeFilterCount"
+                :number-style="{ backgroundColor: 'var(--arl-theme-color)', marginLeft: '4px', fontSize: '10px' }"
+              />
+              <down-outlined v-if="!isAdvancedFilterOpen" style="font-size: 10px; margin-left: 2px;" />
+              <up-outlined v-else style="font-size: 10px; margin-left: 2px;" />
+            </a-button>
+          </div>
+        </div>
+
+        <!-- 可折叠展开的紧凑多字段栅格筛选卡片 -->
+        <transition name="fade-slide">
+          <div v-show="isAdvancedFilterOpen" v-if="tabConfig[effectiveTab]?.searchFields?.length" class="asm-filter-card">
+            <a-form :label-wrap="true" :model="searchForm" class="filter-grid-form">
+              <a-row :gutter="[12, 6]">
+                <a-col
+                  v-for="field in tabConfig[effectiveTab].searchFields.filter(f => !f.hidden)"
+                  :key="field.key"
+                  :xs="24" :sm="12" :md="assetLocale !== 'zh-CN' ? 12 : 8" :lg="assetLocale !== 'zh-CN' ? 8 : 6"
                 >
-                  <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">
-                    {{ opt.label }}
-                  </a-select-option>
-                </a-select>
-              </template>
-              <template v-else>
-                <a-input
-                  v-model:value="searchForm[field.key]"
-                  :placeholder="field.placeholder || assetText('tasks.enterField', { field: field.label })"
-                  :bordered="false"
-                  size="small"
-                  style="flex: 1; box-shadow: none;"
-                  allowClear
-                  @pressEnter="onSearch"
-                >
-                  <template #suffix>
-                    <search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" />
+                  <div class="filter-field-cell">
+                    <span class="filter-field-label" :class="{ 'filter-field-label-wide': assetLocale !== 'zh-CN' }" :title="field.label">{{ field.label }}</span>
+                    <div class="filter-field-widget">
+                      <!-- HTTP 状态码选择 -->
+                      <HttpStatusFilter
+                        v-if="field.type === 'httpStatus'"
+                        v-model:value="searchForm[field.key]"
+                        size="small"
+                        @change="onSearch"
+                      />
+
+                      <!-- 下拉选择 -->
+                      <a-select
+                        v-else-if="field.type === 'select'"
+                        v-model:value="searchForm[field.key]"
+                        :placeholder="assetText('tasks.selectField', { field: field.label })"
+                        style="width: 100%;"
+                        size="small"
+                        allowClear
+                        @change="onSearch"
+                      >
+                        <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">
+                          {{ opt.label }}
+                        </a-select-option>
+                      </a-select>
+
+                      <!-- 组合操作符输入框 (如 模糊匹配/精确匹配、等于/大于/小于) -->
+                      <div
+                        v-else-if="field.hasOperatorSelect"
+                        class="filter-operator-box"
+                      >
+                        <template v-if="field.type === 'select'">
+                          <a-select
+                            v-model:value="searchForm[field.key]"
+                            :placeholder="assetText('tasks.selectField', { field: field.label })"
+                            :bordered="false"
+                            size="small"
+                            class="operator-text-input"
+                            allowClear
+                            @change="onSearch"
+                          >
+                            <a-select-option v-for="opt in field.options" :key="opt.value" :value="opt.value">
+                              {{ opt.label }}
+                            </a-select-option>
+                          </a-select>
+                        </template>
+                        <template v-else>
+                          <a-input
+                            v-model:value="searchForm[field.key]"
+                            :placeholder="field.placeholder || assetText('tasks.enterField', { field: field.label })"
+                            :bordered="false"
+                            size="small"
+                            class="operator-text-input"
+                            allowClear
+                            @pressEnter="onSearch"
+                          >
+                            <template #suffix>
+                              <search-outlined class="filter-search-icon" @click="onSearch" />
+                            </template>
+                          </a-input>
+                        </template>
+                        <div class="operator-divider"></div>
+                        <a-select
+                          v-model:value="field.operator"
+                          :bordered="false"
+                          size="small"
+                          class="operator-op-select" :class="{ 'operator-op-select-wide': assetLocale !== 'zh-CN' }"
+                          @change="onSearch"
+                        >
+                          <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ formatAssetFilterOperator(op) }}</a-select-option>
+                        </a-select>
+                      </div>
+
+                      <!-- 普通文本输入框 -->
+                      <a-input
+                        v-else
+                        v-model:value="searchForm[field.key]"
+                        :placeholder="field.placeholder || assetText('tasks.enterField', { field: field.label })"
+                        style="width: 100%;"
+                        size="small"
+                        allowClear
+                        @pressEnter="onSearch"
+                      >
+                        <template #suffix>
+                          <search-outlined class="filter-search-icon" @click="onSearch" />
+                        </template>
+                      </a-input>
+                    </div>
+                  </div>
+                </a-col>
+              </a-row>
+
+              <!-- 底部操作与状态条 -->
+              <div class="filter-footer-row">
+                <div class="filter-badge-status">
+                  <template v-if="activeFilterCount > 0">
+                    <span class="active-indicator-dot"></span>
+                    <span>{{ assetText('assets.filtersApplied', { count: activeFilterCount }) }}</span>
                   </template>
-                </a-input>
-              </template>
-              <div style="width: 1px; height: 14px; background-color: var(--arl-border-color);"></div>
-              <a-select
-                v-model:value="field.operator"
-                :bordered="false"
-                size="small"
-                class="asset-filter-operator" :class="{ 'asset-filter-operator-wide': assetLocale !== 'zh-CN' }"
-                @change="onSearch"
-              >
-                <a-select-option v-for="op in field.operators" :key="op" :value="op">{{ formatAssetFilterOperator(op) }}</a-select-option>
-              </a-select>
-            </div>
-
-            <a-input
-              v-else
-              v-model:value="searchForm[field.key]"
-              :placeholder="assetText('tasks.enterField', { field: field.label })"
-              style="width: 180px;"
-              size="small"
-              allowClear
-              @pressEnter="onSearch"
-            >
-              <template #suffix>
-                <search-outlined @click="onSearch" style="cursor: pointer; color: var(--arl-text-color); opacity: 0.35;" />
-              </template>
-            </a-input>
-          </a-form-item>
-        </a-form>
-      </div>
-
-      <div style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <a-button size="small" @click="resetSearch">
-            <template #icon><undo-outlined /></template>
-            {{ assetText('assets.reset') }}
-          </a-button>
-          <a-button v-if="tabConfig[effectiveTab]?.exportName" size="small" @click="handleExport">
-            <template #icon><download-outlined /></template>
-            {{ assetText('tasks.exportAssetType', { type: tabConfig[effectiveTab].exportName }) }}
-          </a-button>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <a-button v-if="activeTab === 'site'" type="primary" size="small" @click="openRiskModal">
-            <template #icon><thunderbolt-outlined /></template>
-            {{ assetText('tasks.createRiskScanningTask') }}
-          </a-button>
-        </div>
+                  <span v-else class="filter-idle-text">{{ assetText('assets.pressEnterOrClickTheSearchIconTo') }}</span>
+                </div>
+                <div class="filter-action-btns">
+                  <a-button size="small" @click="resetSearch">
+                    <template #icon><undo-outlined /></template>
+                    {{ assetText('assets.reset') }}
+                  </a-button>
+                  <a-button type="primary" size="small" @click="onSearch">
+                    <template #icon><search-outlined /></template>
+                    {{ assetText('tasks.search') }}
+                  </a-button>
+                </div>
+              </div>
+            </a-form>
+          </div>
+        </transition>
       </div>
     </div>
 
@@ -506,7 +570,15 @@ import AuthenticatedImage from '../components/AuthenticatedImage.vue';
 import HttpStatusFilter from '../components/HttpStatusFilter.vue';
 import { buildAssetFilterParams, formatAssetFilterOperator } from '../utils/assetFilters';
 import { message } from 'ant-design-vue';
-import { SearchOutlined, UndoOutlined, DownloadOutlined, ThunderboltOutlined } from '@ant-design/icons-vue';
+import {
+  SearchOutlined,
+  UndoOutlined,
+  DownloadOutlined,
+  ThunderboltOutlined,
+  FilterOutlined,
+  DownOutlined,
+  UpOutlined
+} from '@ant-design/icons-vue';
 import CidrDetailModal from '../components/CidrDetailModal.vue';
 import WihApiDetailsDrawer from '../components/WihApiDetailsDrawer.vue';
 import { isApiEndpointRecord } from '../utils/wihApi';
@@ -621,6 +693,29 @@ const openFingerModal = async (fingerName) => {
   }
 };
 const searchForm = ref({});
+
+// 高级筛选折叠状态（默认展开）
+const isAdvancedFilterOpen = ref(true);
+
+const activeFilterCount = computed(() => {
+  let cnt = 0;
+  for (const k in searchForm.value) {
+    const val = searchForm.value[k];
+    if (val !== '' && val != null) {
+      if (Array.isArray(val) && val.length === 0) continue;
+      cnt++;
+    }
+  }
+  return cnt;
+});
+
+const currentTabLabel = computed(() => {
+  if (effectiveTab.value === 'npoc_service') {
+    return assetText('assets.pythonPluginServicesLabel');
+  }
+  const tab = assetTabList.find(t => t.key === activeTab.value);
+  return tab ? tab.label : assetText('tasks.assets');
+});
 const globalPageSize = useGlobalPageSize(10);
 const pagination = reactive({ current: 1, pageSize: globalPageSize.value, total: 0 });
 let lastFetchedPage = 1;
@@ -1296,6 +1391,213 @@ onDeactivated(() => {
 .wih-api-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 
 .asset-site-count :deep(.ant-badge-count) { background-color: #1890ff; color: #fff; cursor: pointer; border-radius: 4px; padding: 0 6px; font-size: 12px; }
+
+.asm-tabs-nav {
+  margin-bottom: 0 !important;
+}
+
+.asm-tabs-nav :deep(.ant-tabs-nav) {
+  margin-bottom: 0 !important;
+}
+
+/* 资产检索工具栏与操作行 */
+.asm-toolbar-container {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--arl-border-color);
+}
+
+.toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toolbar-title-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--arl-text-color);
+}
+
+.toolbar-meta-count {
+  font-size: 11px;
+  color: var(--arl-text-secondary);
+  background: var(--arl-bg-light);
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--arl-border-color);
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 紧凑栅格筛选卡片 */
+.asm-filter-card {
+  margin-top: 6px;
+  padding: 8px 12px 6px 12px;
+  background: var(--arl-bg-light);
+  border: 1px solid var(--arl-border-color);
+  border-radius: 6px;
+}
+
+.filter-grid-form {
+  width: 100%;
+}
+
+.filter-field-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.filter-field-label {
+  width: 72px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 12px;
+  color: var(--arl-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.filter-field-label.filter-field-label-wide {
+  width: 112px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.filter-field-widget {
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-search-icon {
+  color: var(--arl-text-secondary);
+  opacity: 0.45;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 11px;
+}
+.filter-search-icon:hover {
+  color: var(--arl-theme-color);
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+/* 操作符组合输入框 (如 等于/不等于) */
+.filter-operator-box {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--arl-border-color);
+  border-radius: 4px;
+  background: var(--arl-bg-white);
+  height: 24px;
+  transition: all 0.2s;
+  overflow: hidden;
+}
+.filter-operator-box:hover,
+.filter-operator-box:focus-within {
+  border-color: var(--arl-theme-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--arl-theme-color) 20%, transparent);
+}
+.operator-text-input {
+  flex: 1;
+  min-width: 0;
+  box-shadow: none !important;
+  font-size: 12px;
+}
+.operator-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--arl-border-color);
+  flex-shrink: 0;
+}
+.operator-op-select {
+  width: 70px;
+  flex-shrink: 0;
+  box-shadow: none !important;
+  font-size: 12px;
+}
+.operator-op-select-wide {
+  width: 130px !important;
+  min-width: 130px;
+}
+.operator-op-select :deep(.ant-select-selector) {
+  height: 22px !important;
+  padding: 0 4px !important;
+  font-size: 12px !important;
+}
+
+/* 底部操作行与状态提示 */
+.filter-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed color-mix(in srgb, var(--arl-border-color) 80%, transparent);
+}
+
+.filter-badge-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--arl-text-secondary);
+}
+
+.active-indicator-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--arl-theme-color);
+  animation: filter-dot-pulse 2s infinite;
+}
+
+@keyframes filter-dot-pulse {
+  0% { opacity: 0.6; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0.6; transform: scale(0.9); }
+}
+
+.filter-idle-text {
+  color: var(--arl-text-secondary);
+  opacity: 0.7;
+}
+
+.filter-action-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.25s ease-in-out;
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
 
 .asset-filter-operator { width: 85px; box-shadow: none; }
 .asset-filter-operator-wide { width: 130px; }
