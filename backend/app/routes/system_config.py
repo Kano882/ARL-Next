@@ -710,13 +710,13 @@ class RequestUpdateToken(ARLResource):
         """
         请求一个用于进行系统更新的一次性 Token
         """
-        import uuid
-        token = str(uuid.uuid4()).replace('-', '')
-        
+        from app.utils.updater_token import issue_updater_token
+        purpose = (flask_req.get_json(silent=True) or {}).get('purpose', 'control')
         try:
-            with open('/tmp/arl_update_token', 'w') as f:
-                f.write(token)
+            token = issue_updater_token(purpose)
             return {"code": 200, "message": "Token 生成成功", "data": {"token": token}}
+        except ValueError as exc:
+            return {'code': 400, 'message': str(exc)}, 400
         except Exception as e:
             return {"code": 500, "message": f"生成更新 Token 失败: {str(e)}"}
 

@@ -702,7 +702,8 @@ const validateCheckPassword = async (_rule, value) => {
 // 表单校验规则
 const passRules = computed(() => ({
   old_password: [{ required: true, message: t('account.oldRequired'), trigger: 'blur' }],
-  new_password: [{ required: true, message: t('account.newRequired'), trigger: 'blur' }],
+  new_password: [{ required: true, message: t('account.newRequired'), trigger: 'blur' },
+    { min: 12, max: 1024, message: t('account.passwordLength'), trigger: 'blur' }],
   check_password: [{ required: true, validator: validateCheckPassword, trigger: 'blur' }]
 }));
 
@@ -799,10 +800,10 @@ const downloadMcpScript = async () => {
       let content = await staticRes.text();
       const host = window.location.origin;
       if (token) {
-        content = content.replace('DEFAULT_TOKEN = ""', `DEFAULT_TOKEN = "${token}"`);
+        content = content.replace('DEFAULT_TOKEN = ""', () => `DEFAULT_TOKEN = ${JSON.stringify(token)}`);
       }
       if (host) {
-        content = content.replace('DEFAULT_HOST = ""', `DEFAULT_HOST = "${host}"`);
+        content = content.replace('DEFAULT_HOST = ""', () => `DEFAULT_HOST = ${JSON.stringify(host)}`);
       }
       scriptText = content;
     }
@@ -865,7 +866,11 @@ const fetchBasicAuthStatus = async () => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
   try {
-    const res = await fetch('/update_stream/auth_status', { signal: controller.signal });
+    const ticket = await request.post('/api/system_config/request_update_token', { purpose: 'status' });
+    if (ticket.code !== 200 || !ticket.data?.token) throw new Error('Missing updater status token');
+    const res = await fetch('/update_stream/auth_status', {
+      signal: controller.signal, headers: { 'X-Update-Token': ticket.data.token },
+    });
     if (res.ok) {
       const data = await res.json();
       if (data.status === 'ok') {

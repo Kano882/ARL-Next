@@ -83,7 +83,9 @@ const onFinish = async (values) => {
     }
   } catch (error) {
     console.error('登录请求抛出异常:', error.message);
-    if (error.message !== '未登录或 Token 失效') {
+    if (error.response?.status === 429) {
+      message.error(t('login.rateLimited'));
+    } else if (error.message !== '未登录或 Token 失效') {
       message.error(t('login.networkError'));
     }
   } finally {

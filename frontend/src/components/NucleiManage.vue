@@ -773,6 +773,7 @@ import {
 import { Codemirror } from 'vue-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
 import request from '../utils/request';
+import { downloadAuthenticated } from '../utils/authenticatedFiles';
 
 const { t: pageText, locale: pageLocale } = useI18n({ useScope: 'global' });
 
@@ -963,18 +964,16 @@ const handleBatchDelete = async () => {
 };
 
 // 导出
-const handleExport = () => {
+const handleExport = async () => {
   let url = '/api/nuclei/template/export/';
   if (selectedRowKeys.value.length > 0) {
     url += `?template_ids=${selectedRowKeys.value.join(',')}`;
   }
-  const token = localStorage.getItem('token');
-  const a = document.createElement('a');
-  a.href = url + (url.includes('?') ? '&' : '?') + (token ? `token=${token}` : '');
-  a.download = 'nuclei_templates.zip';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  try {
+    await downloadAuthenticated(url, 'nuclei_templates.zip');
+  } catch (error) {
+    message.error(error.message);
+  }
 };
 
 // ---------- 骨架模板预设 ----------

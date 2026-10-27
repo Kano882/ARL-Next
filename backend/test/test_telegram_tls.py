@@ -102,7 +102,7 @@ class TelegramTLSTests(unittest.TestCase):
         self.enterContext(warnings.catch_warnings())
         warnings.simplefilter('ignore', InsecureRequestWarning)
         transport = load_definitions('app/utils/conn.py', {
-            'CONTENT_CHUNK_SIZE', 'UA', 'proxies', '_adapter',
+            'CONTENT_CHUNK_SIZE', 'UA', 'proxies', '_adapter', '_scan_adapter',
             'StatelessSession', 'patch_content', 'http_req',
         }, {
             'requests': requests, 'ReadTimeout': ReadTimeout, 'time': time,
@@ -110,6 +110,7 @@ class TelegramTLSTests(unittest.TestCase):
         })
         self.http_req = transport['http_req']
         self.addCleanup(transport['_adapter'].close)
+        self.addCleanup(transport['_scan_adapter'].close)
 
         def local_request(url, method='get', **kwargs):
             return self.http_req(self.endpoint, method=method, **kwargs)
@@ -145,9 +146,16 @@ class TelegramTLSTests(unittest.TestCase):
         self.assertEqual(self.received, [])
 
     def test_scan_helper_can_still_access_self_signed_targets(self):
-        result = self.http_req(self.endpoint, method='post', json={'scan': 'fixture'})
+        result = self.http_req(self.endpoint, method='post', json={'scan': 'fixture'}, verify=False)
         self.assertEqual(result.json(), {'ok': True})
         self.assertEqual(self.received, [{'scan': 'fixture'}])
+
+    def test_default_api_request_rejects_untrusted_certificate_after_scan(self):
+        self.http_req(self.endpoint, method='post', json={'scan': 'fixture'}, verify=False)
+        self.received.clear()
+        with self.assertRaises(requests.exceptions.SSLError):
+            self.http_req(self.endpoint, method='post', json={'credential': 'must-not-arrive'})
+        self.assertEqual(self.received, [])
 
     def test_dingding_untrusted_certificate_blocks_notification(self):
         with self.assertRaises(Exception):

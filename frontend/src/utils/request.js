@@ -91,6 +91,10 @@ request.interceptors.response.use(
             return new Promise(() => {});
         }
 
+        if (error.response?.status === 429 && error.config?.url?.includes('/user/login')) {
+            return Promise.reject(error);
+        }
+
         // 2. blob 类请求（如下载）的错误体由业务组件自行解析并提示精确信息，避免双重弹窗
         if (error.config && error.config.responseType === 'blob') {
             return Promise.reject(error);

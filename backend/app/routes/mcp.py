@@ -5,12 +5,20 @@ from flask_restx import Resource, Namespace
 from bson import ObjectId
 import csv
 import io
+import json
+from urllib.parse import urlsplit
 
 from app.utils import get_logger, auth
 from app import utils
 
 ns = Namespace('mcp', description="MCP API 接口")
 logger = get_logger()
+
+
+def csv_literal(value):
+    if isinstance(value, str) and value.lstrip(' \t\r\n').startswith(('=', '+', '-', '@')):
+        return "'" + value
+    return value
 
 @ns.route('/task_detail_export')
 class MCPTaskDetailExport(Resource):
@@ -94,9 +102,9 @@ class MCPTaskDetailExport(Resource):
             headers = sorted(list(headers_set))
             
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=headers, extrasaction='ignore')
-        writer.writeheader()
-        writer.writerows(flattened_items)
+        writer = csv.writer(output)
+        writer.writerow([csv_literal(value) for value in headers])
+        writer.writerows([csv_literal(item.get(key, '')) for key in headers] for item in flattened_items)
         
         response = make_response(output.getvalue())
         response.headers['Content-Type'] = 'text/csv; charset=utf-8'
@@ -559,7 +567,7 @@ class MCPExportServer(Resource):
             return {"code": 500, "message": f"Failed to read template: {str(e)}"}, 500
 
         # 获取当前用户 Token 与访问 Host
-        user_token = (request.headers.get("Token") or request.args.get("token") or "").strip()
+        user_token = (request.headers.get("Token") or "").strip()
 
         # 探测 Host 优先级：
         # 1. 显式 query 参数 ?host=
@@ -586,13 +594,26 @@ class MCPExportServer(Resource):
                 else:
                     host = request.host_url.rstrip("/")
 
-        # 动态注入凭据
+        try:
+            parsed = urlsplit(host)
+            if (parsed.scheme not in ('http', 'https') or not parsed.hostname
+                    or parsed.username is not None or parsed.password is not None
+                    or parsed.path not in ('', '/') or parsed.query or parsed.fragment
+                    or any(c in host for c in ('"', "'", '\\', '\r', '\n'))
+                    or any(ord(c) <= 32 for c in host)
+                    or (parsed.port is not None and not 1 <= parsed.port <= 65535)):
+                raise ValueError('Invalid host')
+        except ValueError:
+            return {'code': 400, 'message': 'Invalid server origin'}, 400
+
+        # Serialize values as Python-compatible JSON string literals, never source.
         if user_token:
-            content = content.replace('DEFAULT_TOKEN = ""', f'DEFAULT_TOKEN = "{user_token}"')
+            content = content.replace('DEFAULT_TOKEN = ""', 'DEFAULT_TOKEN = ' + json.dumps(user_token))
         if host:
-            content = content.replace('DEFAULT_HOST = ""', f'DEFAULT_HOST = "{host}"')
+            content = content.replace('DEFAULT_HOST = ""', 'DEFAULT_HOST = ' + json.dumps(host))
 
         response = make_response(content)
         response.headers['Content-Type'] = 'text/x-python; charset=utf-8'
         response.headers['Content-Disposition'] = 'attachment; filename="arl_mcp.py"'
+        response.headers['Cache-Control'] = 'private, no-store'
         return response

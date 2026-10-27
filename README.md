@@ -302,7 +302,11 @@ bash start-prod.sh
 | 验证层级 | 默认账号 | 默认密码 | 说明 |
 | :--- | :--- | :--- | :--- |
 | **第一层：Nginx Basic Auth 网关** | `admin` | `arl_next` | 前置防扫描器爆破（**默认关闭**，可在顶部导航栏安全开关处开启/关闭；修改密码需先关闭再重新开启） |
-| **第二层：ARL-Next 系统登录** | `admin` | `arlpass` | 平台主账号，首次登录后建议立即修改 |
+| **第二层：ARL-Next 系统登录** | `admin` | 首次启动随机生成 | 既有账号密码保持不变；新密码至少 12 个字符 |
+
+首次部署后，在受信宿主机执行 `docker exec arl-web-prod cat /tmp/arl_initial_admin_password` 读取初始密码；该文件权限为 `0600`，密码不会输出到启动日志。也可在首次启动前通过 `ARL_ADMIN_PASSWORD` 设置至少 12 个字符的初始密码。修改密码并确认登录成功后，可删除容器内的初始密码文件。升级不会重置已有账号；仍在使用旧默认密码的部署应主动修改。
+
+登录会话有效期为 24 小时。长期 API/MCP 集成请配置独立的 `API_KEY` 并通过请求头发送，详见 [鉴权与安全修复约定](docs/API_GUIDE.md#2-身份鉴权与安全机制)。
 
 > [!IMPORTANT]
 > **必须完成**：请确保云服务器控制台安全组及系统本地防火墙已放行 **5173** TCP 端口，否则将无法访问。
@@ -386,12 +390,12 @@ ARL-Next 提供标准化 RESTful API，支持外部自动化运维、CI/CD 流�
 <br/>
 
 **A:** 在服务器终端执行以下操作即可重置：
-- **重置平台管理员账号 (admin / arlpass)**：
+- **重置平台管理员账号 (admin)**：
   ```bash
   docker exec -it arl-web-prod /code/backend/.venv-docker/bin/python3 /code/backend/inject_user.py --reset
   ```
   > [!NOTE]
-  > 平台启动时默认保护现有密码，追加 `--reset` 参数将强制将 `admin` 密码重置为初始密码 `arlpass`。请在宿主机受信环境下执行。
+  > 平台启动时保留现有密码；追加 `--reset` 会生成新的随机密码并撤销登录会话。新密码从容器 `/tmp/arl_initial_admin_password` 读取；若设置了 `ARL_ADMIN_PASSWORD` 则使用该值。请在受信宿主机执行。
 - **重置/查看 Basic Auth 凭据**：编辑工作目录下的 `frontend/.htpasswd`，或登录系统后在顶部导航栏安全开关处开启/关闭（修改密码需先关闭再重新开启）。
 </details>
 

@@ -236,7 +236,7 @@
 
 
         <template v-else-if="column.key === 'screenshot'">
-          <img v-if="record.screenshot" :src="`/api${record.screenshot}`" style="width: 280px; height: 160px; object-fit: cover; object-position: top; cursor: pointer; border: 1px solid var(--arl-border-color); border-radius: 4px;" @click="handlePreview(`/api${record.screenshot}`)" />
+          <AuthenticatedImage v-if="record.screenshot" :src="`/api${record.screenshot}`" :preview="false" style="width: 280px; height: 160px; object-fit: cover; object-position: top; cursor: pointer; border: 1px solid var(--arl-border-color); border-radius: 4px;" @preview="handlePreview" />
           <span v-else>-</span>
         </template>
 <!--        插槽-->
@@ -628,6 +628,7 @@ defineOptions({ name: 'TaskDetail' });
 import { ref, onMounted, onUnmounted, onActivated, onDeactivated, reactive, watch, nextTick, computed, createVNode } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
+import AuthenticatedImage from '../components/AuthenticatedImage.vue';
 import HttpStatusFilter from '../components/HttpStatusFilter.vue';
 import { formatAssetFilterOperator, buildAssetFilterParams } from '../utils/assetFilters';
 import { message, Modal } from 'ant-design-vue';

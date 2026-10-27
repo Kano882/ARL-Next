@@ -1,9 +1,13 @@
 import os
 import threading
+import tempfile
 from flask import request, send_file
 from flask_restx import Namespace, fields, reqparse
 from . import ARLResource
 from app.utils import auth
+from app.config import Config
+from app.utils.user import user_login_header
+from app.utils.download_ticket import issue_download_ticket, consume_download_ticket
 from app.services.backup_service import (
     create_backup_archive,
     restore_backup_archive,
@@ -104,7 +108,6 @@ class BackupList(ARLResource):
 
 @ns.route('/download/<string:filename>')
 class DownloadBackup(ARLResource):
-    @auth
     def get(self, filename):
         """
         下载指定的备份归档文件
@@ -113,26 +116,33 @@ class DownloadBackup(ARLResource):
         if not (safe_name.startswith("arl_backup_") and safe_name.endswith(".tar.gz")):
             return {"code": 400, "message": "非法的备份文件名"}, 400
 
+        if Config.AUTH and not user_login_header() and not consume_download_ticket(request.args.get('ticket'), safe_name):
+            return {'code': 401, 'message': 'not login', 'data': {}}, 401
+
         backup_dir = get_backup_dir()
         file_path = os.path.join(backup_dir, safe_name)
-        if not os.path.isfile(file_path):
+        if not os.path.isfile(file_path) or os.path.islink(file_path):
             return {"code": 404, "message": "备份文件不存在"}, 404
 
-        try:
-            return send_file(
-                file_path,
-                as_attachment=True,
-                download_name=safe_name,
-                mimetype="application/gzip"
-            )
-        except TypeError:
-            # 兼容低版本 Flask 的 attachment_filename 参数名
-            return send_file(
-                file_path,
-                as_attachment=True,
-                attachment_filename=safe_name,
-                mimetype="application/gzip"
-            )
+        response = send_file(file_path, as_attachment=True, download_name=safe_name,
+                             mimetype='application/gzip')
+        response.headers['Cache-Control'] = 'private, no-store'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        return response
+
+
+@ns.route('/download_ticket')
+class BackupDownloadTicket(ARLResource):
+    @auth
+    def post(self):
+        filename = (request.get_json(silent=True) or {}).get('filename')
+        if (not isinstance(filename, str) or filename != os.path.basename(filename)
+                or not filename.startswith('arl_backup_') or not filename.endswith('.tar.gz')):
+            return {'code': 400, 'message': '非法的备份文件名'}, 400
+        path = os.path.join(get_backup_dir(), filename)
+        if not os.path.isfile(path) or os.path.islink(path):
+            return {'code': 404, 'message': '备份文件不存在'}, 404
+        return {'code': 200, 'message': 'success', 'data': {'ticket': issue_download_ticket(filename), 'expires_in': 60}}
 
 
 @ns.route('/delete/<string:filename>')
@@ -172,12 +182,14 @@ class UploadBackup(ARLResource):
         backup_dir = get_backup_dir()
         dest_path = os.path.join(backup_dir, orig_filename)
 
-        # 保存文件
-        file_obj.save(dest_path)
-
-        # 校验 manifest 有效性
+        # 先写入私有临时文件，校验成功后发布，不能截断已有备份。
+        fd, temp_path = tempfile.mkstemp(prefix='.upload_', dir=backup_dir)
+        os.close(fd)
         try:
-            manifest = read_archive_manifest(dest_path)
+            file_obj.save(temp_path)
+            manifest = read_archive_manifest(temp_path)
+            # link 原子地拒绝同名文件，防止并发上传互相覆盖。
+            os.link(temp_path, dest_path)
             return {
                 "code": 200,
                 "message": "备份包上传并校验成功",
@@ -190,10 +202,12 @@ class UploadBackup(ARLResource):
                     "summary": manifest.get("mongo_stats", {}).get("summary", {})
                 }
             }
+        except FileExistsError:
+            return {"code": 409, "message": "同名备份已存在，请更换文件名"}, 409
         except Exception as e:
-            if os.path.isfile(dest_path):
-                os.remove(dest_path)
             return {"code": 400, "message": f"上传的备份包无效或已损坏: {str(e)}"}
+        finally:
+            os.unlink(temp_path)
 
 
 @ns.route('/restore')
@@ -216,8 +230,9 @@ class RestoreBackup(ARLResource):
         filename = data.get('filename')
         force = data.get('force', False)
 
-        if not filename:
-            return {"code": 400, "message": "缺少必要的 filename 参数"}
+        if (not isinstance(filename, str) or filename != os.path.basename(filename)
+                or not filename.startswith('arl_backup_') or not filename.endswith('.tar.gz')):
+            return {"code": 400, "message": "非法的备份文件名"}, 400
 
         safe_name = os.path.basename(filename)
         backup_dir = get_backup_dir()

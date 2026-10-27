@@ -90,7 +90,7 @@ class BruteVhost(BaseThread):
             headers = {
                 "Host": "{}".format(domain)
             }
-            res = http_req(self.url_ip, headers=headers, timeout=(3, 6))
+            res = http_req(self.url_ip, headers=headers, timeout=(3, 6), verify=False)
             content = res.content.replace(domain.encode(), b"")
             res_type = res.headers.get("Content-Type", "")
             page = Page(url=self.url_ip, domain=domain, content=content,

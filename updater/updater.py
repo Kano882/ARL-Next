@@ -7,6 +7,9 @@ import threading
 import re
 import uuid
 import hashlib
+import hmac
+import secrets
+import tempfile
 import string
 import random
 import ipaddress
@@ -15,6 +18,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 TOKEN_FILE = "/tmp/arl_update_token"
+STATUS_TOKEN_FILE = '/tmp/arl_update_status_token'
+READ_TOKEN_FILE = '/var/lib/arl-updater/read_token.json'
 LOG_FILE = "/tmp/arl_update.log"
 PORT = 8888
 
@@ -22,6 +27,35 @@ update_thread = None
 dynamic_progress = {}
 progress_lock = threading.Lock()
 config_lock = threading.Lock()
+
+
+def issue_log_token():
+    """Persist only a digest so polling survives a backend/updater restart."""
+    token = secrets.token_urlsafe(32)
+    directory = os.path.dirname(READ_TOKEN_FILE)
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix='.read_token_', dir=directory)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            json.dump({'digest': hashlib.sha256(token.encode()).hexdigest(),
+                       'expires_at': time.time() + 3600}, stream)
+        os.replace(temporary, READ_TOKEN_FILE)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return token
+
+
+def verify_log_token(token):
+    if not token or len(token) > 128:
+        return False
+    try:
+        with open(READ_TOKEN_FILE) as stream:
+            record = json.load(stream)
+        return (time.time() < float(record['expires_at'])
+                and hmac.compare_digest(hashlib.sha256(token.encode()).hexdigest(), record['digest']))
+    except (OSError, ValueError, TypeError, KeyError):
+        return False
 
 CGNAT_NET = ipaddress.ip_network('100.64.0.0/10')
 
@@ -213,9 +247,8 @@ class PollingHandler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def _send_cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Update-Token")
+        # The frontend uses the same-origin Nginx proxy; no wildcard CORS needed.
+        self.send_header('Cache-Control', 'no-store')
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -247,9 +280,7 @@ class PollingHandler(BaseHTTPRequestHandler):
         if body_data and isinstance(body_data, dict) and body_data.get("token"):
             return str(body_data.get("token")).strip()
             
-        # 4. Query Parameter (兼容 GET)
-        query_params = parse_qs(parsed_url.query)
-        return query_params.get("token", [""])[0].strip()
+        return ''
 
     def do_POST(self):
         parsed_url = urlparse(self.path)
@@ -284,28 +315,37 @@ class PollingHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'Forbidden: External IP access denied')
             return
 
-        if parsed_url.path == "/update/trigger":
-            self.handle_trigger(parsed_url)
+        if parsed_url.path in ('/update/trigger', '/update/toggle_auth'):
+            self.send_response(405)
+            self.send_header('Allow', 'POST')
+            self.end_headers()
         elif parsed_url.path == "/update/log":
             self.handle_log(parsed_url)
         elif parsed_url.path == "/update/auth_status":
-            self.handle_auth_status()
-        elif parsed_url.path == "/update/toggle_auth":
-            self.handle_toggle_auth(parsed_url)
+            if self.verify_token(self._extract_token(parsed_url), purpose='status'):
+                self.handle_auth_status()
+            else:
+                self.send_response(403)
+                self.end_headers()
         else:
             self.send_response(404)
             self._send_cors_headers()
             self.end_headers()
 
     def _authorize_token(self, token):
-        """校验更新令牌；若 Docker 守护进程停机导致容器内校验不可达，先自愈再重试一次。"""
-        if self.verify_token(token):
+        """Reject unauthenticated requests before any host service mutation."""
+        return bool(token) and self.verify_token(token)
+
+    def _consume_control_token(self):
+        try:
+            subprocess.run(['docker', 'exec', get_web_container(), 'rm', '-f', TOKEN_FILE],
+                           check=True, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
-        # daemon 停机会使 docker exec 失败而被误判为无效令牌，
-        # 先尝试恢复 daemon 再重试，确保 ensure_docker_daemon 自愈链路真正可达
-        if not self._docker_info_ok() and self.ensure_docker_daemon():
-            return self.verify_token(token)
-        return False
+        except Exception:
+            self.send_response(503)
+            self._send_cors_headers()
+            self.end_headers()
+            return False
 
     def handle_trigger(self, parsed_url, body_data=None):
         global update_thread, dynamic_progress
@@ -319,11 +359,9 @@ class PollingHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"status": "error", "message": "Invalid token"}')
             return
 
-        # Invalidate token inside container
-        try:
-            subprocess.run(["docker", "exec", get_web_container(), "rm", "-f", TOKEN_FILE])
-        except Exception:
-            pass
+        if not self._consume_control_token():
+            return
+        log_token = issue_log_token()
 
         # clear log file
         with open(LOG_FILE, 'w', encoding='utf-8') as f:
@@ -336,7 +374,8 @@ class PollingHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self._send_cors_headers()
         self.end_headers()
-        self.wfile.write(b'{"status": "ok", "message": "Update triggered"}')
+        self.wfile.write(json.dumps({'status': 'ok', 'message': 'Update triggered',
+                                    'log_token': log_token}).encode())
 
         # Start update in background if not already running
         if update_thread is None or not update_thread.is_alive():
@@ -344,6 +383,11 @@ class PollingHandler(BaseHTTPRequestHandler):
             update_thread.start()
 
     def handle_log(self, parsed_url=None):
+        if not verify_log_token(self.headers.get('X-Update-Read-Token', '').strip()):
+            self.send_response(403)
+            self._send_cors_headers()
+            self.end_headers()
+            return
         query_params = parse_qs(parsed_url.query) if parsed_url else {}
         raw_offset = query_params.get("offset", [None])[0]
         
@@ -466,10 +510,8 @@ class PollingHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"status": "error", "message": "Invalid token"}')
             return
 
-        try:
-            subprocess.run(["docker", "exec", get_web_container(), "rm", "-f", TOKEN_FILE])
-        except Exception:
-            pass
+        if not self._consume_control_token():
+            return
 
         with config_lock:
             base_dir = get_base_dir()
@@ -863,14 +905,18 @@ class PollingHandler(BaseHTTPRequestHandler):
             with progress_lock:
                 dynamic_progress.clear()
 
-    def verify_token(self, provided_token):
-        if not provided_token:
+    def verify_token(self, provided_token, purpose='control'):
+        if not provided_token or len(provided_token) > 128:
             return False
         try:
-            result = subprocess.run(["docker", "exec", get_web_container(), "cat", TOKEN_FILE], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            path = STATUS_TOKEN_FILE if purpose == 'status' else TOKEN_FILE
+            result = subprocess.run(["docker", "exec", get_web_container(), "cat", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=5)
             if result.returncode == 0:
-                valid_token = result.stdout.strip()
-                return provided_token == valid_token and len(valid_token) > 10
+                record = json.loads(result.stdout)
+                valid_token = record.get('token', '')
+                return (record.get('purpose') == purpose and time.time() < float(record['expires_at'])
+                        and len(valid_token) >= 32
+                        and hmac.compare_digest(provided_token.encode(), valid_token.encode()))
             else:
                 print(f"[WARN] Failed to read token file: {result.stderr.strip()}", file=sys.stderr)
         except Exception as e:

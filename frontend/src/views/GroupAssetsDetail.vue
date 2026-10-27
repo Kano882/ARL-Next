@@ -397,7 +397,7 @@
         </template>
 
         <template v-else-if="column.key === 'screenshot'">
-          <img v-if="record.screenshot" :src="`/api${record.screenshot}`" style="width: 240px; height: 135px; object-fit: cover; object-position: top; cursor: pointer; border: 1px solid var(--arl-border-color); border-radius: 4px;" @click="handlePreview(`/api${record.screenshot}`)" />
+          <AuthenticatedImage v-if="record.screenshot" :src="`/api${record.screenshot}`" :preview="false" style="width: 240px; height: 135px; object-fit: cover; object-position: top; cursor: pointer; border: 1px solid var(--arl-border-color); border-radius: 4px;" @preview="handlePreview" />
           <span v-else>-</span>
         </template>
 
@@ -959,6 +959,7 @@ onUnmounted(() => {
 
 import { useRoute, useRouter } from 'vue-router';
 import request from '../utils/request';
+import AuthenticatedImage from '../components/AuthenticatedImage.vue';
 import HttpStatusFilter from '../components/HttpStatusFilter.vue';
 import { buildAssetFilterParams, formatAssetFilterOperator } from '../utils/assetFilters';
 import { formatGeo } from '../utils/formatGeo';

@@ -275,14 +275,18 @@ const startUpdate = async () => {
       updateElapsedSeconds.value++;
     }, 1000);
 
-    const triggerUrl = `/update_stream/trigger?token=${token}`;
+    const triggerUrl = '/update_stream/trigger';
+    let logToken = '';
     try {
-      const triggerRes = await fetch(triggerUrl);
+      const triggerRes = await fetch(triggerUrl, { method: 'POST', headers: { 'X-Update-Token': token } });
       if (!triggerRes.ok) {
         updateLogs.value += pageText('pages.errorUpdateRequestFailedTheServiceReturnedAnUnexpected');
         finishUpdate('pages.failedToStartUpdate', { hasError: true });
         return;
       }
+      const triggerData = await triggerRes.json();
+      logToken = triggerData.log_token;
+      if (!logToken) throw new Error('Missing updater log token');
     } catch (e) {
       updateLogs.value += pageText('pages.errorCannotConnectToTheUpdateServiceCheckThe');
       finishUpdate('pages.cannotConnectToUpdateService', { hasError: true });
@@ -296,8 +300,12 @@ const startUpdate = async () => {
     updatePollInterval.value = setInterval(async () => {
       try {
         const pollUrl = `/update_stream/log?offset=${logByteOffset.value}`;
-        const logRes = await fetch(pollUrl);
+        const logRes = await fetch(pollUrl, { headers: { 'X-Update-Read-Token': logToken } });
         if (!logRes.ok) {
+          if (logRes.status === 403) {
+            finishUpdate('pages.failedToObtainUpdateToken', { hasError: true });
+            return;
+          }
           if (logRes.status === 401) {
             finishUpdate('pages.systemUpdatedBasicAuthProtectionIsActive', { progress: 100 });
             updateLogs.value += pageText('pages.doneSystemUpdatedBasicAuthProtectionIsActiveRefresh');

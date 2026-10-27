@@ -1242,6 +1242,18 @@ def migrate_icp_auto_group_intent():
         logging.getLogger().error(f"migrate_icp_auto_group_intent failed: {e}")
 
 
+def migrate_user_sessions():
+    """Give legacy sessions a bounded grace period; never expire user documents."""
+    from datetime import datetime, timedelta, timezone
+    conn_db('user').update_many(
+        {'token': {'$type': 'string', '$ne': ''}, 'token_expire_at': {'$exists': False}},
+        {'$set': {'token_expire_at': datetime.now(timezone.utc) + timedelta(hours=24)}},
+    )
+    conn_db('user').create_index('token', background=True)
+    conn_db('auth_attempts').create_index('expire_at', expireAfterSeconds=0, background=True)
+    conn_db('download_ticket').create_index('expire_at', expireAfterSeconds=0, background=True)
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -1300,6 +1312,7 @@ def arl_update():
         _run_step("fingerprint_info_update", fingerprint_info_update)
         _run_step("update_task_tag", update_task_tag)
         _run_step("create_index", create_index)
+        _run_step("migrate_user_sessions", migrate_user_sessions)
         _run_step("npoc_info_update", npoc_info_update)
         _run_step("cleanup_asset_scope_dead_fields", cleanup_asset_scope_dead_fields)
         _run_step("migrate_asset_scope_domain_status", migrate_asset_scope_domain_status)

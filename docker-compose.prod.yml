@@ -51,6 +51,7 @@ services:
       - TZ=Asia/Shanghai
       - DEBIAN_FRONTEND=noninteractive
       - NO_PROXY=localhost,127.0.0.1,osint-service,mongodb,rabbitmq
+      - ARL_ADMIN_PASSWORD=${ARL_ADMIN_PASSWORD:-}
     ulimits:
       nofile:
         soft: 65535
