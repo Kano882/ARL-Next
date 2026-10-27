@@ -47,6 +47,13 @@ def test_allowed_ranges_and_fail_closed_policy(policy):
     assert not check('198.51.100.1')
 
 
+def test_corrupted_black_ips_entry_does_not_block_valid_targets(policy):
+    check, security = policy
+    security.get_security_policy = lambda: (['bad-rule-value', '192.0.2.20/32'], [])
+    assert check('198.51.100.1')
+    assert not check('192.0.2.20')
+
+
 @pytest.mark.parametrize('address', ['127.0.0.1', '::1', '::ffff:127.0.0.1', '169.254.169.254',
                                     '0.0.0.0', '224.0.0.1', '172.18.0.2'])
 def test_favicon_forbidden_addresses_rejected_before_transport(monkeypatch, address):

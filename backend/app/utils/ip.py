@@ -63,7 +63,11 @@ def not_in_black_ips(target):
         black_ips, _ = get_security_policy()
         version, first, last = interval(target)
         for blocked in black_ips:
-            blocked_version, blocked_first, blocked_last = interval(blocked)
+            try:
+                blocked_version, blocked_first, blocked_last = interval(blocked)
+            except Exception as be:
+                logger.warning("invalid black_ips entry {}: {}".format(blocked, be))
+                continue
             if version == blocked_version and first <= blocked_last and blocked_first <= last:
                 return False
     except Exception as e:

@@ -52,6 +52,35 @@ class SecurityPolicy(ARLResource):
         black_ips = list({ip.strip() for ip in black_ips if ip.strip()})
         forbidden_domains = list({domain.strip() for domain in forbidden_domains if domain.strip()})
 
+        # 校验黑名单格式，防止非法规则导致策略解析异常
+        import ipaddress
+        invalid_ips = []
+        for item in black_ips:
+            try:
+                if '-' in item:
+                    first, last = item.split('-', 1)
+                    start = ipaddress.ip_address(first.strip())
+                    last_str = last.strip()
+                    if start.version == 4 and last_str.isdigit():
+                        last_str = first.strip().rsplit('.', 1)[0] + '.' + last_str
+                    end = ipaddress.ip_address(last_str)
+                    if start.version != end.version or int(start) > int(end):
+                        raise ValueError()
+                elif '/' in item:
+                    ipaddress.ip_network(item, strict=False)
+                else:
+                    addr = ipaddress.ip_address(item)
+                    if getattr(addr, 'ipv4_mapped', None):
+                        addr = addr.ipv4_mapped
+            except Exception:
+                invalid_ips.append(item)
+
+        if invalid_ips:
+            return {
+                "code": 400,
+                "message": f"存在非法的 IP 黑名单条目: {', '.join(invalid_ips[:5])}"
+            }, 400
+
         update_security_policy(black_ips, forbidden_domains)
 
         return {

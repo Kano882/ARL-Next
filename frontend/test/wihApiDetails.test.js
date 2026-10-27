@@ -5,11 +5,14 @@ import * as vue from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { parse, compileScript, babelParse } from 'vue/compiler-sfc';
 import { useI18n } from 'vue-i18n';
-import { i18n } from '../src/i18n/index.js';
+import { i18n, loadLocaleMessages } from '../src/i18n/index.js';
 import { getWihApiDetails, isApiEndpointRecord, PROBE_REASON_KEYS } from '../src/utils/wihApi.js';
 import zh from '../src/i18n/wihApi.zh-CN.js';
 import en from '../src/i18n/wihApi.en-US.js';
 import ru from '../src/i18n/wihApi.ru-RU.js';
+
+await loadLocaleMessages('en-US');
+await loadLocaleMessages('ru-RU');
 
 const text = (...args) => i18n.global.t(...args);
 afterEach(() => { i18n.global.locale.value = 'zh-CN'; });
