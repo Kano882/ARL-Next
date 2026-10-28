@@ -298,6 +298,7 @@ ARL-Next 集成了 Model Context Protocol (MCP 2024-11-05 规范)，支持 AI �
 | `/mcp/sse` | HTTP GET (`text/event-stream`) | 远程 MCP SSE 握手端点，维持长连接并推送 `endpoint` 与消息事件 | `Authorization: Bearer <TOKEN>`、`Token: <TOKEN>` 或 `?token=<TOKEN>` |
 | `/mcp/message` | HTTP POST (`application/json`) | 远程 MCP 消息上行端点，接收 JSON-RPC 2.0 请求（需携带 `?sessionId=`） | 同上 |
 | `/api/mcp/asset_profile` | HTTP GET (`application/json`) | 原生多维资产画像聚合接口，跨集合提取网络/Web/证书/漏洞/泄露情报 | `Token: <TOKEN>` |
+| `/api/mcp/enterprise_profile` | HTTP GET (`application/json`) | 原生企业生态资产画像聚合接口，自适应解析企业、提供概览统计与分维度下钻 | `Token: <TOKEN>` |
 | `/api/mcp/export_server` | HTTP GET (`text/x-python`) | 动态生成并导出已预填充凭据的独立单文件客户端脚本 (`arl_mcp.py`) | `Token: <TOKEN>` |
 | `/api/mcp/task_detail_export`| HTTP GET (`text/csv`) | 任务详情分维度安全 CSV 数据导出（内置公式注入防御） | `Token: <TOKEN>` |
 | `/api/mcp/overview` | HTTP GET (`application/json`) | MCP 治理中心大盘与调用统计概览（调用量、活跃 Key、异常数） | `Token: <TOKEN>` |
@@ -311,6 +312,7 @@ ARL-Next 集成了 Model Context Protocol (MCP 2024-11-05 规范)，支持 AI �
 | 工具名称 | 类别 | 核心入参 | 功能说明 | 启用条件 |
 | :--- | :--- | :--- | :--- | :--- |
 | `get_asset_profile` | 只读画像 | `target` (必填), `task_id` (可选) | 综合资产情报关联（IP/端口/服务/Web指纹/证书/漏洞/泄露） | 默认启用 |
+| `get_enterprise_profile` | 只读画像 | `target` (必填), `category`, `page`, `size`, `task_id` | 企业全景生态资产画像与组织架构（工商背景、ICP备案、APP、小程序、公众号、微博、投资关系） | 默认启用 |
 | `search_assets` | 只读检索 | `query` (必填), `asset_type`, `limit` | 依条件检索站点、IP、域名或已知漏洞记录 | 默认启用 |
 | `get_task_status` | 只读状态 | `task_id` (必填) | 查询任务执行状态、进度与统计数据 | 默认启用 |
 | `create_scan_task` | 受控调度 | `name`, `target`, `policy_id` | 向 Celery 队列投递新扫描任务 | 需服务端配置 `ARL_MCP_ENABLE_DISPATCH=true` |

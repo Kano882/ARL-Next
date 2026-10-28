@@ -139,7 +139,7 @@ class MCPTaskDetailExport(Resource):
         return response
 
 
-from app.mcp_asset import build_asset_profile, _clean_empty
+from app.mcp_asset import build_asset_profile, build_enterprise_profile, _clean_empty
 
 
 @ns.route('/asset_profile')
@@ -155,6 +155,26 @@ class MCPAssetProfile(Resource):
             return {"code": 400, "message": "Missing target parameter"}, 400
 
         data = build_asset_profile(target, task_id)
+        return data
+
+
+@ns.route('/enterprise_profile')
+class MCPEnterpriseProfile(Resource):
+    @auth
+    def get(self):
+        """
+        MCP 企业生态资产画像接口（自适应识别企业、总览指标、核心样本与分维度下钻）
+        """
+        target = request.args.get('target', '').strip()
+        task_id = request.args.get('task_id', '').strip()
+        category = request.args.get('category', 'all').strip()
+        page = request.args.get('page', 1)
+        size = request.args.get('size', 20)
+
+        if not target and not task_id:
+            return {"code": 400, "message": "Target or task_id parameter is required"}, 400
+
+        data = build_enterprise_profile(target=target, category=category, page=page, size=size, task_id=task_id)
         return data
 
 
@@ -585,6 +605,7 @@ class MCPConfig(Resource):
             cfg = {
                 "tool_switches": {
                     "get_asset_profile": True,
+                    "get_enterprise_profile": True,
                     "search_assets": True,
                     "get_task_status": True,
                     "create_scan_task": False,

@@ -22,13 +22,13 @@ from typing import Dict, Optional, Tuple, Set
 try:
     from app import utils
     from app.config import Config
-    from app.mcp_asset import build_asset_profile, _clean_empty
+    from app.mcp_asset import build_asset_profile, build_enterprise_profile, _clean_empty
 except ImportError:
     # 允许作为单脚本在不同路径下启动加载
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from app import utils
     from app.config import Config
-    from app.mcp_asset import build_asset_profile, _clean_empty
+    from app.mcp_asset import build_asset_profile, build_enterprise_profile, _clean_empty
 
 logger = logging.getLogger("arl_mcp")
 if not logger.handlers:
@@ -55,6 +55,41 @@ TOOL_GET_ASSET_PROFILE = {
             "task_id": {
                 "type": "string",
                 "description": "可选。24位任务 ID。若指定则锁定该任务上下文，未指定则智能匹配最新任务或全局资产"
+            }
+        },
+        "required": ["target"]
+    }
+}
+
+TOOL_GET_ENTERPRISE_PROFILE = {
+    "name": "get_enterprise_profile",
+    "description": "获取指定企业标的（企业全称、简称、备案域名如 qq.com 或备案号）的全景生态资产画像与组织架构（包括工商背景、ICP备案网站、移动APP、微信小程序、公众号、企业微博、快应用及投资控股关系）。支持按资产分类下钻分页查询。",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "target": {
+                "type": "string",
+                "description": "企业标的，支持企业工商全称（如'深圳市腾讯计算机系统有限公司'）、企业商业简称（如'腾讯'）、根域名（如'qq.com'，自动反查所属企业）或 ICP 备案主体/备案号"
+            },
+            "category": {
+                "type": "string",
+                "enum": ["all", "web", "app", "mapp", "wechat", "weibo", "kapp", "invest"],
+                "default": "all",
+                "description": "查询维度：'all'（默认总览画像与各维度统计指标）；'web'（网站备案域名）；'app'（移动应用）；'mapp'（微信小程序）；'wechat'（微信公众号）；'weibo'（企业微博）；'kapp'（快应用）；'invest'（对外投资与控股子公司）"
+            },
+            "page": {
+                "type": "integer",
+                "default": 1,
+                "description": "下钻指定 category 时的页码（从 1 开始）"
+            },
+            "size": {
+                "type": "integer",
+                "default": 20,
+                "description": "下钻指定 category 时每页记录条数（默认 20，最大 100）"
+            },
+            "task_id": {
+                "type": "string",
+                "description": "可选。24位企业测绘任务 ID。若指定则直接锁定该任务历史数据"
             }
         },
         "required": ["target"]
@@ -166,7 +201,7 @@ class MCPServer:
         self._dispatch_enabled = os.environ.get("ARL_MCP_ENABLE_DISPATCH", "").strip().lower() in ("true", "1", "yes")
 
     def get_supported_tools(self) -> list:
-        tools = [TOOL_GET_ASSET_PROFILE, TOOL_SEARCH_ASSETS, TOOL_GET_TASK_STATUS]
+        tools = [TOOL_GET_ASSET_PROFILE, TOOL_GET_ENTERPRISE_PROFILE, TOOL_SEARCH_ASSETS, TOOL_GET_TASK_STATUS]
         if self._dispatch_enabled:
             tools.extend([TOOL_CREATE_SCAN_TASK, TOOL_STOP_SCAN_TASK])
         return tools
@@ -274,6 +309,8 @@ class MCPServer:
                 elif not is_err and isinstance(result, dict):
                     if tool_name == "get_asset_profile":
                         summary = f"状态: {result.get('status', 'ok')}"
+                    elif tool_name == "get_enterprise_profile":
+                        summary = f"企业: {result.get('enterprise_name') or target} (状态: {result.get('status', 'ok')})"
                     elif tool_name == "search_assets":
                         summary = f"命中 {result.get('total', 0)} 条记录"
                     elif tool_name == "get_task_status":
@@ -351,6 +388,20 @@ class MCPServer:
                     return result, is_err
                 # 在线程池中执行同步的 MongoDB 聚合查询，不阻塞主事件循环
                 profile = await asyncio.to_thread(build_asset_profile, target_param, task_id)
+                is_err = isinstance(profile, dict) and profile.get("status") in ("auth_error", "error")
+                result = profile
+                return result, is_err
+
+            elif name == "get_enterprise_profile":
+                target_param = str(args.get("target", "")).strip()
+                category = str(args.get("category", "all")).strip()
+                task_id = str(args.get("task_id", "")).strip()
+                page = args.get("page", 1)
+                size = args.get("size", 20)
+                if not target_param and not task_id:
+                    result, is_err = {"status": "error", "message": "Missing required parameter: target"}, True
+                    return result, is_err
+                profile = await asyncio.to_thread(build_enterprise_profile, target_param, category, page, size, task_id)
                 is_err = isinstance(profile, dict) and profile.get("status") in ("auth_error", "error")
                 result = profile
                 return result, is_err

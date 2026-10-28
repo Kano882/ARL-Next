@@ -296,6 +296,7 @@ ARL-Next integrates the Model Context Protocol (MCP 2024-11-05 specification) fo
 | `/mcp/sse` | HTTP GET (`text/event-stream`) | Remote MCP SSE handshake endpoint; maintains persistent stream and yields `endpoint` events | `Authorization: Bearer <TOKEN>`, `Token: <TOKEN>`, or `?token=<TOKEN>` |
 | `/mcp/message` | HTTP POST (`application/json`) | Remote MCP upstream channel; receives JSON-RPC 2.0 messages (requires `?sessionId=`) | Same as above |
 | `/api/mcp/asset_profile` | HTTP GET (`application/json`) | Native multi-dimensional asset profiling REST endpoint across network/web/cert/vuln collections | `Token: <TOKEN>` |
+| `/api/mcp/enterprise_profile` | HTTP GET (`application/json`) | Native enterprise ecosystem asset profiling endpoint with adaptive target routing, overview metrics, and dimension drilldown | `Token: <TOKEN>` |
 | `/api/mcp/export_server` | HTTP GET (`text/x-python`) | Dynamically generates and exports pre-credentialed standalone client script (`arl_mcp.py`) | `Token: <TOKEN>` |
 | `/api/mcp/task_detail_export`| HTTP GET (`text/csv`) | Task detail CSV export across specific tabs with formula injection mitigation | `Token: <TOKEN>` |
 | `/api/mcp/overview` | HTTP GET (`application/json`) | MCP Governance Center dashboard & call stats (call count, active keys, error count) | `Token: <TOKEN>` |
@@ -309,6 +310,7 @@ ARL-Next integrates the Model Context Protocol (MCP 2024-11-05 specification) fo
 | Tool Name | Category | Primary Inputs | Description | Activation Condition |
 | :--- | :--- | :--- | :--- | :--- |
 | `get_asset_profile` | Read-only Profile | `target` (required), `task_id` (optional) | Unified asset intelligence correlation (IPs, ports, services, fingerprints, certs, vulns, leaks) | Enabled by default |
+| `get_enterprise_profile` | Read-only Profile | `target` (required), `category`, `page`, `size`, `task_id` | Enterprise ecosystem profile and organizational structure (corporate background, ICP domains, mobile apps, mini programs, official accounts, Weibo, investments) | Enabled by default |
 | `search_assets` | Read-only Search | `query` (required), `asset_type`, `limit` | Searches sites, IPs, domains, or known vulnerabilities | Enabled by default |
 | `get_task_status` | Read-only Status | `task_id` (required) | Inspects scanning progress, execution state, and metric counts | Enabled by default |
 | `create_scan_task` | Controlled Dispatch | `name`, `target`, `policy_id` | Submits a scan task to the Celery worker queue | Requires `ARL_MCP_ENABLE_DISPATCH=true` |
