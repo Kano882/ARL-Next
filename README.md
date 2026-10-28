@@ -69,7 +69,7 @@
 
 ### <span id="core-features"></span>✨ 核心特性矩阵
 
-* 🤖 **MCP 标准协议集成**：提供基于 Python 标准库的原生 MCP Server，仅注册单一工具 `get_asset_profile`，支持外部 Agent 通过标准协议检索单标的多维资产画像（任务下发与策略调度能力持续接入中）。（👉 [MCP 配置指南](./mcp-server/README.md)）
+* 🤖 **AI Agent 原生集成 (MCP 2.0)**：遵循 Model Context Protocol (2024-11-05) 标准，提供 **远程原生 SSE 直连**（Cursor / Claude Desktop 粘贴即用）与 **本地 Stdio 桥接**（自签证书 / 内网专网开箱即通）双模支持；基于独立异步微服务容器解耦长连接，覆盖五维资产画像、条件检索、状态追踪及受控扫描调度。（👉 [MCP 配置手册](./mcp-server/README.md)）
 * ⚙️ **异步解耦并发调度**：微服务拆分与独立任务队列分流，结合批量数据落库优化，保障高吞吐扫描平稳运行。
 * 🌐 **多级资产组与深度融合**：企业资产查询深度融入资产组管理架构，支持集团多级架构管理、多类型 ICP（网站 / APP / 小程序 / 快应用）与生态资产自动化关联及网络暴露面统一测绘。
 * 🔍 **现代资产测绘基准**：基于 Nmap 7.95 稳定版；内置原生 Python 敏感凭据与信息流式提取引擎。
@@ -144,11 +144,13 @@ ARL-Next 采用前后端解耦、异步分布式任务队列与轻量微服务�
 graph TD
     %% 1. 接入层
     User["👨‍💻 安全分析师 (浏览器)"] -->|"HTTPS (5173，Basic Auth 可选)"| Nginx["🖥️ Frontend (Nginx + Vue 3.5)"]
-    Agent["🤖 AI Agent (Claude / Cursor)"] -.->|"MCP 协议 (Stdio)"| MCP["🤖 MCP Server (Python 原生)"]
+    Agent["🤖 AI Agent (Claude / Cursor)"] -->|"轨道 1: 远程直连 (SSE /mcp/sse)"| Nginx
+    Agent -.->|"轨道 2: 本地脚本 (Stdio 桥接)"| MCP_Stdio["🤖 本地 Stdio 脚本 (arl_mcp.py)"]
 
-    %% 2. API 网关层
+    %% 2. API 网关与微服务层
     Nginx -->|"REST API 反代 (5000)"| Backend["⚙️ Backend API (Gunicorn / Python 3.13)"]
-    MCP -->|"HTTPS / API Token (5173 反代)"| Nginx
+    Nginx -->|"SSE 长连接流式反代 (5005)"| MCP_Service["🚀 arl-mcp 异步微服务 (Python asyncio)"]
+    MCP_Stdio -->|"HTTPS / API Token (5173 反代)"| Nginx
 
     %% 3. 调度与任务分流 (双轨解耦)
     Backend -->|"1. 同步 HTTP 直调 (16181)"| OSINT["🧩 OSINT 微服务"]
@@ -180,7 +182,7 @@ graph TD
     classDef micro fill:#fffbeb,stroke:#f59e0b,stroke-width:1px;
     
     class Nginx,Backend,WorkerCluster,W_Light,W_Heavy,W_Git core;
-    class Agent,MCP ai;
+    class Agent,MCP_Stdio,MCP_Service ai;
     class DB,MQ db;
     class OSINT,Puppeteer,Autoheal,Scheduler micro;
 ```
@@ -188,7 +190,7 @@ graph TD
 ### 核心架构要点：
 
 1. 🖥️ **展示与网关 (Frontend / Nginx)**：基于 **Vue 3.5 + Nginx**，支持核心数据表格与操作栏 **Sticky 悬浮吸附**；提供 **Basic Auth 前置网关防护**（默认关闭，可在顶部导航栏开启）。
-2. ⚙️ **业务与协议接入 (Backend / MCP)**：基于 **Python 3.13 + Gunicorn**；提供 **原生 Python MCP** 协议适配，支持标准协议接口与多维资产画像查询能力。
+2. ⚙️ **业务与协议接入 (Backend / MCP)**：主业务基于 **Python 3.13 + Gunicorn**；配备独立的 **`arl-mcp` 异步微服务容器**，原生承载 MCP SSE 长连接与标准协议接口，实现多维资产画像与受控调度。
 3. 🧩 **OSINT 独立微服务**：专职企业资产与 ICP 情报采集，由 Backend 通过 HTTP 直接调用（含 5s 超时保护），**独立于 Celery 扫描队列以规避长耗时任务阻塞**。
 4. ⚡ **多队列 Worker 集群**：划分**轻量/重载/威胁情报**独立队列；通过 Worker 子进程生命周期轮转机制控制内存增长；**测绘执行引擎统一至 Nmap 7.95 稳定版**。
 5. 🛡️ **微服务与守护探针 (Puppeteer / Autoheal)**：无头截图容器化隔离并支持请求计数轮转；**Autoheal 守护进程定时探活扫描 Worker 并自动重启异常容器**；纯 Python 引擎高效提取敏感信息。

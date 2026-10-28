@@ -67,7 +67,7 @@
 
 ### <span id="core-features"></span>✨ Core Feature Matrix
 
-* 🤖 **Native MCP Protocol Integration**: Standalone standard library-based MCP Server exposing a single `get_asset_profile` tool, enabling AI agents to inspect multi-dimensional target asset profiles via standard interfaces (task dispatch and policy scheduling capabilities are still being integrated). (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
+* 🤖 **Native AI Agent Integration (MCP 2.0)**: Compliant with the Model Context Protocol (2024-11-05) standard, providing dual-mode support for **Remote Native SSE Direct Connection** (copy-paste ready for Cursor / Claude Desktop) and **Local Stdio Bridge** (out-of-the-box for self-signed certificates / private networks); decoupled via an independent asynchronous microservice container to isolate long-lived connections, covering 5-dimensional asset profiling, conditional query, status tracking, and controlled scan task dispatch. (👉 [MCP Configuration Guide](./mcp-server/README_en.md))
 * ⚙️ **Asynchronous Decoupled Scheduling**: Microservice isolation with dedicated queues and bulk MongoDB operations ensures stable execution under high-throughput scanning workloads.
 * 🌐 **Hierarchical Asset Group Management**: Integrated corporate asset discovery supporting multi-tier organizational structures, multi-category ICP association (Web / APP / Mini-program / Quick App), and unified attack surface mapping.
 * 🔍 **Modern Reconnaissance Baseline**: Standardized on Nmap 7.95 Stable; native Python streaming engine for sensitive information and credential discovery.
@@ -142,11 +142,13 @@ ARL-Next adopts a decoupled frontend-backend architecture with asynchronous dist
 graph TD
     %% 1. Access Layer
     User["👨‍💻 Security Analyst (Browser)"] -->|"HTTPS (5173, Basic Auth optional)"| Nginx["🖥️ Frontend (Nginx + Vue 3.5)"]
-    Agent["🤖 AI Agent (Claude / Cursor)"] -.->|"MCP Protocol (Stdio)"| MCP["🤖 MCP Server (Native Python)"]
+    Agent["🤖 AI Agent (Claude / Cursor)"] -->|"Track 1: Remote Direct (SSE /mcp/sse)"| Nginx
+    Agent -.->|"Track 2: Local Script (Stdio Bridge)"| MCP_Stdio["🤖 Local Stdio Script (arl_mcp.py)"]
 
-    %% 2. API Gateway Layer
+    %% 2. API Gateway & Microservice Layer
     Nginx -->|"REST API Reverse Proxy (5000)"| Backend["⚙️ Backend API (Gunicorn / Python 3.13)"]
-    MCP -->|"HTTPS / API Token Reverse Proxy (5173)"| Nginx
+    Nginx -->|"SSE Persistent Stream Reverse Proxy (5005)"| MCP_Service["🚀 arl-mcp Async Microservice (Python asyncio)"]
+    MCP_Stdio -->|"HTTPS / API Token (5173 Proxy)"| Nginx
 
     %% 3. Dispatch & Task Routing (Dual-Track Decoupling)
     Backend -->|"1. Synchronous HTTP Call (16181)"| OSINT["🧩 OSINT Microservice"]
@@ -178,7 +180,7 @@ graph TD
     classDef micro fill:#fffbeb,stroke:#f59e0b,stroke-width:1px;
     
     class Nginx,Backend,WorkerCluster,W_Light,W_Heavy,W_Git core;
-    class Agent,MCP ai;
+    class Agent,MCP_Stdio,MCP_Service ai;
     class DB,MQ db;
     class OSINT,Puppeteer,Autoheal,Scheduler micro;
 ```
@@ -186,7 +188,7 @@ graph TD
 ### Key Architectural Highlights:
 
 1. 🖥️ **Presentation & Gateway (Frontend / Nginx)**: Built with **Vue 3.5 + Nginx**, featuring core table sticky headers and floating action toolbars; provides **frontline Basic Auth gateway protection** (disabled by default, toggleable from the top navigation bar).
-2. ⚙️ **Core API & Protocol Integration (Backend / MCP)**: Powered by **Python 3.13 + Gunicorn**; provides **native Python MCP** protocol adaptation supporting standard interfaces and multi-dimensional asset profile queries.
+2. ⚙️ **Core API & Protocol Integration (Backend / MCP)**: Main business logic powered by **Python 3.13 + Gunicorn**; equipped with a dedicated **`arl-mcp` asynchronous microservice container** natively handling MCP SSE persistent streams and standard protocol endpoints for multi-dimensional asset profiling and controlled task dispatch.
 3. 🧩 **Dedicated OSINT Microservice**: Dedicated engine for corporate asset discovery and ICP lookup; invoked synchronously by the backend over HTTP (5s timeout guard) and **isolated from Celery scan queues to prevent long-running tasks from stalling them**.
 4. ⚡ **Multi-Queue Worker Cluster**: Segregated into **lightweight**, **heavyweight**, and **threat intelligence** task queues; controls worker memory growth through subprocess lifecycle recycling; standardizes on **Nmap 7.95 Stable**.
 5. 🛡️ **Microservices & Autoheal Watchdog (Puppeteer / Autoheal)**: Containerized headless browser isolation with request-count recycling; **Autoheal watchdog periodically checks scan workers and automatically restarts unresponsive containers**; pure Python engine for streaming sensitive data discovery.

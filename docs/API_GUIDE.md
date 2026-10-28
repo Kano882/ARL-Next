@@ -284,3 +284,33 @@ rules:
 - 历史记录缺少结构化信息时保留原始内容和来源，不推断方法或可达性。切换任务、资产组、页签或离开页面时关闭详情，避免混淆记录归属。界面文案随中、英、俄语言设置更新，原始响应及来源保持原值。
 
 列表查询、筛选、计数、导出、删除权限及扫描流程沿用原有行为，新增详情不要求迁移历史记录。
+
+---
+
+## 6. MCP 协议端点约定 (Model Context Protocol)
+
+ARL-Next 集成了 Model Context Protocol (MCP 2024-11-05 规范)，支持 AI 协同分析与外部智能体对接。系统提供**远程原生 SSE** 与 **本地 Stdio 桥接** 双模支持。
+
+### 端点清单
+
+| 访问路径 | 协议与动词 | 说明 | 鉴权通道 |
+| :--- | :--- | :--- | :--- |
+| `/mcp/sse` | HTTP GET (`text/event-stream`) | 远程 MCP SSE 握手端点，维持长连接并推送 `endpoint` 与消息事件 | `Authorization: Bearer <TOKEN>`、`Token: <TOKEN>` 或 `?token=<TOKEN>` |
+| `/mcp/message` | HTTP POST (`application/json`) | 远程 MCP 消息上行端点，接收 JSON-RPC 2.0 请求（需携带 `?sessionId=`） | 同上 |
+| `/api/mcp/asset_profile` | HTTP GET (`application/json`) | 原生多维资产画像聚合接口，跨集合提取网络/Web/证书/漏洞/泄露情报 | `Token: <TOKEN>` |
+| `/api/mcp/export_server` | HTTP GET (`text/x-python`) | 动态生成并导出已预填充凭据的独立单文件客户端脚本 (`arl_mcp.py`) | `Token: <TOKEN>` |
+| `/api/mcp/task_detail_export`| HTTP GET (`text/csv`) | 任务详情分维度安全 CSV 数据导出（内置公式注入防御） | `Token: <TOKEN>` |
+
+### 渐进式工具集规范
+
+| 工具名称 | 类别 | 核心入参 | 功能说明 | 启用条件 |
+| :--- | :--- | :--- | :--- | :--- |
+| `get_asset_profile` | 只读画像 | `target` (必填), `task_id` (可选) | 综合资产情报关联（IP/端口/服务/Web指纹/证书/漏洞/泄露） | 默认启用 |
+| `search_assets` | 只读检索 | `query` (必填), `asset_type`, `limit` | 依条件检索站点、IP、域名或已知漏洞记录 | 默认启用 |
+| `get_task_status` | 只读状态 | `task_id` (必填) | 查询任务执行状态、进度与统计数据 | 默认启用 |
+| `create_scan_task` | 受控调度 | `name`, `target`, `policy_id` | 向 Celery 队列投递新扫描任务 | 需服务端配置 `ARL_MCP_ENABLE_DISPATCH=true` |
+| `stop_scan_task` | 受控调度 | `task_id` (必填) | 紧急终止进行中的扫描任务 | 需服务端配置 `ARL_MCP_ENABLE_DISPATCH=true` |
+
+> [!NOTE]
+> - 生产反向代理已针对 `/mcp/sse` 配置专用流式转发（禁用缓冲、长连接保活 24 小时）；
+> - 经 IP 访问自签证书部署时，客户端若因 TLS 校验阻断直连，推荐使用本地 Stdio 脚本接入（已内置证书自适应），或为客户端配置 `NODE_TLS_REJECT_UNAUTHORIZED=0`。

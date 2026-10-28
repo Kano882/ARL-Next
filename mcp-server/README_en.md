@@ -5,122 +5,195 @@
   </p>
 </div>
 
-# ARL-Next MCP Server (v2.0 Lightweight Edition)
+# ARL-Next MCP Server (v2.0)
 
-HTTPS validates the certificate chain by default. The certificate auto-issued on first startup is `CN=localhost` with no SAN extension, which cannot cover a LAN IP, so behavior depends on the deployment shape:
+> **Bring Enterprise Attack Surface Reconnaissance & Asset Intelligence to AI Agents**<br>
+> Compliant with the Model Context Protocol (2024-11-05) standard, deeply adapted for **Cursor, Claude Desktop, Claude Code, Antigravity, and Windsurf**.
 
-| Deployment | `ARL_HOST` | Configuration |
-| :--- | :--- | :--- |
-| Client on the same host as the server | `https://127.0.0.1:5173` | **None.** `certs/arl.crt` (or `ARL_LOCAL_CERT` in `ARL_auth.md`) is trusted automatically |
-| Trusted domain certificate deployed | `https://arl.example.com` | **None.** Chain and hostname are fully verified |
-| Remote self-signed deployment (accessed by IP) | `https://<server-ip>:5173` | Copy the server certificate to the client and set `ARL_CA_BUNDLE=/abs/path/arl.crt` |
-
-In the remote self-signed case the certificate carries no SAN for that IP, so hostname matching has no solution. The chain is still verified (any certificate outside `ARL_CA_BUNDLE` is rejected, so the connection cannot be substituted); only hostname matching is skipped, with a notice on stderr. Set `ARL_STRICT_HOSTNAME=true` to require a hostname match, or issue a server certificate carrying an IP/domain SAN for full verification.
-
-`ARL_TLS_VERIFY=false` explicitly disables all verification for temporary testing. It cannot authenticate the server and the connection may be intercepted by a man-in-the-middle (the client prints a one-time warning on stderr); use it only for temporary tests. When unset, chain verification is always enabled.
-
-Legacy REST fallback reports authentication and query failures as tool errors. `not_found` is returned only after successful queries with no matching asset.
-
-> **Low Token Footprint · Standard Library Implementation · Broad Client Compatibility**<br>
-> An asset reconnaissance intelligence protocol tailored for AI agents including **Antigravity, Claude Code, OpenAI Codex, DeepSeek Harness, ZCode, WorkBuddy**, and others.
+<p align="center">
+  <a href="#cursor"><b>⚡ Cursor Integration</b></a> •
+  <a href="#claude-desktop"><b>🖥️ Claude Desktop</b></a> •
+  <a href="#claude-code"><b>💻 Claude Code CLI</b></a> •
+  <a href="#antigravity-windsurf"><b>🚀 Antigravity / Windsurf</b></a> •
+  <a href="#tools"><b>🧩 Capabilities & Prompts</b></a> •
+  <a href="#faq"><b>🚨 Troubleshooting</b></a> •
+  <a href="#architecture"><b>⚙️ Architecture & Internals</b></a>
+</p>
 
 ---
 
-## 🌟 Core Features & Design Principles
+## ⚡ 10-Second Quick Start (Choose by Your Client)
 
-> [!NOTE]
-> **TLS Certificate Verification**: The MCP client verifies the certificate chain and hostname by default. For a loopback deployment (`ARL_HOST` pointing at `127.0.0.1`/`localhost`), an existing `certs/arl.crt` or an `ARL_LOCAL_CERT` path registered in `ARL_auth.md` is trusted automatically with no extra configuration. Remote deployments should set `ARL_CA_BUNDLE` to the trusted PEM. `ARL_STRICT_HOSTNAME=true` forces hostname matching, and `ARL_TLS_VERIFY=false` disables verification entirely (temporary testing only).
+> [!TIP]
+> **💡 Recommended Practice**: Log in to the ARL-Next Web Console and click **「MCP」** in the top navigation bar. The modal automatically generates a ready-to-use configuration populated with your host and API token. For manual configuration, copy the snippet matching your client below:
 
-1. **⚡ Standard Library Implementation**:
-   - Eliminates third-party package dependencies (no `mcp[cli]`, no `pydantic`, no `requests`).
-   - Built exclusively on Python 3.8+ standard libraries (`sys`, `json`, `urllib`, `ssl`), enabling instant execution with system Python and avoiding virtual environment conflicts.
-2. **🎯 Unified Asset Profiling**:
-   - Replaces unstructured, bulky outputs with structured contextual telemetry.
-   - Exposes a unified core tool `get_asset_profile`, consolidating network layer details (IPs, ports, services, GeoIP, ASN), application layer data (page title, status codes, Web fingerprints), TLS certificates (SANs, issuers), and exposure intelligence (historical vulnerabilities, Nuclei findings, credential/file leaks) in a single request.
-3. **📉 Context-Efficient Design**:
-   - Streamlines system tool prompt definitions to minimize context footprint.
-   - Returns compact JSON payloads: strips `null` fields, empty arrays, and redundant headers to maintain essential risk indicators without truncation.
+### <span id="cursor"></span>1. Cursor
 
----
-
-## 🛠️ Tool Reference
-
-### `get_asset_profile`
-Retrieves comprehensive asset intelligence for a specified target.
-
-#### Parameters
-- `target` (*string, required*): Target identifier, supporting:
-  - Subdomain / Root domain (e.g., `oa.example.com`)
-  - IP address (e.g., `1.2.3.4`)
-  - Full URL (e.g., `https://oa.example.com:8443`)
-- `task_id` (*string, optional*): 24-character ARL task ID. When specified, scopes the lookup to this task context; otherwise, resolves against the latest task or global asset repository.
-
-#### Sample Response (Compact JSON)
-```json
-{
-  "target": "admin.example.com",
-  "resolved_ips": ["1.2.3.4"],
-  "geo": "China/Zhejiang/Hangzhou",
-  "asn": "Hangzhou Alibaba Advertising Co.,Ltd.",
-  "ports": [
-    {"port": 80, "service": "http", "product": "nginx"},
-    {"port": 443, "service": "https", "product": "nginx"},
-    {"port": 8080, "service": "http", "product": "Spring-Boot"}
-  ],
-  "web": {
-    "url": "https://admin.example.com",
-    "status": 200,
-    "title": "Unified Operations Platform",
-    "fingerprints": ["Vue.js", "Spring-Boot", "Nginx", "Shiro"]
-  },
-  "cert": {
-    "issuer": "Let's Encrypt Authority X3",
-    "sans": "*.example.com, example.com"
-  },
-  "vulns": [
-    {"name": "Spring4Shell RCE", "severity": "high", "plugin": "CVE-2022-22965"}
-  ],
-  "leaks": [
-    {"url": "https://admin.example.com/.git/config", "status": 200}
-  ]
-}
-```
+- **Configuration File Path**: Project root `.cursor/mcp.json` or Global Settings (Features ➔ MCP Servers)
+- **Preferred Mode: Remote Direct (SSE)** *(For domain deployments with valid TLS certificates)*:
+  ```json
+  {
+    "mcpServers": {
+      "arl-next": {
+        "url": "https://arl.example.com:5173/mcp/sse",
+        "headers": {
+          "Authorization": "Bearer <Token copied from ARL Web Console>"
+        }
+      }
+    }
+  }
+  ```
+  *(Note: If your client does not support custom headers, direct URL query authentication is supported: `"url": "https://arl.example.com:5173/mcp/sse?token=<Token>"`)*
+- **Alternative Mode: Private IP / Self-Signed TLS (Stdio Bridge)** *(Bypasses Node.js TLS rejection)*:
+  ```json
+  {
+    "mcpServers": {
+      "arl-next": {
+        "command": "python3",
+        "args": ["/absolute/path/to/ARL-Next/mcp-server/server.py"],
+        "env": {
+          "ARL_HOST": "https://192.168.1.100:5173",
+          "ARL_TOKEN": "<Token copied from ARL Web Console>"
+        }
+      }
+    }
+  }
+  ```
 
 ---
 
-## 🚀 Client Configuration Guide
+### <span id="claude-desktop"></span>2. Claude Desktop
 
-### 1. Claude Code
-Register via CLI command (no dedicated virtual environment required):
+- **Configuration File Path**:
+  - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+  - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Preferred Mode: Remote Direct (SSE)**:
+  ```json
+  {
+    "mcpServers": {
+      "arl-next": {
+        "url": "https://arl.example.com:5173/mcp/sse",
+        "headers": {
+          "Authorization": "Bearer <Token copied from ARL Web Console>"
+        }
+      }
+    }
+  }
+  ```
+- **Alternative Mode: Private IP / Self-Signed TLS (Stdio Bridge)**:
+  ```json
+  {
+    "mcpServers": {
+      "arl-next": {
+        "command": "python3",
+        "args": ["/absolute/path/to/ARL-Next/mcp-server/server.py"],
+        "env": {
+          "ARL_HOST": "https://192.168.1.100:5173",
+          "ARL_TOKEN": "<Token copied from ARL Web Console>"
+        }
+      }
+    }
+  }
+  ```
+
+---
+
+### <span id="claude-code"></span>3. Claude Code CLI
+
+Register globally with a single CLI command without creating virtual environments or installing third-party dependencies:
+
 ```bash
 claude mcp add -s user arl-next \
   python3 "$(pwd)/mcp-server/server.py" \
   --env ARL_HOST="https://arl.example.com:5173" \
-  --env ARL_TOKEN="<Token retrieved from ARL_auth.md>"
+  --env ARL_TOKEN="<Token copied from ARL Web Console or ARL_auth.md>"
 ```
 
-### 2. Antigravity / Cursor / Windsurf (`mcp.json`)
-Add to workspace or global `mcp.json`:
-```json
-{
-  "mcpServers": {
-    "arl-next": {
-      "command": "python3",
-      "args": ["/absolute/path/to/ARL-Next/mcp-server/server.py"],
-      "env": {
-        "ARL_HOST": "https://arl.example.com:5173",
-        "ARL_TOKEN": "<Token retrieved from ARL_auth.md>"
-      }
-    }
-  }
-}
-```
+---
 
-### 3. OpenAI Codex / DeepSeek Harness / ZCode / WorkBuddy
-Configure standard I/O (stdio) MCP execution:
-- **Command**: `python3`
-- **Args**: `["/absolute/path/to/ARL-Next/mcp-server/server.py"]`
-- **Environment**:
-  - `ARL_HOST`: `https://arl.example.com:5173`
-  - `ARL_TOKEN`: `<Token retrieved from ARL_auth.md>`
-*(Note: If environment variables are omitted, the script automatically attempts discovery from `ARL_auth.md` in the current or repository root directory.)*
+### <span id="antigravity-windsurf"></span>4. Antigravity / Windsurf
+
+- **Configuration File Path**:
+  - **Windsurf**: `~/.codeium/windsurf/mcp_config.json`
+  - **Antigravity**: Workspace `.gemini/antigravity-cli/mcp/` or Global Settings
+- **Configuration Content**: Identical to Cursor; paste the snippet into your client's `mcpServers` node.
+
+---
+
+## <span id="tools"></span>🧩 Core Capabilities & Agent Interactions
+
+ARL-Next MCP registers 5 standardized tools with read-only reconnaissance enabled by default and controlled task dispatching:
+
+### 1. Tool Matrix
+
+| Tool Name | Core Purpose | Default Access | Typical Application |
+| :--- | :--- | :--- | :--- |
+| `get_asset_profile` | 5-Dimensional Asset Profile | **Read-Only (Open)** | Query ports, services, Web fingerprints, TLS certs, historical vulnerabilities, and file leaks |
+| `search_assets` | Full-Database Search | **Read-Only (Open)** | Search sites, domains, IPs, or vulnerabilities by keyword |
+| `get_task_status` | Task Status Tracking | **Read-Only (Open)** | Inspect real-time progress percentages and metric summaries of a 24-character task ID |
+| `create_scan_task` | Submit Scan Task | **Guarded (Requires Auth)** | Trigger ARL regular reconnaissance or periodic risk-cruising tasks |
+| `stop_scan_task` | Cancel Scan Task | **Guarded (Requires Auth)** | Abort a queued or actively executing task |
+
+### 2. Typical Agent Prompts & Interactions
+
+Once connected, interact with your AI Agent using natural language:
+
+- **Scenario 1: Single Target Attack Surface Drill-Down**
+  > **💬 Prompt**: "Analyze the network exposure and known vulnerabilities of `target.example.com`."<br>
+  > **🤖 Agent Action**: Invokes `get_asset_profile(target="target.example.com")` to gather open ports, tech fingerprints, SSL certificates, and CVE findings in a single request, presenting a structured security summary.
+- **Scenario 2: Component & Tech Stack Reconnaissance**
+  > **💬 Prompt**: "Search our database for all site assets running Spring Boot or Nginx."<br>
+  > **🤖 Agent Action**: Invokes `search_assets(query="Spring Boot", asset_type="site")` and returns matching endpoints, IP mappings, and associated scan jobs.
+- **Scenario 3: Controlled Task Dispatch & Status Monitoring**
+  > **💬 Prompt**: "Launch a reconnaissance task against IP `192.0.2.1` and summarize the results when done."<br>
+  > **🤖 Agent Action**: Invokes `create_scan_task(target="192.0.2.1")`, monitors progress via `get_task_status(task_id="...")`, and notifies upon completion.
+
+---
+
+## <span id="faq"></span>🚨 Troubleshooting & Self-Healing FAQ
+
+### Q1: Client fails with `DEPTH_ZERO_SELF_SIGNED_CERT` or `UNABLE_TO_VERIFY_LEAF_SIGNATURE`
+- **🔴 Symptom**: Cursor or Claude Desktop rejects connection with an untrusted certificate error.
+- **🔍 Root Cause**: Cursor and Claude Desktop run on Electron / Node.js, which strictly validates TLS certificates against trusted system CAs and rejects private LAN IPs or self-signed certs.
+- **⚡ Solution (Recommended)**: Switch to the **「Local Stdio Bridge」** configuration. The local Python script includes native CA chain validation and eliminates Electron TLS errors. For temporary testing only, launch the client with `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+
+### Q2: Requests return `401 Unauthorized` or `Invalid or expired token`
+- **🔴 Symptom**: Tool calls fail with authentication errors.
+- **🔍 Root Cause**: Missing Authorization header, or an administrator clicked "Refresh Token" in the Web Console, immediately revoking previous credentials.
+- **⚡ Solution**: Open the "MCP" modal in the ARL-Next top navigation bar, copy the latest token, and update your client configuration.
+
+### Q3: Task dispatch returns `Task dispatching is disabled on this MCP server`
+- **🔴 Symptom**: Calling `create_scan_task` or `stop_scan_task` is rejected.
+- **🔍 Root Cause**: Security safeguard. ARL-Next MCP defaults to read-only mode to prevent agents from unintentionally flooding the scan queue.
+- **⚡ Solution**: Server administrators can enable dispatching by setting `ARL_MCP_ENABLE_DISPATCH=true` in `docker-compose.prod.yml` under `arl-mcp`, then restarting with `docker compose -f docker-compose.prod.yml up -d arl-mcp`.
+
+### Q4: Remote SSE connection frequently disconnects or returns `504 Gateway Timeout`
+- **🔴 Symptom**: Connection terminates unexpectedly after several minutes, or streaming requests time out.
+- **🔍 Root Cause**: An external upstream proxy (e.g., custom SLB, WAF, or outer Nginx) has response buffering enabled or short timeout thresholds.
+- **⚡ Solution**: Ensure outer reverse proxies specify `proxy_read_timeout 86400s; proxy_buffering off;`. ARL-Next's built-in Nginx container includes these streaming optimizations by default.
+
+---
+
+## <span id="architecture"></span><details><summary><b>⚙️ Architecture & Technical Reference (Click to expand)</b></summary>
+
+### 1. Dedicated Asynchronous Microservice for Stream Isolation
+ARL-Next's primary Web API runs on Gunicorn's multi-process worker model (16 worker threads). Direct persistent SSE streams would quickly starve the Web thread pool. To resolve this, ARL-Next isolates MCP streaming inside a dedicated `arl-mcp` microservice container (powered by Python 3.13 `asyncio`), consuming only ~60MB of RAM and ensuring fast handshakes without impacting the Web UI.
+
+### 2. Context-Efficient Recursive Pruning
+To prevent token waste in agent contexts, both the MCP server and client scripts implement recursive JSON pruning:
+- Strips all `null` values, empty arrays `[]`, and empty objects `{}`.
+- Excludes redundant HTTP headers and verbose debugging metadata.
+- Flattens port and vulnerability indicators so critical security signals are never truncated.
+
+### 3. Local Script TLS Certificate Policy
+
+| Deployment Scenario | `ARL_HOST` Value | Verification Behavior |
+| :--- | :--- | :--- |
+| **Client on the same host** | `https://127.0.0.1:5173` | **None needed.** Automatically trusts `certs/arl.crt` (or path in `ARL_auth.md`) |
+| **Trusted public certificate** | `https://arl.example.com` | **None needed.** Full certificate chain and hostname verification |
+| **Remote self-signed (IP access)** | `https://<server-ip>:5173` | Copy server certificate to client and set `ARL_CA_BUNDLE=/abs/path/arl.crt` |
+
+- Under remote self-signed scenarios where the certificate lacks SAN extensions for the IP, the script verifies the certificate chain and automatically skips hostname matching (printing a notice to stderr). To enforce strict hostname checks, set `ARL_STRICT_HOSTNAME=true`.
+- For temporary testing only, `ARL_TLS_VERIFY=false` disables all TLS verification (a warning will be printed to stderr).
+
+</details>

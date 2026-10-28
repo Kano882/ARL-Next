@@ -282,3 +282,33 @@ WIH lists in task details, global asset search and asset-group details provide a
 - Legacy records retain their content and source without inferring methods or reachability. Changing task, asset group or tab, or leaving the view, closes the drawer to avoid mixing record contexts. Labels follow Chinese, English or Russian preferences; raw responses and sources remain unchanged.
 
 Existing list queries, filters, counts, exports, deletion permissions and scans are unchanged. No historical migration is required.
+
+---
+
+## 6. MCP Protocol Conventions (Model Context Protocol)
+
+ARL-Next integrates the Model Context Protocol (MCP 2024-11-05 specification) for AI agent collaboration. It supports both **Remote Native SSE** and **Local Stdio Bridge** integration modes.
+
+### Endpoint Matrix
+
+| Path | Protocol & Method | Description | Authentication Channel |
+| :--- | :--- | :--- | :--- |
+| `/mcp/sse` | HTTP GET (`text/event-stream`) | Remote MCP SSE handshake endpoint; maintains persistent stream and yields `endpoint` events | `Authorization: Bearer <TOKEN>`, `Token: <TOKEN>`, or `?token=<TOKEN>` |
+| `/mcp/message` | HTTP POST (`application/json`) | Remote MCP upstream channel; receives JSON-RPC 2.0 messages (requires `?sessionId=`) | Same as above |
+| `/api/mcp/asset_profile` | HTTP GET (`application/json`) | Native multi-dimensional asset profiling REST endpoint across network/web/cert/vuln collections | `Token: <TOKEN>` |
+| `/api/mcp/export_server` | HTTP GET (`text/x-python`) | Dynamically generates and exports pre-credentialed standalone client script (`arl_mcp.py`) | `Token: <TOKEN>` |
+| `/api/mcp/task_detail_export`| HTTP GET (`text/csv`) | Task detail CSV export across specific tabs with formula injection mitigation | `Token: <TOKEN>` |
+
+### Progressive Toolset Matrix
+
+| Tool Name | Category | Primary Inputs | Description | Activation Condition |
+| :--- | :--- | :--- | :--- | :--- |
+| `get_asset_profile` | Read-only Profile | `target` (required), `task_id` (optional) | Unified asset intelligence correlation (IPs, ports, services, fingerprints, certs, vulns, leaks) | Enabled by default |
+| `search_assets` | Read-only Search | `query` (required), `asset_type`, `limit` | Searches sites, IPs, domains, or known vulnerabilities | Enabled by default |
+| `get_task_status` | Read-only Status | `task_id` (required) | Inspects scanning progress, execution state, and metric counts | Enabled by default |
+| `create_scan_task` | Controlled Dispatch | `name`, `target`, `policy_id` | Submits a scan task to the Celery worker queue | Requires `ARL_MCP_ENABLE_DISPATCH=true` |
+| `stop_scan_task` | Controlled Dispatch | `task_id` (required) | Terminates an active scan task | Requires `ARL_MCP_ENABLE_DISPATCH=true` |
+
+> [!NOTE]
+> - Production Nginx reverse proxy routes `/mcp/sse` with unbuffered streaming and a 24-hour persistent timeout;
+> - When accessing self-signed IP deployments, if the client drops connections due to TLS chain verification, use the local Stdio script (built-in certificate pinning) or configure `NODE_TLS_REJECT_UNAUTHORIZED=0` in the client environment.
