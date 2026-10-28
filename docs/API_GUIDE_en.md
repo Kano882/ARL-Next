@@ -298,6 +298,11 @@ ARL-Next integrates the Model Context Protocol (MCP 2024-11-05 specification) fo
 | `/api/mcp/asset_profile` | HTTP GET (`application/json`) | Native multi-dimensional asset profiling REST endpoint across network/web/cert/vuln collections | `Token: <TOKEN>` |
 | `/api/mcp/export_server` | HTTP GET (`text/x-python`) | Dynamically generates and exports pre-credentialed standalone client script (`arl_mcp.py`) | `Token: <TOKEN>` |
 | `/api/mcp/task_detail_export`| HTTP GET (`text/csv`) | Task detail CSV export across specific tabs with formula injection mitigation | `Token: <TOKEN>` |
+| `/api/mcp/overview` | HTTP GET (`application/json`) | MCP Governance Center dashboard & call stats (call count, active keys, error count) | `Token: <TOKEN>` |
+| `/api/mcp/keys` | HTTP GET / POST (`application/json`) | Query and issue dedicated MCP API Keys (with granular Scope permissions) | `Token: <TOKEN>` |
+| `/api/mcp/logs` | HTTP GET (`application/json`) | MCP invocation audit logs pagination (supports `time_range`: today/24h/7d, `status`: success/error/denied/abnormal) | `Token: <TOKEN>` |
+| `/api/mcp/logs/export` | HTTP GET (`text/csv`) | Export filtered invocation audit logs to CSV | `Token: <TOKEN>` |
+| `/api/mcp/config` | HTTP GET / POST (`application/json`) | Retrieve and update MCP global tool switches and rate-limit quotas | `Token: <TOKEN>` |
 
 ### Progressive Toolset Matrix
 

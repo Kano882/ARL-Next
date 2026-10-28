@@ -197,12 +197,25 @@ def test_mcp_governance_logs_and_config(app_env):
         'error_message': '',
         'created_at': datetime.now(timezone.utc)
     })
+    app_env.db.mcp_log.insert_one({
+        'key_id': 'legacy',
+        'key_name': '[Legacy Token]',
+        'client_ip': '127.0.0.1',
+        'tool_name': 'create_scan_task',
+        'target': 'test.org',
+        'status': 'denied',
+        'duration_ms': 12,
+        'summary': '未授权调用',
+        'error_message': 'Scope task:dispatch required',
+        'created_at': datetime.now(timezone.utc)
+    })
 
     # 查询 Overview
     res_ov = client.get('/api/mcp/overview', headers={'Token': 'fixture-api-key'})
     assert res_ov.status_code == 200
     ov_data = res_ov.get_json()['data']
-    assert ov_data['today_calls'] >= 1
+    assert ov_data['today_calls'] >= 2
+    assert ov_data['error_calls_24h'] >= 1
     assert ov_data['service_status'] == 'running'
 
     # 查询 Logs 列表
@@ -211,6 +224,13 @@ def test_mcp_governance_logs_and_config(app_env):
     logs_data = res_logs.get_json()['data']
     assert logs_data['total'] == 1
     assert logs_data['items'][0]['target'] == 'example.com'
+
+    # 联动聚合筛选: time_range=today & status=abnormal
+    res_abnormal = client.get('/api/mcp/logs', headers={'Token': 'fixture-api-key'}, query_string={'time_range': 'today', 'status': 'abnormal'})
+    assert res_abnormal.status_code == 200
+    ab_data = res_abnormal.get_json()['data']
+    assert ab_data['total'] == 1
+    assert ab_data['items'][0]['status'] == 'denied'
 
     # 导出 Logs CSV
     res_export = client.get('/api/mcp/logs/export', headers={'Token': 'fixture-api-key'})

@@ -43,17 +43,29 @@
 
               <div class="setup-field-group">
                 <span class="field-label">{{ pageText('pages.mcpBindKey') }}:</span>
-                <a-select
-                  v-model:value="selectedKeyId"
-                  style="width: 260px;"
-                  :placeholder="pageText('pages.mcpSelectKeyPlaceholder')"
-                  @change="handleKeySelectChange"
-                >
-                  <a-select-option value="current_session">{{ pageText('pages.mcpCurrentSessionToken') }}</a-select-option>
-                  <a-select-option v-for="k in activeKeyOptions" :key="k.id" :value="k.id">
-                    {{ k.name }} ({{ k.key_prefix }})
-                  </a-select-option>
-                </a-select>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <a-select
+                    v-model:value="selectedKeyId"
+                    style="width: 260px;"
+                    :placeholder="pageText('pages.mcpSelectKeyPlaceholder')"
+                    @change="handleKeySelectChange"
+                  >
+                    <a-select-option value="current_session">{{ pageText('pages.mcpCurrentSessionToken') }}</a-select-option>
+                    <a-select-option v-for="k in activeKeyOptions" :key="k.id" :value="k.id">
+                      {{ k.name }} ({{ k.key_prefix }})
+                    </a-select-option>
+                  </a-select>
+                  <a-button type="dashed" size="small" @click="openCreateKeyModal">
+                    <template #icon><PlusOutlined /></template>
+                    {{ pageText('pages.mcpCreateKeyQuick') }}
+                  </a-button>
+                  <a-tag v-if="selectedKeyId === 'current_session'" color="warning">
+                    {{ pageText('pages.mcpSessionTokenTag') }}
+                  </a-tag>
+                  <a-tag v-else color="success">
+                    {{ pageText('pages.mcpDedicatedKeyTag') }}
+                  </a-tag>
+                </div>
               </div>
             </div>
 
@@ -229,7 +241,12 @@
           <div class="tab-section-wrapper">
             <!-- 统计指标卡片 -->
             <div class="metrics-grid">
-              <a-card size="small" class="metric-card">
+              <a-card
+                size="small"
+                class="metric-card interactive-metric"
+                :class="{ 'metric-active': activeMetricFilter === 'today' }"
+                @click="toggleMetricFilter('today')"
+              >
                 <a-statistic
                   :title="pageText('pages.mcpTodayCalls')"
                   :value="overviewData.today_calls"
@@ -238,7 +255,12 @@
                   <template #prefix><ThunderboltOutlined /></template>
                 </a-statistic>
               </a-card>
-              <a-card size="small" class="metric-card">
+              <a-card
+                size="small"
+                class="metric-card interactive-metric"
+                :class="{ 'metric-active': activeMetricFilter === '7d' }"
+                @click="toggleMetricFilter('7d')"
+              >
                 <a-statistic
                   :title="pageText('pages.mcpWeekCalls')"
                   :value="overviewData.week_calls"
@@ -246,7 +268,11 @@
                   <template #prefix><BarChartOutlined /></template>
                 </a-statistic>
               </a-card>
-              <a-card size="small" class="metric-card">
+              <a-card
+                size="small"
+                class="metric-card interactive-metric"
+                @click="activeTab = 'api_keys'"
+              >
                 <a-statistic
                   :title="pageText('pages.mcpActiveKeys')"
                   :value="overviewData.active_keys"
@@ -255,7 +281,12 @@
                   <template #prefix><KeyOutlined /></template>
                 </a-statistic>
               </a-card>
-              <a-card size="small" class="metric-card">
+              <a-card
+                size="small"
+                class="metric-card interactive-metric"
+                :class="{ 'metric-active': activeMetricFilter === 'error_24h' }"
+                @click="toggleMetricFilter('error_24h')"
+              >
                 <a-statistic
                   :title="pageText('pages.mcpErrors24h')"
                   :value="overviewData.error_calls_24h"
@@ -269,6 +300,18 @@
             <!-- 筛选栏 -->
             <div class="table-toolbar" style="margin-top: 16px;">
               <div class="toolbar-left" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a-select
+                  v-model:value="logFilter.time_range"
+                  style="width: 120px;"
+                  allow-clear
+                  :placeholder="pageText('pages.mcpFilterTimeAll')"
+                  @change="handleFilterTimeChange"
+                >
+                  <a-select-option value="today">{{ pageText('pages.mcpFilterTimeToday') }}</a-select-option>
+                  <a-select-option value="24h">{{ pageText('pages.mcpFilterTime24h') }}</a-select-option>
+                  <a-select-option value="7d">{{ pageText('pages.mcpFilterTime7d') }}</a-select-option>
+                </a-select>
+
                 <a-select
                   v-model:value="logFilter.tool_name"
                   style="width: 180px;"
@@ -284,19 +327,21 @@
 
                 <a-select
                   v-model:value="logFilter.status"
-                  style="width: 130px;"
+                  style="width: 140px;"
                   allow-clear
                   :placeholder="pageText('pages.mcpFilterStatusPlaceholder')"
+                  @change="handleFilterStatusChange"
                 >
                   <a-select-option value="success">{{ pageText('pages.mcpStatusSuccess') }}</a-select-option>
                   <a-select-option value="error">{{ pageText('pages.mcpStatusError') }}</a-select-option>
                   <a-select-option value="denied">{{ pageText('pages.mcpStatusDenied') }}</a-select-option>
+                  <a-select-option value="abnormal">{{ pageText('pages.mcpFilterAbnormal') }}</a-select-option>
                 </a-select>
 
                 <a-input
                   v-model:value="logFilter.target"
                   :placeholder="pageText('pages.mcpFilterTargetPlaceholder')"
-                  style="width: 220px;"
+                  style="width: 200px;"
                   allow-clear
                   @pressEnter="fetchLogs"
                 />
@@ -332,6 +377,10 @@
                 pageSizeOptions: ['10', '20', '50'],
                 showTotal: (total) => pageText('pages.totalItems', { total })
               }"
+              :custom-row="(record) => ({
+                onClick: () => openLogDetail(record),
+                style: { cursor: 'pointer' }
+              })"
               @change="handleLogTableChange"
               size="middle"
             >
@@ -361,6 +410,12 @@
                   </a-tooltip>
                   <span v-else>{{ record.summary || '-' }}</span>
                 </template>
+
+                <template v-else-if="column.key === 'action'">
+                  <a-button type="link" size="small" @click.stop="openLogDetail(record)">
+                    {{ pageText('pages.mcpViewDetail') }}
+                  </a-button>
+                </template>
               </template>
             </a-table>
           </div>
@@ -369,6 +424,15 @@
         <!-- Tab 4: 工具安全策略 -->
         <a-tab-pane key="tool_policy" :tab="pageText('pages.mcpTabToolPolicy')">
           <div class="tab-section-wrapper" style="max-width: 800px;">
+            <div v-if="isPolicyDirty" style="margin-bottom: 16px;">
+              <a-alert
+                type="info"
+                show-icon
+                :message="pageText('pages.mcpUnsavedPolicyChanges')"
+                :description="pageText('pages.saveEachChangeBeforeLeavingThisPage')"
+              />
+            </div>
+
             <a-card size="small" :title="pageText('pages.mcpToolSwitchesTitle')" class="policy-card">
               <div class="tool-switch-item" v-for="t in toolSwitchConfigs" :key="t.key">
                 <div class="tool-info">
@@ -381,7 +445,19 @@
                   <div class="tool-desc">{{ t.desc }}</div>
                 </div>
                 <div class="tool-action">
-                  <a-switch v-model:checked="toolSwitches[t.key]" />
+                  <a-popconfirm
+                    v-if="t.isDangerous && !toolSwitches[t.key]"
+                    :title="pageText('pages.mcpRiskWriteNotice')"
+                    :ok-text="pageText('pages.confirm')"
+                    :cancel-text="pageText('tasks.cancel')"
+                    @confirm="toolSwitches[t.key] = true"
+                  >
+                    <a-switch :checked="toolSwitches[t.key]" />
+                  </a-popconfirm>
+                  <a-switch
+                    v-else
+                    v-model:checked="toolSwitches[t.key]"
+                  />
                 </div>
               </div>
             </a-card>
@@ -411,8 +487,13 @@
             </a-card>
 
             <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
-              <a-button type="primary" :loading="isSavingPolicy" @click="savePolicyConfig">
-                {{ pageText('pages.saveSettings') }}
+              <a-button
+                type="primary"
+                :loading="isSavingPolicy"
+                :danger="isPolicyDirty"
+                @click="savePolicyConfig"
+              >
+                {{ isPolicyDirty ? pageText('pages.mcpSavePolicyCount', { count: policyDirtyCount }) : pageText('pages.saveSettings') }}
               </a-button>
             </div>
           </div>
@@ -490,13 +571,80 @@
         </div>
       </div>
     </a-modal>
+
+    <!-- 抽屉: 审计日志详情 -->
+    <a-drawer
+      v-model:open="isLogDrawerVisible"
+      :title="pageText('pages.mcpDrawerTitle')"
+      placement="right"
+      width="640"
+      destroy-on-close
+    >
+      <div v-if="selectedLog" class="log-detail-container">
+        <!-- 基础元数据 -->
+        <a-descriptions bordered :column="2" size="small" :title="pageText('pages.mcpLogDetailBasic')">
+          <a-descriptions-item :label="pageText('pages.mcpLogTime')">
+            {{ selectedLog.created_at }}
+          </a-descriptions-item>
+          <a-descriptions-item :label="pageText('pages.mcpLogClientIp')">
+            <a-typography-text copyable>{{ selectedLog.client_ip || '-' }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item :label="pageText('pages.mcpLogKeyName')">
+            {{ selectedLog.key_name }}
+          </a-descriptions-item>
+          <a-descriptions-item :label="pageText('pages.mcpLogTool')">
+            <a-typography-text strong code>{{ selectedLog.tool_name }}</a-typography-text>
+          </a-descriptions-item>
+          <a-descriptions-item :label="pageText('pages.mcpLogStatus')">
+            <a-tag v-if="selectedLog.status === 'success'" color="success">{{ pageText('pages.mcpStatusSuccess') }}</a-tag>
+            <a-tag v-else-if="selectedLog.status === 'denied'" color="warning">{{ pageText('pages.mcpStatusDenied') }}</a-tag>
+            <a-tag v-else color="error">{{ pageText('pages.mcpStatusError') }}</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item :label="pageText('pages.mcpLogDuration')">
+            {{ selectedLog.duration_ms }} ms
+          </a-descriptions-item>
+          <a-descriptions-item :label="pageText('pages.mcpLogTarget')" :span="2">
+            <a-typography-text code copyable v-if="selectedLog.target">{{ selectedLog.target }}</a-typography-text>
+            <span v-else>-</span>
+          </a-descriptions-item>
+        </a-descriptions>
+
+        <!-- 输入参数 JSON -->
+        <div style="margin-top: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 600;">{{ pageText('pages.mcpLogDetailParams') }}</span>
+            <a-button size="small" @click="handleCopyParams(selectedLog.params_summary)">
+              <template #icon><CopyOutlined /></template>
+              {{ pageText('pages.copy') }}
+            </a-button>
+          </div>
+          <pre class="detail-code-block"><code>{{ formattedParams(selectedLog.params_summary) }}</code></pre>
+        </div>
+
+        <!-- 异常堆栈或返回摘要 -->
+        <div style="margin-top: 20px;">
+          <span style="font-weight: 600; display: block; margin-bottom: 8px;">{{ pageText('pages.mcpLogDetailResult') }}</span>
+          <a-alert
+            v-if="selectedLog.error_message"
+            type="error"
+            show-icon
+            :message="selectedLog.error_message"
+            style="white-space: pre-wrap; font-family: monospace;"
+          />
+          <div v-else class="detail-summary-box">
+            {{ selectedLog.summary || '-' }}
+          </div>
+        </div>
+      </div>
+    </a-drawer>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { message } from 'ant-design-vue';
+import { onBeforeRouteLeave } from 'vue-router';
+import { message, Modal } from 'ant-design-vue';
 import {
   RobotOutlined,
   ReloadOutlined,

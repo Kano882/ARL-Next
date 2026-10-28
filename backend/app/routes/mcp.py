@@ -3,6 +3,7 @@
 from flask import make_response, request
 from flask_restx import Resource, Namespace
 from bson import ObjectId
+from datetime import datetime, timedelta, timezone
 import csv
 import io
 import json
@@ -19,6 +20,33 @@ def csv_literal(value):
     if isinstance(value, str) and value.lstrip(' \t\r\n').startswith(('=', '+', '-', '@')):
         return "'" + value
     return value
+
+
+def _build_mcp_logs_query(tool_name='', status='', target='', key_id='', time_range=''):
+    query = {}
+    if tool_name:
+        query["tool_name"] = tool_name
+    if status:
+        if status == 'abnormal':
+            query["status"] = {"$in": ["error", "denied"]}
+        else:
+            query["status"] = status
+    if target:
+        query["target"] = {"$regex": target, "$options": "i"}
+    if key_id:
+        query["key_id"] = key_id
+    if time_range:
+        now = datetime.now(timezone.utc)
+        if time_range == 'today':
+            today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+            query["created_at"] = {"$gte": today_start}
+        elif time_range == '24h':
+            yesterday = now - timedelta(days=1)
+            query["created_at"] = {"$gte": yesterday}
+        elif time_range == '7d':
+            seven_days_ago = now - timedelta(days=7)
+            query["created_at"] = {"$gte": seven_days_ago}
+    return query
 
 @ns.route('/task_detail_export')
 class MCPTaskDetailExport(Resource):
@@ -464,16 +492,9 @@ class MCPLogs(Resource):
         status = request.args.get('status', '').strip()
         target = request.args.get('target', '').strip()
         key_id = request.args.get('key_id', '').strip()
+        time_range = request.args.get('time_range', '').strip()
 
-        query = {}
-        if tool_name:
-            query["tool_name"] = tool_name
-        if status:
-            query["status"] = status
-        if target:
-            query["target"] = {"$regex": target, "$options": "i"}
-        if key_id:
-            query["key_id"] = key_id
+        query = _build_mcp_logs_query(tool_name, status, target, key_id, time_range)
 
         total = utils.conn_db('mcp_log').count_documents(query)
         cursor = utils.conn_db('mcp_log').find(query).sort("created_at", -1).skip((page - 1) * size).limit(size)
@@ -520,14 +541,10 @@ class MCPLogsExport(Resource):
         tool_name = request.args.get('tool_name', '').strip()
         status = request.args.get('status', '').strip()
         target = request.args.get('target', '').strip()
+        key_id = request.args.get('key_id', '').strip()
+        time_range = request.args.get('time_range', '').strip()
 
-        query = {}
-        if tool_name:
-            query["tool_name"] = tool_name
-        if status:
-            query["status"] = status
-        if target:
-            query["target"] = {"$regex": target, "$options": "i"}
+        query = _build_mcp_logs_query(tool_name, status, target, key_id, time_range)
 
         cursor = utils.conn_db('mcp_log').find(query).sort("created_at", -1).limit(5000)
 

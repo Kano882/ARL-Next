@@ -300,6 +300,11 @@ ARL-Next 集成了 Model Context Protocol (MCP 2024-11-05 规范)，支持 AI �
 | `/api/mcp/asset_profile` | HTTP GET (`application/json`) | 原生多维资产画像聚合接口，跨集合提取网络/Web/证书/漏洞/泄露情报 | `Token: <TOKEN>` |
 | `/api/mcp/export_server` | HTTP GET (`text/x-python`) | 动态生成并导出已预填充凭据的独立单文件客户端脚本 (`arl_mcp.py`) | `Token: <TOKEN>` |
 | `/api/mcp/task_detail_export`| HTTP GET (`text/csv`) | 任务详情分维度安全 CSV 数据导出（内置公式注入防御） | `Token: <TOKEN>` |
+| `/api/mcp/overview` | HTTP GET (`application/json`) | MCP 治理中心大盘与调用统计概览（调用量、活跃 Key、异常数） | `Token: <TOKEN>` |
+| `/api/mcp/keys` | HTTP GET / POST (`application/json`) | MCP 专用 API Key 列表查询与签发（支持细粒度 Scope 授权） | `Token: <TOKEN>` |
+| `/api/mcp/logs` | HTTP GET (`application/json`) | MCP 调用审计日志分页查询（支持 `time_range`：today/24h/7d，`status`：success/error/denied/abnormal） | `Token: <TOKEN>` |
+| `/api/mcp/logs/export` | HTTP GET (`text/csv`) | 导出符合筛选条件的审计日志 CSV 文件 | `Token: <TOKEN>` |
+| `/api/mcp/config` | HTTP GET / POST (`application/json`) | 获取与保存 MCP 全局工具开关与频控配额策略 | `Token: <TOKEN>` |
 
 ### 渐进式工具集规范
 
