@@ -589,12 +589,13 @@ class MCPConfig(Resource):
     @auth
     def post(self):
         """保存 MCP 全局配置与工具开关"""
+        from datetime import datetime
         data = request.json or {}
         tool_switches = data.get("tool_switches")
         max_search_limit = data.get("max_search_limit")
         rate_limit_per_min = data.get("rate_limit_per_min")
 
-        update_set = {"updated_at": utils.curr_date()}
+        update_set = {"updated_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         if isinstance(tool_switches, dict):
             update_set["tool_switches"] = tool_switches
         if isinstance(max_search_limit, int) and 1 <= max_search_limit <= 200:

@@ -33,6 +33,7 @@ export default {
     fingerprints: 'Fingerprints',
     policies: 'Policies',
     settings: 'System settings',
+    mcpCenter: 'MCP Center',
     taskDetail: 'Task details',
     assetGroupDetail: 'Asset group details',
     policyDetail: 'Policy details',

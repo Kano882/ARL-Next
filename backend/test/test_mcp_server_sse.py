@@ -25,6 +25,10 @@ class TestMCPServerSSE(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.server = MCPServer(host="127.0.0.1", port=0)
         self.mock_user = {"username": "admin", "token": "test-token-123"}
+        self.patcher_conn = patch("app.mcp_server.utils.conn_db")
+        self.mock_conn = self.patcher_conn.start()
+        self.mock_conn.return_value = Mock()
+        self.addCleanup(self.patcher_conn.stop)
 
     def test_supported_tools_default_readonly(self):
         """测试默认只读模式下的工具列表"""
@@ -234,6 +238,89 @@ class TestMCPServerSSE(unittest.IsolatedAsyncioTestCase):
             await w_sse.wait_closed()
             tcp_server.close()
             await tcp_server.wait_closed()
+
+
+    def test_authenticate_token_mcp_key_active(self):
+        """测试通过独立 MCP API Key 鉴权成功"""
+        import hashlib
+        raw_key = "arl_mcp_test_token_1234567890"
+        key_hash = hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+        mock_key_doc = {
+            "_id": "507f1f77bcf86cd799439011",
+            "name": "Cursor Agent",
+            "key_hash": key_hash,
+            "status": "active",
+            "scopes": ["asset:read"],
+            "created_by": "sec_user",
+            "expire_at": datetime.now(timezone.utc) + timedelta(days=30)
+        }
+        with patch("app.mcp_server.Config") as mock_cfg:
+            mock_cfg.AUTH = True
+            mock_cfg.API_KEY = ""
+            self.mock_conn.return_value.find_one.return_value = mock_key_doc
+
+            res = self.server.authenticate_token(raw_key)
+            self.assertIsNotNone(res)
+            self.assertEqual(res["type"], "mcp_key")
+            self.assertEqual(res["key_name"], "Cursor Agent")
+            self.assertEqual(res["scopes"], ["asset:read"])
+
+    def test_authenticate_token_mcp_key_revoked(self):
+        """测试已吊销的 MCP API Key 鉴权失败"""
+        import hashlib
+        raw_key = "arl_mcp_revoked_key_123"
+        key_hash = hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+        mock_key_doc = {
+            "_id": "507f1f77bcf86cd799439012",
+            "name": "Old Key",
+            "key_hash": key_hash,
+            "status": "revoked",
+            "scopes": ["asset:read"]
+        }
+        with patch("app.mcp_server.Config") as mock_cfg:
+            mock_cfg.AUTH = True
+            mock_cfg.API_KEY = ""
+            self.mock_conn.return_value.find_one.return_value = mock_key_doc
+
+            res = self.server.authenticate_token(raw_key)
+            self.assertIsNone(res)
+
+    def test_authenticate_token_mcp_key_expired(self):
+        """测试已过期的 MCP API Key 鉴权失败"""
+        import hashlib
+        raw_key = "arl_mcp_expired_key_123"
+        key_hash = hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+        mock_key_doc = {
+            "_id": "507f1f77bcf86cd799439013",
+            "name": "Expired Key",
+            "key_hash": key_hash,
+            "status": "active",
+            "expire_at": datetime.now(timezone.utc) - timedelta(days=1)
+        }
+        with patch("app.mcp_server.Config") as mock_cfg:
+            mock_cfg.AUTH = True
+            mock_cfg.API_KEY = ""
+            self.mock_conn.return_value.find_one.return_value = mock_key_doc
+
+            res = self.server.authenticate_token(raw_key)
+            self.assertIsNone(res)
+
+    async def test_tool_call_permission_denied_for_readonly_scope(self):
+        """测试只读权限 Key 尝试调用调度任务被拦截"""
+        readonly_user = {
+            "username": "auditor",
+            "type": "mcp_key",
+            "scopes": ["asset:read"],
+            "key_id": "507f1f77bcf86cd799439011",
+            "key_name": "Readonly Key"
+        }
+        res, is_err = await self.server.handle_tool_call("create_scan_task", {"name": "test", "target": "example.com"}, readonly_user)
+        self.assertTrue(is_err)
+        self.assertEqual(res.get("status"), "denied")
+        self.assertIn("Permission denied", res.get("message", ""))
 
 
 if __name__ == "__main__":

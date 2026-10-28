@@ -604,11 +604,28 @@ class MCPServer:
             path = parsed_url.path
             query_params = urllib.parse.parse_qs(parsed_url.query)
 
-            # 鉴权检查
+            # 鉴权检查:
+            # 1. 尝试从 Header 或 Query 提取 token 并验证
             token = self._extract_token_from_request(headers, query_params)
-            auth_user = self.authenticate_token(token)
+            auth_user = self.authenticate_token(token) if token else None
+
+            # 2. 若未携带显式 Token 且为 POST /message，支持基于激活状态的 Session ID 继承握手鉴权上下文
+            if not auth_user and method == "POST" and path in ("/message", "/mcp/message"):
+                sid = ""
+                if "sessionid" in query_params:
+                    sid = query_params["sessionid"][0]
+                elif "sessionId" in query_params:
+                    sid = query_params["sessionId"][0]
+                elif "x-session-id" in headers:
+                    sid = headers["x-session-id"]
+
+                if sid and sid in self.sessions:
+                    existing_session = self.sessions[sid]
+                    if not existing_session.is_closed and existing_session.auth_user:
+                        auth_user = existing_session.auth_user
+
             if not auth_user:
-                err_resp = json.dumps({"error": "Unauthorized", "message": "Invalid or missing token"}, ensure_ascii=False)
+                err_resp = json.dumps({"error": "Unauthorized", "message": "Invalid or missing token / session"}, ensure_ascii=False)
                 writer.write(
                     f"HTTP/1.1 401 Unauthorized\r\n"
                     f"Content-Type: application/json; charset=utf-8\r\n"

@@ -110,6 +110,12 @@ const routes = [
                 name: 'SystemSettings',
                 component: () => import('../views/SystemSettings.vue'),
                 meta: { title: '系统设置' }
+            },
+            {
+                path: '/mcpCenter',
+                name: 'McpCenter',
+                component: () => import('../views/McpCenter.vue'),
+                meta: { title: 'MCP服务中心' }
             }
         ]
 

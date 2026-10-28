@@ -204,7 +204,11 @@
         💡 <b>{{ pageText('pages.noEnvironmentSetupNeeded') }}</b>{{ pageText('pages.theScriptIncludesAccessCredentialsAndAssumesItIs') }} <code>~/Downloads/arl_mcp.py</code>{{ pageText('pages.ifItIsSavedElsewhereUpdate') }} <code>args</code> {{ pageText('pages.toTheActualAbsolutePathOnWindowsUse') }} <code>python</code> {{ pageText('pages.message') }}<br/>
       </template>
       🔒 <b>{{ pageText('pages.credentialSecurity') }}</b>{{ pageText('pages.theExportedScriptContainsAPrivilegedApiTokenFor') }}
-      <div style="margin-top: 8px; text-align: right;">
+      <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--arl-border-color); padding-top: 10px;">
+        <a-button type="link" size="small" @click="goToMcpCenter" style="padding: 0; font-weight: 500;">
+          <RobotOutlined style="margin-right: 4px;" />
+          {{ pageText('pages.goToMcpCenter') }} →
+        </a-button>
         <a href="https://github.com/owl234/ARL-Next/tree/main/mcp-server" target="_blank" rel="noopener noreferrer" style="font-size: 12px; color: var(--ant-primary-color, #1890ff);">
           📖 {{ pageText('pages.mcpDocGuide') }}
         </a>
@@ -355,6 +359,7 @@ const defaultMenuItems = [
   { key: '/pocList', titleKey: 'navigation.pocs', icon: BugOutlined },
   { key: '/fingerprint', titleKey: 'navigation.fingerprints', icon: TagsOutlined },
   { key: '/policy', titleKey: 'navigation.policies', icon: ControlOutlined },
+  { key: '/mcpCenter', titleKey: 'navigation.mcpCenter', icon: RobotOutlined },
   { key: '/systemSettings', titleKey: 'navigation.settings', icon: SettingOutlined },
 ];
 
@@ -701,6 +706,7 @@ const currentPageTitle = computed(() => {
     '/policy': 'navigation.policies',
     '/pocList': 'navigation.pocs',
     '/fingerprint': 'navigation.fingerprints',
+    '/mcpCenter': 'navigation.mcpCenter',
     '/systemSettings': 'navigation.settings',
   };
   return titleMap[route.path] ? t(titleMap[route.path]) : 'ARL-Next';
@@ -802,6 +808,11 @@ const updateMcpConfigJson = () => {
     const jsonStr = JSON.stringify(stdioConfig, null, 2);
     mcpConfigJson.value = jsonStr.substring(2, jsonStr.length - 2).trim();
   }
+};
+
+const goToMcpCenter = () => {
+  showMcpModal.value = false;
+  router.push('/mcpCenter');
 };
 
 const handleShowMcpModal = () => {

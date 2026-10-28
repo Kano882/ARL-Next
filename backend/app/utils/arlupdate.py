@@ -1268,6 +1268,7 @@ def migrate_user_sessions():
 def ensure_mcp_governance_schema():
     """初始化并平滑补齐 MCP 服务治理默认配置与工具开关"""
     try:
+        from datetime import datetime
         cfg_col = conn_db('mcp_config')
         cfg_col.update_one(
             {"_id": "global"},
@@ -1281,7 +1282,7 @@ def ensure_mcp_governance_schema():
                 },
                 "max_search_limit": 50,
                 "rate_limit_per_min": 120,
-                "updated_at": curr_date()
+                "updated_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }},
             upsert=True
         )

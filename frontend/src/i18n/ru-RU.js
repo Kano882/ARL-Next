@@ -38,6 +38,7 @@ export default {
     "fingerprints": "Отпечатки",
     "policies": "Политики",
     "settings": "Настройки системы",
+    "mcpCenter": "Центр MCP",
     "taskDetail": "Подробности задачи",
     "assetGroupDetail": "Подробности группы активов",
     "policyDetail": "Подробности политики"

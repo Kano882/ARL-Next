@@ -139,3 +139,100 @@ def test_bootstrap_password_random_private_and_existing_accounts_preserved(app_e
     module.ensure_admin(app_env.db.user, reset=True, password='new-fixture-password', password_file=str(path))
     assert app_env.db.user.find_one()['token'] is None
     assert app_env.credentials.verify_password(app_env.db.user.find_one()['password'], 'new-fixture-password')
+
+
+def test_mcp_governance_keys_crud(app_env):
+    route = load_source(app_env.monkeypatch, 'app.routes.mcp', 'app/routes/mcp.py')
+    client = make_client(app_env, route.ns)
+
+    # 1. 创建 Key
+    res = client.post('/api/mcp/keys', headers={'Token': 'fixture-api-key'}, json={
+        'name': 'Test Cursor Key',
+        'scopes': ['asset:read'],
+        'expire_days': 30
+    })
+    assert res.status_code == 200
+    data = res.get_json()['data']
+    key_id = data['id']
+    raw_key = data['raw_key']
+    assert raw_key.startswith('arl_mcp_')
+
+    # 2. 查询 Key 列表
+    res_list = client.get('/api/mcp/keys', headers={'Token': 'fixture-api-key'})
+    assert res_list.status_code == 200
+    items = res_list.get_json()['data']['items']
+    assert len(items) == 1
+    assert items[0]['name'] == 'Test Cursor Key'
+    assert items[0]['status'] == 'active'
+
+    # 3. 吊销 Key
+    res_status = client.post(f'/api/mcp/keys/{key_id}/status', headers={'Token': 'fixture-api-key'}, json={'status': 'revoked'})
+    assert res_status.status_code == 200
+
+    # 验证状态变更为 revoked
+    key_in_db = app_env.db.mcp_key.find_one({'name': 'Test Cursor Key'})
+    assert key_in_db['status'] == 'revoked'
+
+    # 4. 删除 Key
+    res_del = client.delete(f'/api/mcp/keys/{key_id}', headers={'Token': 'fixture-api-key'})
+    assert res_del.status_code == 200
+    assert app_env.db.mcp_key.count_documents({}) == 0
+
+
+def test_mcp_governance_logs_and_config(app_env):
+    route = load_source(app_env.monkeypatch, 'app.routes.mcp', 'app/routes/mcp.py')
+    client = make_client(app_env, route.ns)
+
+    # 插入模拟日志
+    from datetime import datetime, timezone
+    app_env.db.mcp_log.insert_one({
+        'key_id': 'legacy',
+        'key_name': '[Legacy Token]',
+        'client_ip': '127.0.0.1',
+        'tool_name': 'get_asset_profile',
+        'target': 'example.com',
+        'status': 'success',
+        'duration_ms': 45,
+        'summary': '命中资产',
+        'error_message': '',
+        'created_at': datetime.now(timezone.utc)
+    })
+
+    # 查询 Overview
+    res_ov = client.get('/api/mcp/overview', headers={'Token': 'fixture-api-key'})
+    assert res_ov.status_code == 200
+    ov_data = res_ov.get_json()['data']
+    assert ov_data['today_calls'] >= 1
+    assert ov_data['service_status'] == 'running'
+
+    # 查询 Logs 列表
+    res_logs = client.get('/api/mcp/logs', headers={'Token': 'fixture-api-key'}, query_string={'tool_name': 'get_asset_profile'})
+    assert res_logs.status_code == 200
+    logs_data = res_logs.get_json()['data']
+    assert logs_data['total'] == 1
+    assert logs_data['items'][0]['target'] == 'example.com'
+
+    # 导出 Logs CSV
+    res_export = client.get('/api/mcp/logs/export', headers={'Token': 'fixture-api-key'})
+    assert res_export.status_code == 200
+    assert 'text/csv' in res_export.headers['Content-Type']
+    csv_content = res_export.get_data(as_text=True)
+    assert 'example.com' in csv_content
+
+    # 配置查询与修改
+    res_cfg = client.get('/api/mcp/config', headers={'Token': 'fixture-api-key'})
+    assert res_cfg.status_code == 200
+    cfg_data = res_cfg.get_json()['data']
+    assert 'tool_switches' in cfg_data
+
+    # 修改配置
+    res_save = client.post('/api/mcp/config', headers={'Token': 'fixture-api-key'}, json={
+        'tool_switches': {'get_asset_profile': True, 'create_scan_task': True},
+        'max_search_limit': 100,
+        'rate_limit_per_min': 200
+    })
+    assert res_save.status_code == 200
+
+    saved_cfg = app_env.db.mcp_config.find_one({'_id': 'global'})
+    assert saved_cfg['max_search_limit'] == 100
+    assert saved_cfg['tool_switches']['create_scan_task'] is True

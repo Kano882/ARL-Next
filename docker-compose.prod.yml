@@ -87,7 +87,7 @@ services:
     container_name: arl-mcp-prod
     restart: always
     mem_reservation: 64m
-    command: bash -c "/code/backend/start_mcp_prod.sh"
+    command: bash -c "while [ ! -f /code/backend/start_mcp_prod.sh ]; do sleep 1; done; exec /code/backend/start_mcp_prod.sh"
     working_dir: /code
     environment:
       - TZ=Asia/Shanghai
