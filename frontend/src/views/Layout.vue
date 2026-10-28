@@ -12,12 +12,16 @@
             v-for="item in menuItems"
             :key="item.key"
             :data-key="item.key"
+            :title="collapsed ? t(item.titleKey) : null"
             class="sidebar-sortable-menu-item"
           >
             <template #icon>
               <component :is="item.icon" />
             </template>
-            <span class="sidebar-menu-title-text">{{ t(item.titleKey) }}</span>
+            <span
+              class="sidebar-menu-title-text"
+              @mouseenter="handleMenuTextHover($event, t(item.titleKey))"
+            >{{ t(item.titleKey) }}</span>
             <span
               v-if="!collapsed"
               class="sidebar-menu-drag-handle"
@@ -395,6 +399,14 @@ const loadOrderedMenuItems = () => {
 };
 
 const menuItems = ref(loadOrderedMenuItems());
+
+// 智能防截断 Tooltip：仅当菜单项文字发生溢出截断时动态设置原生 title
+const handleMenuTextHover = (e, text) => {
+  const el = e?.currentTarget;
+  if (el) {
+    el.title = el.scrollWidth > el.clientWidth ? text : '';
+  }
+};
 
 const saveMenuOrder = () => {
   try {

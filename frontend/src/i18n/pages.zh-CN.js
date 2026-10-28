@@ -1318,6 +1318,6 @@ export default {
   "mcpMaxSearchLimitHint": "防止大模型单次检索过量数据撑爆上下文，默认 50，最大 200",
   "mcpRateLimitPerMin": "单 Key 每分钟调用限额 (次)",
   "mcpRateLimitHint": "防刷流控保护，超出阈值直接返回 HTTP 429",
-  "goToMcpCenter": "进入完整服务中心",
+  "goToMcpCenter": "进入 MCP 中心",
   "mcpKeyNameRequired": "请输入 Key 备注名称"
 };

@@ -33,7 +33,7 @@ export default {
     fingerprints: '指纹管理',
     policies: '策略配置',
     settings: '系统设置',
-    mcpCenter: 'MCP服务中心',
+    mcpCenter: 'MCP 中心',
     taskDetail: '任务详情',
     assetGroupDetail: '资产组详情',
     policyDetail: '策略配置详情',

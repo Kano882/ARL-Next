@@ -115,7 +115,7 @@ const routes = [
                 path: '/mcpCenter',
                 name: 'McpCenter',
                 component: () => import('../views/McpCenter.vue'),
-                meta: { title: 'MCP服务中心' }
+                meta: { title: 'MCP 中心' }
             }
         ]
 
