@@ -24,12 +24,15 @@
       }"
     >
       <div class="sidebar-header">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <ApartmentOutlined style="font-size: 16px; color: var(--arl-theme-color);" />
-          <span class="asset-sidebar-heading">{{ assetText('assets.assetGroupView') }}</span>
+        <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+          <ApartmentOutlined style="font-size: 16px; color: var(--arl-theme-color); flex-shrink: 0;" />
+          <span class="asset-sidebar-heading" style="white-space: nowrap;">{{ assetText('assets.organizationGroupCatalog') }}</span>
+          <a-tooltip :title="assetText('assets.organizationGroupCatalogTooltip')" placement="right">
+            <question-circle-outlined style="font-size: 13px; color: var(--arl-text-color); opacity: 0.45; cursor: pointer; flex-shrink: 0;" />
+          </a-tooltip>
           <span class="sidebar-total-badge">{{ groupList.length }}</span>
         </div>
-        <a-tooltip :title="assetText('assets.newOrganizationGroup')">
+        <a-tooltip :title="assetText('assets.newOrganizationGroupWithLevel')">
           <a-button type="text" size="small" class="sidebar-add-btn" @click="openAddEnterpriseGroupModal">
             <plus-outlined />
           </a-button>
@@ -59,6 +62,15 @@
         </a-menu>
 
         <div class="sidebar-group-divider"></div>
+
+        <!-- 无自定义集团时的轻量指引卡片 -->
+        <div v-if="groupList.length === 0" style="margin: 12px 10px; padding: 10px; background: var(--arl-bg-light, rgba(0,0,0,0.02)); border: 1px dashed var(--arl-border-color); border-radius: 6px; font-size: 12px; line-height: 1.5; color: var(--arl-text-color); opacity: 0.8;">
+          <div style="font-weight: 500; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; color: var(--arl-theme-color);">
+            <info-circle-outlined />
+            <span>{{ assetText('assets.sidebarCatalogTipTitle') }}</span>
+          </div>
+          <div>{{ assetText('assets.sidebarCatalogTipDesc') }}</div>
+        </div>
 
         <!-- 可拖拽自定义集团列表容器 -->
         <div ref="draggableGroupListRef" class="sidebar-group-draggable-list">
@@ -187,7 +199,7 @@
           <div class="scope-header-top">
             <div class="scope-title-area">
               <a-breadcrumb v-if="isSidebarCollapsed">
-                <a-breadcrumb-item>{{ assetText('tasks.assetGroup') }}</a-breadcrumb-item>
+                <a-breadcrumb-item>{{ assetText('assets.organizationGroupCatalog') }}</a-breadcrumb-item>
                 <a-breadcrumb-item>
                   <a-dropdown :getPopupContainer="getBodyContainer">
                     <span class="group-switch-trigger">
@@ -203,10 +215,28 @@
                     </template>
                   </a-dropdown>
                 </a-breadcrumb-item>
+                <a-breadcrumb-item v-if="!['all', 'unassigned'].includes(activeGroupId)">{{ assetText('assets.subordinateAssetGroups') }}</a-breadcrumb-item>
               </a-breadcrumb>
               <div v-else class="scope-title-wrap">
-                <span class="scope-title-text">{{ currentGroupName }}</span>
-                <span class="scope-total-tag" v-if="pagination.total !== undefined">{{ assetText('assets.assetGroupCount', { count: pagination.total }) }}</span>
+                <template v-if="activeGroupId === 'all'">
+                  <span class="scope-title-text">{{ assetText('assets.allAssetGroups') }}</span>
+                  <span class="scope-total-tag" v-if="pagination.total !== undefined">{{ assetText('assets.assetGroupCount', { count: pagination.total }) }}</span>
+                </template>
+                <template v-else-if="activeGroupId === 'unassigned'">
+                  <span class="scope-title-text">{{ assetText('assets.ungroupedAssetGroups') }}</span>
+                  <span class="scope-total-tag" v-if="pagination.total !== undefined">{{ assetText('assets.assetGroupCount', { count: pagination.total }) }}</span>
+                </template>
+                <template v-else>
+                  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <a-tag color="blue" style="font-size: 12px; margin-right: 0; padding: 2px 8px;">
+                      <apartment-outlined style="margin-right: 3px;" />{{ assetText('assets.organizationGroupLevel') }}
+                    </a-tag>
+                    <span class="scope-title-text">{{ currentGroupName }}</span>
+                    <span style="color: var(--arl-text-color); opacity: 0.35; font-size: 14px;">/</span>
+                    <span style="font-size: 14px; font-weight: 500; color: var(--arl-text-color); opacity: 0.85;">{{ assetText('assets.subordinateAssetGroups') }}</span>
+                    <span class="scope-total-tag" v-if="pagination.total !== undefined">{{ assetText('assets.assetGroupCount', { count: pagination.total }) }}</span>
+                  </div>
+                </template>
               </div>
             </div>
             <div class="scope-header-actions" style="display: flex; align-items: center; gap: 12px;">
@@ -269,7 +299,7 @@
               <a-form-item :label="assetText('assets.assetScope')">
                 <a-input v-model:value="searchForm.scope" :placeholder="assetText('assets.searchDomainsOrIps')" class="asset-width-175" allowClear @pressEnter="onSearch" />
               </a-form-item>
-              <a-form-item :label="assetText('tasks.assetScopeId')">
+              <a-form-item :label="assetText('assets.assetScopeIdLabel')">
                 <a-input v-model:value="searchForm._id" :placeholder="assetText('assets.searchById')" class="asset-width-170" allowClear @pressEnter="onSearch" />
               </a-form-item>
               <a-form-item class="filter-actions-item">
@@ -348,10 +378,14 @@
             </template>
 
             <template v-else-if="column.key === 'group_name'">
-              <a-tag v-if="record.group_name" color="blue" class="group-cell-tag" @click="activeGroupId = record.group_id">
-                {{ record.group_name }}
+              <a-tooltip v-if="record.group_name" :title="assetText('assets.filterByThisOrganization')">
+                <a-tag color="blue" class="group-cell-tag" style="cursor: pointer;" @click="activeGroupId = record.group_id">
+                  <apartment-outlined style="margin-right: 3px;" />{{ record.group_name }}
+                </a-tag>
+              </a-tooltip>
+              <a-tag v-else :bordered="false" style="color: var(--arl-text-color); opacity: 0.5; background: var(--arl-bg-light, rgba(0,0,0,0.03));">
+                {{ assetText('assets.ungrouped') }}
               </a-tag>
-              <span v-else style="color: var(--arl-text-color); opacity: 0.45;">-</span>
             </template>
 
             <template v-else-if="column.key === 'scope_and_stat'">
@@ -537,6 +571,30 @@
             </template>
 
           </template>
+
+          <template #emptyText>
+            <div v-if="!searchForm.name && !searchForm.scope && !searchForm._id && activeGroupId === 'all'" style="padding: 36px 16px; text-align: center;">
+              <div style="font-size: 16px; font-weight: 600; color: var(--arl-text-color); margin-bottom: 8px;">
+                {{ assetText('assets.emptyGuideTitle') }}
+              </div>
+              <div style="font-size: 13px; color: var(--arl-text-color); opacity: 0.65; max-width: 600px; margin: 0 auto 18px; line-height: 1.6;">
+                {{ assetText('assets.emptyGuideDesc') }}
+              </div>
+              <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--arl-bg-light, rgba(0,0,0,0.02)); border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 10px 18px; margin-bottom: 24px; font-size: 12px; color: var(--arl-text-color); opacity: 0.85;">
+                <ApartmentOutlined style="color: var(--arl-theme-color);" />
+                <span>{{ assetText('assets.architectureHierarchyTip') }}</span>
+              </div>
+              <div style="display: flex; justify-content: center; gap: 12px;">
+                <a-button type="primary" @click="openAddModal">
+                  <PlusOutlined /> {{ assetText('assets.createAssetGroupDirectly') }}
+                </a-button>
+                <a-button @click="openAddEnterpriseGroupModal">
+                  <ApartmentOutlined /> {{ assetText('assets.createOrganizationGroupStructure') }}
+                </a-button>
+              </div>
+            </div>
+            <a-empty v-else :description="assetText('tasks.noDataAvailable')" />
+          </template>
         </a-table>
 
         <div class="table-pagination-footer">
@@ -585,9 +643,19 @@
         style="margin-top: 10px;"
       >
         <a-form-item :label="assetText('tasks.parentOrganization')" name="group_id">
-          <a-select v-model:value="addForm.group_id" :placeholder="assetText('tasks.selectAParentOrganizationOptional')" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
-            <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
-          </a-select>
+          <template #tooltip>
+            {{ assetText('assets.parentOrganizationHelpTooltip') }}
+          </template>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <a-select v-model:value="addForm.group_id" :placeholder="assetText('tasks.selectAParentOrganizationOptional')" allowClear show-search option-filter-prop="label" style="flex: 1;" :getPopupContainer="(trigger) => trigger.parentNode">
+              <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
+            </a-select>
+            <a-tooltip :title="assetText('assets.quickCreateOrganizationGroup')">
+              <a-button type="dashed" @click="openQuickCreateGroup('manual')">
+                <plus-outlined /> {{ assetText('assets.quickNew') }}
+              </a-button>
+            </a-tooltip>
+          </div>
         </a-form-item>
 
         <a-form-item :label="assetText('tasks.assetGroupName')" name="name">
@@ -676,16 +744,27 @@
 
               <!-- 所属集团 (选填) -->
               <a-form-item :label="assetText('tasks.parentOrganization')">
-                <a-select
-                  v-model:value="wizardForm.group_id"
-                  :placeholder="assetText('tasks.selectAParentOrganizationOptional')"
-                  allowClear
-                  show-search
-                  option-filter-prop="label"
-                  :getPopupContainer="(trigger) => trigger.parentNode"
-                >
-                  <a-select-option v-for="g in groupList" :key="g._id" :value="g._id" :label="g.name">{{ g.name }}</a-select-option>
-                </a-select>
+                <template #tooltip>
+                  {{ assetText('assets.parentOrganizationHelpTooltip') }}
+                </template>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <a-select
+                    v-model:value="wizardForm.group_id"
+                    :placeholder="assetText('tasks.selectAParentOrganizationOptional')"
+                    allowClear
+                    show-search
+                    option-filter-prop="label"
+                    style="flex: 1;"
+                    :getPopupContainer="(trigger) => trigger.parentNode"
+                  >
+                    <a-select-option v-for="g in groupList" :key="g._id" :value="g._id" :label="g.name">{{ g.name }}</a-select-option>
+                  </a-select>
+                  <a-tooltip :title="assetText('assets.quickCreateOrganizationGroup')">
+                    <a-button type="dashed" @click="openQuickCreateGroup('wizard')">
+                      <plus-outlined /> {{ assetText('assets.quickNew') }}
+                    </a-button>
+                  </a-tooltip>
+                </div>
               </a-form-item>
 
               <!-- 自动化托管与探测偏好 -->
@@ -891,9 +970,19 @@
         style="margin-top: 20px;"
       >
         <a-form-item :label="assetText('tasks.parentOrganization')" name="group_id">
-          <a-select v-model:value="editGroupForm.group_id" :placeholder="assetText('tasks.selectAParentOrganizationOptional')" allowClear :getPopupContainer="(trigger) => trigger.parentNode">
-            <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
-          </a-select>
+          <template #tooltip>
+            {{ assetText('assets.parentOrganizationHelpTooltip') }}
+          </template>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <a-select v-model:value="editGroupForm.group_id" :placeholder="assetText('tasks.selectAParentOrganizationOptional')" allowClear show-search option-filter-prop="label" style="flex: 1;" :getPopupContainer="(trigger) => trigger.parentNode">
+              <a-select-option v-for="g in groupList" :key="g._id" :value="g._id">{{ g.name }}</a-select-option>
+            </a-select>
+            <a-tooltip :title="assetText('assets.quickCreateOrganizationGroup')">
+              <a-button type="dashed" @click="openQuickCreateGroup('edit')">
+                <plus-outlined /> {{ assetText('assets.quickNew') }}
+              </a-button>
+            </a-tooltip>
+          </div>
         </a-form-item>
 
         <a-form-item :label="assetText('tasks.assetGroupName')" name="name">
@@ -1165,6 +1254,33 @@
       </a-form>
     </a-modal>
 
+    <!-- 快捷新建集团轻量弹窗 -->
+    <a-modal
+      v-model:open="quickGroupModalVisible"
+      :title="assetText('assets.quickCreateOrganizationGroup')"
+      @ok="handleQuickGroupSubmit"
+      :confirmLoading="quickGroupLoading"
+      width="420px"
+      wrapClassName="arl-theme-modal"
+      rootClassName="arl-theme-modal"
+      :okText="assetText('tasks.confirm')"
+      :cancelText="assetText('assets.cancel')"
+      destroyOnClose
+    >
+      <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.75; margin-bottom: 14px; line-height: 1.6;">
+        {{ assetText('assets.quickCreateOrganizationDesc') }}
+      </div>
+      <a-form layout="vertical">
+        <a-form-item :label="assetText('assets.organizationGroupName')" required>
+          <a-input
+            v-model:value="quickGroupName"
+            :placeholder="assetText('assets.enterAnOrganizationGroupName')"
+            @pressEnter="handleQuickGroupSubmit"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
     <!-- 批量移动至集团弹窗 -->
     <a-modal
       v-model:open="batchMoveModalVisible"
@@ -1366,7 +1482,7 @@ const columns = computed(() => {
   const baseColumns = [
     { title: assetText('tasks.assetGroupName'), key: 'name', width: 220, sorter: true },
     { title: assetText('assets.seedTargetsAndCoverage'), key: 'scope_and_stat', minWidth: 260 },
-    { title: assetText('assets.groupId'), key: 'scope_id', width: 150 },
+    { title: assetText('assets.assetScopeIdLabel'), key: 'scope_id', width: 150 },
     { title: assetText('tasks.actions'), key: 'action', width: 250, fixed: 'right' }
   ];
   if (activeGroupId.value === 'all') {
@@ -1704,6 +1820,51 @@ const handleGroupAction = (e, group) => {
         }
       }
     });
+  }
+};
+
+// 快捷新建集团轻量弹窗状态与方法
+const quickGroupModalVisible = ref(false);
+const quickGroupLoading = ref(false);
+const quickGroupName = ref('');
+const quickGroupTargetContext = ref('wizard'); // 'wizard' | 'manual' | 'edit'
+
+const openQuickCreateGroup = (context) => {
+  quickGroupTargetContext.value = context;
+  quickGroupName.value = '';
+  quickGroupModalVisible.value = true;
+};
+
+const handleQuickGroupSubmit = async () => {
+  const name = quickGroupName.value.trim();
+  if (!name) {
+    message.warning(assetText('assets.enterAnOrganizationGroupName'));
+    return;
+  }
+  quickGroupLoading.value = true;
+  try {
+    const res = await request.post('/asset_group/', { name });
+    if (res.code === 200) {
+      const newId = res.data?._id;
+      message.success(assetText('assets.organizationGroupCreated'));
+      quickGroupModalVisible.value = false;
+      await fetchGroups();
+      if (newId) {
+        if (quickGroupTargetContext.value === 'wizard') {
+          wizardForm.group_id = newId;
+        } else if (quickGroupTargetContext.value === 'manual') {
+          addForm.group_id = newId;
+        } else if (quickGroupTargetContext.value === 'edit') {
+          editGroupForm.group_id = newId;
+        }
+      }
+    } else {
+      message.error(res.message || assetText('tasks.operationFailedLabel'));
+    }
+  } catch (err) {
+    message.error(assetText('tasks.requestFailed'));
+  } finally {
+    quickGroupLoading.value = false;
   }
 };
 
