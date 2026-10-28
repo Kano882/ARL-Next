@@ -74,8 +74,26 @@
               <a-alert
                 type="warning"
                 show-icon
-                :message="pageText('pages.mcpSseIpWarning')"
-              />
+                :message="pageText('pages.mcpSseIpWarningTitle')"
+              >
+                <template #description>
+                  <div style="margin-top: 4px;">
+                    <div style="line-height: 1.5;">{{ pageText('pages.mcpSseIpWarningDesc') }}</div>
+                    <div style="margin-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                      <a-button size="small" type="primary" ghost @click="switchToStdioMode">
+                        {{ pageText('pages.mcpSwitchToStdio') }}
+                      </a-button>
+                      <a-button size="small" type="link" style="padding: 0;" @click="showCertGuide = !showCertGuide">
+                        {{ showCertGuide ? pageText('pages.mcpHideCertGuide') : pageText('pages.mcpShowCertGuide') }}
+                      </a-button>
+                    </div>
+                    <div v-if="showCertGuide" style="margin-top: 10px; padding: 10px 12px; background: rgba(0, 0, 0, 0.03); border: 1px solid var(--arl-border-color, rgba(0, 0, 0, 0.06)); border-radius: 6px; font-size: 12px; line-height: 1.6;">
+                      <div style="margin-bottom: 6px;">{{ pageText('pages.mcpCertGuideStep1') }}</div>
+                      <div>{{ pageText('pages.mcpCertGuideStep2') }}</div>
+                    </div>
+                  </div>
+                </template>
+              </a-alert>
             </div>
 
             <!-- 客户端选项卡 (Cursor / Windsurf / Claude Code / Antigravity) -->
@@ -674,9 +692,15 @@ const isIpAccess = ref(/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname) || hostn
 
 // 2. Tab 1: 客户端接入
 const mcpMode = ref(isIpAccess.value ? 'stdio' : 'sse');
+const showCertGuide = ref(false);
 const selectedKeyId = ref('current_session');
 const selectedClient = ref('cursor');
 const isDownloadingScript = ref(false);
+
+const switchToStdioMode = () => {
+  mcpMode.value = 'stdio';
+  updateConfigPreview();
+};
 
 const activeKeyOptions = ref([]);
 

@@ -318,4 +318,4 @@ ARL-Next 集成了 Model Context Protocol (MCP 2024-11-05 规范)，支持 AI �
 
 > [!NOTE]
 > - 生产反向代理已针对 `/mcp/sse` 配置专用流式转发（禁用缓冲、长连接保活 24 小时）；
-> - 经 IP 访问自签证书部署时，客户端若因 TLS 校验阻断直连，推荐使用本地 Stdio 脚本接入（已内置证书自适应），或为客户端配置 `NODE_TLS_REJECT_UNAUTHORIZED=0`。
+> - 经 IP 访问自签证书部署时，客户端若因 TLS 校验阻断直连，推荐使用本地 Stdio 脚本接入（已内置证书自适应），或将服务端 CA 证书导入系统信任库。

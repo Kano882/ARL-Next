@@ -162,8 +162,26 @@
       <a-alert
         type="warning"
         show-icon
-        :message="pageText('pages.mcpSseIpWarning')"
-      />
+        :message="pageText('pages.mcpSseIpWarningTitle')"
+      >
+        <template #description>
+          <div style="margin-top: 4px;">
+            <div style="line-height: 1.5;">{{ pageText('pages.mcpSseIpWarningDesc') }}</div>
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <a-button size="small" type="primary" ghost @click="switchToStdioMode">
+                {{ pageText('pages.mcpSwitchToStdio') }}
+              </a-button>
+              <a-button size="small" type="link" style="padding: 0;" @click="showCertGuide = !showCertGuide">
+                {{ showCertGuide ? pageText('pages.mcpHideCertGuide') : pageText('pages.mcpShowCertGuide') }}
+              </a-button>
+            </div>
+            <div v-if="showCertGuide" :style="{ marginTop: '10px', padding: '10px 12px', background: hasBgImage ? 'rgba(0,0,0,0.2)' : 'var(--arl-bg-light, rgba(0,0,0,0.03))', border: hasBgImage ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--arl-border-color, rgba(0,0,0,0.06))', borderRadius: '6px', fontSize: '12px', lineHeight: '1.6' }">
+              <div style="margin-bottom: 6px;">{{ pageText('pages.mcpCertGuideStep1') }}</div>
+              <div>{{ pageText('pages.mcpCertGuideStep2') }}</div>
+            </div>
+          </div>
+        </template>
+      </a-alert>
     </div>
 
     <!-- 模式 1: 远程直连说明 -->
@@ -790,8 +808,14 @@ const handleCancelChangePass = () => {
 const showMcpModal = ref(false);
 const mcpMode = ref('sse');
 const isIpAccess = ref(false);
+const showCertGuide = ref(false);
 const mcpConfigJson = ref('');
 const isDownloadingScript = ref(false);
+
+const switchToStdioMode = () => {
+  mcpMode.value = 'stdio';
+  updateMcpConfigJson();
+};
 
 const updateMcpConfigJson = () => {
   const token = localStorage.getItem('token') || '';
@@ -832,6 +856,7 @@ const handleShowMcpModal = () => {
   const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname) || hostname === 'localhost' || hostname === '127.0.0.1';
   isIpAccess.value = isIp;
   mcpMode.value = isIp ? 'stdio' : 'sse';
+  showCertGuide.value = false;
   updateMcpConfigJson();
   showMcpModal.value = true;
 };

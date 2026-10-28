@@ -155,7 +155,9 @@ Once connected, interact with your AI Agent using natural language:
 ### Q1: Client fails with `DEPTH_ZERO_SELF_SIGNED_CERT` or `UNABLE_TO_VERIFY_LEAF_SIGNATURE`
 - **🔴 Symptom**: Cursor or Claude Desktop rejects connection with an untrusted certificate error.
 - **🔍 Root Cause**: Cursor and Claude Desktop run on Electron / Node.js, which strictly validates TLS certificates against trusted system CAs and rejects private LAN IPs or self-signed certs.
-- **⚡ Solution (Recommended)**: Switch to the **「Local Stdio Bridge」** configuration. The local Python script includes native CA chain validation and eliminates Electron TLS errors. For temporary testing only, launch the client with `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+- **⚡ Solution (Recommended)**:
+  1. **Preferred**: Switch to the **「Local Stdio Bridge」** configuration. The exported Python script natively handles self-signed CA chains and IP SAN adaptation without TLS blocking.
+  2. **If persisting with Remote SSE**: Import the server's CA certificate (`certs/arl.crt`) into your operating system's trusted root certification authorities (macOS Keychain set to "Always Trust" / Windows Certificate Manager). (Note: Adding `NODE_TLS_REJECT_UNAUTHORIZED` in `mcp.json` has no effect as SSE transport does not spawn subprocesses).
 
 ### Q2: Requests return `401 Unauthorized` or `Invalid or expired token`
 - **🔴 Symptom**: Tool calls fail with authentication errors.

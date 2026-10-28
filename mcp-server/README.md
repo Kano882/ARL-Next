@@ -155,7 +155,9 @@ ARL-Next MCP 注册了 5 项核心标准化工具，默认开启只读情报查�
 ### Q1: 客户端报错 `DEPTH_ZERO_SELF_SIGNED_CERT` 或 `UNABLE_TO_VERIFY_LEAF_SIGNATURE`
 - **🔴 症状**：Cursor / Claude Desktop 无法连接，错误日志提示证书不受信任。
 - **🔍 根因**：客户端运行于 Electron / Node.js 体系，默认严格拦截未受系统信任机构签名的自签名证书或局域网 IP。
-- **⚡ 解决（推荐）**：改用各客户端卡片中的 **「本地 Stdio 桥接」** 模式。本地 Python 脚本原生支持自签证书链校验，零证书拦截报错。测试环境亦可在启动客户端时注入环境变量 `NODE_TLS_REJECT_UNAUTHORIZED=0`。
+- **⚡ 解决（推荐）**：
+  1. **首选方案**：改用各客户端卡片中的 **「本地 Stdio 桥接」** 模式。导出的 Python 脚本已内置针对自签证书与私网 IP 的安全兼容校验，零证书拦截报错。
+  2. **若坚持远程 SSE 直连**：需将服务端的 CA 证书（`certs/arl.crt`）导入客户端操作系统的受信任根证书库（macOS 钥匙串设置为“始终信任” / Windows 受信任的根证书颁发机构），使系统网络栈天然信任。（注：请勿在 `mcp.json` 中配置 `NODE_TLS_REJECT_UNAUTHORIZED`，SSE 模式下不会被识别）。
 
 ### Q2: 接口调用返回 `401 Unauthorized` 或 `Invalid or expired token`
 - **🔴 症状**：客户端所有工具调用均提示鉴权失败。

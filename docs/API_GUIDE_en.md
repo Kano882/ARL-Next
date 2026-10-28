@@ -316,4 +316,4 @@ ARL-Next integrates the Model Context Protocol (MCP 2024-11-05 specification) fo
 
 > [!NOTE]
 > - Production Nginx reverse proxy routes `/mcp/sse` with unbuffered streaming and a 24-hour persistent timeout;
-> - When accessing self-signed IP deployments, if the client drops connections due to TLS chain verification, use the local Stdio script (built-in certificate pinning) or configure `NODE_TLS_REJECT_UNAUTHORIZED=0` in the client environment.
+> - When accessing self-signed IP deployments, if the client drops connections due to TLS chain verification, use the local Stdio script (built-in certificate pinning) or import the server CA certificate into the operating system trust store.
