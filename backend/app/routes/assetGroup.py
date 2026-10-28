@@ -24,7 +24,9 @@ edit_base_fields.update({
 edit_asset_group_fields = ns.model('editAssetGroup', edit_base_fields)
 
 delete_asset_group_fields = ns.model('deleteAssetGroup', {
-    '_id': fields.String(description="集团ID", required=True)
+    '_id': fields.String(description="集团ID", required=True),
+    'action': fields.String(description="处置方式: dissolve(移入未分组) 或 transfer(划转至目标集团)", default="dissolve"),
+    'target_group_id': fields.String(description="目标集团ID(当 action 为 transfer 时必填)")
 })
 
 reorder_asset_group_fields = ns.model('reorderAssetGroup', {
@@ -160,25 +162,56 @@ class DeleteARLAssetGroup(ARLResource):
         """
         args = self.parse_args(delete_asset_group_fields)
         group_id = args.get('_id')
+        action = args.get('action') or 'dissolve'
+        target_group_id = args.get('target_group_id')
         
         try:
             obj_id = ObjectId(group_id)
         except Exception:
             return utils.build_ret("参数错误", {"error": "无效的集团ID"})
             
+        group = utils.conn_db('asset_group').find_one({'_id': obj_id})
+        if not group:
+            return utils.build_ret("参数错误", {"error": "集团不存在"})
+
         # check scope_count
         count = utils.conn_db('asset_scope').count_documents({'group_id': group_id})
         if count > 0:
-            return utils.build_ret("参数错误", {"error": f"该集团下仍有 {count} 个资产组，请先移除或划转下属资产组"})
-            
+            if action == 'transfer':
+                if not target_group_id:
+                    return utils.build_ret("参数错误", {"error": "请选择目标集团"})
+                if str(target_group_id) == str(group_id):
+                    return utils.build_ret("参数错误", {"error": "目标集团不能为当前集团"})
+                try:
+                    target_obj_id = ObjectId(target_group_id)
+                except Exception:
+                    return utils.build_ret("参数错误", {"error": "无效的目标集团ID"})
+
+                target_group = utils.conn_db('asset_group').find_one({'_id': target_obj_id})
+                if not target_group:
+                    return utils.build_ret("参数错误", {"error": "目标集团不存在"})
+
+                # 批量平滑划转下属资产组
+                utils.conn_db('asset_scope').update_many(
+                    {'group_id': group_id},
+                    {'$set': {'group_id': target_group_id, 'group_name': target_group.get('name', '')}}
+                )
+            else:
+                # dissolve: 解散下属资产组归属，平滑移至未分组
+                utils.conn_db('asset_scope').update_many(
+                    {'group_id': group_id},
+                    {'$unset': {'group_id': "", 'group_name': ""}}
+                )
+
         try:
             utils.conn_db('asset_group').delete_one({'_id': obj_id})
-            # fallback cleanup
-            utils.conn_db('asset_scope').update_many(
-                {'group_id': group_id},
-                {'$unset': {'group_id': "", 'group_name': ""}}
-            )
-            return utils.build_ret(ErrorMsg.Success, {"_id": group_id})
+            # fallback cleanup for safe measure
+            if count == 0:
+                utils.conn_db('asset_scope').update_many(
+                    {'group_id': group_id},
+                    {'$unset': {'group_id': "", 'group_name': ""}}
+                )
+            return utils.build_ret(ErrorMsg.Success, {"_id": group_id, "action": action})
         except Exception as e:
             logger.error(f"delete asset_group error, detail={e}")
             return utils.build_ret(ErrorMsg.Error, {"error": "数据库删除异常"})

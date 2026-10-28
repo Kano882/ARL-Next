@@ -284,6 +284,23 @@
                 </a-tag>
               </a-popover>
 
+              <!-- 集团上下文管理操作下拉 (当选中具体集团时呈现) -->
+              <a-dropdown v-if="!['all', 'unassigned'].includes(activeGroupId)" :getPopupContainer="getBodyContainer">
+                <template #overlay>
+                  <a-menu @click="handleCurrentGroupDropdownClick">
+                    <a-menu-item key="edit">
+                      <EditOutlined /> {{ assetText('assets.rename') }}
+                    </a-menu-item>
+                    <a-menu-item key="delete" class="asset-danger">
+                      <DeleteOutlined /> {{ assetText('tasks.delete') }}
+                    </a-menu-item>
+                  </a-menu>
+                </template>
+                <a-button class="header-action-btn">
+                  <ApartmentOutlined /> {{ assetText('assets.manageOrganizationGroup') }} <DownOutlined />
+                </a-button>
+              </a-dropdown>
+
               <a-button type="primary" @click="openAddModal" class="header-action-btn">
                 <PlusOutlined /> {{ assetText('tasks.createAnAssetGroup') }}
               </a-button>
@@ -1305,7 +1322,90 @@
       </a-form>
     </a-modal>
 
-    <!-- 从企业资产任务导入弹窗 -->
+    <!-- 集团删除与下属资产组处置弹窗 -->
+    <a-modal
+      v-model:open="deleteGroupModalVisible"
+      :title="assetText('assets.deleteOrganizationWithSubScopesTitle')"
+      width="540px"
+      wrapClassName="arl-theme-modal"
+      rootClassName="arl-theme-modal"
+      destroyOnClose
+    >
+      <div v-if="deleteGroupTarget" style="display: flex; flex-direction: column; gap: 16px; padding: 4px 0;">
+        <a-alert
+          type="info"
+          show-icon
+          :message="assetText('assets.deleteOrganizationNoticeDataKept')"
+        />
+
+        <div style="font-size: 13px; color: var(--arl-text-color); font-weight: 500;">
+          {{ assetText('assets.subordinateAssetGroupCountNotice', { count: deleteGroupTarget.scope_count || 0 }) }}
+        </div>
+
+        <a-radio-group v-model:value="deleteGroupForm.action" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+          <div
+            style="border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 12px; cursor: pointer; transition: all 0.2s;"
+            :style="deleteGroupForm.action === 'dissolve' ? { borderColor: 'var(--arl-theme-color)', background: 'rgba(250, 84, 28, 0.03)' } : {}"
+            @click="deleteGroupForm.action = 'dissolve'"
+          >
+            <a-radio value="dissolve" style="font-weight: 500; align-items: flex-start;">
+              <div>
+                <span style="font-weight: 600;">{{ assetText('assets.dissolveToUngrouped') }}</span>
+                <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7; margin-top: 4px; font-weight: normal; line-height: 1.5;">
+                  {{ assetText('assets.dissolveToUngroupedDesc') }}
+                </div>
+              </div>
+            </a-radio>
+          </div>
+
+          <div
+            style="border: 1px solid var(--arl-border-color); border-radius: 6px; padding: 12px; transition: all 0.2s;"
+            :style="[
+              deleteGroupForm.action === 'transfer' ? { borderColor: 'var(--arl-theme-color)', background: 'rgba(250, 84, 28, 0.03)' } : {},
+              availableTransferGroups.length === 0 ? { opacity: 0.6, cursor: 'not-allowed' } : { cursor: 'pointer' }
+            ]"
+            @click="availableTransferGroups.length > 0 && (deleteGroupForm.action = 'transfer')"
+          >
+            <a-radio value="transfer" :disabled="availableTransferGroups.length === 0" style="font-weight: 500; align-items: flex-start; width: 100%;">
+              <div style="width: 100%;">
+                <span style="font-weight: 600;">{{ assetText('assets.transferToOtherOrganization') }}</span>
+                <div style="font-size: 12px; color: var(--arl-text-color); opacity: 0.7; margin-top: 4px; font-weight: normal; line-height: 1.5;">
+                  {{ availableTransferGroups.length > 0 ? assetText('assets.transferToOtherOrganizationDesc') : assetText('assets.noOtherOrganizationAvailable') }}
+                </div>
+
+                <div v-if="deleteGroupForm.action === 'transfer'" style="margin-top: 10px;" @click.stop>
+                  <a-select
+                    v-model:value="deleteGroupForm.target_group_id"
+                    :placeholder="assetText('assets.selectTargetOrganization')"
+                    style="width: 100%;"
+                    :getPopupContainer="getBodyContainer"
+                  >
+                    <a-select-option v-for="g in availableTransferGroups" :key="g._id" :value="g._id">
+                      {{ g.name }} ({{ assetText('assets.assetGroupCount', { count: g.scope_count || 0 }) }})
+                    </a-select-option>
+                  </a-select>
+                </div>
+              </div>
+            </a-radio>
+          </div>
+        </a-radio-group>
+      </div>
+
+      <template #footer>
+        <a-space>
+          <a-button @click="deleteGroupModalVisible = false">{{ assetText('assets.cancel') }}</a-button>
+          <a-button
+            type="primary"
+            danger
+            :loading="deleteGroupLoading"
+            :disabled="deleteGroupForm.action === 'transfer' && !deleteGroupForm.target_group_id"
+            @click="confirmDeleteGroupWithDisposal"
+          >
+            {{ deleteGroupForm.action === 'transfer' ? assetText('assets.confirmTransferAndDelete') : assetText('assets.confirmDissolveAndDelete') }}
+          </a-button>
+        </a-space>
+      </template>
+    </a-modal>
     <a-modal
       v-model:open="icpImportModalVisible"
       :title="assetText('assets.importAssetsFromEnterpriseQuery')"
@@ -1781,22 +1881,40 @@ watch(activeGroupId, (newVal) => {
   fetchData();
 });
 
-// Group Actions
-const handleGroupAction = (e, group) => {
+// 集团上下文与删除处置状态
+const currentGroupObj = computed(() => {
+  return groupList.value.find(x => x._id === activeGroupId.value);
+});
+
+const deleteGroupModalVisible = ref(false);
+const deleteGroupLoading = ref(false);
+const deleteGroupTarget = ref(null);
+const deleteGroupForm = reactive({
+  action: 'dissolve',
+  target_group_id: undefined
+});
+
+const availableTransferGroups = computed(() => {
+  if (!deleteGroupTarget.value) return [];
+  return groupList.value.filter(g => g._id !== deleteGroupTarget.value._id);
+});
+
+const handleCurrentGroupDropdownClick = (e) => {
+  const group = currentGroupObj.value;
+  if (!group) return;
   if (e.key === 'edit') {
     enterpriseGroupForm.isEdit = true;
     enterpriseGroupForm._id = group._id;
     enterpriseGroupForm.name = group.name;
     enterpriseGroupModalVisible.value = true;
   } else if (e.key === 'delete') {
-    if (group.scope_count > 0) {
-      Modal.warning({
-        title: assetText('assets.cannotDeleteOrganizationGroup'),
-        content: assetText('assets.organizationGroupNameStillContainsCountAssetGroups', { name: group.name, count: group.scope_count }),
-        okText: assetText('assets.gotIt')
-      });
-      return;
-    }
+    triggerDeleteGroup(group);
+  }
+};
+
+const triggerDeleteGroup = (group) => {
+  if (!group) return;
+  if ((group.scope_count || 0) === 0) {
     Modal.confirm({
       title: assetText('assets.deleteOrganizationGroup'),
       content: assetText('assets.permanentlyDeleteEmptyOrganizationGroupNameThisCannot', { name: group.name }),
@@ -1805,21 +1923,87 @@ const handleGroupAction = (e, group) => {
       cancelText: assetText('assets.cancel'),
       onOk: async () => {
         try {
-          const res = await request.post('/asset_group/delete/', { _id: group._id });
+          const res = await request.post('/asset_group/delete/', { _id: group._id, action: 'dissolve' });
           if (res.code === 200) {
             message.success(assetText('assets.organizationGroupDeleted'));
             if (activeGroupId.value === group._id) {
               activeGroupId.value = 'all'; // Fallback focus
             }
-            fetchGroups();
+            await fetchGroups();
           } else {
             message.error(res.message || assetText('tasks.deletionFailedLabel'));
           }
-        } catch(err) {
+        } catch (err) {
           message.error(assetText('tasks.requestFailed'));
         }
       }
     });
+  } else {
+    deleteGroupTarget.value = group;
+    deleteGroupForm.action = 'dissolve';
+    deleteGroupForm.target_group_id = undefined;
+    deleteGroupModalVisible.value = true;
+  }
+};
+
+const confirmDeleteGroupWithDisposal = async () => {
+  if (!deleteGroupTarget.value) return;
+  const targetId = deleteGroupTarget.value._id;
+  const isCurrentActive = activeGroupId.value === targetId;
+  const action = deleteGroupForm.action;
+  const targetGroupId = deleteGroupForm.target_group_id;
+
+  if (action === 'transfer' && !targetGroupId) {
+    message.warning(assetText('assets.selectTargetOrganization'));
+    return;
+  }
+
+  deleteGroupLoading.value = true;
+  try {
+    const payload = {
+      _id: targetId,
+      action: action
+    };
+    if (action === 'transfer') {
+      payload.target_group_id = targetGroupId;
+    }
+    const res = await request.post('/asset_group/delete/', payload);
+    if (res.code === 200) {
+      message.success(assetText('assets.organizationGroupDeleted'));
+      deleteGroupModalVisible.value = false;
+
+      // 智能上下文流转
+      if (isCurrentActive) {
+        if (action === 'transfer') {
+          activeGroupId.value = targetGroupId;
+        } else {
+          activeGroupId.value = 'unassigned';
+        }
+      } else {
+        if (['all', 'unassigned', targetGroupId].includes(activeGroupId.value)) {
+          fetchData();
+        }
+      }
+      await fetchGroups();
+    } else {
+      message.error(res.message || assetText('tasks.deletionFailedLabel'));
+    }
+  } catch (err) {
+    message.error(assetText('tasks.requestFailed'));
+  } finally {
+    deleteGroupLoading.value = false;
+  }
+};
+
+// Group Actions
+const handleGroupAction = (e, group) => {
+  if (e.key === 'edit') {
+    enterpriseGroupForm.isEdit = true;
+    enterpriseGroupForm._id = group._id;
+    enterpriseGroupForm.name = group.name;
+    enterpriseGroupModalVisible.value = true;
+  } else if (e.key === 'delete') {
+    triggerDeleteGroup(group);
   }
 };
 
