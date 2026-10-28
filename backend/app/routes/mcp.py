@@ -111,414 +111,7 @@ class MCPTaskDetailExport(Resource):
         return response
 
 
-def _clean_empty(val):
-    """递归剥离字典/列表中的空值，最小化上下文 Token 占用"""
-    if isinstance(val, dict):
-        cleaned = {k: _clean_empty(v) for k, v in val.items()}
-        return {k: v for k, v in cleaned.items() if v not in (None, "", [], {})}
-    if isinstance(val, list):
-        cleaned = [_clean_empty(v) for v in val]
-        return [v for v in cleaned if v not in (None, "", [], {})]
-    if isinstance(val, str):
-        s = val.strip()
-        return s if s and s not in ("-", "None", "null") else None
-    if isinstance(val, ObjectId):
-        return None
-    return val
-
-
-def build_asset_profile(target: str, task_id: str = ""):
-    """全链路资产画像聚合器：单次查询跨集合关联 IP、端口服务、Web指纹、证书、漏洞与泄露"""
-    import re
-    import ipaddress
-    from urllib.parse import urlparse
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    target = target.strip()
-    if not target:
-        return {"code": 400, "message": "Target parameter is required"}
-
-    # 1. 规范化输入标的（支持 IPv4 / IPv6 / 域名 / URL）
-    def _is_valid_ip(val: str) -> bool:
-        if not val:
-            return False
-        try:
-            ipaddress.ip_address(val.strip("[]"))
-            return True
-        except ValueError:
-            return False
-
-    is_ip = _is_valid_ip(target)
-    hostname = None
-    target_ip = None
-    url_target = None
-
-    if "://" in target or target.startswith(("http:", "https:")):
-        parsed = urlparse(target)
-        hostname = (parsed.hostname or "").strip("[]").lower()
-        url_target = target
-        if _is_valid_ip(hostname):
-            target_ip = hostname
-    elif is_ip:
-        target_ip = target.strip("[]")
-    else:
-        if ":" in target and not target.startswith("[") and not target.endswith(":"):
-            hostname = target.split(":", 1)[0].strip()
-        else:
-            hostname = target.strip("[]").strip()
-        # 防御形如 example.com/api/v1 的无协议头 URL 路径残留
-        hostname = hostname.split("/")[0].strip().rstrip(".").lower()
-
-    task_filter = {}
-    if task_id and len(task_id) == 24:
-        task_filter["task_id"] = task_id
-
-    profile = {"target": target}
-    resolved_ips = set()
-    if target_ip:
-        resolved_ips.add(target_ip)
-
-    related_domains = set()
-    if hostname:
-        related_domains.add(hostname)
-
-    # 2. DNS / Domain 解析层
-    if hostname:
-        domain_query = {"domain": hostname, **task_filter}
-        domain_docs = list(utils.conn_db('domain').find(domain_query).sort("_id", -1).limit(5))
-        if not domain_docs and not task_filter:
-            domain_docs = list(utils.conn_db('asset_domain').find({"domain": hostname}).sort("_id", -1).limit(5))
-
-        for doc in domain_docs:
-            ips = doc.get("ips") or []
-            if isinstance(ips, list):
-                for ip in ips:
-                    if isinstance(ip, str) and ip.strip():
-                        resolved_ips.add(ip.strip())
-            elif isinstance(ips, str) and ips.strip():
-                resolved_ips.add(ips.strip())
-
-            rec_val = doc.get("record_value") or doc.get("record")
-            if rec_val:
-                if isinstance(rec_val, list):
-                    for v in rec_val:
-                        if isinstance(v, str) and _is_valid_ip(v.strip()):
-                            resolved_ips.add(v.strip())
-                elif isinstance(rec_val, str) and _is_valid_ip(rec_val.strip()):
-                    resolved_ips.add(rec_val.strip())
-    elif is_ip:
-        domain_query = {"$or": [{"ips": target_ip}, {"record_value": target_ip}, {"record": target_ip}], **task_filter}
-        domain_docs = list(utils.conn_db('domain').find(domain_query).sort("_id", -1).limit(10))
-        if not domain_docs and not task_filter:
-            domain_docs = list(utils.conn_db('asset_domain').find({"$or": [{"ips": target_ip}, {"record_value": target_ip}, {"record": target_ip}]}).sort("_id", -1).limit(10))
-        for doc in domain_docs:
-            d = doc.get("domain")
-            if d:
-                related_domains.add(d)
-
-    if resolved_ips:
-        profile["resolved_ips"] = sorted(list(resolved_ips))
-    if related_domains and not hostname:
-        profile["related_domains"] = sorted(list(related_domains))
-
-    all_ips_to_query = list(resolved_ips)
-
-    # 构造左锚定（Left-Anchored）URL 正则，利用 B-Tree 索引前缀加速，规避无锚点正则全表扫描
-    dom_url_prefix = None
-    if hostname:
-        escaped_dom = re.escape(hostname)
-        dom_url_prefix = f"^https?://(?:[^/@:]*@)?(?:[a-zA-Z0-9.-]+\\.)?{escaped_dom}(?::\\d+)?(?:/|$)"
-
-    ips_url_prefix = None
-    if all_ips_to_query:
-        valid_ips = [re.escape(ip) for ip in all_ips_to_query[:15] if ip]
-        if valid_ips:
-            ips_url_prefix = f"^https?://(?:[^/@:]*@)?(?:{'|'.join(valid_ips)})(?::\\d+)?(?:/|$)"
-
-    url_prefixes = [p for p in (dom_url_prefix, ips_url_prefix) if p]
-    combined_url_prefix = "|".join(url_prefixes) if url_prefixes else f"^https?://(?:[^/@:]*@)?{re.escape(target)}(?::\\d+)?(?:/|$)"
-
-    exact_targets = {target}
-    if hostname:
-        exact_targets.add(hostname)
-    if url_target:
-        exact_targets.add(url_target)
-    for ip in all_ips_to_query:
-        exact_targets.add(ip)
-    exact_target_list = list(exact_targets)
-
-    # 3~6. 并行查询 IP/服务、Web站点/证书、漏洞、文件泄露与 WIH
-    def _fetch_network():
-        ports_map = {}
-        geo_parts = []
-        asn_info = None
-        os_info_name = None
-        if not all_ips_to_query:
-            return geo_parts, asn_info, os_info_name, ports_map
-
-        ip_query = {"ip": {"$in": all_ips_to_query}, **task_filter}
-        ip_docs = list(utils.conn_db('ip').find(ip_query).sort("_id", -1).limit(20))
-        if not ip_docs and not task_filter:
-            ip_docs = list(utils.conn_db('asset_ip').find({"ip": {"$in": all_ips_to_query}}).sort("_id", -1).limit(20))
-
-        for doc in ip_docs:
-            if not geo_parts:
-                geo = doc.get("geo_city", {})
-                if isinstance(geo, dict):
-                    parts = [p for p in [geo.get("country_name"), geo.get("region_name"), geo.get("city")] if p and str(p) not in ('None', 'null', '0')]
-                    clean_geo = []
-                    for g in parts:
-                        if not clean_geo or clean_geo[-1] != g:
-                            clean_geo.append(g)
-                    if clean_geo:
-                        geo_parts = clean_geo
-            if not asn_info:
-                asn = doc.get("geo_asn", {})
-                if isinstance(asn, dict) and asn.get("organization"):
-                    asn_info = asn.get("organization")
-            if not os_info_name:
-                os_doc = doc.get("os_info", {})
-                if isinstance(os_doc, dict) and os_doc.get("name"):
-                    os_info_name = os_doc.get("name")
-            port_list = doc.get("port_info", [])
-            if isinstance(port_list, list):
-                for p in port_list:
-                    if isinstance(p, dict) and "port_id" in p:
-                        pid = p.get("port_id")
-                        ports_map[pid] = {
-                            "port": pid,
-                            "service": p.get("service_name"),
-                            "product": p.get("product"),
-                            "version": p.get("version")
-                        }
-
-        service_query = {"$or": [{"service_info.ip": {"$in": all_ips_to_query}}, {"ip": {"$in": all_ips_to_query}}], **task_filter}
-        srv_docs = list(utils.conn_db('service').find(service_query).sort("_id", -1).limit(50))
-        for s in srv_docs:
-            srv_info = s.get("service_info", {}) if isinstance(s.get("service_info"), dict) else {}
-            pid = srv_info.get("port_id") or s.get("port")
-            if pid:
-                p_item = ports_map.get(pid, {"port": pid})
-                p_item["service"] = s.get("service_name") or srv_info.get("service_name") or p_item.get("service")
-                p_item["product"] = srv_info.get("product") or s.get("product") or p_item.get("product")
-                p_item["version"] = srv_info.get("version") or s.get("version") or p_item.get("version")
-                ports_map[pid] = p_item
-        return geo_parts, asn_info, os_info_name, ports_map
-
-    def _fetch_web_and_cert():
-        site_conditions = []
-        if hostname:
-            site_conditions.append({"hostname": hostname})
-            site_conditions.append({"site": {"$regex": f"^https?://{re.escape(hostname)}(:[0-9]+)?(/.*)?$"}})
-        if target_ip:
-            site_conditions.append({"ip": target_ip})
-        elif resolved_ips:
-            site_conditions.append({"ip": {"$in": list(resolved_ips)}})
-        if url_target:
-            site_conditions.append({"site": url_target})
-
-        web_list = []
-        cert_list = []
-        seen_sites = set()
-
-        if site_conditions:
-            site_query = {"$or": site_conditions, **task_filter}
-            site_docs = list(utils.conn_db('site').find(site_query, {"favicon.data": 0, "body": 0, "header": 0}).sort("_id", -1).limit(20))
-            if not site_docs and not task_filter:
-                site_docs = list(utils.conn_db('asset_site').find({"$or": site_conditions}, {"favicon.data": 0, "body": 0, "header": 0}).sort("_id", -1).limit(20))
-
-            for s in site_docs:
-                s_url = s.get("site")
-                if not s_url or s_url in seen_sites:
-                    continue
-                seen_sites.add(s_url)
-
-                fingers = []
-                f_data = s.get("finger", [])
-                if isinstance(f_data, list):
-                    for f in f_data:
-                        if isinstance(f, dict) and f.get("name"):
-                            fingers.append(f.get("name"))
-                        elif isinstance(f, str) and f.strip():
-                            fingers.append(f.strip())
-
-                web_list.append({
-                    "url": s_url,
-                    "status": s.get("status"),
-                    "title": s.get("title"),
-                    "fingerprints": fingers
-                })
-
-                ssl_info = s.get("ssl_cert", {})
-                if isinstance(ssl_info, dict) and ssl_info:
-                    cert_item = {
-                        "subject": ssl_info.get("subject_dn") or ssl_info.get("subject"),
-                        "issuer": ssl_info.get("issuer_dn") or ssl_info.get("issuer"),
-                        "sans": ssl_info.get("extensions", {}).get("subjectAltName") if isinstance(ssl_info.get("extensions"), dict) else None,
-                        "end_date": ssl_info.get("validity", {}).get("end") if isinstance(ssl_info.get("validity"), dict) else None
-                    }
-                    if any(cert_item.values()):
-                        cert_list.append(cert_item)
-
-        if not cert_list and (hostname or all_ips_to_query):
-            cert_query = {"$or": [{"ip": {"$in": all_ips_to_query}}], **task_filter}
-            cert_docs = list(utils.conn_db('cert').find(cert_query).sort("_id", -1).limit(5))
-            for c in cert_docs:
-                c_data = c.get("cert", {}) if isinstance(c.get("cert"), dict) else {}
-                cert_item = {
-                    "subject": c_data.get("subject_dn") or c_data.get("subject"),
-                    "issuer": c_data.get("issuer_dn") or c_data.get("issuer"),
-                    "sans": c_data.get("extensions", {}).get("subjectAltName") if isinstance(c_data.get("extensions"), dict) else None,
-                    "end_date": c_data.get("validity", {}).get("end") if isinstance(c_data.get("validity"), dict) else None
-                }
-                if any(cert_item.values()):
-                    cert_list.append(cert_item)
-                    break
-        return web_list, cert_list
-
-    def _fetch_vulns():
-        vulns_list = []
-        vuln_or = [
-            {"target": {"$in": exact_target_list}},
-            {"target": {"$regex": combined_url_prefix, "$options": "i"}},
-            {"url": {"$regex": combined_url_prefix, "$options": "i"}},
-        ]
-        if hostname:
-            vuln_or.append({"target": {"$regex": f"^{re.escape(hostname)}(?::\\d+)?$", "$options": "i"}})
-
-        vuln_query = {"$or": vuln_or, **task_filter}
-        vuln_docs = list(utils.conn_db('vuln').find(vuln_query).sort("_id", -1).limit(100))
-        if not vuln_docs and not task_filter:
-            vuln_docs = list(utils.conn_db('asset_vuln').find({"$or": vuln_or}).sort("_id", -1).limit(100))
-        for v in vuln_docs:
-            vulns_list.append({
-                "name": v.get("vul_name") or v.get("vuln_name"),
-                "category": v.get("vul_category") or v.get("vuln_type"),
-                "severity": v.get("severity", "high"),
-                "target": v.get("target")
-            })
-
-        nuclei_or = [
-            {"target": {"$in": exact_target_list}},
-            {"host": {"$in": exact_target_list}},
-            {"target": {"$regex": combined_url_prefix, "$options": "i"}},
-            {"vuln_url": {"$regex": combined_url_prefix, "$options": "i"}},
-        ]
-        nuclei_query = {"$or": nuclei_or, **task_filter}
-        nuclei_docs = list(utils.conn_db('nuclei_result').find(nuclei_query).sort("_id", -1).limit(100))
-        if not nuclei_docs and not task_filter:
-            nuclei_docs = list(utils.conn_db('asset_nuclei_result').find({"$or": nuclei_or}).sort("_id", -1).limit(100))
-        for n in nuclei_docs:
-            vulns_list.append({
-                "name": n.get("vuln_name"),
-                "severity": n.get("vuln_severity"),
-                "target": n.get("vuln_url") or n.get("target"),
-                "plugin": "nuclei"
-            })
-        return vulns_list
-
-    def _fetch_leaks():
-        leaks_list = []
-        leak_or = [
-            {"url": {"$in": exact_target_list}},
-            {"url": {"$regex": combined_url_prefix, "$options": "i"}},
-        ]
-        leak_query = {"$or": leak_or, **task_filter}
-        leak_docs = list(utils.conn_db('fileleak').find(leak_query).sort("_id", -1).limit(50))
-        if not leak_docs and not task_filter:
-            leak_docs = list(utils.conn_db('asset_fileleak').find({"$or": leak_or}).sort("_id", -1).limit(50))
-        for lk in leak_docs:
-            leaks_list.append({
-                "url": lk.get("url"),
-                "title": lk.get("title"),
-                "status": lk.get("status_code")
-            })
-
-        wih_or = [
-            {"site": {"$in": exact_target_list}},
-            {"site": {"$regex": combined_url_prefix, "$options": "i"}},
-            {"url": {"$regex": combined_url_prefix, "$options": "i"}},
-        ]
-        wih_query = {"$or": wih_or, **task_filter}
-        wih_docs = list(utils.conn_db('wih').find(wih_query).sort("_id", -1).limit(50))
-        if not wih_docs and not task_filter:
-            wih_docs = list(utils.conn_db('asset_wih').find({"$or": wih_or}).sort("_id", -1).limit(50))
-        for w in wih_docs:
-            leaks_list.append({
-                "type": w.get("record_type"),
-                "content": w.get("content")
-            })
-        return leaks_list
-
-    tasks = {
-        "network": _fetch_network,
-        "web_cert": _fetch_web_and_cert,
-        "vulns": _fetch_vulns,
-        "leaks": _fetch_leaks,
-    }
-    task_results = {}
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        future_map = {executor.submit(fn): name for name, fn in tasks.items()}
-        for future in as_completed(future_map):
-            name = future_map[future]
-            try:
-                task_results[name] = future.result()
-            except Exception as ex:
-                logger.warning(f"MCP build_asset_profile subtask {name} error: {ex}")
-
-    geo_parts, asn_info, os_info_name, ports_map = task_results.get("network", ([], None, None, {}))
-    if geo_parts:
-        profile["geo"] = "/".join(geo_parts)
-    if asn_info:
-        profile["asn"] = asn_info
-    if os_info_name:
-        profile["os"] = os_info_name
-    if ports_map:
-        sorted_ports = sorted(ports_map.values(), key=lambda x: x.get("port", 0))
-        if len(sorted_ports) > 100:
-            profile["ports"] = sorted_ports[:100]
-            profile["_meta_ports_total"] = len(sorted_ports)
-            profile["_meta_ports_truncated"] = True
-        else:
-            profile["ports"] = sorted_ports
-
-    web_list, cert_list = task_results.get("web_cert", ([], []))
-    if web_list:
-        profile["web"] = web_list[0] if len(web_list) == 1 else web_list
-    if cert_list:
-        profile["cert"] = cert_list[0] if len(cert_list) == 1 else cert_list
-
-    vulns_list = task_results.get("vulns", [])
-    if vulns_list:
-        seen_vuln = set()
-        dedup_vulns = []
-        for v in vulns_list:
-            key = (v.get("name"), v.get("target"))
-            if key not in seen_vuln:
-                seen_vuln.add(key)
-                dedup_vulns.append(v)
-        if len(dedup_vulns) > 100:
-            profile["vulns"] = dedup_vulns[:100]
-            profile["_meta_vulns_total"] = len(dedup_vulns)
-            profile["_meta_vulns_truncated"] = True
-        else:
-            profile["vulns"] = dedup_vulns
-
-    leaks_list = task_results.get("leaks", [])
-    if leaks_list:
-        profile["leaks"] = leaks_list
-
-    # 7. 递归剔除 null 与空结构
-    clean_profile = _clean_empty(profile)
-
-    if not clean_profile or list(clean_profile.keys()) == ["target"]:
-        return {
-            "status": "not_found",
-            "target": target,
-            "tip": "未在 ARL 检索到该资产记录"
-        }
-
-    return clean_profile
+from app.mcp_asset import build_asset_profile, _clean_empty
 
 
 @ns.route('/asset_profile')
@@ -607,8 +200,10 @@ class MCPExportServer(Resource):
             return {'code': 400, 'message': 'Invalid server origin'}, 400
 
         # Serialize values as Python-compatible JSON string literals, never source.
-        if user_token:
-            content = content.replace('DEFAULT_TOKEN = ""', 'DEFAULT_TOKEN = ' + json.dumps(user_token))
+        raw_key = request.args.get("raw_key", "").strip()
+        effective_token = raw_key or user_token
+        if effective_token:
+            content = content.replace('DEFAULT_TOKEN = ""', 'DEFAULT_TOKEN = ' + json.dumps(effective_token))
         if host:
             content = content.replace('DEFAULT_HOST = ""', 'DEFAULT_HOST = ' + json.dumps(host))
 
@@ -617,3 +212,399 @@ class MCPExportServer(Resource):
         response.headers['Content-Disposition'] = 'attachment; filename="arl_mcp.py"'
         response.headers['Cache-Control'] = 'private, no-store'
         return response
+
+
+@ns.route('/overview')
+class MCPOverview(Resource):
+    @auth
+    def get(self):
+        """MCP 治理中心状态大盘与调用统计概览"""
+        try:
+            from datetime import datetime, timedelta, timezone
+            now = datetime.now(timezone.utc)
+            today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+            seven_days_ago = now - timedelta(days=7)
+
+            # 今日调用量
+            today_calls = utils.conn_db('mcp_log').count_documents({"created_at": {"$gte": today_start}})
+            # 7日累计调用量
+            week_calls = utils.conn_db('mcp_log').count_documents({"created_at": {"$gte": seven_days_ago}})
+            # 总 Key 数与活跃 Key 数
+            total_keys = utils.conn_db('mcp_key').count_documents({})
+            active_keys = utils.conn_db('mcp_key').count_documents({"status": "active"})
+            # 24小时内异常数
+            yesterday = now - timedelta(days=1)
+            error_calls = utils.conn_db('mcp_log').count_documents({"created_at": {"$gte": yesterday}, "status": {"$ne": "success"}})
+
+            # 近 7 天趋势聚合
+            pipeline_trend = [
+                {"$match": {"created_at": {"$gte": seven_days_ago}}},
+                {
+                    "$group": {
+                        "_id": {
+                            "$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}
+                        },
+                        "count": {"$sum": 1}
+                    }
+                },
+                {"$sort": {"_id": 1}}
+            ]
+            trend_raw = list(utils.conn_db('mcp_log').aggregate(pipeline_trend))
+            trend_map = {item["_id"]: item["count"] for item in trend_raw if "_id" in item}
+            trend_dates = []
+            for i in range(6, -1, -1):
+                d_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+                trend_dates.append({"date": d_str, "count": trend_map.get(d_str, 0)})
+
+            # 热门工具 Top 5
+            pipeline_tools = [
+                {"$group": {"_id": "$tool_name", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 5}
+            ]
+            top_tools = [{"tool": item["_id"], "count": item["count"]} for item in utils.conn_db('mcp_log').aggregate(pipeline_tools) if item.get("_id")]
+
+            return {
+                "code": 200,
+                "message": "success",
+                "data": {
+                    "today_calls": today_calls,
+                    "week_calls": week_calls,
+                    "total_keys": total_keys,
+                    "active_keys": active_keys,
+                    "error_calls_24h": error_calls,
+                    "trend": trend_dates,
+                    "top_tools": top_tools,
+                    "service_status": "running"
+                }
+            }
+        except Exception as e:
+            logger.error(f"MCPOverview error: {e}", exc_info=True)
+            return {"code": 500, "message": str(e)}, 500
+
+
+@ns.route('/keys')
+class MCPKeys(Resource):
+    @auth
+    def get(self):
+        """分页获取 MCP API Key 列表"""
+        try:
+            page = int(request.args.get('page', 1))
+            size = int(request.args.get('size', 10))
+            keyword = request.args.get('keyword', '').strip()
+        except ValueError:
+            page = 1
+            size = 10
+            keyword = ''
+
+        query = {}
+        if keyword:
+            query["$or"] = [
+                {"name": {"$regex": keyword, "$options": "i"}},
+                {"key_prefix": {"$regex": keyword, "$options": "i"}}
+            ]
+
+        total = utils.conn_db('mcp_key').count_documents(query)
+        cursor = utils.conn_db('mcp_key').find(query, {"key_hash": 0}).sort("created_at", -1).skip((page - 1) * size).limit(size)
+        items = []
+        from datetime import datetime
+        for doc in cursor:
+            created_at = doc.get("created_at")
+            if isinstance(created_at, datetime):
+                created_at = created_at.strftime('%Y-%m-%d %H:%M:%S')
+            expire_at = doc.get("expire_at")
+            if isinstance(expire_at, datetime):
+                expire_at = expire_at.strftime('%Y-%m-%d %H:%M:%S')
+            last_used_at = doc.get("last_used_at")
+            if isinstance(last_used_at, datetime):
+                last_used_at = last_used_at.strftime('%Y-%m-%d %H:%M:%S')
+
+            items.append({
+                "id": str(doc["_id"]),
+                "name": doc.get("name", ""),
+                "key_prefix": doc.get("key_prefix", ""),
+                "scopes": doc.get("scopes", ["asset:read"]),
+                "status": doc.get("status", "active"),
+                "expire_at": expire_at,
+                "created_at": created_at,
+                "created_by": doc.get("created_by", "admin"),
+                "last_used_at": last_used_at,
+                "last_ip": doc.get("last_ip")
+            })
+
+        return {
+            "code": 200,
+            "message": "success",
+            "data": {
+                "items": items,
+                "total": total,
+                "page": page,
+                "size": size
+            }
+        }
+
+    @auth
+    def post(self):
+        """创建新的 MCP API Key（仅在创建响应中返回明文密钥）"""
+        import secrets
+        import hashlib
+        from datetime import datetime, timedelta, timezone
+        data = request.json or {}
+        name = str(data.get("name", "")).strip()
+        if not name:
+            return {"code": 400, "message": "Key name is required"}, 400
+        if len(name) > 50:
+            return {"code": 400, "message": "Key name is too long (max 50 chars)"}, 400
+
+        scopes = data.get("scopes", ["asset:read"])
+        if not isinstance(scopes, list) or not scopes:
+            scopes = ["asset:read"]
+
+        expire_days = data.get("expire_days", 0)
+        expire_at = None
+        if isinstance(expire_days, (int, float)) and expire_days > 0:
+            expire_at = datetime.now(timezone.utc) + timedelta(days=expire_days)
+
+        # 生成安全随机密钥
+        raw_token = secrets.token_urlsafe(24)
+        raw_key = f"arl_mcp_{raw_token}"
+        key_prefix = raw_key[:12] + "..."
+        key_hash = hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+        # 检查当前用户身份
+        user_token = request.headers.get("Token", "")
+        current_username = "admin"
+        try:
+            u_doc = utils.conn_db('user').find_one({'token': user_token})
+            if u_doc:
+                current_username = u_doc.get("username", "admin")
+        except Exception:
+            pass
+
+        key_doc = {
+            "name": name,
+            "key_prefix": key_prefix,
+            "key_hash": key_hash,
+            "scopes": scopes,
+            "status": "active",
+            "expire_at": expire_at,
+            "created_at": datetime.now(timezone.utc),
+            "created_by": current_username,
+            "last_used_at": None,
+            "last_ip": None
+        }
+        res = utils.conn_db('mcp_key').insert_one(key_doc)
+
+        return {
+            "code": 200,
+            "message": "Key created successfully",
+            "data": {
+                "id": str(res.inserted_id),
+                "name": name,
+                "key_prefix": key_prefix,
+                "raw_key": raw_key,
+                "scopes": scopes,
+                "expire_at": expire_at.strftime('%Y-%m-%d %H:%M:%S') if expire_at else None
+            }
+        }
+
+
+@ns.route('/keys/<string:key_id>/status')
+class MCPKeyStatus(Resource):
+    @auth
+    def post(self, key_id):
+        """变更 API Key 状态（启用/停用/吊销）"""
+        if not key_id or len(key_id) != 24:
+            return {"code": 400, "message": "Invalid key_id"}, 400
+
+        from datetime import datetime, timezone
+        data = request.json or {}
+        new_status = data.get("status")
+        if new_status not in ("active", "revoked"):
+            return {"code": 400, "message": "Invalid status. Allowed: active, revoked"}, 400
+
+        res = utils.conn_db('mcp_key').update_one(
+            {"_id": ObjectId(key_id)},
+            {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc)}}
+        )
+        if res.matched_count == 0:
+            return {"code": 404, "message": "Key not found"}, 404
+
+        return {"code": 200, "message": f"Key status updated to {new_status}"}
+
+
+@ns.route('/keys/<string:key_id>')
+class MCPKeyDelete(Resource):
+    @auth
+    def delete(self, key_id):
+        """删除指定 API Key"""
+        if not key_id or len(key_id) != 24:
+            return {"code": 400, "message": "Invalid key_id"}, 400
+
+        res = utils.conn_db('mcp_key').delete_one({"_id": ObjectId(key_id)})
+        if res.deleted_count == 0:
+            return {"code": 404, "message": "Key not found"}, 404
+
+        return {"code": 200, "message": "Key deleted successfully"}
+
+
+@ns.route('/logs')
+class MCPLogs(Resource):
+    @auth
+    def get(self):
+        """多条件分页查询 MCP 审计日志"""
+        try:
+            page = int(request.args.get('page', 1))
+            size = int(request.args.get('size', 10))
+        except ValueError:
+            page = 1
+            size = 10
+
+        tool_name = request.args.get('tool_name', '').strip()
+        status = request.args.get('status', '').strip()
+        target = request.args.get('target', '').strip()
+        key_id = request.args.get('key_id', '').strip()
+
+        query = {}
+        if tool_name:
+            query["tool_name"] = tool_name
+        if status:
+            query["status"] = status
+        if target:
+            query["target"] = {"$regex": target, "$options": "i"}
+        if key_id:
+            query["key_id"] = key_id
+
+        total = utils.conn_db('mcp_log').count_documents(query)
+        cursor = utils.conn_db('mcp_log').find(query).sort("created_at", -1).skip((page - 1) * size).limit(size)
+
+        from datetime import datetime
+        items = []
+        for doc in cursor:
+            created_at = doc.get("created_at")
+            if isinstance(created_at, datetime):
+                created_at = created_at.strftime('%Y-%m-%d %H:%M:%S')
+
+            items.append({
+                "id": str(doc["_id"]),
+                "key_id": doc.get("key_id", ""),
+                "key_name": doc.get("key_name", ""),
+                "client_ip": doc.get("client_ip", ""),
+                "tool_name": doc.get("tool_name", ""),
+                "target": doc.get("target", ""),
+                "params_summary": doc.get("params_summary", ""),
+                "status": doc.get("status", "success"),
+                "duration_ms": doc.get("duration_ms", 0),
+                "summary": doc.get("summary", ""),
+                "error_message": doc.get("error_message", ""),
+                "created_at": created_at
+            })
+
+        return {
+            "code": 200,
+            "message": "success",
+            "data": {
+                "items": items,
+                "total": total,
+                "page": page,
+                "size": size
+            }
+        }
+
+
+@ns.route('/logs/export')
+class MCPLogsExport(Resource):
+    @auth
+    def get(self):
+        """导出 MCP 调用审计日志为 CSV"""
+        tool_name = request.args.get('tool_name', '').strip()
+        status = request.args.get('status', '').strip()
+        target = request.args.get('target', '').strip()
+
+        query = {}
+        if tool_name:
+            query["tool_name"] = tool_name
+        if status:
+            query["status"] = status
+        if target:
+            query["target"] = {"$regex": target, "$options": "i"}
+
+        cursor = utils.conn_db('mcp_log').find(query).sort("created_at", -1).limit(5000)
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["调用时间", "密钥名称", "来源IP", "工具名称", "查询标的", "执行状态", "耗时(ms)", "返回摘要", "异常信息"])
+
+        from datetime import datetime
+        for doc in cursor:
+            c_at = doc.get("created_at")
+            if isinstance(c_at, datetime):
+                c_at = c_at.strftime('%Y-%m-%d %H:%M:%S')
+            writer.writerow([
+                csv_literal(c_at or ""),
+                csv_literal(doc.get("key_name", "")),
+                csv_literal(doc.get("client_ip", "")),
+                csv_literal(doc.get("tool_name", "")),
+                csv_literal(doc.get("target", "")),
+                csv_literal(doc.get("status", "")),
+                csv_literal(str(doc.get("duration_ms", 0))),
+                csv_literal(doc.get("summary", "")),
+                csv_literal(doc.get("error_message", ""))
+            ])
+
+        response = make_response("\ufeff" + output.getvalue())
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = 'attachment; filename="mcp_audit_logs.csv"'
+        return response
+
+
+@ns.route('/config')
+class MCPConfig(Resource):
+    @auth
+    def get(self):
+        """获取 MCP 全局配置与工具开关"""
+        cfg = utils.conn_db('mcp_config').find_one({"_id": "global"})
+        if not cfg:
+            cfg = {
+                "tool_switches": {
+                    "get_asset_profile": True,
+                    "search_assets": True,
+                    "get_task_status": True,
+                    "create_scan_task": False,
+                    "stop_scan_task": False
+                },
+                "max_search_limit": 50,
+                "rate_limit_per_min": 120
+            }
+        return {
+            "code": 200,
+            "message": "success",
+            "data": {
+                "tool_switches": cfg.get("tool_switches", {}),
+                "max_search_limit": cfg.get("max_search_limit", 50),
+                "rate_limit_per_min": cfg.get("rate_limit_per_min", 120)
+            }
+        }
+
+    @auth
+    def post(self):
+        """保存 MCP 全局配置与工具开关"""
+        data = request.json or {}
+        tool_switches = data.get("tool_switches")
+        max_search_limit = data.get("max_search_limit")
+        rate_limit_per_min = data.get("rate_limit_per_min")
+
+        update_set = {"updated_at": utils.curr_date()}
+        if isinstance(tool_switches, dict):
+            update_set["tool_switches"] = tool_switches
+        if isinstance(max_search_limit, int) and 1 <= max_search_limit <= 200:
+            update_set["max_search_limit"] = max_search_limit
+        if isinstance(rate_limit_per_min, int) and 10 <= rate_limit_per_min <= 1000:
+            update_set["rate_limit_per_min"] = rate_limit_per_min
+
+        utils.conn_db('mcp_config').update_one(
+            {"_id": "global"},
+            {"$set": update_set},
+            upsert=True
+        )
+        return {"code": 200, "message": "Configuration saved successfully"}

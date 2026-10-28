@@ -27,6 +27,7 @@ services:
       - ./frontend/default.conf.prod:/etc/nginx/conf.d/default.conf
     depends_on:
       - arl-web
+      - arl-mcp
     networks:
       - arl-net
 
@@ -79,6 +80,25 @@ services:
     networks:
       - arl-net
 
+  # MCP 远程协议与 AI Agent 接入专属微服务 (原生异步长连接与渐进式工具调度)
+  arl-mcp:
+    <<: *default-logging
+    image: crpi-laul1izptqrf0tkf.cn-beijing.personal.cr.aliyuncs.com/owl234-arl-prod/arl-web:latest
+    container_name: arl-mcp-prod
+    restart: always
+    mem_reservation: 64m
+    command: bash -c "/code/backend/start_mcp_prod.sh"
+    working_dir: /code
+    environment:
+      - TZ=Asia/Shanghai
+      - DEBIAN_FRONTEND=noninteractive
+      - NO_PROXY=localhost,127.0.0.1,osint-service,mongodb,rabbitmq
+      - ARL_MCP_ENABLE_DISPATCH=${ARL_MCP_ENABLE_DISPATCH:-false}
+    depends_on:
+      - mongodb
+      - rabbitmq
+    networks:
+      - arl-net
 
   # 后台扫描任务 Worker
   arl-worker:

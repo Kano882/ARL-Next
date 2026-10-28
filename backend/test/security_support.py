@@ -60,6 +60,7 @@ def app_env(monkeypatch, tmp_path):
     for name in ('auth', 'user_login', 'user_login_header', 'user_logout', 'user_refresh_token', 'change_pass'):
         setattr(utils, name, getattr(user, name))
     load_source(monkeypatch, 'app.utils.download_ticket', 'app/utils/download_ticket.py')
+    load_source(monkeypatch, 'app.mcp_asset', 'app/mcp_asset.py')
     arlupdate = types.ModuleType('app.utils.arlupdate')
     arlupdate.create_index = Mock()
     monkeypatch.setitem(sys.modules, arlupdate.__name__, arlupdate)

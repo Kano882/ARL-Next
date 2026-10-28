@@ -230,6 +230,17 @@ def create_index():
                 # 为 task_id 建立索引，防止前端查看任务日志时触发全表扫描（COLLSCAN）拖垮系统
                 conn_db('syslog').create_index([("task_id", 1)], background=True)
 
+                # MCP 审计日志 TTL (30天自动清理) 与复合索引
+                try:
+                    conn_db('mcp_log').create_index([("created_at", 1)], expireAfterSeconds=2592000, background=True)
+                    conn_db('mcp_log').create_index([("created_at", -1), ("tool_name", 1)], background=True)
+                    conn_db('mcp_log').create_index([("key_id", 1)], background=True)
+                    conn_db('mcp_key').create_index([("key_hash", 1)], unique=True, background=True)
+                    conn_db('mcp_key').create_index([("status", 1)], background=True)
+                    conn_db('mcp_key').create_index([("created_at", -1)], background=True)
+                except Exception as mcp_ex:
+                    logging.getLogger().warning(f"Failed to create mcp indexes: {mcp_ex}")
+
                 # 安全清理历史残留的失效 create_time_1 索引（整型时间戳无法触发 MongoDB 原生 TTL 监控）
                 try:
                     existing_indexes = conn_db('dict_upload_task').index_information()
@@ -1254,6 +1265,31 @@ def migrate_user_sessions():
     conn_db('download_ticket').create_index('expire_at', expireAfterSeconds=0, background=True)
 
 
+def ensure_mcp_governance_schema():
+    """初始化并平滑补齐 MCP 服务治理默认配置与工具开关"""
+    try:
+        cfg_col = conn_db('mcp_config')
+        cfg_col.update_one(
+            {"_id": "global"},
+            {"$setOnInsert": {
+                "tool_switches": {
+                    "get_asset_profile": True,
+                    "search_assets": True,
+                    "get_task_status": True,
+                    "create_scan_task": False,
+                    "stop_scan_task": False
+                },
+                "max_search_limit": 50,
+                "rate_limit_per_min": 120,
+                "updated_at": curr_date()
+            }},
+            upsert=True
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger().warning(f"ensure_mcp_governance_schema failed: {e}")
+
+
 def arl_update():
     if is_run_flask_routes():
         return
@@ -1328,6 +1364,7 @@ def arl_update():
         _run_step("update_policy_schema", update_policy_schema)
         _run_step("heal_stale_updating_icp_tasks", heal_stale_updating_icp_tasks)
         _run_step("migrate_icp_auto_group_intent", migrate_icp_auto_group_intent)
+        _run_step("ensure_mcp_governance_schema", ensure_mcp_governance_schema)
         db.update_one({"_id": "init_lock"}, {"$set": {"status": "idle", "last_completed_at": time.time()}})
     except Exception as e:
         import logging

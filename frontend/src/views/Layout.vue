@@ -141,11 +141,34 @@
       :title="pageText('pages.aiAssistantMcpClientConfiguration')"
       @cancel="showMcpModal = false"
       :footer="null"
-      width="640px"
+      width="680px"
       wrapClassName="arl-theme-modal"
       rootClassName="arl-theme-modal"
   >
-    <div style="margin-bottom: 16px;">
+    <!-- 模式切换 -->
+    <div style="margin-bottom: 16px; display: flex; justify-content: center;">
+      <a-radio-group v-model:value="mcpMode" button-style="solid" @change="updateMcpConfigJson">
+        <a-radio-button value="sse">{{ pageText('pages.mcpModeRemoteSse') }}</a-radio-button>
+        <a-radio-button value="stdio">{{ pageText('pages.mcpModeLocalStdio') }}</a-radio-button>
+      </a-radio-group>
+    </div>
+
+    <!-- 远程直连模式在 IP / 自签环境下的友好告警 -->
+    <div v-if="mcpMode === 'sse' && isIpAccess" style="margin-bottom: 14px;">
+      <a-alert
+        type="warning"
+        show-icon
+        :message="pageText('pages.mcpSseIpWarning')"
+      />
+    </div>
+
+    <!-- 模式 1: 远程直连说明 -->
+    <div v-if="mcpMode === 'sse'" style="margin-bottom: 10px;">
+      <p class="page-section-gap">{{ pageText('pages.mcpSseStepDesc') }}</p>
+    </div>
+
+    <!-- 模式 2: 本地脚本导出步骤 -->
+    <div v-else style="margin-bottom: 16px;">
       <p class="page-section-gap">{{ pageText('pages.connectAiAssistantsSuchAsCcSwitchClaudeCode') }}</p>
       <div :style="{ background: hasBgImage ? 'rgba(0,0,0,0.15)' : 'var(--arl-bg-light)', border: hasBgImage ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--arl-border-color)', borderRadius: '6px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }">
         <div>
@@ -156,10 +179,9 @@
           {{ pageText('pages.downloadArlMcpPy') }}
         </a-button>
       </div>
-    </div>
-
-    <div style="margin-bottom: 8px; font-size: 13px; font-weight: 500;">
-      {{ pageText('pages.step2CopyTheConfigurationIntoYourClient') }} <code>"mcpServers"</code> {{ pageText('pages.node') }}
+      <div style="margin-top: 14px; margin-bottom: 8px; font-size: 13px; font-weight: 500;">
+        {{ pageText('pages.step2CopyTheConfigurationIntoYourClient') }} <code>"mcpServers"</code> {{ pageText('pages.node') }}
+      </div>
     </div>
 
     <div style="position: relative;">
@@ -178,8 +200,15 @@
     </div>
 
     <div style="margin-top: 14px; font-size: 12px; color: var(--arl-text-color); opacity: 0.75; line-height: 1.6;">
-      💡 <b>{{ pageText('pages.noEnvironmentSetupNeeded') }}</b>{{ pageText('pages.theScriptIncludesAccessCredentialsAndAssumesItIs') }} <code>~/Downloads/arl_mcp.py</code>{{ pageText('pages.ifItIsSavedElsewhereUpdate') }} <code>args</code> {{ pageText('pages.toTheActualAbsolutePathOnWindowsUse') }} <code>python</code> {{ pageText('pages.message') }}<br/>
+      <template v-if="mcpMode === 'stdio'">
+        💡 <b>{{ pageText('pages.noEnvironmentSetupNeeded') }}</b>{{ pageText('pages.theScriptIncludesAccessCredentialsAndAssumesItIs') }} <code>~/Downloads/arl_mcp.py</code>{{ pageText('pages.ifItIsSavedElsewhereUpdate') }} <code>args</code> {{ pageText('pages.toTheActualAbsolutePathOnWindowsUse') }} <code>python</code> {{ pageText('pages.message') }}<br/>
+      </template>
       🔒 <b>{{ pageText('pages.credentialSecurity') }}</b>{{ pageText('pages.theExportedScriptContainsAPrivilegedApiTokenFor') }}
+      <div style="margin-top: 8px; text-align: right;">
+        <a href="https://github.com/owl234/ARL-Next/tree/main/mcp-server" target="_blank" rel="noopener noreferrer" style="font-size: 12px; color: var(--ant-primary-color, #1890ff);">
+          📖 {{ pageText('pages.mcpDocGuide') }}
+        </a>
+      </div>
     </div>
   </a-modal>
 
@@ -741,21 +770,46 @@ const handleCancelChangePass = () => {
 
 /* ---------- 新增：MCP 接入逻辑 ---------- */
 const showMcpModal = ref(false);
+const mcpMode = ref('sse');
+const isIpAccess = ref(false);
 const mcpConfigJson = ref('');
 const isDownloadingScript = ref(false);
 
+const updateMcpConfigJson = () => {
+  const token = localStorage.getItem('token') || '';
+  const host = window.location.origin;
+
+  if (mcpMode.value === 'sse') {
+    const sseConfig = {
+      "arl-next": {
+        "url": `${host}/mcp/sse`,
+        "headers": {
+          "Authorization": `Bearer ${token}`
+        }
+      }
+    };
+    const jsonStr = JSON.stringify(sseConfig, null, 2);
+    mcpConfigJson.value = jsonStr.substring(2, jsonStr.length - 2).trim();
+  } else {
+    const stdioConfig = {
+      "arl-next": {
+        "command": "python3",
+        "args": [
+          "~/Downloads/arl_mcp.py"
+        ]
+      }
+    };
+    const jsonStr = JSON.stringify(stdioConfig, null, 2);
+    mcpConfigJson.value = jsonStr.substring(2, jsonStr.length - 2).trim();
+  }
+};
+
 const handleShowMcpModal = () => {
-  const config = {
-    "arl-next": {
-      "command": "python3",
-      "args": [
-        "~/Downloads/arl_mcp.py"
-      ]
-    }
-  };
-  // 去除最外层的 {} 使其更容易直接粘贴到已有的 mcpServers 对象内部
-  const jsonStr = JSON.stringify(config, null, 2);
-  mcpConfigJson.value = jsonStr.substring(2, jsonStr.length - 2).trim();
+  const hostname = window.location.hostname;
+  const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname) || hostname === 'localhost' || hostname === '127.0.0.1';
+  isIpAccess.value = isIp;
+  mcpMode.value = isIp ? 'stdio' : 'sse';
+  updateMcpConfigJson();
   showMcpModal.value = true;
 };
 
@@ -834,7 +888,7 @@ const refreshMcpToken = async () => {
     if (res.code === 200 && res.data && res.data.token) {
       localStorage.setItem('token', res.data.token);
       message.success(pageText('pages.tokenInvalidatedAndRefreshedDownloadANewClientScript'));
-      handleShowMcpModal(); // 重新生成配置展示
+      updateMcpConfigJson(); // 重新生成配置展示
     } else {
       message.error(res.message || pageText('pages.failedToRefreshToken'));
     }
