@@ -720,7 +720,12 @@ const overviewData = reactive({
   service_status: 'running'
 });
 
+const activeMetricFilter = ref('');
+const isLogDrawerVisible = ref(false);
+const selectedLog = ref(null);
+
 const logFilter = reactive({
+  time_range: undefined,
   tool_name: undefined,
   status: undefined,
   target: ''
@@ -738,8 +743,30 @@ const logColumns = [
   { title: pageText('pages.mcpLogTarget'), key: 'target' },
   { title: pageText('pages.mcpLogDuration'), key: 'duration_ms', width: 100 },
   { title: pageText('pages.mcpLogStatus'), key: 'status', width: 100 },
-  { title: pageText('pages.mcpLogSummary'), key: 'summary' }
+  { title: pageText('pages.mcpLogSummary'), key: 'summary' },
+  { title: pageText('pages.action'), key: 'action', width: 80, fixed: 'right' }
 ];
+
+const openLogDetail = (record) => {
+  selectedLog.value = record;
+  isLogDrawerVisible.value = true;
+};
+
+const handleCopyParams = async (params) => {
+  const text = formattedParams(params);
+  const ok = await copyText(text);
+  if (ok) message.success(pageText('pages.copySuccess'));
+};
+
+const formattedParams = (str) => {
+  if (!str) return '{}';
+  try {
+    const parsed = JSON.parse(str);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return str;
+  }
+};
 
 // 5. Tab 4: 工具策略
 const isSavingPolicy = ref(false);
