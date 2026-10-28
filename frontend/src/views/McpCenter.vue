@@ -910,7 +910,10 @@ const handleCreateKeySubmit = async () => {
       createKeyModalVisible.value = false;
       createdKeyPlaintext.value = res.data.data.raw_key;
       keySuccessModalVisible.value = true;
-      fetchKeys();
+      await fetchKeys();
+      if (res.data.data.id) {
+        selectedKeyId.value = res.data.data.id;
+      }
     } else {
       message.error(res?.data?.message || pageText('pages.failed'));
     }
@@ -950,6 +953,52 @@ const deleteKey = async (record) => {
   }
 };
 
+const toggleMetricFilter = (type) => {
+  if (activeMetricFilter.value === type) {
+    activeMetricFilter.value = '';
+    logFilter.time_range = undefined;
+    logFilter.status = undefined;
+  } else {
+    activeMetricFilter.value = type;
+    if (type === 'today') {
+      logFilter.time_range = 'today';
+      logFilter.status = undefined;
+    } else if (type === '7d') {
+      logFilter.time_range = '7d';
+      logFilter.status = undefined;
+    } else if (type === 'error_24h') {
+      logFilter.time_range = '24h';
+      logFilter.status = 'abnormal';
+    }
+  }
+  logPagination.page = 1;
+  fetchLogs();
+};
+
+const handleFilterTimeChange = () => {
+  syncActiveMetricCard();
+  logPagination.page = 1;
+  fetchLogs();
+};
+
+const handleFilterStatusChange = () => {
+  syncActiveMetricCard();
+  logPagination.page = 1;
+  fetchLogs();
+};
+
+const syncActiveMetricCard = () => {
+  if (logFilter.time_range === '24h' && logFilter.status === 'abnormal') {
+    activeMetricFilter.value = 'error_24h';
+  } else if (logFilter.time_range === 'today' && !logFilter.status) {
+    activeMetricFilter.value = 'today';
+  } else if (logFilter.time_range === '7d' && !logFilter.status) {
+    activeMetricFilter.value = '7d';
+  } else {
+    activeMetricFilter.value = '';
+  }
+};
+
 const fetchLogs = async () => {
   isLogsLoading.value = true;
   try {
@@ -957,6 +1006,7 @@ const fetchLogs = async () => {
       params: {
         page: logPagination.page,
         size: logPagination.size,
+        time_range: logFilter.time_range,
         tool_name: logFilter.tool_name,
         status: logFilter.status,
         target: logFilter.target
@@ -981,6 +1031,8 @@ const handleLogTableChange = (pagination) => {
 };
 
 const resetLogFilter = () => {
+  activeMetricFilter.value = '';
+  logFilter.time_range = undefined;
   logFilter.tool_name = undefined;
   logFilter.status = undefined;
   logFilter.target = '';
@@ -993,6 +1045,7 @@ const exportLogsCsv = async () => {
   try {
     const token = localStorage.getItem('token') || '';
     const query = new URLSearchParams();
+    if (logFilter.time_range) query.append('time_range', logFilter.time_range);
     if (logFilter.tool_name) query.append('tool_name', logFilter.tool_name);
     if (logFilter.status) query.append('status', logFilter.status);
     if (logFilter.target) query.append('target', logFilter.target);
@@ -1014,6 +1067,35 @@ const exportLogsCsv = async () => {
   }
 };
 
+// 工具安全策略脏状态感知
+const savedPolicySnapshot = ref('');
+
+const currentPolicySnapshot = computed(() => JSON.stringify({
+  switches: { ...toolSwitches },
+  max_search_limit: policyForm.max_search_limit,
+  rate_limit_per_min: policyForm.rate_limit_per_min
+}));
+
+const isPolicyDirty = computed(() => {
+  return savedPolicySnapshot.value !== '' && savedPolicySnapshot.value !== currentPolicySnapshot.value;
+});
+
+const policyDirtyCount = computed(() => {
+  if (!isPolicyDirty.value) return 0;
+  let count = 0;
+  try {
+    const saved = JSON.parse(savedPolicySnapshot.value);
+    for (const k in toolSwitches) {
+      if (saved.switches && toolSwitches[k] !== saved.switches[k]) count++;
+    }
+    if (policyForm.max_search_limit !== saved.max_search_limit) count++;
+    if (policyForm.rate_limit_per_min !== saved.rate_limit_per_min) count++;
+  } catch {
+    count = 1;
+  }
+  return count;
+});
+
 const fetchConfig = async () => {
   try {
     const res = await request.get('/mcp/config');
@@ -1022,6 +1104,11 @@ const fetchConfig = async () => {
       if (data.tool_switches) Object.assign(toolSwitches, data.tool_switches);
       if (data.max_search_limit) policyForm.max_search_limit = data.max_search_limit;
       if (data.rate_limit_per_min) policyForm.rate_limit_per_min = data.rate_limit_per_min;
+      savedPolicySnapshot.value = JSON.stringify({
+        switches: { ...toolSwitches },
+        max_search_limit: policyForm.max_search_limit,
+        rate_limit_per_min: policyForm.rate_limit_per_min
+      });
     }
   } catch (e) {
     console.error('fetchConfig error', e);
@@ -1038,6 +1125,7 @@ const savePolicyConfig = async () => {
     });
     if (res && res.data && res.data.code === 200) {
       message.success(pageText('pages.saveSuccess'));
+      savedPolicySnapshot.value = currentPolicySnapshot.value;
     } else {
       message.error(res?.data?.message || pageText('pages.failed'));
     }
@@ -1047,6 +1135,21 @@ const savePolicyConfig = async () => {
     isSavingPolicy.value = false;
   }
 };
+
+onBeforeRouteLeave(() => {
+  if (!isPolicyDirty.value) return true;
+  return new Promise((resolve) => {
+    Modal.confirm({
+      title: pageText('pages.unsavedConfigurationChangesLabel2'),
+      content: pageText('pages.thereAreCountUnsavedConfigurationChangesLeavingThisPage', { count: policyDirtyCount.value }),
+      okText: pageText('pages.discardChangesAndLeave'),
+      okType: 'danger',
+      cancelText: pageText('tasks.stayOnThisPage'),
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
+    });
+  });
+});
 
 const handleCopySnippet = async () => {
   const ok = await copyText(configSnippet.value);
@@ -1290,5 +1393,45 @@ onMounted(() => {
   font-size: 12px;
   color: var(--arl-text-secondary, #64748b);
   margin-top: 4px;
+}
+
+.interactive-metric {
+  cursor: pointer;
+  transition: all 0.25s ease;
+  user-select: none;
+}
+
+.interactive-metric:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.metric-active {
+  border-color: var(--arl-theme-color, #1890ff) !important;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
+  background: rgba(24, 144, 255, 0.02);
+}
+
+.detail-code-block {
+  background: #0f172a;
+  border-radius: 6px;
+  padding: 12px 16px;
+  color: #38bdf8;
+  font-family: 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+}
+
+.detail-summary-box {
+  background: var(--arl-bg-light, #f8fafc);
+  border: 1px solid var(--arl-border-color, #e2e8f0);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--arl-text-color, #334155);
+  line-height: 1.6;
 }
 </style>
